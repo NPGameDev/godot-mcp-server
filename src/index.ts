@@ -7,6 +7,8 @@ import * as nodeTools from "./tools/node.js";
 import * as scriptTools from "./tools/script.js";
 import * as editorTools from "./tools/editor.js";
 import * as runtimeTools from "./tools/runtime.js";
+import * as signalTools from "./tools/signals.js";
+import * as resourceTools from "./tools/resource.js";
 
 const port = process.env.GODOT_MCP_PORT ?? "6505";
 const runtimePort = process.env.GODOT_MCP_RUNTIME_PORT ?? "9090";
@@ -22,6 +24,8 @@ nodeTools.register(server, bridge);
 scriptTools.register(server, bridge);
 editorTools.register(server, bridge);
 runtimeTools.register(server, bridge);
+signalTools.register(server, bridge);
+resourceTools.register(server, bridge);
 
 async function shutdown(): Promise<void> {
   try {

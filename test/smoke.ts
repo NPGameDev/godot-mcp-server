@@ -5,6 +5,8 @@ import { nodeTools } from "../src/tools/node.js";
 import { scriptTools } from "../src/tools/script.js";
 import { editorTools } from "../src/tools/editor.js";
 import { runtimeTools } from "../src/tools/runtime.js";
+import { signalTools } from "../src/tools/signals.js";
+import { resourceTools } from "../src/tools/resource.js";
 import { BridgeError } from "../src/types.js";
 
 const HOST = "127.0.0.1";
@@ -80,10 +82,11 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-10 registers exactly 16 tools (tier-2 Mode B added 3).
-    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools];
-    if (allTools.length !== 16) fail(`tool count: expected 16, got ${allTools.length}`);
-    else pass(`tool count == 16`);
+    // Tool count — post-iter-11 registers exactly 22 tools (tier-3 added 6:
+    // signal_list/connect/disconnect/emit + resource_load + node_get_property_list).
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools];
+    if (allTools.length !== 22) fail(`tool count: expected 22, got ${allTools.length}`);
+    else pass(`tool count == 22`);
 
     // I2: tool description length
     for (const t of allTools) {
@@ -199,6 +202,69 @@ async function main(): Promise<void> {
       if (leaks.length > 0) fail(`project.get_settings leaked secret-like keys: ${leaks.join(", ")}`);
       else pass(`project.get_settings prefix=application/ -> ${settings.count} keys, 0 leaks`);
     }
+
+    // ---- Tier 3 (iter 11): signals, resource, property-list ---------------
+
+    // Create a dedicated probe — we don't want to mutate signal connections
+    // on anything the tier-1/2 smoke relies on. Cleanup lands at the end of
+    // this block.
+    const sig_create = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: "SignalProbe" }, 5000) as { path?: string; code?: string };
+    if (!sig_create?.path) fail(`scene.create_node SignalProbe: ${JSON.stringify(sig_create)}`);
+    const probePath = sig_create?.path ?? "SignalProbe";
+
+    // signal.list → Node base class exposes a known set of signals.
+    const sigList = await bridge.call("signal.list", { path: probePath }, 5000) as { signals?: { name?: string; args?: unknown[] }[]; code?: string };
+    if (!Array.isArray(sigList?.signals) || sigList.signals.length === 0) fail(`signal.list: ${JSON.stringify(sigList)}`);
+    else if (!sigList.signals.some((s) => s.name === "child_order_changed")) fail(`signal.list: expected child_order_changed among ${sigList.signals.map((s) => s.name).join(",")}`);
+    else pass(`signal.list -> ${sigList.signals.length} signals`);
+
+    // Round-trip: connect + ALREADY_EXISTS + disconnect + NOT_FOUND. Uses
+    // `child_order_changed` -> `notify_property_list_changed` — both
+    // no-arg, non-destructive, always present on Node.
+    const sigArgs = { source_path: probePath, signal: "child_order_changed", target_path: probePath, method: "notify_property_list_changed" };
+    const con1 = await bridge.call("signal.connect", sigArgs, 5000) as { ok?: boolean; code?: string };
+    if (!con1?.ok) fail(`signal.connect first: ${JSON.stringify(con1)}`);
+    const con2 = await bridge.call("signal.connect", sigArgs, 5000) as { code?: string };
+    if (con2?.code !== "ALREADY_EXISTS") fail(`signal.connect idempotency: expected ALREADY_EXISTS, got ${JSON.stringify(con2)}`);
+    else pass("signal.connect + ALREADY_EXISTS on repeat (I3)");
+
+    // signal.emit with no args on the connected signal — should just succeed.
+    const emitRes = await bridge.call("signal.emit", { path: probePath, signal: "child_order_changed", args: [] }, 5000) as { ok?: boolean; code?: string };
+    if (!emitRes?.ok) fail(`signal.emit: ${JSON.stringify(emitRes)}`);
+    else pass("signal.emit child_order_changed");
+
+    const dis1 = await bridge.call("signal.disconnect", sigArgs, 5000) as { ok?: boolean; code?: string };
+    if (!dis1?.ok) fail(`signal.disconnect first: ${JSON.stringify(dis1)}`);
+    const dis2 = await bridge.call("signal.disconnect", sigArgs, 5000) as { code?: string };
+    if (dis2?.code !== "NOT_FOUND") fail(`signal.disconnect repeat: expected NOT_FOUND, got ${JSON.stringify(dis2)}`);
+    else pass("signal.disconnect + NOT_FOUND on repeat");
+
+    // node.get_property_list on the probe. `name` is on Node but flagged
+    // USAGE_NO_EDITOR (shown in the Scene dock, not the inspector), so it's
+    // correctly absent here. Assert on `process_mode` which every Node
+    // exposes through the inspector.
+    const plist = await bridge.call("node.get_property_list", { path: probePath }, 5000) as { properties?: { name?: string; type?: number; hint?: number; hint_string?: string }[]; count?: number; code?: string };
+    if (!Array.isArray(plist?.properties) || typeof plist.count !== "number") {
+      fail(`node.get_property_list shape: ${JSON.stringify(plist)}`);
+    } else {
+      const names = new Set(plist.properties.map((p) => p.name));
+      if (!names.has("process_mode")) fail(`node.get_property_list: expected process_mode, got ${Array.from(names).slice(0, 5).join(",")}...`);
+      else pass(`node.get_property_list -> ${plist.count} props (incl process_mode)`);
+    }
+
+    // Clean up the signal probe.
+    await bridge.call("scene.delete_node", { path: probePath }, 5000);
+    pass(`SignalProbe cleanup`);
+
+    // resource.load on the dogfood icon.svg — exists, resolves to a Texture.
+    const res1 = await bridge.call("resource.load", { path: "res://icon.svg" }, 5000) as { class?: string; path?: string; metadata?: { width?: number; height?: number }; code?: string };
+    if (!res1?.class) fail(`resource.load icon.svg: ${JSON.stringify(res1)}`);
+    else if (!res1.metadata?.width || !res1.metadata.height) fail(`resource.load icon.svg: missing width/height in metadata: ${JSON.stringify(res1.metadata)}`);
+    else pass(`resource.load icon.svg -> class=${res1.class} ${res1.metadata.width}x${res1.metadata.height}`);
+
+    const res2 = await bridge.call("resource.load", { path: "res://does_not_exist_smoke.tres" }, 5000) as { code?: string };
+    if (res2?.code !== "NOT_FOUND") fail(`resource.load bogus: expected NOT_FOUND, got ${JSON.stringify(res2)}`);
+    else pass("resource.load bogus -> NOT_FOUND");
 
     // ---- Mode B (iter 10) --------------------------------------------------
     // Smoke can't reliably F5 the game from here, so we branch on a probe of

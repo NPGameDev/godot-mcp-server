@@ -16,6 +16,12 @@ export const nodeTools: ToolDef[] = [
     description: "Set a property on the node at path. Engine types pass as { type, ... } dicts (e.g. {type:'Vector2',x:0,y:0}).",
     inputSchema: { path: z.string(), property: z.string(), value: z.unknown() },
   },
+  {
+    name: "node_get_property_list",
+    method: "node.get_property_list",
+    description: "Introspect inspector-visible properties of a node. Returns [{ name, type, hint, hint_string }] filtered by PROPERTY_USAGE_EDITOR.",
+    inputSchema: { path: z.string() },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge): void {
