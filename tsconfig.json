@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "rootDir": "./src",
     "outDir": "./dist",
+    "types": ["node"],
     "strict": true,
     "noEmitOnError": true,
     "esModuleInterop": true,
