@@ -1,4 +1,6 @@
 import net from "node:net";
+import { WebSocketServer, WebSocket as WS } from "ws";
+import type { AddressInfo } from "node:net";
 import { createBridge } from "../src/bridge.js";
 import { sceneTools } from "../src/tools/scene.js";
 import { nodeTools } from "../src/tools/node.js";
@@ -39,6 +41,41 @@ The Godot toolkit editor must be running with the plugin enabled:
   3. Re-run \`npm run smoke\`.
 
 The smoke test does not launch Godot; it only verifies the plugin is reachable.`);
+}
+
+// Fake echo server for the iter-13 reconnect smoke. Echoes JSON-RPC
+// `echo` calls back with their params as result; tracks active peers so
+// `dropAll()` can simulate a plugin disable/re-enable without taking the
+// listener down (avoids same-port bind race after wss.close).
+async function makeFakeEchoServer(): Promise<{ port: number; dropAll: () => void; close: () => Promise<void> }> {
+  const wss = new WebSocketServer({ port: 0, host: "127.0.0.1" });
+  await new Promise<void>((res) => wss.once("listening", () => res()));
+  const sockets = new Set<WS>();
+  wss.on("connection", (sock) => {
+    sockets.add(sock);
+    sock.on("close", () => sockets.delete(sock));
+    sock.on("message", (data) => {
+      try {
+        const msg = JSON.parse(data.toString()) as { id?: unknown; method?: string; params?: unknown };
+        if (msg.method === "echo") {
+          sock.send(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: msg.params }));
+        }
+      } catch {
+        // ignore malformed
+      }
+    });
+  });
+  return {
+    port: (wss.address() as AddressInfo).port,
+    dropAll: () => {
+      for (const s of sockets) s.terminate();
+    },
+    close: () =>
+      new Promise<void>((res) => {
+        for (const s of sockets) s.terminate();
+        wss.close(() => res());
+      }),
+  };
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {
@@ -363,6 +400,39 @@ async function main(): Promise<void> {
         if (ge?.result !== 3) fail(`game.eval 1+2: expected 3, got ${JSON.stringify(ge)}`);
         else pass("game.eval 1+2 -> 3");
       }
+    }
+
+    // ---- Reconnect (iter 13) ---------------------------------------------
+    // Decoupled from Godot: a fake echo server on a free port. We terminate
+    // the connected peer (server keeps listening) to mimic plugin disable
+    // followed by re-enable. Bridge's auto-reconnect should pick the next
+    // backoff tick (~1s) and the post-cycle echo should round-trip.
+    const fake = await makeFakeEchoServer();
+    const fakeBridge = createBridge(`ws://127.0.0.1:${fake.port}`);
+    try {
+      const before = await fakeBridge.call("echo", { ping: "before" }, 5000);
+      if (!deepEqual(before, { ping: "before" })) {
+        fail(`reconnect: pre-cycle echo: ${JSON.stringify(before)}`);
+      } else {
+        pass("reconnect: pre-cycle echo via fake server");
+      }
+      // Drop the active peer; let the bridge process the close event.
+      // 100ms is enough on Windows for the WS close to propagate to ws's
+      // `on('close')` handler.
+      fake.dropAll();
+      await new Promise((res) => setTimeout(res, 100));
+      // Hot path: bridge waits up to 10s for reconnect; first backoff
+      // attempt fires at ~1s and succeeds because the server is still
+      // listening on the same port.
+      const after = await fakeBridge.call("echo", { ping: "after" }, 5000);
+      if (!deepEqual(after, { ping: "after" })) {
+        fail(`reconnect: post-cycle echo: ${JSON.stringify(after)}`);
+      } else {
+        pass("reconnect: post-cycle echo round-trip via auto-reconnect");
+      }
+    } finally {
+      await fakeBridge.close();
+      await fake.close();
     }
   } catch (err) {
     fail(`unexpected error: ${(err as Error).message}`);
