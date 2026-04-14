@@ -1,5 +1,7 @@
 import net from "node:net";
 import { createBridge } from "../src/bridge.js";
+import { sceneTools } from "../src/tools/scene.js";
+import { nodeTools } from "../src/tools/node.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GODOT_MCP_PORT ?? "6505");
@@ -57,18 +59,58 @@ async function main(): Promise<void> {
 
   const bridge = createBridge(`ws://${HOST}:${PORT}`);
   let failed = false;
-  try {
-    const payload = { t: Date.now(), nonce: "smoke-01" };
-    const result = await bridge.call("echo", payload, 5000);
-    if (!deepEqual(result, payload)) {
-      console.error("[smoke] FAIL echo: expected", payload, "got", result);
-      failed = true;
-    } else {
-      console.log("[smoke] PASS echo round-trip", payload);
-    }
-  } catch (err) {
-    console.error("[smoke] FAIL echo (error):", (err as Error).message);
+  const fail = (msg: string) => {
+    console.error(`[smoke] FAIL ${msg}`);
     failed = true;
+  };
+  const pass = (msg: string) => console.log(`[smoke] PASS ${msg}`);
+
+  try {
+    // echo round-trip (iter 05)
+    const payload = { t: Date.now(), nonce: "smoke-01" };
+    const echoResult = await bridge.call("echo", payload, 5000);
+    if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
+    else pass("echo round-trip");
+
+    // I2: tool description length
+    for (const t of [...sceneTools, ...nodeTools]) {
+      if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
+    }
+    pass("tool descriptions <200 chars");
+
+    // scene.get_tree
+    const tree = await bridge.call("scene.get_tree", null, 5000) as { name?: string; children?: unknown[]; code?: string };
+    if (tree && tree.code === "NO_SCENE") {
+      fail("scene.get_tree: NO_SCENE — open Main.tscn in the Godot editor (toolkit repo) before running smoke");
+    } else if (!tree || typeof tree.name !== "string" || !Array.isArray(tree.children)) {
+      fail(`scene.get_tree: unexpected shape ${JSON.stringify(tree)}`);
+    } else {
+      pass(`scene.get_tree root=${tree.name}`);
+    }
+
+    // scene.create_node idempotency
+    const nodeName = "SmokeProbe";
+    const c1 = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: nodeName }, 5000) as { path?: string; code?: string; error?: string };
+    if (!c1 || typeof c1.path !== "string") fail(`scene.create_node first call: ${JSON.stringify(c1)}`);
+    const c2 = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: nodeName }, 5000) as { path?: string; code?: string };
+    if (!c2 || c2.code !== "ALREADY_EXISTS" || c2.path !== c1.path) fail(`scene.create_node idempotency: ${JSON.stringify(c2)}`);
+    else pass(`scene.create_node idempotent at ${c2.path}`);
+
+    // node.set_property / node.get_property round-trip via editor_description (plain String)
+    const created = c1?.path ?? nodeName;
+    const marker = `smoke-${Date.now()}`;
+    const setRes = await bridge.call("node.set_property", { path: created, property: "editor_description", value: marker }, 5000) as { ok?: boolean; code?: string; error?: string };
+    if (!setRes?.ok) fail(`node.set_property: ${JSON.stringify(setRes)}`);
+    const getRes = await bridge.call("node.get_property", { path: created, property: "editor_description" }, 5000) as { value?: unknown; code?: string };
+    if (getRes?.value !== marker) fail(`node.get_property: expected ${marker} got ${JSON.stringify(getRes)}`);
+    else pass("node.set_property + node.get_property round-trip");
+
+    // scene.delete_node cleanup
+    const del = await bridge.call("scene.delete_node", { path: created }, 5000) as { ok?: boolean; code?: string };
+    if (!del?.ok) fail(`scene.delete_node: ${JSON.stringify(del)}`);
+    else pass("scene.delete_node cleanup");
+  } catch (err) {
+    fail(`unexpected error: ${(err as Error).message}`);
   } finally {
     await bridge.close();
   }
