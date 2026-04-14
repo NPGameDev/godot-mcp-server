@@ -22,6 +22,24 @@ export const editorTools: ToolDef[] = [
     description: "Capture a screenshot of the editor viewport. Returns image content inline. Optional save_path (res:// .png) also persists it to disk.",
     inputSchema: { save_path: z.string().optional() },
   },
+  {
+    name: "editor_reload_scripts",
+    method: "editor.reload_scripts",
+    description: "Rescan res:// and soft-reload already-loaded scripts so the editor picks up on-disk changes. Returns { ok: true }.",
+    inputSchema: {},
+  },
+  {
+    name: "scene_open",
+    method: "scene.open",
+    description: "Open a scene (.tscn / .scn) as the active edited scene. res:// only; NOT_FOUND if the file doesn't exist.",
+    inputSchema: { path: z.string() },
+  },
+  {
+    name: "project_get_settings",
+    method: "project.get_settings",
+    description: "List ProjectSettings keys + values. Optional prefix filter. Keys matching /password|token|secret|key/i are dropped (MVP filter — proper scrub lands iter 20).",
+    inputSchema: { prefix: z.string().optional() },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge): void {

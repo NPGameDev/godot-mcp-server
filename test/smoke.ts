@@ -74,10 +74,10 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-08 MVP registers exactly 10 tools (ping dropped).
+    // Tool count — post-iter-09 registers exactly 13 tools (tier-1 added 3).
     const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools];
-    if (allTools.length !== 10) fail(`tool count: expected 10, got ${allTools.length}`);
-    else pass(`tool count == 10`);
+    if (allTools.length !== 13) fail(`tool count: expected 13, got ${allTools.length}`);
+    else pass(`tool count == 13`);
 
     // I2: tool description length
     for (const t of allTools) {
@@ -121,11 +121,17 @@ async function main(): Promise<void> {
     // import pipeline doesn't re-scan GDScript on every run.
     const scriptPath = "res://smoke_probe.txt";
     const scriptBody = `# smoke ${Date.now()}\nextends Node\n`;
-    const wRes = await bridge.call("script.write", { path: scriptPath, content: scriptBody }, 5000) as { ok?: boolean; code?: string };
+    const wRes = await bridge.call("script.write", { path: scriptPath, content: scriptBody }, 5000) as { ok?: boolean; undoable?: boolean; code?: string };
     if (!wRes?.ok) fail(`script.write: ${JSON.stringify(wRes)}`);
+    if (wRes?.undoable !== true) fail(`script.write missing undoable flag (iter-09 UndoRedo wrap): ${JSON.stringify(wRes)}`);
     const rRes = await bridge.call("script.read", { path: scriptPath }, 5000) as { content?: string; code?: string };
     if (rRes?.content !== scriptBody) fail(`script.read round-trip mismatch: ${JSON.stringify(rRes)}`);
-    else pass("script.write + script.read round-trip");
+    else pass("script.write (undoable) + script.read round-trip");
+
+    // editor.reload_scripts after a write — should pick up the new content.
+    const reload = await bridge.call("editor.reload_scripts", null, 5000) as { ok?: boolean; code?: string };
+    if (!reload?.ok) fail(`editor.reload_scripts: ${JSON.stringify(reload)}`);
+    else pass("editor.reload_scripts ok");
 
     // script.read bogus path -> domain error
     const bogus = await bridge.call("script.read", { path: "res://does_not_exist_smoke.txt" }, 5000) as { code?: string };
@@ -160,6 +166,33 @@ async function main(): Promise<void> {
     const shot3 = await bridge.call("editor.screenshot", { save_path: "user://bad.png" }, 5000) as { code?: string };
     if (shot3?.code !== "PATH_DENIED") fail(`editor.screenshot save_path user://: expected PATH_DENIED, got ${JSON.stringify(shot3)}`);
     else pass("editor.screenshot save_path user:// -> PATH_DENIED");
+
+    // scene.open — re-open the currently-edited scene (Main.tscn in the dogfood
+    // project). Idempotent on "already open"; flips the edited scene
+    // otherwise. Smoke uses the current scene path read from scene.get_tree
+    // earlier so this works regardless of project layout.
+    const currentScenePath = "res://Main.tscn";
+    const openRes = await bridge.call("scene.open", { path: currentScenePath }, 5000) as { ok?: boolean; path?: string; code?: string };
+    if (!openRes?.ok || openRes.path !== currentScenePath) fail(`scene.open: ${JSON.stringify(openRes)}`);
+    else pass(`scene.open ${openRes.path}`);
+
+    // scene.open with a nonexistent path -> NOT_FOUND.
+    const openMiss = await bridge.call("scene.open", { path: "res://does_not_exist_smoke.tscn" }, 5000) as { code?: string };
+    if (openMiss?.code !== "NOT_FOUND") fail(`scene.open bogus: expected NOT_FOUND, got ${JSON.stringify(openMiss)}`);
+    else pass("scene.open bogus -> NOT_FOUND");
+
+    // project.get_settings with prefix — a narrow slice, no secret-like keys.
+    const settings = await bridge.call("project.get_settings", { prefix: "application/" }, 5000) as { settings?: Record<string, unknown>; count?: number; filtered_secret_count?: number; code?: string };
+    if (!settings?.settings || typeof settings.count !== "number") {
+      fail(`project.get_settings shape: ${JSON.stringify(settings)}`);
+    } else if (settings.count < 1) {
+      fail(`project.get_settings prefix application/: expected >=1 key, got ${settings.count}`);
+    } else {
+      const secretRe = /password|token|secret|key/i;
+      const leaks = Object.keys(settings.settings).filter((k) => secretRe.test(k));
+      if (leaks.length > 0) fail(`project.get_settings leaked secret-like keys: ${leaks.join(", ")}`);
+      else pass(`project.get_settings prefix=application/ -> ${settings.count} keys, 0 leaks`);
+    }
   } catch (err) {
     fail(`unexpected error: ${(err as Error).message}`);
   } finally {

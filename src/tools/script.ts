@@ -13,7 +13,7 @@ export const scriptTools: ToolDef[] = [
   {
     name: "script_write",
     method: "script.write",
-    description: "Write GDScript file content (res:// only). Overwrites existing files.",
+    description: "Write GDScript file (res:// only). Overwrites existing; integrates with editor UndoRedo so Ctrl-Z restores prior content (or deletes new files).",
     inputSchema: { path: z.string(), content: z.string() },
   },
 ];
