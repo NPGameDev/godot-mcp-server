@@ -10,7 +10,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "ATTRIBUTIONS.md"
   ],
   "engines": {
     "node": ">=20"
@@ -29,6 +30,7 @@
   "homepage": "https://github.com/NPGameDev/godot-mcp-server#readme",
   "scripts": {
     "build": "tsc",
+    "postbuild": "node scripts/add-shebang.mjs",
     "start": "node dist/index.js",
     "smoke": "tsx test/smoke.ts",
     "prepublishOnly": "npm run build"

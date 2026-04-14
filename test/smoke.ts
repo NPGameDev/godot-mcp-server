@@ -74,8 +74,13 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
+    // Tool count — post-iter-08 MVP registers exactly 10 tools (ping dropped).
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools];
+    if (allTools.length !== 10) fail(`tool count: expected 10, got ${allTools.length}`);
+    else pass(`tool count == 10`);
+
     // I2: tool description length
-    for (const t of [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools]) {
+    for (const t of allTools) {
       if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
     }
     pass("tool descriptions <200 chars");

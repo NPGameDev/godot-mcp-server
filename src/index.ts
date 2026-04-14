@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import { createBridge } from "./bridge.js";
 import * as sceneTools from "./tools/scene.js";
 import * as nodeTools from "./tools/node.js";
@@ -17,18 +16,6 @@ sceneTools.register(server, bridge);
 nodeTools.register(server, bridge);
 scriptTools.register(server, bridge);
 editorTools.register(server, bridge);
-
-server.registerTool(
-  "ping",
-  {
-    description: "Round-trip smoke test: sends {t:<ms>} to the Godot plugin's echo endpoint and returns what comes back.",
-    inputSchema: {},
-  },
-  async () => {
-    const result = await bridge.call("echo", { t: Date.now() });
-    return { content: [{ type: "text", text: JSON.stringify(result) }] };
-  },
-);
 
 async function shutdown(): Promise<void> {
   try {
