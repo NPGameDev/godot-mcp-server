@@ -133,7 +133,7 @@ async function main(): Promise<void> {
     else pass(`editor.get_errors (stub=${errs.stub})`);
 
     // editor.screenshot -> inline base64 PNG, PNG magic bytes after decode.
-    const shot = await bridge.call("editor.screenshot", null, 10000) as { image_base64?: string; code?: string; error?: string; width?: number; height?: number; bytes?: number };
+    const shot = await bridge.call("editor.screenshot", {}, 10000) as { image_base64?: string; code?: string; error?: string; width?: number; height?: number; bytes?: number };
     if (!shot?.image_base64) {
       fail(`editor.screenshot: ${JSON.stringify(shot)}`);
     } else {
@@ -144,6 +144,17 @@ async function main(): Promise<void> {
         pass(`editor.screenshot PNG ${buf.length}B (${shot.width}x${shot.height}) inline`);
       }
     }
+
+    // editor.screenshot with save_path -> inline bytes + persisted file
+    const savePath = "res://smoke_screenshots/smoke.png";
+    const shot2 = await bridge.call("editor.screenshot", { save_path: savePath }, 10000) as { image_base64?: string; path?: string; code?: string };
+    if (shot2?.path !== savePath || !shot2.image_base64) fail(`editor.screenshot save_path: ${JSON.stringify(shot2)}`);
+    else pass(`editor.screenshot save_path -> ${shot2.path}`);
+
+    // reject non-res:// save_path
+    const shot3 = await bridge.call("editor.screenshot", { save_path: "user://bad.png" }, 5000) as { code?: string };
+    if (shot3?.code !== "PATH_DENIED") fail(`editor.screenshot save_path user://: expected PATH_DENIED, got ${JSON.stringify(shot3)}`);
+    else pass("editor.screenshot save_path user:// -> PATH_DENIED");
   } catch (err) {
     fail(`unexpected error: ${(err as Error).message}`);
   } finally {
