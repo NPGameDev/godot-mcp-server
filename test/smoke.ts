@@ -1,7 +1,10 @@
 import net from "node:net";
+import { readFile } from "node:fs/promises";
 import { createBridge } from "../src/bridge.js";
 import { sceneTools } from "../src/tools/scene.js";
 import { nodeTools } from "../src/tools/node.js";
+import { scriptTools } from "../src/tools/script.js";
+import { editorTools } from "../src/tools/editor.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GODOT_MCP_PORT ?? "6505");
@@ -73,7 +76,7 @@ async function main(): Promise<void> {
     else pass("echo round-trip");
 
     // I2: tool description length
-    for (const t of [...sceneTools, ...nodeTools]) {
+    for (const t of [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools]) {
       if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
     }
     pass("tool descriptions <200 chars");
@@ -105,7 +108,48 @@ async function main(): Promise<void> {
     if (getRes?.value !== marker) fail(`node.get_property: expected ${marker} got ${JSON.stringify(getRes)}`);
     else pass("node.set_property + node.get_property round-trip");
 
-    // scene.delete_node cleanup
+    // scene.delete_node is deferred to the end of this function — see note
+    // below. Under Godot 4.4.1 on Windows, deleting an editor-owned child
+    // leaves internal state that any subsequent file-write (`script.write`,
+    // or EditorFileSystem rescan) turns into a SIGSEGV.
+
+    // script.write + script.read round-trip. Use .txt so Godot's FileSystem
+    // import pipeline doesn't re-scan GDScript on every run.
+    const scriptPath = "res://smoke_probe.txt";
+    const scriptBody = `# smoke ${Date.now()}\nextends Node\n`;
+    const wRes = await bridge.call("script.write", { path: scriptPath, content: scriptBody }, 5000) as { ok?: boolean; code?: string };
+    if (!wRes?.ok) fail(`script.write: ${JSON.stringify(wRes)}`);
+    const rRes = await bridge.call("script.read", { path: scriptPath }, 5000) as { content?: string; code?: string };
+    if (rRes?.content !== scriptBody) fail(`script.read round-trip mismatch: ${JSON.stringify(rRes)}`);
+    else pass("script.write + script.read round-trip");
+
+    // script.read bogus path -> domain error
+    const bogus = await bridge.call("script.read", { path: "res://does_not_exist_smoke.txt" }, 5000) as { code?: string };
+    if (bogus?.code !== "NOT_FOUND") fail(`script.read bogus: expected NOT_FOUND, got ${JSON.stringify(bogus)}`);
+    else pass("script.read bogus path -> NOT_FOUND");
+
+    // editor.get_errors shape
+    const errs = await bridge.call("editor.get_errors", null, 5000) as { errors?: unknown[]; stub?: boolean };
+    if (!Array.isArray(errs?.errors)) fail(`editor.get_errors shape: ${JSON.stringify(errs)}`);
+    else pass(`editor.get_errors (stub=${errs.stub})`);
+
+    // editor.screenshot -> PNG magic bytes
+    const shot = await bridge.call("editor.screenshot", null, 10000) as { absolute_path?: string; code?: string; error?: string };
+    if (!shot?.absolute_path) {
+      fail(`editor.screenshot: ${JSON.stringify(shot)}`);
+    } else {
+      const buf = await readFile(shot.absolute_path);
+      if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) {
+        fail(`editor.screenshot: PNG magic bytes missing in ${shot.absolute_path}`);
+      } else {
+        pass(`editor.screenshot PNG ${buf.length}B at ${shot.absolute_path}`);
+      }
+    }
+
+    // Deferred scene.delete_node — must be the LAST bridge call because a
+    // Godot 4.4.1 Windows regression makes any post-delete file write
+    // SIGSEGV. Keeping delete last lets us exercise it without corrupting
+    // subsequent verifications. Revisit in iter 13 (reconnect) or earlier.
     const del = await bridge.call("scene.delete_node", { path: created }, 5000) as { ok?: boolean; code?: string };
     if (!del?.ok) fail(`scene.delete_node: ${JSON.stringify(del)}`);
     else pass("scene.delete_node cleanup");
