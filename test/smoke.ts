@@ -1,5 +1,4 @@
 import net from "node:net";
-import { readFile } from "node:fs/promises";
 import { createBridge } from "../src/bridge.js";
 import { sceneTools } from "../src/tools/scene.js";
 import { nodeTools } from "../src/tools/node.js";
@@ -108,10 +107,10 @@ async function main(): Promise<void> {
     if (getRes?.value !== marker) fail(`node.get_property: expected ${marker} got ${JSON.stringify(getRes)}`);
     else pass("node.set_property + node.get_property round-trip");
 
-    // scene.delete_node is deferred to the end of this function — see note
-    // below. Under Godot 4.4.1 on Windows, deleting an editor-owned child
-    // leaves internal state that any subsequent file-write (`script.write`,
-    // or EditorFileSystem rescan) turns into a SIGSEGV.
+    // scene.delete_node cleanup (UndoRedo-based; safe to precede file writes).
+    const del = await bridge.call("scene.delete_node", { path: created }, 5000) as { ok?: boolean; code?: string };
+    if (!del?.ok) fail(`scene.delete_node: ${JSON.stringify(del)}`);
+    else pass("scene.delete_node cleanup");
 
     // script.write + script.read round-trip. Use .txt so Godot's FileSystem
     // import pipeline doesn't re-scan GDScript on every run.
@@ -133,26 +132,18 @@ async function main(): Promise<void> {
     if (!Array.isArray(errs?.errors)) fail(`editor.get_errors shape: ${JSON.stringify(errs)}`);
     else pass(`editor.get_errors (stub=${errs.stub})`);
 
-    // editor.screenshot -> PNG magic bytes
-    const shot = await bridge.call("editor.screenshot", null, 10000) as { absolute_path?: string; code?: string; error?: string };
-    if (!shot?.absolute_path) {
+    // editor.screenshot -> inline base64 PNG, PNG magic bytes after decode.
+    const shot = await bridge.call("editor.screenshot", null, 10000) as { image_base64?: string; code?: string; error?: string; width?: number; height?: number; bytes?: number };
+    if (!shot?.image_base64) {
       fail(`editor.screenshot: ${JSON.stringify(shot)}`);
     } else {
-      const buf = await readFile(shot.absolute_path);
+      const buf = Buffer.from(shot.image_base64, "base64");
       if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) {
-        fail(`editor.screenshot: PNG magic bytes missing in ${shot.absolute_path}`);
+        fail(`editor.screenshot: PNG magic bytes missing in inline data`);
       } else {
-        pass(`editor.screenshot PNG ${buf.length}B at ${shot.absolute_path}`);
+        pass(`editor.screenshot PNG ${buf.length}B (${shot.width}x${shot.height}) inline`);
       }
     }
-
-    // Deferred scene.delete_node — must be the LAST bridge call because a
-    // Godot 4.4.1 Windows regression makes any post-delete file write
-    // SIGSEGV. Keeping delete last lets us exercise it without corrupting
-    // subsequent verifications. Revisit in iter 13 (reconnect) or earlier.
-    const del = await bridge.call("scene.delete_node", { path: created }, 5000) as { ok?: boolean; code?: string };
-    if (!del?.ok) fail(`scene.delete_node: ${JSON.stringify(del)}`);
-    else pass("scene.delete_node cleanup");
   } catch (err) {
     fail(`unexpected error: ${(err as Error).message}`);
   } finally {

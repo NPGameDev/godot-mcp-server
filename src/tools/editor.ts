@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { readFile } from "node:fs/promises";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Bridge } from "../types.js";
 import { ToolDef } from "./scene.js";
@@ -33,22 +32,21 @@ export function register(server: McpServer, bridge: Bridge): void {
         { description: tool.description, inputSchema: tool.inputSchema },
         async () => {
           const result = (await bridge.call(tool.method, {})) as {
-            absolute_path?: string;
-            path?: string;
+            image_base64?: string;
+            mime_type?: string;
             width?: number;
             height?: number;
             bytes?: number;
             code?: string;
             error?: string;
           };
-          if (result?.code || !result?.absolute_path) {
+          if (result?.code || !result?.image_base64) {
             return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
           }
-          const buf = await readFile(result.absolute_path);
           return {
             content: [
-              { type: "image" as const, data: buf.toString("base64"), mimeType: "image/png" },
-              { type: "text" as const, text: JSON.stringify({ path: result.path, width: result.width, height: result.height, bytes: result.bytes }) },
+              { type: "image" as const, data: result.image_base64, mimeType: result.mime_type ?? "image/png" },
+              { type: "text" as const, text: JSON.stringify({ width: result.width, height: result.height, bytes: result.bytes }) },
             ],
           };
         },
