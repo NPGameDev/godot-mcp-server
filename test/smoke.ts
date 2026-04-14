@@ -4,9 +4,12 @@ import { sceneTools } from "../src/tools/scene.js";
 import { nodeTools } from "../src/tools/node.js";
 import { scriptTools } from "../src/tools/script.js";
 import { editorTools } from "../src/tools/editor.js";
+import { runtimeTools } from "../src/tools/runtime.js";
+import { BridgeError } from "../src/types.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GODOT_MCP_PORT ?? "6505");
+const RUNTIME_PORT = Number(process.env.GODOT_MCP_RUNTIME_PORT ?? "9090");
 const PROBE_TIMEOUT_MS = 1000;
 
 async function probePort(host: string, port: number, timeoutMs: number): Promise<boolean> {
@@ -59,7 +62,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const bridge = createBridge(`ws://${HOST}:${PORT}`);
+  const bridge = createBridge(
+    `ws://${HOST}:${PORT}`,
+    `ws://${HOST}:${RUNTIME_PORT}`,
+  );
   let failed = false;
   const fail = (msg: string) => {
     console.error(`[smoke] FAIL ${msg}`);
@@ -74,10 +80,10 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-09 registers exactly 13 tools (tier-1 added 3).
-    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools];
-    if (allTools.length !== 13) fail(`tool count: expected 13, got ${allTools.length}`);
-    else pass(`tool count == 13`);
+    // Tool count — post-iter-10 registers exactly 16 tools (tier-2 Mode B added 3).
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools];
+    if (allTools.length !== 16) fail(`tool count: expected 16, got ${allTools.length}`);
+    else pass(`tool count == 16`);
 
     // I2: tool description length
     for (const t of allTools) {
@@ -192,6 +198,47 @@ async function main(): Promise<void> {
       const leaks = Object.keys(settings.settings).filter((k) => secretRe.test(k));
       if (leaks.length > 0) fail(`project.get_settings leaked secret-like keys: ${leaks.join(", ")}`);
       else pass(`project.get_settings prefix=application/ -> ${settings.count} keys, 0 leaks`);
+    }
+
+    // ---- Mode B (iter 10) --------------------------------------------------
+    // Smoke can't reliably F5 the game from here, so we branch on a probe of
+    // 127.0.0.1:9090. Without a running game, we assert all three runtime
+    // tools come back as GAME_NOT_RUNNING. With a running game, we assert
+    // the happy path succeeds.
+    const runtimeReachable = await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS);
+    if (!runtimeReachable) {
+      const modeBChecks: [string, unknown][] = [
+        ["runtime.screenshot", {}],
+        ["runtime.get_node_state", { path: "/root" }],
+        ["debugger.get_log", { limit: 50 }],
+      ];
+      for (const [method, params] of modeBChecks) {
+        try {
+          await bridge.callRuntime(method, params, 3000);
+          fail(`${method}: expected GAME_NOT_RUNNING when 9090 is down, but it succeeded`);
+        } catch (err) {
+          const code = err instanceof BridgeError ? err.code : "(unknown)";
+          if (code !== "GAME_NOT_RUNNING") fail(`${method}: expected GAME_NOT_RUNNING, got ${code}`);
+          else pass(`${method} -> GAME_NOT_RUNNING (game not started)`);
+        }
+      }
+    } else {
+      // Game is running — exercise the happy paths.
+      const shot = await bridge.callRuntime("runtime.screenshot", {}, 10000) as { image_base64?: string; width?: number; height?: number; code?: string };
+      if (!shot?.image_base64) fail(`runtime.screenshot: ${JSON.stringify(shot)}`);
+      else {
+        const buf = Buffer.from(shot.image_base64, "base64");
+        if (buf[0] !== 0x89 || buf[1] !== 0x50) fail("runtime.screenshot: PNG magic missing");
+        else pass(`runtime.screenshot PNG ${buf.length}B (${shot.width}x${shot.height})`);
+      }
+
+      const state = await bridge.callRuntime("runtime.get_node_state", { path: "/root" }, 5000) as { name?: string; class?: string; properties?: Record<string, unknown>; code?: string };
+      if (!state?.name || !state.properties) fail(`runtime.get_node_state /root: ${JSON.stringify(state)}`);
+      else pass(`runtime.get_node_state /root class=${state.class} props=${Object.keys(state.properties).length}`);
+
+      const log = await bridge.callRuntime("debugger.get_log", { limit: 50 }, 5000) as { lines?: string[]; count?: number; total?: number; code?: string };
+      if (!Array.isArray(log?.lines) || typeof log.count !== "number") fail(`debugger.get_log shape: ${JSON.stringify(log)}`);
+      else pass(`debugger.get_log -> ${log.count} of ${log.total} lines`);
     }
   } catch (err) {
     fail(`unexpected error: ${(err as Error).message}`);

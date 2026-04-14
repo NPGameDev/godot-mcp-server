@@ -1,5 +1,6 @@
 export interface Bridge {
   call(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
+  callRuntime(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
   close(): Promise<void>;
 }
 
