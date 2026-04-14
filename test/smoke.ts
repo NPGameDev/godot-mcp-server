@@ -7,6 +7,7 @@ import { editorTools } from "../src/tools/editor.js";
 import { runtimeTools } from "../src/tools/runtime.js";
 import { signalTools } from "../src/tools/signals.js";
 import { resourceTools } from "../src/tools/resource.js";
+import { diffTools } from "../src/tools/diff.js";
 import { BridgeError } from "../src/types.js";
 
 const HOST = "127.0.0.1";
@@ -82,11 +83,22 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-11 registers exactly 22 tools (tier-3 added 6:
-    // signal_list/connect/disconnect/emit + resource_load + node_get_property_list).
-    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools];
-    if (allTools.length !== 22) fail(`tool count: expected 22, got ${allTools.length}`);
-    else pass(`tool count == 22`);
+    // Tool count — post-iter-12 registers 25 tools by default (iter 11's 22
+    // + input_simulate + animation_player_control + scene_diff). With
+    // GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (26).
+    const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
+    const expectedToolCount = allowGameEval ? 26 : 25;
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...diffTools];
+    if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
+    else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
+
+    // game_eval gating contract (iter 12). Catalogue presence is the only
+    // safety surface here — the runtime command itself stays reachable on
+    // 9090 either way; iter 19 adds the proper FeatureGate.
+    const hasGameEval = runtimeTools.some((t) => t.name === "game_eval");
+    if (allowGameEval && !hasGameEval) fail("game_eval expected in runtimeTools when GODOT_MCP_ALLOW_GAME_EVAL=1");
+    else if (!allowGameEval && hasGameEval) fail("game_eval expected ABSENT from runtimeTools by default");
+    else pass(`game_eval gating consistent with env (${hasGameEval ? "registered" : "absent"})`);
 
     // I2: tool description length
     for (const t of allTools) {
@@ -266,7 +278,29 @@ async function main(): Promise<void> {
     if (res2?.code !== "NOT_FOUND") fail(`resource.load bogus: expected NOT_FOUND, got ${JSON.stringify(res2)}`);
     else pass("resource.load bogus -> NOT_FOUND");
 
-    // ---- Mode B (iter 10) --------------------------------------------------
+    // ---- scene_diff (iter 12, editor-side) --------------------------------
+    // Snapshot the tree, mutate, diff. The plugin returns a line-based JSON
+    // diff (added/removed lines from a stable pretty-print). MVP precision
+    // is "did anything change and is the new node mentioned?" — structural
+    // tree-diff is post-MVP per iter-12 plan.
+    const treeBefore = await bridge.call("scene.get_tree", null, 5000);
+    const dProbe = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: "DiffProbe" }, 5000) as { path?: string; code?: string };
+    if (!dProbe?.path) fail(`scene.create_node DiffProbe: ${JSON.stringify(dProbe)}`);
+    const diffRes = await bridge.call("scene.diff", { before: treeBefore }, 5000) as { changed?: boolean; diff?: string; added?: number; removed?: number; code?: string };
+    if (diffRes?.changed !== true) fail(`scene.diff after mutation: expected changed=true, got ${JSON.stringify(diffRes)}`);
+    else if (!diffRes.diff?.includes("DiffProbe")) fail(`scene.diff diff missing DiffProbe (truncated): ${diffRes.diff?.slice(0, 200)}`);
+    else pass(`scene.diff after create_node -> changed +${diffRes.added}/-${diffRes.removed}`);
+
+    // Idempotent: comparing a snapshot to itself returns changed=false.
+    const diffSelf = await bridge.call("scene.diff", { before: treeBefore, after: treeBefore }, 5000) as { changed?: boolean; code?: string };
+    if (diffSelf?.changed !== false) fail(`scene.diff(before,before): expected changed=false, got ${JSON.stringify(diffSelf)}`);
+    else pass("scene.diff(self) -> changed=false");
+
+    // Cleanup before Mode B section.
+    await bridge.call("scene.delete_node", { path: dProbe?.path ?? "DiffProbe" }, 5000);
+    pass("DiffProbe cleanup");
+
+    // ---- Mode B (iter 10 + iter 12) ---------------------------------------
     // Smoke can't reliably F5 the game from here, so we branch on a probe of
     // 127.0.0.1:9090. Without a running game, we assert all three runtime
     // tools come back as GAME_NOT_RUNNING. With a running game, we assert
@@ -277,7 +311,10 @@ async function main(): Promise<void> {
         ["runtime.screenshot", {}],
         ["runtime.get_node_state", { path: "/root" }],
         ["debugger.get_log", { limit: 50 }],
+        ["input.simulate", { event_type: "action", event_data: { action: "ui_accept" } }],
+        ["animation_player.control", { path: "/root/NoSuchAP", op: "pause" }],
       ];
+      if (allowGameEval) modeBChecks.push(["game.eval", { code: "1+2" }]);
       for (const [method, params] of modeBChecks) {
         try {
           await bridge.callRuntime(method, params, 3000);
@@ -305,6 +342,27 @@ async function main(): Promise<void> {
       const log = await bridge.callRuntime("debugger.get_log", { limit: 50 }, 5000) as { lines?: string[]; count?: number; total?: number; code?: string };
       if (!Array.isArray(log?.lines) || typeof log.count !== "number") fail(`debugger.get_log shape: ${JSON.stringify(log)}`);
       else pass(`debugger.get_log -> ${log.count} of ${log.total} lines`);
+
+      // input.simulate with a built-in action (`ui_accept`) — parse_input_event
+      // returning OK is the contract we test; we don't assert anyone consumed
+      // the event because the dogfood Main.tscn has no input listener.
+      const inp = await bridge.callRuntime("input.simulate", { event_type: "action", event_data: { action: "ui_accept", pressed: true } }, 5000) as { ok?: boolean; code?: string };
+      if (!inp?.ok) fail(`input.simulate ui_accept: ${JSON.stringify(inp)}`);
+      else pass("input.simulate action=ui_accept ok");
+
+      // animation_player.control bogus path exercises the NOT_FOUND branch.
+      // We can't assert play/pause without knowing the dogfood game has an
+      // AnimationPlayer (Main.tscn doesn't).
+      const apMiss = await bridge.callRuntime("animation_player.control", { path: "/root/NoSuchAP", op: "pause" }, 5000) as { code?: string };
+      if (apMiss?.code !== "NOT_FOUND") fail(`animation_player.control bogus: expected NOT_FOUND, got ${JSON.stringify(apMiss)}`);
+      else pass("animation_player.control bogus -> NOT_FOUND");
+
+      // game.eval round-trip — only when both env-gated AND game running.
+      if (allowGameEval) {
+        const ge = await bridge.callRuntime("game.eval", { code: "1+2" }, 5000) as { result?: unknown; code?: string };
+        if (ge?.result !== 3) fail(`game.eval 1+2: expected 3, got ${JSON.stringify(ge)}`);
+        else pass("game.eval 1+2 -> 3");
+      }
     }
   } catch (err) {
     fail(`unexpected error: ${(err as Error).message}`);

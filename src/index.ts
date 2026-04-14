@@ -9,6 +9,7 @@ import * as editorTools from "./tools/editor.js";
 import * as runtimeTools from "./tools/runtime.js";
 import * as signalTools from "./tools/signals.js";
 import * as resourceTools from "./tools/resource.js";
+import * as diffTools from "./tools/diff.js";
 
 const port = process.env.GODOT_MCP_PORT ?? "6505";
 const runtimePort = process.env.GODOT_MCP_RUNTIME_PORT ?? "9090";
@@ -26,6 +27,7 @@ editorTools.register(server, bridge);
 runtimeTools.register(server, bridge);
 signalTools.register(server, bridge);
 resourceTools.register(server, bridge);
+diffTools.register(server, bridge);
 
 async function shutdown(): Promise<void> {
   try {

@@ -27,7 +27,42 @@ export const runtimeTools: ToolDef[] = [
     description: "Return recent lines from the running game's log file (user://logs/godot.log). Optional limit (default 200).",
     inputSchema: { limit: z.number().int().positive().optional() },
   },
+  {
+    name: "input_simulate",
+    method: "input.simulate",
+    description: "Inject an input event into the running game (Mode B). event_type: key|mouse_button|mouse_motion|action; event_data shape varies. Returns { ok }.",
+    inputSchema: {
+      event_type: z.enum(["key", "mouse_button", "mouse_motion", "action"]),
+      event_data: z.unknown().optional(),
+    },
+  },
+  {
+    name: "animation_player_control",
+    method: "animation_player.control",
+    description: "Drive an AnimationPlayer in the running game. op: play|pause|stop|seek. Optional animation (play) or time (seek). Returns post-op state.",
+    inputSchema: {
+      path: z.string(),
+      op: z.enum(["play", "pause", "stop", "seek"]),
+      animation: z.string().optional(),
+      time: z.number().optional(),
+    },
+  },
 ];
+
+// game_eval is RCE-equivalent and intentionally absent from the catalogue
+// unless the user opts in via env var. Iter 19 generalises this into a
+// proper FeatureGate (dual-gate: env + ProjectSettings + per-tool consent).
+// The plugin-side handler (`game.eval` in mcp_runtime_server.gd) is always
+// listening on port 9090 — anyone with localhost access can reach it
+// directly. The gate here only controls MCP-catalogue exposure to Claude.
+if (process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1") {
+  runtimeTools.push({
+    name: "game_eval",
+    method: "game.eval",
+    description: "DANGER: evaluates GDScript via Expression in the running game's context. Disabled by default. Set GODOT_MCP_ALLOW_GAME_EVAL=1 to enable. See iter-19 for ProjectSettings gate.",
+    inputSchema: { code: z.string(), scope_path: z.string().optional() },
+  });
+}
 
 type TextResult = { content: { type: "text"; text: string }[]; isError?: boolean };
 type ImageOrErrorResult =
