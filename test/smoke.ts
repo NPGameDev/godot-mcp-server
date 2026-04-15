@@ -337,6 +337,106 @@ async function main(): Promise<void> {
     await bridge.call("scene.delete_node", { path: dProbe?.path ?? "DiffProbe" }, 5000);
     pass("DiffProbe cleanup");
 
+    // ---- Negative-path coverage (iter 14, I1) ----------------------------
+    // Every error response must carry the {success: false, error, code}
+    // shape (per I1). bridge.call returns the raw plugin payload; the TS
+    // tool layer wraps that in MCP isError responses via toolError. We
+    // assert on payload shape here because smoke goes through the bridge,
+    // not the tool layer — the wrap is unit-covered by toolErrorFromPayload
+    // and exercised end-to-end during manual /mcp invocation per the
+    // iter 14 verification block.
+    type ErrEnv = { success?: boolean; error?: string; code?: string };
+    const expectErr = (label: string, env: ErrEnv | unknown, code: string): void => {
+      const e = env as ErrEnv;
+      if (!e || e.success !== false || e.code !== code || typeof e.error !== "string") {
+        fail(`${label}: expected {success:false, code:'${code}', error:string}, got ${JSON.stringify(env)}`);
+      } else {
+        pass(`${label} -> ${code}`);
+      }
+    };
+
+    expectErr(
+      "scene.create_node bogus class",
+      await bridge.call("scene.create_node", { class_name: "NotAClass", parent: "." }, 5000),
+      "INVALID_CLASS",
+    );
+    expectErr(
+      "scene.delete_node bogus path",
+      await bridge.call("scene.delete_node", { path: "NoSuchNode_xyz" }, 5000),
+      "NOT_FOUND",
+    );
+    expectErr(
+      "scene.delete_node refuses root",
+      await bridge.call("scene.delete_node", { path: "." }, 5000),
+      "INVALID_PATH",
+    );
+    expectErr(
+      "node.get_property bogus path",
+      await bridge.call("node.get_property", { path: "NoSuchNode_xyz", property: "name" }, 5000),
+      "NOT_FOUND",
+    );
+    expectErr(
+      "node.set_property bogus path",
+      await bridge.call("node.set_property", { path: "NoSuchNode_xyz", property: "editor_description", value: "x" }, 5000),
+      "NOT_FOUND",
+    );
+    expectErr(
+      "node.get_property_list bogus path",
+      await bridge.call("node.get_property_list", { path: "NoSuchNode_xyz" }, 5000),
+      "NOT_FOUND",
+    );
+    expectErr(
+      "script.write user:// path",
+      await bridge.call("script.write", { path: "user://bad.txt", content: "x" }, 5000),
+      "PATH_DENIED",
+    );
+    expectErr(
+      "editor.save_scene non-res:// path",
+      await bridge.call("editor.save_scene", { path: "/tmp/bad.tscn" }, 5000),
+      "PATH_DENIED",
+    );
+    expectErr(
+      "signal.list bogus path",
+      await bridge.call("signal.list", { path: "NoSuchNode_xyz" }, 5000),
+      "NOT_FOUND",
+    );
+    expectErr(
+      "signal.connect bogus signal",
+      await bridge.call("signal.connect", { source_path: ".", signal: "no_such_signal_xyz", target_path: ".", method: "notify_property_list_changed" }, 5000),
+      "INVALID_PARAMS",
+    );
+    expectErr(
+      "signal.emit bogus signal",
+      await bridge.call("signal.emit", { path: ".", signal: "no_such_signal_xyz" }, 5000),
+      "INVALID_PARAMS",
+    );
+    expectErr(
+      "scene.diff missing before",
+      await bridge.call("scene.diff", {}, 5000),
+      "INVALID_PARAMS",
+    );
+    expectErr(
+      "resource.load non-res://",
+      await bridge.call("resource.load", { path: "/etc/passwd" }, 5000),
+      "PATH_DENIED",
+    );
+
+    // ALREADY_EXISTS is a NON-error success (I3): success is absent (or
+    // truthy), code carries "ALREADY_EXISTS". toolErrorFromPayload must
+    // NOT translate this to isError. Re-using the iter-12 SignalProbe-cleanup
+    // pattern: create then re-create.
+    const idemNode = "IdempotencyProbe";
+    const idemFirst = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: idemNode }, 5000) as { path?: string; success?: boolean };
+    const idemSecond = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: idemNode }, 5000) as { path?: string; code?: string; success?: boolean };
+    if (idemSecond?.success === false || idemSecond?.code !== "ALREADY_EXISTS") {
+      fail(`ALREADY_EXISTS must NOT carry success:false: ${JSON.stringify(idemSecond)}`);
+    } else if (idemSecond?.path !== idemFirst?.path) {
+      fail(`ALREADY_EXISTS must return same path: ${JSON.stringify({ first: idemFirst, second: idemSecond })}`);
+    } else {
+      pass("ALREADY_EXISTS treated as non-error success (I3)");
+    }
+    await bridge.call("scene.delete_node", { path: idemFirst?.path ?? idemNode }, 5000);
+
     // ---- Mode B (iter 10 + iter 12) ---------------------------------------
     // Smoke can't reliably F5 the game from here, so we branch on a probe of
     // 127.0.0.1:9090. Without a running game, we assert all three runtime

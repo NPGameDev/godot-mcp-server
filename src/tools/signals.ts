@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, BridgeError } from "../types.js";
+import { Bridge, callAndWrap } from "../types.js";
 import { ToolDef } from "./scene.js";
 
 // Signal tools (iter 11). signal_emit is dual-mode: default routes to the
@@ -52,47 +52,24 @@ export const signalTools: ToolDef[] = [
   },
 ];
 
-function errResult(err: unknown) {
-  const code = err instanceof BridgeError ? err.code : "INTERNAL";
-  const message = (err as Error)?.message ?? String(err);
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify({ success: false, error: message, code }) }],
-    isError: true,
-  };
-}
-
 export function register(server: McpServer, bridge: Bridge): void {
   for (const tool of signalTools) {
     if (tool.name === "signal_emit") {
       server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: tool.inputSchema },
-        async (input: unknown) => {
+        (input: unknown) => {
           const parsed = input as { path: string; signal: string; args?: unknown[]; mode?: "editor" | "runtime" };
           const mode = parsed.mode ?? "editor";
           const params = { path: parsed.path, signal: parsed.signal, args: parsed.args ?? [] };
-          try {
-            const result = mode === "runtime"
-              ? await bridge.callRuntime(tool.method, params)
-              : await bridge.call(tool.method, params);
-            return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-          } catch (err) {
-            return errResult(err);
-          }
+          return callAndWrap(bridge, tool.method, params, { runtime: mode === "runtime" });
         },
       );
     } else {
       server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: tool.inputSchema },
-        async (input: unknown) => {
-          try {
-            const result = await bridge.call(tool.method, input);
-            return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-          } catch (err) {
-            return errResult(err);
-          }
-        },
+        (input: unknown) => callAndWrap(bridge, tool.method, input),
       );
     }
   }

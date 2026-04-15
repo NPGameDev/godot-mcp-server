@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge } from "../types.js";
+import { Bridge, callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../types.js";
 import { ToolDef } from "./scene.js";
 
 export const editorTools: ToolDef[] = [
@@ -49,18 +49,27 @@ export function register(server: McpServer, bridge: Bridge): void {
         tool.name,
         { description: tool.description, inputSchema: tool.inputSchema },
         async (input: { save_path?: string }) => {
-          const result = (await bridge.call(tool.method, input ?? {})) as {
+          let result: {
             image_base64?: string;
             mime_type?: string;
             width?: number;
             height?: number;
             bytes?: number;
             path?: string;
-            code?: string;
-            error?: string;
           };
-          if (result?.code || !result?.image_base64) {
-            return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
+          try {
+            result = (await bridge.call(tool.method, input ?? {})) as typeof result;
+          } catch (err) {
+            return toolErrorFromException(err);
+          }
+          // Plugin-side {success: false, ...} (PATH_DENIED, INVALID_PARAMS,
+          // INTERNAL on viewport/save failure) takes precedence over image
+          // shape — translate to isError so Claude doesn't see a half-blank
+          // image content block.
+          const payloadErr = toolErrorFromPayload(result);
+          if (payloadErr) return payloadErr;
+          if (!result?.image_base64) {
+            return toolErrorFromPayload({ success: false, code: "INTERNAL", error: "screenshot returned no image bytes" })!;
           }
           return {
             content: [
@@ -74,10 +83,7 @@ export function register(server: McpServer, bridge: Bridge): void {
       server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: tool.inputSchema },
-        async (input: unknown) => {
-          const result = await bridge.call(tool.method, input);
-          return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-        },
+        (input: unknown) => callAndWrap(bridge, tool.method, input),
       );
     }
   }

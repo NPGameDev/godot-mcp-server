@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge } from "../types.js";
+import { Bridge, callAndWrap } from "../types.js";
 import { ToolDef } from "./scene.js";
 
 // scene_diff (iter 12) — line-based JSON diff between two scene-tree
@@ -24,10 +24,7 @@ export function register(server: McpServer, bridge: Bridge): void {
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },
-      async (input: unknown) => {
-        const result = await bridge.call(tool.method, input);
-        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-      },
+      (input: unknown) => callAndWrap(bridge, tool.method, input),
     );
   }
 }

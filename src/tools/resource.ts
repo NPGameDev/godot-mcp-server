@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge } from "../types.js";
+import { Bridge, callAndWrap } from "../types.js";
 import { ToolDef } from "./scene.js";
 
 export const resourceTools: ToolDef[] = [
@@ -14,16 +14,13 @@ export const resourceTools: ToolDef[] = [
 
 export function register(server: McpServer, bridge: Bridge): void {
   for (const tool of resourceTools) {
+    // TODO(iter-18): wrap `properties` in an <untrusted kind="resource_props">
+    // envelope if the underlying data came from disk. Skip for built-in
+    // engine metadata (width/height) — those are trusted engine output.
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },
-      async (input: unknown) => {
-        const result = await bridge.call(tool.method, input);
-        // TODO(iter-18): wrap `properties` in an <untrusted kind="resource_props">
-        // envelope if the underlying data came from disk. Skip for built-in
-        // engine metadata (width/height) — those are trusted engine output.
-        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-      },
+      (input: unknown) => callAndWrap(bridge, tool.method, input),
     );
   }
 }
