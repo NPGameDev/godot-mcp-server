@@ -8,12 +8,17 @@ localhost WebSocket (`127.0.0.1:6505`) to the plugin running inside the editor.
 ## Install
 
 ```
-npm install -g godot-mcp-server
+npm install -g @npgamedev/godot-mcp-server
 ```
 
-The shipped `.mcp.json` examples use `npx godot-mcp-server`, so end users don't
-strictly need the global install — but the global install makes startup faster
-and keeps the same command name on every machine.
+The shipped `.mcp.json` examples use `npx -y @npgamedev/godot-mcp-server`, so
+end users don't strictly need the global install — but the global install
+makes startup faster and keeps the same command name on every machine.
+
+> **Pre-iter-20 note.** Publishing to npm is gated on iter 20 completing
+> (security hardening). Until publish, the scoped name resolves only in the
+> toolkit repo via a path-based dogfood `.mcp.json`; see the toolkit repo's
+> `DISTRIBUTION.md` for the dogfood workflow.
 
 ## Configure Claude Code
 
@@ -25,7 +30,7 @@ root:
   "mcpServers": {
     "godot-mcp-toolkit": {
       "command": "cmd",
-      "args": ["/c", "npx", "godot-mcp-server"],
+      "args": ["/c", "npx", "-y", "@npgamedev/godot-mcp-server"],
       "env": { "GODOT_MCP_PORT": "6505" }
     }
   }
@@ -36,7 +41,7 @@ On Linux / macOS, drop the `cmd /c` wrapper:
 
 ```json
 "command": "npx",
-"args": ["godot-mcp-server"]
+"args": ["-y", "@npgamedev/godot-mcp-server"]
 ```
 
 The companion plugin ships this file as

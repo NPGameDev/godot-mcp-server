@@ -10,8 +10,8 @@ repo's `CLAUDE.md` (user-facing tool list + conventions).
 
 The TypeScript MCP server that bridges Claude Code (stdio) to the `godot-mcp-toolkit`
 Godot editor plugin (WebSocket `127.0.0.1:6505`). Repo root IS the npm package
-root — no `server/` subdir wrapper. Distributed via `npm install -g godot-mcp-server`
-(or `npx godot-mcp-server`).
+root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev/godot-mcp-server`
+(or `npx -y @npgamedev/godot-mcp-server`).
 
 ## Architecture
 
@@ -55,9 +55,12 @@ npm run smoke        # port-check + round-trip assertions (editor must be up)
 npm link             # dogfood: global `godot-mcp-server` resolves to this dist/
 ```
 
-`.mcp.json` uses `npx godot-mcp-server` — so `npm link` makes the dogfood loop
-work without touching any config. After publish to npm the same `.mcp.json`
-works for end users with no edits.
+Pre-iter-20 dogfood runs against a locally-built `dist/` via a path-based
+`.mcp.json` in the toolkit repo + `godot-mcp-dogfood-playground/` (not `npm
+link`, because `@npgamedev/godot-mcp-server` is not yet published). Iter 20
+publishes to npm and swaps the toolkit `.mcp.json` + template back to
+`npx -y @npgamedev/godot-mcp-server` — at which point the same config works
+for end users with no further edits. See iter 13b + iter 20 in the plan repo.
 
 ## Adding a tool
 
