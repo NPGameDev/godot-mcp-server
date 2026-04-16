@@ -100,6 +100,41 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// Expected noise in the Godot editor during a clean smoke run
+// ---------------------------------------------------------------------------
+// The following logs / action names are INTENTIONAL and not a regression:
+//
+//   1. Three lines of `Cannot open file 'res://no_such_coerce_smoke.tres' /
+//      Failed loading resource … / Error loading resource`. Emitted by the
+//      LOAD_FAILED steer assertion (`node.set_property Resource missing
+//      path`) — smoke deliberately points at a nonexistent resource to
+//      verify the "use resource.create" error message.
+//
+//   2. Lines `MCP: delete <NodePath>` (e.g. `MCP: delete MCPSmokeAP`).
+//      Those are UndoRedo action names printed by EditorUndoRedoManager —
+//      scene.delete_node wraps each deletion in an undo action per the
+//      godot-mcp-pro / godotiq editor-safety pattern (see plan-repo
+//      memory/project_delete_node_crash.md). Not errors.
+//
+//   3. A single `UndoRedo history mismatch: expected 0, got 1` warning.
+//      Benign Godot 4.x message from editor_undo_redo_manager.cpp; fires
+//      when the per-scene history counter drifts after the mid-suite
+//      save+reload cycle (`scene.instantiate owner-set survives
+//      save+reload`). The commit still lands and assertions still pass.
+//
+// If a "Could not save one or more scenes!" popup reappears, suspect one of:
+//   (a) The `Cleanup (iter 15c + 15d)` block below — every PackedScene
+//       instance of `instChildPath` must be detached from Main BEFORE
+//       save_scene, and the scene file deleted only after.
+//   (b) A new smoke section that opens a scene via scene.open without
+//       keeping the backing file + its parent folder persistent. Godot
+//       4.4.1 has no public `EditorInterface.close_scene()` (added in
+//       4.5), so any `scene.open` leaks a tab for the rest of the session;
+//       `game.start` → `save_all_scenes()` must be able to write every
+//       such tab to disk. See the EDITED_SCENE and PATH_IN_USE probes for
+//       the "persistent probe" pattern.
+// ---------------------------------------------------------------------------
 async function main(): Promise<void> {
   const reachable = await probePort(HOST, PORT, PROBE_TIMEOUT_MS);
   if (!reachable) {
@@ -566,12 +601,14 @@ async function main(): Promise<void> {
       ".tscn",
     );
 
-    // EDITED_SCENE refusal: create a throwaway, open it, attempt delete →
-    // refuse. Restore Main.tscn afterwards and clean up.
+    // EDITED_SCENE refusal: create a probe scene, open it, attempt delete →
+    // refuse. Probe is NEVER torn down for the same reason as the
+    // PATH_IN_USE probe below — no `EditorInterface.close_scene()` on 4.4.1,
+    // so the tab persists for the session and needs a valid disk backing
+    // so play-test `save_all_scenes()` succeeds without popping up.
     const editedPath = "res://smoke_edited_probe.tscn";
-    try { await bridge.call("scene.delete", { path: editedPath }, 5000); } catch { /* noop */ }
-    const edCreate = await bridge.call("scene.create", { path: editedPath, root_type: "Node" }, 5000) as { status?: string };
-    if (edCreate?.status !== "created") fail(`edited-probe create: ${JSON.stringify(edCreate)}`);
+    // Idempotent: file may persist across runs (by design).
+    await bridge.call("scene.create", { path: editedPath, root_type: "Node", if_exists: "return" }, 5000);
     const edOpen = await bridge.call("scene.open", { path: editedPath }, 5000) as { ok?: boolean };
     if (!edOpen?.ok) fail(`edited-probe scene.open: ${JSON.stringify(edOpen)}`);
     const edDel = await bridge.call("scene.delete", { path: editedPath }, 5000) as { success?: boolean; code?: string; error?: string };
@@ -579,10 +616,8 @@ async function main(): Promise<void> {
     else pass(`scene.delete refuses currently-edited scene -> EDITED_SCENE`);
     // Restore Main.tscn (rest of smoke depends on it being open).
     await bridge.call("scene.open", { path: currentScenePath }, 5000);
-    // Cleanup the edited-probe file now that we're off it.
-    const edCleanup = await bridge.call("scene.delete", { path: editedPath }, 5000) as { success?: boolean };
-    if (edCleanup?.success !== true) fail(`edited-probe cleanup: ${JSON.stringify(edCleanup)}`);
-    else pass(`edited-probe cleanup`);
+    // Intentionally NOT deleting editedPath — phantom tab persists, file
+    // must persist too. Swap for scene.close + full teardown on Godot 4.5.
 
     // ---- script.delete round-trip -----------------------------------------
     const scriptDelPath = "res://smoke_throwaway.gd";
@@ -747,21 +782,30 @@ async function main(): Promise<void> {
     );
 
     // folder.delete — PATH_IN_USE for currently-edited scene under the folder.
-    // Create a throwaway scene inside the nested dir, open it, attempt
-    // folder.delete on the parent → expect PATH_IN_USE naming the scene.
-    const editedInFolder = `${folderNested}/inner_probe.tscn`;
-    const sceneInFolder = await bridge.call("scene.create", { path: editedInFolder, root_type: "Node" }, 5000) as { status?: string };
-    if (sceneInFolder?.status !== "created") fail(`folder.delete PATH_IN_USE probe: scene.create: ${JSON.stringify(sceneInFolder)}`);
-    const openedInFolder = await bridge.call("scene.open", { path: editedInFolder }, 5000) as { ok?: boolean };
+    // The probe lives in a DEDICATED folder (distinct from folderRoot, which
+    // is recursively deleted later) and is NEVER torn down. Rationale:
+    // Godot 4.4.1 has no public `EditorInterface.close_scene()` (added in
+    // 4.5), so opening a scene leaves a tab open for the rest of the editor
+    // session. When `game.start` fires later, Godot's play-test path calls
+    // `save_all_scenes()` internally — if that tab's backing file or parent
+    // folder is gone, the editor pops up "Could not save one or more
+    // scenes!". Keeping the probe + its folder persistent gives the phantom
+    // tab a writeable disk backing → save-all succeeds silently. Swap for a
+    // proper `scene.close` tool when/if we upgrade the dogfood editor to 4.5.
+    const pathInUseDir = "res://smoke_path_in_use";
+    const pathInUseProbe = `${pathInUseDir}/probe.tscn`;
+    try { await bridge.call("folder.create", { path: pathInUseDir }, 5000); } catch { /* noop */ }
+    // Idempotent: file may persist across runs (by design — see above).
+    await bridge.call("scene.create", { path: pathInUseProbe, root_type: "Node", if_exists: "return" }, 5000);
+    const openedInFolder = await bridge.call("scene.open", { path: pathInUseProbe }, 5000) as { ok?: boolean };
     if (!openedInFolder?.ok) fail(`folder.delete PATH_IN_USE probe: scene.open: ${JSON.stringify(openedInFolder)}`);
-    const fdInUse = await bridge.call("folder.delete", { path: folderRoot, recursive: true }, 5000) as { code?: string; error?: string };
-    if (fdInUse?.code !== "PATH_IN_USE" || !fdInUse.error?.includes(editedInFolder)) {
-      fail(`folder.delete on folder containing edited scene: expected PATH_IN_USE naming ${editedInFolder}, got ${JSON.stringify(fdInUse)}`);
+    const fdInUse = await bridge.call("folder.delete", { path: pathInUseDir, recursive: true }, 5000) as { code?: string; error?: string };
+    if (fdInUse?.code !== "PATH_IN_USE" || !fdInUse.error?.includes(pathInUseProbe)) {
+      fail(`folder.delete on folder containing edited scene: expected PATH_IN_USE naming ${pathInUseProbe}, got ${JSON.stringify(fdInUse)}`);
     } else pass(`folder.delete refuses folder containing edited scene -> PATH_IN_USE`);
     // Restore Main.tscn so the rest of smoke isn't disrupted.
     await bridge.call("scene.open", { path: currentScenePath }, 5000);
-    // Cleanup the probe scene before the DIR_NOT_EMPTY + recursive sections.
-    await bridge.call("scene.delete", { path: editedInFolder }, 5000);
+    // Intentionally NOT deleting pathInUseProbe — see design note above.
 
     // folder.delete — FOLDER_PROTECTED guards.
     assertGuard(
@@ -1245,8 +1289,20 @@ async function main(): Promise<void> {
 
     // ---- Cleanup (iter 15c + 15d) ---------------------------------------
     // Delete probe nodes, save Main, delete throwaway files, ensure no game.
+    // Order is load-bearing: every PackedScene instance of `instChildPath`
+    // must be detached from Main BEFORE save_scene, and the scene file
+    // itself deleted AFTER save_scene — otherwise Main is persisted with
+    // a dangling `[ext_resource path="res://smoke_inst_child.tscn"]` and
+    // Godot pops up "Could not save one or more scenes!" on the next save
+    // (auto-save, focus loss, or the next smoke run's scene.open).
     try { await bridge.call("scene.delete_node", { path: spritePath }, 5000); } catch { /* noop */ }
-    try { await bridge.call("scene.delete_node", { path: "Renamed" }, 5000); } catch { /* noop */ }
+    // Belt-and-braces: sweep every residual instance name. "Renamed" is the
+    // current name after node.call_method set_name (L984); "CellA" and
+    // "SmokeInstChild" only exist if an earlier assertion failed and the
+    // rename chain desynced — the try/catch swallows the expected NOT_FOUND.
+    for (const name of ["Renamed", "CellA", "SmokeInstChild"]) {
+      try { await bridge.call("scene.delete_node", { path: name }, 5000); } catch { /* noop */ }
+    }
     try { await bridge.call("editor.save_scene", {}, 5000); } catch { /* noop */ }
     try { await bridge.call("resource.delete", { path: smokeTexPath }, 5000); } catch { /* noop */ }
     try { await bridge.call("scene.delete", { path: instChildPath }, 5000); } catch { /* noop */ }
