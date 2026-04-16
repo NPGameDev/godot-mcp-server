@@ -53,6 +53,18 @@ export const sceneTools: ToolDef[] = [
       "Delete the .tscn and its .uid companion at path. Refuses non-.tscn paths and the currently-edited scene (codes INVALID_PATH / EDITED_SCENE).",
     inputSchema: { path: z.string() },
   },
+  {
+    name: "scene_instantiate",
+    method: "scene.instantiate",
+    description:
+      "Instantiate PackedScene at packed_path under parent_path. Silent-return on name collision (status: returned). UndoRedo-wrapped; owner set for save.",
+    inputSchema: {
+      parent_path: z.string(),
+      packed_path: z.string(),
+      as_name: z.string().optional(),
+      transform: z.record(z.string(), z.unknown()).optional(),
+    },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {

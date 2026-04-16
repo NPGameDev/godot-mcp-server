@@ -14,7 +14,7 @@ export const resourceTools: ToolDef[] = [
     name: "resource_create",
     method: "resource.create",
     description:
-      "Create .tres/.res at path for resource_class (engine Resource subclass or custom class_name). Idempotent. Status created/returned/replaced. if_exists: return(default)/fail/replace.",
+      "Create .tres/.res for resource_class. Idempotent (status created/returned/replaced; if_exists:return|fail|replace). Values: primitives, {type:'Resource'|'Vector2..4'|'Color'|'Rect2'|'NodePath',...}.",
     inputSchema: {
       path: z.string(),
       resource_class: z.string(),
@@ -26,7 +26,7 @@ export const resourceTools: ToolDef[] = [
     name: "resource_save",
     method: "resource.save",
     description:
-      "Update properties of existing .tres/.res at path. Returns warnings[] for unknown keys. Not idempotent. NOT_FOUND if missing — use resource.create to create.",
+      "Update properties of existing .tres/.res. warnings[] for unknown keys. NOT_FOUND if missing. Values: primitives, {type:'Resource'|'Vector2..4'|'Color'|'Rect2'|'NodePath',...}.",
     inputSchema: {
       path: z.string(),
       properties: z.record(z.string(), z.unknown()),

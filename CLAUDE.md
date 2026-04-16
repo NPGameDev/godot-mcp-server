@@ -22,12 +22,12 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - `src/types.ts` — `Bridge` interface + `BridgeError` class. Tool modules depend
   on `Bridge`, NOT on the concrete `createBridge` function (DIP).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
-  `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`). Each exports
-  a typed `ToolDef[]` and a `register(server, bridge, profile = "full")`
+  `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`).
+  Each exports a typed `ToolDef[]` and a `register(server, bridge, profile = "full")`
   function. `ToolDef` is defined in `tools/scene.ts` and re-exported implicitly
   (via `import { ToolDef } from "./scene.js"`). Tools filter via
   `includesInProfile` (see `src/types.ts`) so that `--lite` exposes the
-  18-tool core subset only.
+  20-tool core subset only.
 - `test/smoke.ts` — harness. **Port-check first** (iter 05 contract) then round-trip
   assertions. Do NOT move the port-check below the assertions — it exits with
   instructions when the editor is down.
@@ -52,18 +52,21 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15 / 15b)
+## Tool-catalogue profiles (iter 15 / 15b / 15c)
 
-- **Full** (default) — every tool in the catalogue (33 by default; 34 with
+- **Full** (default) — every tool in the catalogue (37 by default; 38 with
   `GODOT_MCP_ALLOW_GAME_EVAL=1`).
-- **Lite** — 18-tool token-sensitive subset; opt in by passing `--lite` in
+- **Lite** — 20-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
   keep that set as the single source of truth; do not replicate it elsewhere.
-  Creation tools are included (`scene_create`, `resource_create`,
-  `folder_create`) so clean-start projects can bootstrap. Cleanup tools
-  (`scene_delete`, `script_delete`, `resource_delete`, `folder_delete`) are
-  deliberately excluded. Iter 22 replaces this coarse flag with a richer
-  profile system.
+  Creation tools are included (`scene_create`, `scene_instantiate`,
+  `resource_create`, `folder_create`) so clean-start projects can bootstrap.
+  `game_start` is in lite (playtest is the core verification workflow);
+  `game_stop` is full-only (the editor UI stop button is always available).
+  Cleanup tools (`scene_delete`, `script_delete`, `resource_delete`,
+  `folder_delete`) are deliberately excluded; `node_call_method` is full-only
+  on risk grounds (same rationale as `game_eval`). Iter 22 replaces this
+  coarse flag with a richer profile system.
 
 ## Idempotency — status discriminator (iter 15 / 15b)
 
@@ -144,6 +147,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | Code               | Origin           | When                                                                          |
 |--------------------|------------------|-------------------------------------------------------------------------------|
 | `ALREADY_EXISTS`   | plugin           | `scene_create` / `resource_create` with `if_exists: "fail"` on collision. **Error payload only** post-iter-15 — idempotent collisions return success with `status: "returned"`. |
+| `ALREADY_PLAYING`  | plugin (iter 15c)| `game_start` while `EditorInterface.is_playing_scene()` is true — call `game_stop` first. |
 | `CLOSED`           | bridge           | Bridge call after `bridge.close()`.                                           |
 | `CONNECT_FAILED`   | bridge           | WebSocket open failure (cold path; first attempt).                            |
 | `CREATE_DIR_FAILED`| plugin (iter 15b)| `DirAccess.make_dir_recursive_absolute` returned non-OK on `folder_create`.   |
@@ -157,7 +161,8 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
 | `GAME_NOT_RUNNING` | bridge           | Mode B call when port 9090 isn't listening.                                   |
 | `INTERNAL`         | both             | Catch-all for unexpected failure (viewport unavailable, save_png empty, …).   |
-| `INVALID_CLASS`    | plugin           | `ClassDB` rejection — unknown / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`). |
+| `INVALID_CLASS`    | plugin           | `ClassDB` rejection — unknown / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`) / packed file is not a `PackedScene` (`scene_instantiate`). |
+| `INVALID_METHOD`   | plugin (iter 15c)| `node_call_method` target node exists but `has_method(method)` is false.     |
 | `INVALID_PARAMS`   | plugin           | JSON-RPC params shape error (missing required field, wrong type).             |
 | `INVALID_PATH`     | plugin           | Semantic refusal — edited-root on `scene_delete_node`, wrong prefix/extension on `scene_*` / `script_*` / `resource_*` / `folder_*`. Script tools now require `.gd`/`.cs`/`.gdshader`/`.gdshaderinc`. |
 | `LOAD_FAILED`      | plugin           | `ResourceLoader.load` returned null.                                          |

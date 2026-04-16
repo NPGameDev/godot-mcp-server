@@ -11,6 +11,7 @@ import { signalTools } from "../src/tools/signals.js";
 import { resourceTools } from "../src/tools/resource.js";
 import { folderTools } from "../src/tools/folder.js";
 import { diffTools } from "../src/tools/diff.js";
+import { playtestTools } from "../src/tools/playtest.js";
 import { BridgeError, LITE_CORE } from "../src/types.js";
 
 const HOST = "127.0.0.1";
@@ -121,25 +122,24 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15b registers 33 tools by default (iter 15's 28
-    // + resource_create + resource_save + resource_delete + folder_create +
-    // folder_delete). With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue
-    // includes game_eval (34).
+    // Tool count — post-iter-15c registers 37 tools by default (iter 15b's 33
+    // + game_start + game_stop + scene_instantiate + node_call_method). With
+    // GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (38).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 34 : 33;
-    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools];
+    const expectedToolCount = allowGameEval ? 38 : 37;
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15 / 15b). Computed in-process by filtering
-    // the full tool list through LITE_CORE — semantically equivalent to
-    // spawning the server with --lite (same `includesInProfile` filter runs).
-    // Spec targets 18 tools post-15b (iter 15's 16 + resource_create +
-    // folder_create); cleanup tools (scene_delete, script_delete,
-    // resource_delete, folder_delete) are intentionally out.
+    // --lite catalogue size (iter 15 / 15b / 15c). Computed in-process by
+    // filtering the full tool list through LITE_CORE — semantically
+    // equivalent to spawning the server with --lite (same
+    // `includesInProfile` filter runs). Spec targets 20 tools post-15c
+    // (iter 15b's 18 + scene_instantiate + game_start); game_stop and
+    // node_call_method are full-only (recovery-shaped / risk-gated).
     const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
-    if (liteTools.length !== 18) fail(`--lite catalogue: expected 18, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-    else pass(`--lite catalogue == 18 (subset of full ${expectedToolCount})`);
+    if (liteTools.length !== 20) fail(`--lite catalogue: expected 20, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 20 (subset of full ${expectedToolCount})`);
     // LITE_CORE must be a subset of the full catalogue — catches typos in
     // src/types.ts that name a tool that doesn't exist anywhere.
     const allToolNames = new Set(allTools.map((t) => t.name));
@@ -824,6 +824,228 @@ async function main(): Promise<void> {
     try { await bridge.call("script.delete", { path: shaderPath }, 5000); } catch { /* noop */ }
     try { await bridge.call("script.delete", { path: shaderIncPath }, 5000); } catch { /* noop */ }
     try { await bridge.call("folder.delete", { path: folderRoot, recursive: true }, 5000); } catch { /* noop */ }
+
+    // ---- Iter 15c: playtest + scene.instantiate + node.call_method + coercion
+    // Mode A only — paths resolve under the edited scene root (Main), so
+    // parent_path: "." means Main, and scene.instantiate's returned path is
+    // relative (e.g. "Node2D" / "CellA"), mirroring scene.create_node.
+    const instChildPath = "res://smoke_inst_child.tscn";
+    const smokeTexPath = "res://smoke_texture.tres";
+    // Best-effort cleanup — any orphan from a previous aborted run.
+    try { await bridge.call("game.stop", {}, 5000); } catch { /* noop */ }
+    for (const orphan of ["smoke_inst_child", "CellA", "Renamed", "CoercionSprite"]) {
+      try { await bridge.call("scene.delete_node", { path: orphan }, 5000); } catch { /* noop */ }
+    }
+    try { await bridge.call("resource.delete", { path: smokeTexPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("scene.delete", { path: instChildPath }, 5000); } catch { /* noop */ }
+    // Reaffirm Main is open — subsequent steps depend on it.
+    await bridge.call("scene.open", { path: currentScenePath }, 5000);
+
+    // ---- game.start / game.stop ------------------------------------------
+    // Happy path — wait_for_runtime:false so we don't assume port 9090 is
+    // reachable (autoload may be absent in the dogfood project).
+    const gs1 = await bridge.call("game.start", { target: "current", wait_for_runtime: false }, 10000) as { success?: boolean; target?: string; runtime_ready?: boolean; runtime_port?: number; code?: string; error?: string };
+    if (gs1?.success !== true || gs1.target !== "current") fail(`game.start target=current: ${JSON.stringify(gs1)}`);
+    else pass(`game.start target=current -> success (runtime_ready=${gs1.runtime_ready})`);
+
+    // Settle before ALREADY_PLAYING probe — is_playing_scene() should flip
+    // synchronously on play_current_scene, but Windows occasionally stalls
+    // the first post-play frame.
+    await new Promise((res) => setTimeout(res, 500));
+
+    assertGuard(
+      "game.start while already running",
+      await bridge.call("game.start", {}, 5000),
+      "ALREADY_PLAYING",
+      "game.stop",
+    );
+
+    const gStop1 = await bridge.call("game.stop", {}, 5000) as { success?: boolean; was_running?: boolean; status?: string; code?: string };
+    if (gStop1?.success !== true || gStop1.was_running !== true) fail(`game.stop first: expected was_running=true, got ${JSON.stringify(gStop1)}`);
+    else if (gStop1.status !== undefined) fail(`game.stop must NOT carry status (got ${gStop1.status})`);
+    else pass(`game.stop first -> was_running=true (no status field)`);
+
+    // Settle — stop_playing_scene can take a frame or two on Windows to
+    // flip is_playing_scene() back to false.
+    await new Promise((res) => setTimeout(res, 1000));
+
+    const gStop2 = await bridge.call("game.stop", {}, 5000) as { success?: boolean; was_running?: boolean; code?: string };
+    if (gStop2?.success !== true || gStop2.was_running !== false) fail(`game.stop idempotent: expected was_running=false, got ${JSON.stringify(gStop2)}`);
+    else pass(`game.stop idempotent -> was_running=false`);
+
+    // game.start — guard rejections.
+    assertGuard(
+      "game.start target=bogus",
+      await bridge.call("game.start", { target: "bogus" }, 5000),
+      "INVALID_PARAMS",
+      ["main", "current", "res://"],
+    );
+    assertGuard(
+      "game.start missing res:// scene",
+      await bridge.call("game.start", { target: "res://no_such_game_smoke.tscn" }, 5000),
+      "NOT_FOUND",
+      "scene.create",
+    );
+    assertGuard(
+      "game.start .tres extension",
+      await bridge.call("game.start", { target: "res://bogus_smoke_scene.tres" }, 5000),
+      "INVALID_PATH",
+      ".tscn",
+    );
+
+    // ---- scene.instantiate ----------------------------------------------
+    // Throwaway Node2D child scene we can instantiate under Main.
+    const instCreate = await bridge.call("scene.create", { path: instChildPath, root_type: "Node2D" }, 5000) as { status?: string; code?: string };
+    if (instCreate?.status !== "created") fail(`scene.create ${instChildPath}: ${JSON.stringify(instCreate)}`);
+    else pass(`scene.create ${instChildPath} -> status='created' (Node2D root)`);
+
+    // Fresh — default as_name uses PackedScene root name, which scene.create
+    // sets to the filename stem (see mcp_server.gd _cmd_scene_create:
+    // `root.name = path.get_file().get_basename()`). So the expected child
+    // name is "smoke_inst_child", not the class "Node2D".
+    const defaultName = "smoke_inst_child";
+    const inst1 = await bridge.call("scene.instantiate", { parent_path: ".", packed_path: instChildPath }, 5000) as { success?: boolean; status?: string; path?: string; class_name?: string; code?: string };
+    if (inst1?.status !== "created" || inst1.path !== defaultName || inst1.class_name !== "Node2D") {
+      fail(`scene.instantiate fresh: expected status='created' path='${defaultName}' class_name='Node2D', got ${JSON.stringify(inst1)}`);
+    } else pass(`scene.instantiate fresh -> status='created' at ${inst1.path}`);
+
+    // Idempotency — same parent + same name → status='returned', no code.
+    const inst2 = await bridge.call("scene.instantiate", { parent_path: ".", packed_path: instChildPath }, 5000) as { status?: string; path?: string; code?: string };
+    if (inst2?.status !== "returned" || inst2.path !== defaultName) fail(`scene.instantiate idempotent: expected status='returned' path='${defaultName}', got ${JSON.stringify(inst2)}`);
+    else if (inst2.code !== undefined) fail(`scene.instantiate returned must not carry code (got ${inst2.code})`);
+    else pass(`scene.instantiate idempotent -> status='returned' (code absent)`);
+
+    // Ownership: save → reload Main → get_tree shows the instantiated child.
+    const instSave = await bridge.call("editor.save_scene", {}, 5000) as { ok?: boolean; code?: string };
+    if (!instSave?.ok) fail(`editor.save_scene after instantiate: ${JSON.stringify(instSave)}`);
+    await bridge.call("scene.open", { path: currentScenePath }, 5000);
+    const instTree = await bridge.call("scene.get_tree", null, 5000) as { children?: { name?: string }[]; code?: string };
+    if (!instTree?.children?.some((c) => c.name === defaultName)) fail(`instantiated child missing after save+reload: ${JSON.stringify(instTree?.children?.map((c) => c.name))}`);
+    else pass(`scene.instantiate owner-set survives save+reload`);
+
+    // Delete, then happy path with as_name + transform (Vector2 coercion).
+    await bridge.call("scene.delete_node", { path: defaultName }, 5000);
+    const inst3 = await bridge.call("scene.instantiate", {
+      parent_path: ".",
+      packed_path: instChildPath,
+      as_name: "CellA",
+      transform: { position: { type: "Vector2", x: 32, y: 48 } },
+    }, 5000) as { status?: string; path?: string; class_name?: string; code?: string };
+    if (inst3?.status !== "created" || inst3.path !== "CellA") fail(`scene.instantiate as_name='CellA': expected path='CellA', got ${JSON.stringify(inst3)}`);
+    else pass(`scene.instantiate as_name='CellA' -> ${inst3.path}`);
+
+    // Save+reload, then verify transform coercion: Vector2 round-trip.
+    await bridge.call("editor.save_scene", {}, 5000);
+    await bridge.call("scene.open", { path: currentScenePath }, 5000);
+    const cellPos = await bridge.call("node.get_property", { path: "CellA", property: "position" }, 5000) as { value?: { type?: string; x?: number; y?: number }; code?: string };
+    if (cellPos?.value?.type !== "Vector2" || cellPos.value.x !== 32 || cellPos.value.y !== 48) {
+      fail(`scene.instantiate transform Vector2 round-trip: expected Vector2(32,48), got ${JSON.stringify(cellPos)}`);
+    } else pass(`scene.instantiate transform Vector2 round-trip -> x=32 y=48`);
+
+    // scene.instantiate — guard rejections.
+    assertGuard(
+      "scene.instantiate /tmp packed_path",
+      await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "/tmp/foo.tscn" }, 5000),
+      "INVALID_PATH",
+      "res://",
+    );
+    assertGuard(
+      "scene.instantiate .tres packed_path",
+      await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://bogus_smoke.tres" }, 5000),
+      "INVALID_PATH",
+      ["resource.create", ".tscn"],
+    );
+    assertGuard(
+      "scene.instantiate missing packed_path",
+      await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://no_such_inst_smoke.tscn" }, 5000),
+      "NOT_FOUND",
+      "scene.create",
+    );
+    assertGuard(
+      "scene.instantiate bogus parent_path",
+      await bridge.call("scene.instantiate", { parent_path: "NoSuchParent_xyz", packed_path: instChildPath }, 5000),
+      "NOT_FOUND",
+      "parent_path",
+    );
+
+    // ---- node.call_method -----------------------------------------------
+    // get_name on Main (".") → result is the StringName-as-string "Main".
+    const callGet = await bridge.call("node.call_method", { path: ".", method: "get_name" }, 5000) as { success?: boolean; path?: string; method?: string; result?: unknown; code?: string };
+    if (callGet?.success !== true || callGet.result !== "Main") fail(`node.call_method .get_name on Main: expected "Main", got ${JSON.stringify(callGet)}`);
+    else pass(`node.call_method .get_name -> "Main"`);
+
+    // set_name round-trip on CellA → rename to Renamed, verify via get_property.
+    const callSet = await bridge.call("node.call_method", { path: "CellA", method: "set_name", args: ["Renamed"] }, 5000) as { success?: boolean; code?: string };
+    if (callSet?.success !== true) fail(`node.call_method set_name: ${JSON.stringify(callSet)}`);
+    const renamedProbe = await bridge.call("node.get_property", { path: "Renamed", property: "name" }, 5000) as { value?: string; code?: string };
+    if (renamedProbe?.value !== "Renamed") fail(`set_name round-trip: expected name='Renamed' at path='Renamed', got ${JSON.stringify(renamedProbe)}`);
+    else pass(`node.call_method set_name round-trip -> "Renamed"`);
+
+    // node.call_method — guard rejections.
+    assertGuard(
+      "node.call_method bogus method",
+      await bridge.call("node.call_method", { path: ".", method: "no_such_method_xyz" }, 5000),
+      "INVALID_METHOD",
+      "scene.get_tree",
+    );
+    assertGuard(
+      "node.call_method bogus path",
+      await bridge.call("node.call_method", { path: "NoSuchNode_xyz", method: "get_name" }, 5000),
+      "NOT_FOUND",
+      "NoSuchNode_xyz",
+    );
+
+    // ---- Resource-value coercion (end-to-end) ---------------------------
+    // GradientTexture2D + Sprite2D — Resource-typed property round-trip.
+    const tex1 = await bridge.call("resource.create", { path: smokeTexPath, resource_class: "GradientTexture2D", properties: { width: 32, height: 32 } }, 5000) as { status?: string; code?: string };
+    if (tex1?.status !== "created") fail(`resource.create ${smokeTexPath}: ${JSON.stringify(tex1)}`);
+    else pass(`resource.create ${smokeTexPath} -> status='created' (GradientTexture2D)`);
+
+    const spriteNode = await bridge.call("scene.create_node", { class_name: "Sprite2D", parent: ".", name: "CoercionSprite" }, 5000) as { status?: string; path?: string; code?: string };
+    if (spriteNode?.status !== "created") fail(`scene.create_node Sprite2D: ${JSON.stringify(spriteNode)}`);
+    const spritePath = spriteNode?.path ?? "CoercionSprite";
+
+    // Bind texture via node.set_property with Resource-type dict.
+    const bindTex = await bridge.call("node.set_property", { path: spritePath, property: "texture", value: { type: "Resource", path: smokeTexPath } }, 5000) as { ok?: boolean; code?: string };
+    if (!bindTex?.ok) fail(`node.set_property texture via Resource dict: ${JSON.stringify(bindTex)}`);
+    else pass(`node.set_property texture <- {type:Resource,path:${smokeTexPath}}`);
+
+    // Re-read → serialized Resource tag + path + class.
+    const readTex = await bridge.call("node.get_property", { path: spritePath, property: "texture" }, 5000) as { value?: { type?: string; path?: string; class?: string }; code?: string };
+    if (readTex?.value?.type !== "Resource" || readTex.value.path !== smokeTexPath || readTex.value.class !== "GradientTexture2D") {
+      fail(`node.get_property texture coercion round-trip: expected {type:Resource,path:${smokeTexPath},class:GradientTexture2D}, got ${JSON.stringify(readTex)}`);
+    } else pass(`node.get_property texture -> {type:Resource,class:GradientTexture2D} round-trip`);
+
+    // Via node.call_method: set_texture with Resource arg (exercises arg-coercion path).
+    const callTex = await bridge.call("node.call_method", { path: spritePath, method: "set_texture", args: [{ type: "Resource", path: smokeTexPath }] }, 5000) as { success?: boolean; code?: string };
+    if (callTex?.success !== true) fail(`node.call_method set_texture via Resource arg: ${JSON.stringify(callTex)}`);
+    else pass(`node.call_method set_texture (Resource arg coercion) ok`);
+
+    // Color coercion — modulate is a Color property on CanvasItem.
+    const setColor = await bridge.call("node.set_property", { path: spritePath, property: "modulate", value: { type: "Color", r: 1.0, g: 0.5, b: 0.0 } }, 5000) as { ok?: boolean; code?: string };
+    if (!setColor?.ok) fail(`node.set_property modulate <- Color dict: ${JSON.stringify(setColor)}`);
+    const readColor = await bridge.call("node.get_property", { path: spritePath, property: "modulate" }, 5000) as { value?: { type?: string; r?: number; g?: number; b?: number; a?: number }; code?: string };
+    if (readColor?.value?.type !== "Color" || readColor.value.r !== 1.0 || readColor.value.g !== 0.5 || readColor.value.b !== 0.0 || readColor.value.a !== 1.0) {
+      fail(`Color round-trip: expected {type:Color,r:1,g:0.5,b:0,a:1}, got ${JSON.stringify(readColor)}`);
+    } else pass(`Color coercion round-trip -> r=1 g=0.5 b=0 a=1`);
+
+    // Resource-not-found steer: LOAD_FAILED with resource.create guidance.
+    assertGuard(
+      "node.set_property Resource missing path",
+      await bridge.call("node.set_property", { path: spritePath, property: "texture", value: { type: "Resource", path: "res://no_such_coerce_smoke.tres" } }, 5000),
+      "LOAD_FAILED",
+      "resource.create",
+    );
+
+    // ---- Cleanup (iter 15c) ---------------------------------------------
+    // Delete probe nodes, save Main, delete throwaway files, ensure no game.
+    try { await bridge.call("scene.delete_node", { path: spritePath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("scene.delete_node", { path: "Renamed" }, 5000); } catch { /* noop */ }
+    try { await bridge.call("editor.save_scene", {}, 5000); } catch { /* noop */ }
+    try { await bridge.call("resource.delete", { path: smokeTexPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("scene.delete", { path: instChildPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("game.stop", {}, 5000); } catch { /* noop */ }
+    pass(`iter 15c cleanup complete`);
 
     // ---- Mode B (iter 10 + iter 12) ---------------------------------------
     // Smoke can't reliably F5 the game from here, so we branch on a probe of

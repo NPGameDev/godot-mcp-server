@@ -4,11 +4,12 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
-// Iter 15 / 15b: tool-catalogue profile. `full` registers every tool;
-// `lite` is an 18-tool token-sensitive subset biased toward authoring +
-// inspection + save/load. Catalogue shape decisions live in iter 15 plan
-// §6 + iter 15b plan §2; retained here (not a per-file constant) so iter
-// 22's richer profile system can build on the same entry point.
+// Iter 15 / 15b / 15c: tool-catalogue profile. `full` registers every tool;
+// `lite` is a 20-tool token-sensitive subset biased toward authoring +
+// inspection + save/load + playtest. Catalogue shape decisions live in iter
+// 15 plan §6 + iter 15b plan §2 + iter 15c plan §8; retained here (not a
+// per-file constant) so iter 22's richer profile system can build on the
+// same entry point.
 export type Profile = "full" | "lite";
 
 export const LITE_CORE: ReadonlySet<string> = new Set([
@@ -16,6 +17,7 @@ export const LITE_CORE: ReadonlySet<string> = new Set([
   "scene_create_node",
   "scene_delete_node",
   "scene_create",
+  "scene_instantiate",
   "resource_create",
   "folder_create",
   "node_get_property",
@@ -28,6 +30,7 @@ export const LITE_CORE: ReadonlySet<string> = new Set([
   "editor_reload_scripts",
   "scene_open",
   "project_get_settings",
+  "game_start",
   "debugger_get_log",
   "runtime_screenshot",
 ]);
@@ -54,6 +57,7 @@ export class BridgeError extends Error {
 // bridge.ts and never travel through the plugin).
 export type ErrorCode =
   | "ALREADY_EXISTS"
+  | "ALREADY_PLAYING"
   | "CLOSED"
   | "CONNECT_FAILED"
   | "CREATE_DIR_FAILED"
@@ -68,6 +72,7 @@ export type ErrorCode =
   | "GAME_NOT_RUNNING"
   | "INTERNAL"
   | "INVALID_CLASS"
+  | "INVALID_METHOD"
   | "INVALID_PARAMS"
   | "INVALID_PATH"
   | "LOAD_FAILED"

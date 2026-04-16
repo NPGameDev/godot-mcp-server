@@ -22,6 +22,17 @@ export const nodeTools: ToolDef[] = [
     description: "Introspect inspector-visible properties of a node. Returns [{ name, type, hint, hint_string }] filtered by PROPERTY_USAGE_EDITOR.",
     inputSchema: { path: z.string() },
   },
+  {
+    name: "node_call_method",
+    method: "node.call_method",
+    description:
+      "Call node's method with args (Mode A/editor-side only in 15c). has_method-gated. Args + result support Resource refs via {type:'Resource',path:...}.",
+    inputSchema: {
+      path: z.string(),
+      method: z.string(),
+      args: z.array(z.unknown()).optional(),
+    },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
