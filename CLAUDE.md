@@ -22,12 +22,13 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - `src/types.ts` — `Bridge` interface + `BridgeError` class. Tool modules depend
   on `Bridge`, NOT on the concrete `createBridge` function (DIP).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
-  `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`).
+  `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,
+  `input_map`, `animation`, `tilemap`).
   Each exports a typed `ToolDef[]` and a `register(server, bridge, profile = "full")`
   function. `ToolDef` is defined in `tools/scene.ts` and re-exported implicitly
   (via `import { ToolDef } from "./scene.js"`). Tools filter via
   `includesInProfile` (see `src/types.ts`) so that `--lite` exposes the
-  20-tool core subset only.
+  26-tool core subset only.
 - `test/smoke.ts` — harness. **Port-check first** (iter 05 contract) then round-trip
   assertions. Do NOT move the port-check below the assertions — it exits with
   instructions when the editor is down.
@@ -52,21 +53,26 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15 / 15b / 15c)
+## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d)
 
-- **Full** (default) — every tool in the catalogue (37 by default; 38 with
+- **Full** (default) — every tool in the catalogue (47 by default; 48 with
   `GODOT_MCP_ALLOW_GAME_EVAL=1`).
-- **Lite** — 20-tool token-sensitive subset; opt in by passing `--lite` in
+- **Lite** — 26-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
   keep that set as the single source of truth; do not replicate it elsewhere.
   Creation tools are included (`scene_create`, `scene_instantiate`,
   `resource_create`, `folder_create`) so clean-start projects can bootstrap.
   `game_start` is in lite (playtest is the core verification workflow);
   `game_stop` is full-only (the editor UI stop button is always available).
-  Cleanup tools (`scene_delete`, `script_delete`, `resource_delete`,
-  `folder_delete`) are deliberately excluded; `node_call_method` is full-only
-  on risk grounds (same rationale as `game_eval`). Iter 22 replaces this
-  coarse flag with a richer profile system.
+  Iter 15d's content-authoring lite picks: `project_set_setting` +
+  `input_map_add_action` + `input_map_action_add_event` +
+  `animation_add_key` + `animation_get_keys` + `tilemap_set_cells` —
+  the create/inspect tools per domain. Cleanup tools (`scene_delete`,
+  `script_delete`, `resource_delete`, `folder_delete`,
+  `input_map_remove_action` / `action_remove_event`, `animation_remove_key`)
+  are deliberately excluded; `node_call_method` and `editor_screenshot_node`
+  are full-only on risk-/polish-grounds (same rationale as `game_eval`).
+  Iter 22 replaces this coarse flag with a richer profile system.
 
 ## Idempotency — status discriminator (iter 15 / 15b)
 

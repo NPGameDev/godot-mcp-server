@@ -40,45 +40,72 @@ export const editorTools: ToolDef[] = [
     description: "List ProjectSettings keys + values. Optional prefix filter. Keys matching /password|token|secret|key/i are dropped (MVP filter — proper scrub lands iter 20).",
     inputSchema: { prefix: z.string().optional() },
   },
+  {
+    name: "project_set_setting",
+    method: "project.set_setting",
+    description:
+      "Write a ProjectSettings key and persist via ProjectSettings.save. Refuses mcp/unsafe/* and editor/* prefixes. Returns previous_value. Update (no status).",
+    inputSchema: {
+      key: z.string(),
+      value: z.unknown(),
+    },
+  },
+  {
+    name: "editor_screenshot_node",
+    method: "editor.screenshot_node",
+    description:
+      "Focus + capture a specific node in the editor viewport. Atomic focus-restore (prior selection preserved). Inline base64 PNG.",
+    inputSchema: {
+      path: z.string(),
+      size: z.object({ width: z.number(), height: z.number() }).optional(),
+    },
+  },
 ];
+
+// Shared multi-content handler for editor screenshot tools (editor_screenshot
+// + editor_screenshot_node from iter 15d). Both return the same plugin-side
+// shape ({ image_base64, mime_type, width, height, bytes, path }); the
+// difference is the input contract, which the bridge call carries through
+// unchanged.
+async function screenshotHandler(
+  bridge: Bridge,
+  method: string,
+  input: unknown,
+) {
+  let result: {
+    image_base64?: string;
+    mime_type?: string;
+    width?: number;
+    height?: number;
+    bytes?: number;
+    path?: string;
+  };
+  try {
+    result = (await bridge.call(method, input ?? {})) as typeof result;
+  } catch (err) {
+    return toolErrorFromException(err);
+  }
+  const payloadErr = toolErrorFromPayload(result);
+  if (payloadErr) return payloadErr;
+  if (!result?.image_base64) {
+    return toolErrorFromPayload({ success: false, code: "INTERNAL", error: "screenshot returned no image bytes" })!;
+  }
+  return {
+    content: [
+      { type: "image" as const, data: result.image_base64, mimeType: result.mime_type ?? "image/png" },
+      { type: "text" as const, text: JSON.stringify({ width: result.width, height: result.height, bytes: result.bytes, path: result.path }) },
+    ],
+  };
+}
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of editorTools) {
     if (!includesInProfile(tool.name, profile)) continue;
-    if (tool.name === "editor_screenshot") {
+    if (tool.name === "editor_screenshot" || tool.name === "editor_screenshot_node") {
       server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: tool.inputSchema },
-        async (input: { save_path?: string }) => {
-          let result: {
-            image_base64?: string;
-            mime_type?: string;
-            width?: number;
-            height?: number;
-            bytes?: number;
-            path?: string;
-          };
-          try {
-            result = (await bridge.call(tool.method, input ?? {})) as typeof result;
-          } catch (err) {
-            return toolErrorFromException(err);
-          }
-          // Plugin-side {success: false, ...} (PATH_DENIED, INVALID_PARAMS,
-          // INTERNAL on viewport/save failure) takes precedence over image
-          // shape — translate to isError so Claude doesn't see a half-blank
-          // image content block.
-          const payloadErr = toolErrorFromPayload(result);
-          if (payloadErr) return payloadErr;
-          if (!result?.image_base64) {
-            return toolErrorFromPayload({ success: false, code: "INTERNAL", error: "screenshot returned no image bytes" })!;
-          }
-          return {
-            content: [
-              { type: "image" as const, data: result.image_base64, mimeType: result.mime_type ?? "image/png" },
-              { type: "text" as const, text: JSON.stringify({ width: result.width, height: result.height, bytes: result.bytes, path: result.path }) },
-            ],
-          };
-        },
+        (input: unknown) => screenshotHandler(bridge, tool.method, input),
       );
     } else {
       server.registerTool(

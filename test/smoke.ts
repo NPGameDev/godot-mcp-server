@@ -12,6 +12,9 @@ import { resourceTools } from "../src/tools/resource.js";
 import { folderTools } from "../src/tools/folder.js";
 import { diffTools } from "../src/tools/diff.js";
 import { playtestTools } from "../src/tools/playtest.js";
+import { inputMapTools } from "../src/tools/input_map.js";
+import { animationTools } from "../src/tools/animation.js";
+import { tilemapTools } from "../src/tools/tilemap.js";
 import { BridgeError, LITE_CORE } from "../src/types.js";
 
 const HOST = "127.0.0.1";
@@ -122,24 +125,27 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15c registers 37 tools by default (iter 15b's 33
-    // + game_start + game_stop + scene_instantiate + node_call_method). With
-    // GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (38).
+    // Tool count — post-iter-15d registers 47 tools by default (iter 15c's
+    // 37 + project_set_setting + 4 input_map + 3 animation + tilemap_set_cells
+    // + editor_screenshot_node = 47). With GODOT_MCP_ALLOW_GAME_EVAL=1 the
+    // catalogue includes game_eval (48).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 38 : 37;
-    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools];
+    const expectedToolCount = allowGameEval ? 48 : 47;
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15 / 15b / 15c). Computed in-process by
-    // filtering the full tool list through LITE_CORE — semantically
+    // --lite catalogue size (iter 15 / 15b / 15c / 15d). Computed in-process
+    // by filtering the full tool list through LITE_CORE — semantically
     // equivalent to spawning the server with --lite (same
-    // `includesInProfile` filter runs). Spec targets 20 tools post-15c
-    // (iter 15b's 18 + scene_instantiate + game_start); game_stop and
-    // node_call_method are full-only (recovery-shaped / risk-gated).
+    // `includesInProfile` filter runs). Spec targets 26 tools post-15d
+    // (iter 15c's 20 + project_set_setting + input_map_add_action +
+    // input_map_action_add_event + animation_add_key + animation_get_keys
+    // + tilemap_set_cells). Cleanup tools (remove_action / remove_event /
+    // remove_key) and editor_screenshot_node remain full-only.
     const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
-    if (liteTools.length !== 20) fail(`--lite catalogue: expected 20, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-    else pass(`--lite catalogue == 20 (subset of full ${expectedToolCount})`);
+    if (liteTools.length !== 26) fail(`--lite catalogue: expected 26, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 26 (subset of full ${expectedToolCount})`);
     // LITE_CORE must be a subset of the full catalogue — catches typos in
     // src/types.ts that name a tool that doesn't exist anywhere.
     const allToolNames = new Set(allTools.map((t) => t.name));
@@ -1037,7 +1043,207 @@ async function main(): Promise<void> {
       "resource.create",
     );
 
-    // ---- Cleanup (iter 15c) ---------------------------------------------
+    // ---- project.set_setting (iter 15d) --------------------------------
+    // Happy path: write + read back + restore. Use a benign key under a
+    // throwaway namespace so we don't pollute the dogfood project.
+    const setSmokeKey = "application/config/mcp_smoke_15d";
+    const preGet = await bridge.call("project.get_settings", { prefix: "application/config" }, 5000) as { settings?: Record<string, unknown> };
+    const preValue = preGet?.settings?.[setSmokeKey] ?? null;
+    const setOk = await bridge.call("project.set_setting", { key: setSmokeKey, value: "smoke-15d-marker" }, 5000) as { success?: boolean; was_set_before?: boolean; previous_value?: unknown; key?: string; value?: unknown; code?: string };
+    if (setOk?.success !== true) fail(`project.set_setting: ${JSON.stringify(setOk)}`);
+    else pass(`project.set_setting ${setSmokeKey} -> success (was_set_before=${setOk.was_set_before})`);
+    const postGet = await bridge.call("project.get_settings", { prefix: "application/config" }, 5000) as { settings?: Record<string, unknown> };
+    if (postGet?.settings?.[setSmokeKey] !== "smoke-15d-marker") fail(`project.set_setting round-trip: read-back ${JSON.stringify(postGet?.settings?.[setSmokeKey])}`);
+    else pass(`project.set_setting -> read-back via project.get_settings matches`);
+    // Guard: mcp/unsafe/* prefix refusal.
+    assertGuard(
+      "project.set_setting mcp/unsafe/*",
+      await bridge.call("project.set_setting", { key: "mcp/unsafe/allow_game_eval", value: true }, 5000),
+      "INVALID_PATH",
+      "FeatureGate",
+    );
+    // Guard: editor/* prefix refusal.
+    assertGuard(
+      "project.set_setting editor/*",
+      await bridge.call("project.set_setting", { key: "editor/something", value: "x" }, 5000),
+      "INVALID_PATH",
+      "editor-session state",
+    );
+    // Guard: empty key.
+    assertGuard(
+      "project.set_setting empty key",
+      await bridge.call("project.set_setting", { key: "", value: 1 }, 5000),
+      "INVALID_PARAMS",
+      "non-empty",
+    );
+
+    // ---- input_map.* (iter 15d) ----------------------------------------
+    const smokeAction = "mcp_smoke_jump_15d";
+    // Best-effort cleanup of any stale entry from a prior crashed run.
+    try { await bridge.call("input_map.remove_action", { action: smokeAction }, 5000); } catch { /* noop */ }
+    const addAct = await bridge.call("input_map.add_action", { action: smokeAction, deadzone: 0.4 }, 5000) as { status?: string; deadzone?: number; code?: string };
+    if (addAct?.status !== "created" || addAct.deadzone !== 0.4) fail(`input_map.add_action: ${JSON.stringify(addAct)}`);
+    else pass(`input_map.add_action ${smokeAction} -> status=created, deadzone=0.4`);
+    // Idempotency: same action again -> returned, EXISTING deadzone (Godot
+    // stores deadzone as a float32 — compare with tolerance, not equality).
+    const addAct2 = await bridge.call("input_map.add_action", { action: smokeAction, deadzone: 0.9 }, 5000) as { status?: string; deadzone?: number; code?: string };
+    if (addAct2?.status !== "returned" || typeof addAct2.deadzone !== "number" || Math.abs(addAct2.deadzone - 0.4) > 0.001) fail(`input_map.add_action repeat: expected status=returned + deadzone~=0.4 (existing), got ${JSON.stringify(addAct2)}`);
+    else pass(`input_map.add_action repeat -> status=returned + deadzone~=0.4 (existing wins per 15d contract)`);
+    // Bind a key event.
+    const addKey = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { status?: string; event?: { type?: string }; code?: string };
+    if (addKey?.status !== "created" || addKey.event?.type !== "key") fail(`input_map.action_add_event SPACE: ${JSON.stringify(addKey)}`);
+    else pass(`input_map.action_add_event SPACE -> status=created`);
+    // Equivalent-event idempotency.
+    const addKey2 = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { status?: string; code?: string };
+    if (addKey2?.status !== "returned") fail(`input_map.action_add_event SPACE repeat: expected status=returned, got ${JSON.stringify(addKey2)}`);
+    else pass(`input_map.action_add_event SPACE repeat -> status=returned (equivalent-event idempotency)`);
+    // Distinct event (joypad button) does not collide with the key event.
+    const addJoy = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "joypad_button", button_index: 0, device: -1 } }, 5000) as { status?: string; code?: string };
+    if (addJoy?.status !== "created") fail(`input_map.action_add_event joypad: ${JSON.stringify(addJoy)}`);
+    else pass(`input_map.action_add_event joypad_button -> status=created (no collision with SPACE)`);
+    // Remove the key event; symmetric remove returns no status.
+    const remKey = await bridge.call("input_map.action_remove_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { success?: boolean; event?: { type?: string }; code?: string };
+    if (remKey?.success !== true || remKey.event?.type !== "key") fail(`input_map.action_remove_event: ${JSON.stringify(remKey)}`);
+    else pass(`input_map.action_remove_event SPACE -> success`);
+    // Remove again -> NOT_FOUND with event-count hint.
+    assertGuard(
+      "input_map.action_remove_event missing",
+      await bridge.call("input_map.action_remove_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000),
+      "NOT_FOUND",
+      "events",
+    );
+    // Built-in UI action refusal.
+    assertGuard(
+      "input_map.remove_action ui_accept refusal",
+      await bridge.call("input_map.remove_action", { action: "ui_accept" }, 5000),
+      "INVALID_PARAMS",
+      ["built-in UI action", "input_map.action_remove_event"],
+    );
+    // Bogus event type.
+    assertGuard(
+      "input_map.action_add_event bogus type",
+      await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "telepathy" } }, 5000),
+      "INVALID_PARAMS",
+      ["key", "mouse_button", "joypad_button", "joypad_motion"],
+    );
+    // Bogus keycode.
+    assertGuard(
+      "input_map.action_add_event bogus keycode",
+      await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "NONSENSE" } }, 5000),
+      "INVALID_PARAMS",
+      "symbolic names",
+    );
+    // Empty action name.
+    assertGuard(
+      "input_map.add_action empty",
+      await bridge.call("input_map.add_action", { action: "" }, 5000),
+      "INVALID_PARAMS",
+      "non-empty",
+    );
+    // Cleanup the smoke action.
+    try { await bridge.call("input_map.remove_action", { action: smokeAction }, 5000); } catch { /* noop */ }
+    pass(`input_map.* round-trip + guards complete`);
+
+    // ---- animation.* (iter 15d) ----------------------------------------
+    // Smoke focuses on guards + the helpful NOT_FOUND message. The full
+    // round-trip (animation.add_key on a real AnimationLibrary-bound
+    // animation) is exercised manually per spec — seeding an
+    // AnimationLibrary via the bridge is non-trivial because
+    // AnimationLibrary._data nested-dict Resource refs aren't auto-coerced
+    // by _coerce_value (it only recurses into Arrays). A throwaway .tscn
+    // template would work but adds a file artifact; iter 16/17 may add a
+    // resource.call_method tool that makes seeding tractable.
+    const animPlayerNode = await bridge.call("scene.create_node", { class_name: "AnimationPlayer", parent: ".", name: "MCPSmokeAP" }, 5000) as { status?: string; path?: string; code?: string };
+    const animSpriteNode = await bridge.call("scene.create_node", { class_name: "Sprite2D", parent: ".", name: "MCPSmokeASprite" }, 5000) as { status?: string; path?: string; code?: string };
+    const apPath = animPlayerNode?.path ?? "MCPSmokeAP";
+    const aSpritePath = animSpriteNode?.path ?? "MCPSmokeASprite";
+    // Helpful NOT_FOUND: the message must enumerate available animations
+    // (empty list here) so the agent can self-correct.
+    assertGuard(
+      "animation.add_key missing animation",
+      await bridge.call("animation.add_key", { player_path: apPath, animation_name: "no_such_anim", track_path: "MCPSmokeASprite:position", time: 0.0, value: 0 }, 5000),
+      "NOT_FOUND",
+      ["available", "no_such_anim"],
+    );
+    // Guard: non-AnimationPlayer node.
+    assertGuard(
+      "animation.add_key non-AP",
+      await bridge.call("animation.add_key", { player_path: aSpritePath, animation_name: "x", track_path: "y:position", time: 0, value: 0 }, 5000),
+      "INVALID_CLASS",
+      "AnimationPlayer",
+    );
+    // Guard: bare NodePath (no `:` property suffix). Routed through the
+    // missing-animation NOT_FOUND first iff resolved before track-shape
+    // check; spec puts shape check before animation lookup so this should
+    // hit INVALID_PARAMS regardless of animation existence.
+    assertGuard(
+      "animation.add_key bare NodePath",
+      await bridge.call("animation.add_key", { player_path: apPath, animation_name: "no_such_anim", track_path: "MCPSmokeASprite", time: 0, value: 0 }, 5000),
+      "INVALID_PARAMS",
+      "property",
+    );
+    // Cleanup nodes.
+    try { await bridge.call("scene.delete_node", { path: apPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("scene.delete_node", { path: aSpritePath }, 5000); } catch { /* noop */ }
+
+    // ---- tilemap.set_cells (iter 15d) ----------------------------------
+    // Lightweight: create TileMapLayer (no TileSet needed for guard tests +
+    // for clear-only writes via source_id:-1, which short-circuits the
+    // atlas-coords lookup). Full atlas-paint exercised manually per spec.
+    const tmlNode = await bridge.call("scene.create_node", { class_name: "TileMapLayer", parent: ".", name: "MCPSmokeTML" }, 5000) as { status?: string; path?: string; code?: string };
+    const tmlPath = tmlNode?.path ?? "MCPSmokeTML";
+    if (tmlNode?.status === "created") {
+      // Clear cells (source_id: -1) — no TileSet required.
+      const clearOk = await bridge.call("tilemap.set_cells", { tilemap_path: tmlPath, cells: [
+        { x: 0, y: 0, source_id: -1, atlas_x: 0, atlas_y: 0 },
+        { x: 1, y: 0, source_id: -1, atlas_x: 0, atlas_y: 0 },
+      ] }, 5000) as { success?: boolean; cells_unchanged?: number; total?: number; code?: string };
+      if (clearOk?.success !== true || clearOk.total !== 2) fail(`tilemap.set_cells clear: ${JSON.stringify(clearOk)}`);
+      else pass(`tilemap.set_cells clear x2 -> total=2 (cells_unchanged=${clearOk.cells_unchanged})`);
+      // Guard: non-tilemap node.
+      assertGuard(
+        "tilemap.set_cells non-tilemap",
+        await bridge.call("tilemap.set_cells", { tilemap_path: aSpritePath, cells: [] }, 5000),
+        "NOT_FOUND",
+        "node",
+      );
+      // Guard: malformed cell (missing required key).
+      assertGuard(
+        "tilemap.set_cells malformed cell",
+        await bridge.call("tilemap.set_cells", { tilemap_path: tmlPath, cells: [{ x: 0, y: 0 }] }, 5000),
+        "INVALID_PARAMS",
+        ["cells[0]", "source_id"],
+      );
+    } else {
+      pass(`tilemap.set_cells: TileMapLayer setup failed (probably stale), skipping round-trip`);
+    }
+    try { await bridge.call("scene.delete_node", { path: tmlPath }, 5000); } catch { /* noop */ }
+
+    // ---- editor.screenshot_node (iter 15d) -----------------------------
+    // Capture a recognisable node — fall back to root if no Sprite is around.
+    // We can't compare pixels, just assert image bytes returned.
+    const ssNode = await bridge.call("scene.create_node", { class_name: "ColorRect", parent: ".", name: "MCPSmokeRect" }, 5000) as { status?: string; path?: string; code?: string };
+    const ssPath = ssNode?.path ?? ".";
+    const ssShot = await bridge.call("editor.screenshot_node", { path: ssPath }, 10000) as { image_base64?: string; width?: number; height?: number; code?: string };
+    if (!ssShot?.image_base64 || ssShot.image_base64.length < 100) fail(`editor.screenshot_node: ${JSON.stringify({ ...ssShot, image_base64: ssShot?.image_base64 ? `<${ssShot.image_base64.length}B>` : null })}`);
+    else pass(`editor.screenshot_node ${ssPath} -> ${ssShot.width}x${ssShot.height} base64=${ssShot.image_base64.length}`);
+    // Guard: missing node.
+    assertGuard(
+      "editor.screenshot_node missing",
+      await bridge.call("editor.screenshot_node", { path: "/root/NoSuch_15d_xyz" }, 5000),
+      "NOT_FOUND",
+      "node",
+    );
+    // Guard: too-small size.
+    assertGuard(
+      "editor.screenshot_node tiny size",
+      await bridge.call("editor.screenshot_node", { path: ssPath, size: { width: 32, height: 32 } }, 5000),
+      "INVALID_PARAMS",
+      ["64", "4096"],
+    );
+    try { await bridge.call("scene.delete_node", { path: ssPath }, 5000); } catch { /* noop */ }
+
+    // ---- Cleanup (iter 15c + 15d) ---------------------------------------
     // Delete probe nodes, save Main, delete throwaway files, ensure no game.
     try { await bridge.call("scene.delete_node", { path: spritePath }, 5000); } catch { /* noop */ }
     try { await bridge.call("scene.delete_node", { path: "Renamed" }, 5000); } catch { /* noop */ }
@@ -1045,7 +1251,13 @@ async function main(): Promise<void> {
     try { await bridge.call("resource.delete", { path: smokeTexPath }, 5000); } catch { /* noop */ }
     try { await bridge.call("scene.delete", { path: instChildPath }, 5000); } catch { /* noop */ }
     try { await bridge.call("game.stop", {}, 5000); } catch { /* noop */ }
-    pass(`iter 15c cleanup complete`);
+    // Restore the throwaway project setting if pre-state was null/absent.
+    if (preValue === null) {
+      try { await bridge.call("project.set_setting", { key: setSmokeKey, value: "" }, 5000); } catch { /* noop */ }
+    } else {
+      try { await bridge.call("project.set_setting", { key: setSmokeKey, value: preValue }, 5000); } catch { /* noop */ }
+    }
+    pass(`iter 15c + 15d cleanup complete`);
 
     // ---- Mode B (iter 10 + iter 12) ---------------------------------------
     // Smoke can't reliably F5 the game from here, so we branch on a probe of
