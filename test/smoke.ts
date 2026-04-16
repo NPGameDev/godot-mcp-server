@@ -9,6 +9,7 @@ import { editorTools } from "../src/tools/editor.js";
 import { runtimeTools } from "../src/tools/runtime.js";
 import { signalTools } from "../src/tools/signals.js";
 import { resourceTools } from "../src/tools/resource.js";
+import { folderTools } from "../src/tools/folder.js";
 import { diffTools } from "../src/tools/diff.js";
 import { BridgeError, LITE_CORE } from "../src/types.js";
 
@@ -120,23 +121,25 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15 registers 28 tools by default (iter 12's 25
-    // + scene_create + scene_delete + script_delete). With
-    // GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (29).
+    // Tool count — post-iter-15b registers 33 tools by default (iter 15's 28
+    // + resource_create + resource_save + resource_delete + folder_create +
+    // folder_delete). With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue
+    // includes game_eval (34).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 29 : 28;
-    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...diffTools];
+    const expectedToolCount = allowGameEval ? 34 : 33;
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15). Computed in-process by filtering the
-    // full tool list through LITE_CORE — semantically equivalent to spawning
-    // the server with --lite (same `includesInProfile` filter runs). Spec
-    // targets 16 tools; `scene_create` is in, `scene_delete`/`script_delete`
-    // are intentionally out (cleanup-only).
+    // --lite catalogue size (iter 15 / 15b). Computed in-process by filtering
+    // the full tool list through LITE_CORE — semantically equivalent to
+    // spawning the server with --lite (same `includesInProfile` filter runs).
+    // Spec targets 18 tools post-15b (iter 15's 16 + resource_create +
+    // folder_create); cleanup tools (scene_delete, script_delete,
+    // resource_delete, folder_delete) are intentionally out.
     const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
-    if (liteTools.length !== 16) fail(`--lite catalogue: expected 16, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-    else pass(`--lite catalogue == 16 (subset of full ${expectedToolCount})`);
+    if (liteTools.length !== 18) fail(`--lite catalogue: expected 18, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 18 (subset of full ${expectedToolCount})`);
     // LITE_CORE must be a subset of the full catalogue — catches typos in
     // src/types.ts that name a tool that doesn't exist anywhere.
     const allToolNames = new Set(allTools.map((t) => t.name));
@@ -193,9 +196,11 @@ async function main(): Promise<void> {
     if (!del?.ok) fail(`scene.delete_node: ${JSON.stringify(del)}`);
     else pass("scene.delete_node cleanup");
 
-    // script.write + script.read round-trip. Use .txt so Godot's FileSystem
-    // import pipeline doesn't re-scan GDScript on every run.
-    const scriptPath = "res://smoke_probe.txt";
+    // script.write + script.read round-trip. Iter 15b's new extension guard
+    // on script.write restricts to .gd/.cs/.gdshader/.gdshaderinc — .txt
+    // (iter 05's original choice for import-pipeline avoidance) no longer
+    // accepted. .gd re-scan on every run is fine for smoke cadence.
+    const scriptPath = "res://smoke_probe.gd";
     const scriptBody = `# smoke ${Date.now()}\nextends Node\n`;
     const wRes = await bridge.call("script.write", { path: scriptPath, content: scriptBody }, 5000) as { ok?: boolean; undoable?: boolean; code?: string };
     if (!wRes?.ok) fail(`script.write: ${JSON.stringify(wRes)}`);
@@ -596,6 +601,229 @@ async function main(): Promise<void> {
       "INVALID_PATH",
       ".gd",
     );
+
+    // ---- Iter 15b: resource.create/save/delete + folder.create/delete ----
+    // File-level Resource (.tres/.res) lifecycle + directory operations +
+    // shader extension allowlist. Structure mirrors iter 15: status
+    // discriminator, three if_exists branches on resource.create, guard
+    // rejections with message-substring checks, plus symmetric delete tests.
+    // All throwaway paths get best-effort cleanup at the top so stale state
+    // from a previous aborted run can't poison the "fresh create" branches.
+    const resPath = "res://smoke_resource.tres";
+    const folderRoot = "res://smoke_dir";
+    const shaderPath = "res://smoke.gdshader";
+    const shaderIncPath = "res://smoke.gdshaderinc";
+    try { await bridge.call("resource.delete", { path: resPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("script.delete", { path: shaderPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("script.delete", { path: shaderIncPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("folder.delete", { path: folderRoot, recursive: true }, 5000); } catch { /* noop */ }
+
+    // resource.create happy path + idempotency (status='created' then 'returned').
+    const rc1 = await bridge.call("resource.create", { path: resPath, resource_class: "Resource", properties: { resource_name: "smoke" } }, 5000) as { success?: boolean; status?: string; path?: string; resource_class?: string; warnings?: string[]; code?: string };
+    if (rc1?.status !== "created" || rc1.resource_class !== "Resource") fail(`resource.create fresh: expected status='created' class='Resource', got ${JSON.stringify(rc1)}`);
+    else if (!Array.isArray(rc1.warnings) || rc1.warnings.length !== 0) fail(`resource.create fresh: expected warnings=[], got ${JSON.stringify(rc1.warnings)}`);
+    else pass(`resource.create fresh -> status='created' class=Resource warnings=0`);
+    const rc2 = await bridge.call("resource.create", { path: resPath, resource_class: "Resource" }, 5000) as { status?: string; code?: string; path?: string };
+    if (rc2?.status !== "returned" || rc2.path !== resPath) fail(`resource.create default repeat: expected status='returned', got ${JSON.stringify(rc2)}`);
+    else if (rc2.code !== undefined) fail(`resource.create returned must not carry code (got ${rc2.code})`);
+    else pass(`resource.create default repeat -> status='returned' (code absent)`);
+
+    // if_exists='fail' → ALREADY_EXISTS; message steers to 'replace'.
+    const rc3 = await bridge.call("resource.create", { path: resPath, resource_class: "Resource", if_exists: "fail" }, 5000) as { success?: boolean; code?: string; error?: string };
+    if (rc3?.success !== false || rc3.code !== "ALREADY_EXISTS" || !rc3.error?.includes("replace")) {
+      fail(`resource.create if_exists=fail: expected ALREADY_EXISTS mentioning 'replace', got ${JSON.stringify(rc3)}`);
+    } else pass(`resource.create if_exists='fail' -> ALREADY_EXISTS (message steers to 'replace')`);
+
+    // if_exists='replace' → status='replaced', previous_class + new class.
+    const rc4 = await bridge.call("resource.create", { path: resPath, resource_class: "Curve", properties: { bake_resolution: 100 }, if_exists: "replace" }, 5000) as { status?: string; resource_class?: string; previous_class?: string; warnings?: string[]; code?: string };
+    if (rc4?.status !== "replaced" || rc4.resource_class !== "Curve" || rc4.previous_class !== "Resource") {
+      fail(`resource.create if_exists=replace: expected status='replaced' class=Curve prev=Resource, got ${JSON.stringify(rc4)}`);
+    } else pass(`resource.create if_exists='replace' -> status='replaced' prev=${rc4.previous_class}`);
+
+    // Invalid if_exists value → INVALID_PARAMS.
+    const rcBadIf = await bridge.call("resource.create", { path: resPath, resource_class: "Resource", if_exists: "explode" }, 5000) as { code?: string; error?: string };
+    if (rcBadIf?.code !== "INVALID_PARAMS" || !rcBadIf.error?.includes("if_exists")) {
+      fail(`resource.create invalid if_exists: expected INVALID_PARAMS, got ${JSON.stringify(rcBadIf)}`);
+    } else pass(`resource.create if_exists='explode' -> INVALID_PARAMS`);
+
+    // Guard rejections (each asserts code + message substring per iter 15b §2 Step-3).
+    assertGuard(
+      "resource.create /tmp path",
+      await bridge.call("resource.create", { path: "/tmp/foo.tres", resource_class: "Resource" }, 5000),
+      "INVALID_PATH",
+      "res://",
+    );
+    assertGuard(
+      "resource.create .gd extension",
+      await bridge.call("resource.create", { path: "res://foo.gd", resource_class: "Resource" }, 5000),
+      "INVALID_PATH",
+      "script.write",
+    );
+    assertGuard(
+      "resource.create missing parent dir",
+      await bridge.call("resource.create", { path: "res://no_such_dir_smoke/foo.tres", resource_class: "Resource" }, 5000),
+      "PARENT_NOT_FOUND",
+      "folder.create",
+    );
+    assertGuard(
+      "resource.create bogus class",
+      await bridge.call("resource.create", { path: "res://smoke_bogus.tres", resource_class: "BogusClass" }, 5000),
+      "INVALID_CLASS",
+      ["ClassDB", "ProjectSettings"],
+    );
+    assertGuard(
+      "resource.create Node2D (not a Resource)",
+      await bridge.call("resource.create", { path: "res://smoke_node2d.tres", resource_class: "Node2D" }, 5000),
+      "NOT_A_RESOURCE",
+      "base chain",
+    );
+    // Unknown-key warning — success, but `warnings[]` names the bad key + class.
+    const warnPath = "res://smoke_warn.tres";
+    try { await bridge.call("resource.delete", { path: warnPath }, 5000); } catch { /* noop */ }
+    const rcWarn = await bridge.call("resource.create", { path: warnPath, resource_class: "Resource", properties: { bogus_key: 42 } }, 5000) as { status?: string; warnings?: string[]; code?: string };
+    if (rcWarn?.status !== "created") fail(`resource.create warn probe: expected status='created', got ${JSON.stringify(rcWarn)}`);
+    else if (!Array.isArray(rcWarn.warnings) || rcWarn.warnings.length !== 1 || !rcWarn.warnings[0].includes("bogus_key") || !rcWarn.warnings[0].includes("Resource")) {
+      fail(`resource.create unknown-key warning: expected warnings[0] mentioning bogus_key + Resource, got ${JSON.stringify(rcWarn.warnings)}`);
+    } else pass(`resource.create unknown key -> warnings[0] names 'bogus_key' + 'Resource'`);
+    await bridge.call("resource.delete", { path: warnPath }, 5000);
+
+    // resource.save round-trip: save new bake_resolution, verify via resource.load.
+    const rs1 = await bridge.call("resource.save", { path: resPath, properties: { bake_resolution: 200 } }, 5000) as { success?: boolean; resource_class?: string; warnings?: string[]; status?: string; code?: string };
+    if (rs1?.success !== true || rs1.resource_class !== "Curve") fail(`resource.save round-trip: ${JSON.stringify(rs1)}`);
+    else if (rs1.status !== undefined) fail(`resource.save must NOT carry status (update, not create): got ${rs1.status}`);
+    else if (!Array.isArray(rs1.warnings) || rs1.warnings.length !== 0) fail(`resource.save: expected warnings=[], got ${JSON.stringify(rs1.warnings)}`);
+    else pass(`resource.save round-trip -> class=Curve, no warnings, no status field`);
+    const rl = await bridge.call("resource.load", { path: resPath }, 5000) as { properties?: { bake_resolution?: number }; code?: string };
+    if (rl?.properties?.bake_resolution !== 200) fail(`resource.load after save: expected bake_resolution=200, got ${JSON.stringify(rl?.properties)}`);
+    else pass(`resource.load after save -> bake_resolution=200`);
+    assertGuard(
+      "resource.save missing file",
+      await bridge.call("resource.save", { path: "res://no_such_smoke.tres", properties: {} }, 5000),
+      "NOT_FOUND",
+      "resource.create",
+    );
+
+    // resource.delete round-trip.
+    const rd1 = await bridge.call("resource.delete", { path: resPath }, 5000) as { success?: boolean; path?: string; code?: string };
+    if (rd1?.success !== true || rd1.path !== resPath) fail(`resource.delete: ${JSON.stringify(rd1)}`);
+    else pass(`resource.delete ${resPath}`);
+    const rd2 = await bridge.call("resource.delete", { path: resPath }, 5000) as { success?: boolean; code?: string };
+    if (rd2?.code !== "NOT_FOUND") fail(`resource.delete repeat: expected NOT_FOUND, got ${JSON.stringify(rd2)}`);
+    else pass(`resource.delete repeat -> NOT_FOUND`);
+    assertGuard(
+      "resource.delete .tscn extension",
+      await bridge.call("resource.delete", { path: "res://bogus.tscn" }, 5000),
+      "INVALID_PATH",
+      "scene.delete",
+    );
+    assertGuard(
+      "resource.delete .gd extension",
+      await bridge.call("resource.delete", { path: "res://bogus.gd" }, 5000),
+      "INVALID_PATH",
+      "script.delete",
+    );
+
+    // folder.create — recursive + idempotency.
+    const folderDeep = `${folderRoot}/nested/deep`;
+    const folderNested = `${folderRoot}/nested`;
+    const fc1 = await bridge.call("folder.create", { path: folderDeep }, 5000) as { success?: boolean; status?: string; path?: string; code?: string };
+    if (fc1?.status !== "created" || fc1.path !== folderDeep) fail(`folder.create recursive: expected status='created' path=${folderDeep}, got ${JSON.stringify(fc1)}`);
+    else pass(`folder.create recursive ${folderDeep} -> status='created'`);
+    const fc2 = await bridge.call("folder.create", { path: folderDeep }, 5000) as { status?: string; code?: string };
+    if (fc2?.status !== "returned") fail(`folder.create idempotency: expected status='returned', got ${JSON.stringify(fc2)}`);
+    else if (fc2.code !== undefined) fail(`folder.create returned must not carry code (got ${fc2.code})`);
+    else pass(`folder.create idempotent -> status='returned' (code absent)`);
+    assertGuard(
+      "folder.create /tmp path",
+      await bridge.call("folder.create", { path: "/tmp/smoke_bogus" }, 5000),
+      "INVALID_PATH",
+      "res://",
+    );
+
+    // folder.delete — PATH_IN_USE for currently-edited scene under the folder.
+    // Create a throwaway scene inside the nested dir, open it, attempt
+    // folder.delete on the parent → expect PATH_IN_USE naming the scene.
+    const editedInFolder = `${folderNested}/inner_probe.tscn`;
+    const sceneInFolder = await bridge.call("scene.create", { path: editedInFolder, root_type: "Node" }, 5000) as { status?: string };
+    if (sceneInFolder?.status !== "created") fail(`folder.delete PATH_IN_USE probe: scene.create: ${JSON.stringify(sceneInFolder)}`);
+    const openedInFolder = await bridge.call("scene.open", { path: editedInFolder }, 5000) as { ok?: boolean };
+    if (!openedInFolder?.ok) fail(`folder.delete PATH_IN_USE probe: scene.open: ${JSON.stringify(openedInFolder)}`);
+    const fdInUse = await bridge.call("folder.delete", { path: folderRoot, recursive: true }, 5000) as { code?: string; error?: string };
+    if (fdInUse?.code !== "PATH_IN_USE" || !fdInUse.error?.includes(editedInFolder)) {
+      fail(`folder.delete on folder containing edited scene: expected PATH_IN_USE naming ${editedInFolder}, got ${JSON.stringify(fdInUse)}`);
+    } else pass(`folder.delete refuses folder containing edited scene -> PATH_IN_USE`);
+    // Restore Main.tscn so the rest of smoke isn't disrupted.
+    await bridge.call("scene.open", { path: currentScenePath }, 5000);
+    // Cleanup the probe scene before the DIR_NOT_EMPTY + recursive sections.
+    await bridge.call("scene.delete", { path: editedInFolder }, 5000);
+
+    // folder.delete — FOLDER_PROTECTED guards.
+    assertGuard(
+      "folder.delete project root",
+      await bridge.call("folder.delete", { path: "res://" }, 5000),
+      "FOLDER_PROTECTED",
+      "root",
+    );
+    assertGuard(
+      "folder.delete res://addons",
+      await bridge.call("folder.delete", { path: "res://addons" }, 5000),
+      "FOLDER_PROTECTED",
+      "addons",
+    );
+    assertGuard(
+      "folder.delete toolkit plugin dir",
+      await bridge.call("folder.delete", { path: "res://addons/godot_mcp_toolkit" }, 5000),
+      "FOLDER_PROTECTED",
+      "godot_mcp_toolkit",
+    );
+
+    // folder.delete — DIR_NOT_EMPTY without recursive.
+    assertGuard(
+      "folder.delete non-empty without recursive",
+      await bridge.call("folder.delete", { path: folderRoot }, 5000),
+      "DIR_NOT_EMPTY",
+      "recursive:true",
+    );
+
+    // folder.delete — empty leaf success, zero counts.
+    const fdLeaf = await bridge.call("folder.delete", { path: folderDeep }, 5000) as { success?: boolean; path?: string; files_deleted?: number; directories_deleted?: number; code?: string };
+    if (fdLeaf?.success !== true || fdLeaf.files_deleted !== 0 || fdLeaf.directories_deleted !== 0) {
+      fail(`folder.delete empty leaf: expected success with zero counts, got ${JSON.stringify(fdLeaf)}`);
+    } else pass(`folder.delete empty leaf ${folderDeep} -> files=0 dirs=0`);
+
+    // folder.delete — recursive success, counts reflect the cleanup.
+    const fdRec = await bridge.call("folder.delete", { path: folderRoot, recursive: true }, 5000) as { success?: boolean; files_deleted?: number; directories_deleted?: number; code?: string };
+    if (fdRec?.success !== true) fail(`folder.delete recursive: ${JSON.stringify(fdRec)}`);
+    else pass(`folder.delete recursive ${folderRoot} -> files=${fdRec.files_deleted} dirs=${fdRec.directories_deleted}`);
+
+    // Shader allowlist — .gdshader + .gdshaderinc accepted, .txt rejected.
+    const swShader = await bridge.call("script.write", { path: shaderPath, content: "shader_type canvas_item;\n" }, 5000) as { ok?: boolean; code?: string };
+    if (!swShader?.ok) fail(`script.write .gdshader: ${JSON.stringify(swShader)}`);
+    else pass(`script.write .gdshader ok`);
+    const swInc = await bridge.call("script.write", { path: shaderIncPath, content: "// smoke include\n" }, 5000) as { ok?: boolean; code?: string };
+    if (!swInc?.ok) fail(`script.write .gdshaderinc: ${JSON.stringify(swInc)}`);
+    else pass(`script.write .gdshaderinc ok`);
+    assertGuard(
+      "script.write .txt extension (new guard)",
+      await bridge.call("script.write", { path: "res://smoke_bogus.txt", content: "x" }, 5000),
+      "INVALID_PATH",
+      ".gd",
+    );
+    const sdShader = await bridge.call("script.delete", { path: shaderPath }, 5000) as { success?: boolean; code?: string };
+    if (sdShader?.success !== true) fail(`script.delete .gdshader: ${JSON.stringify(sdShader)}`);
+    else pass(`script.delete .gdshader ok`);
+    const sdInc = await bridge.call("script.delete", { path: shaderIncPath }, 5000) as { success?: boolean; code?: string };
+    if (sdInc?.success !== true) fail(`script.delete .gdshaderinc: ${JSON.stringify(sdInc)}`);
+    else pass(`script.delete .gdshaderinc ok`);
+
+    // Belt-and-braces cleanup — any iter 15b artifact that could have
+    // survived a mid-run failure. Wrapped in try/catch so the smoke exits
+    // clean even on partial failure.
+    try { await bridge.call("resource.delete", { path: resPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("resource.delete", { path: warnPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("script.delete", { path: shaderPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("script.delete", { path: shaderIncPath }, 5000); } catch { /* noop */ }
+    try { await bridge.call("folder.delete", { path: folderRoot, recursive: true }, 5000); } catch { /* noop */ }
 
     // ---- Mode B (iter 10 + iter 12) ---------------------------------------
     // Smoke can't reliably F5 the game from here, so we branch on a probe of

@@ -13,14 +13,14 @@ export const scriptTools: ToolDef[] = [
   {
     name: "script_write",
     method: "script.write",
-    description: "Write GDScript file (res:// only). Overwrites existing; integrates with editor UndoRedo so Ctrl-Z restores prior content (or deletes new files).",
+    description: "Write .gd/.cs/.gdshader/.gdshaderinc at path (res:// only, creates or overwrites). Not idempotent. Use script.delete to remove; resource.create for .tres; scene.create for .tscn.",
     inputSchema: { path: z.string(), content: z.string() },
   },
   {
     name: "script_delete",
     method: "script.delete",
     description:
-      "Delete the .gd or .cs script and its .uid companion at path. Refuses non-script paths (code INVALID_PATH) or missing files (NOT_FOUND). No open-in-editor guard.",
+      "Delete .gd/.cs/.gdshader/.gdshaderinc at path (and .uid companion). Refuses non-script paths (INVALID_PATH). No open-in-editor guard.",
     inputSchema: { path: z.string() },
   },
 ];

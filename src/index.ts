@@ -10,9 +10,10 @@ import * as editorTools from "./tools/editor.js";
 import * as runtimeTools from "./tools/runtime.js";
 import * as signalTools from "./tools/signals.js";
 import * as resourceTools from "./tools/resource.js";
+import * as folderTools from "./tools/folder.js";
 import * as diffTools from "./tools/diff.js";
 
-// Iter 15: `--lite` opts into a 16-tool token-sensitive catalogue; default
+// Iter 15b: `--lite` opts into an 18-tool token-sensitive catalogue; default
 // is the full catalogue. Precursor to iter 22's richer profile system.
 const profile: Profile = process.argv.includes("--lite") ? "lite" : "full";
 
@@ -32,6 +33,7 @@ editorTools.register(server, bridge, profile);
 runtimeTools.register(server, bridge, profile);
 signalTools.register(server, bridge, profile);
 resourceTools.register(server, bridge, profile);
+folderTools.register(server, bridge, profile);
 diffTools.register(server, bridge, profile);
 
 async function shutdown(): Promise<void> {

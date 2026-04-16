@@ -22,11 +22,12 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - `src/types.ts` — `Bridge` interface + `BridgeError` class. Tool modules depend
   on `Bridge`, NOT on the concrete `createBridge` function (DIP).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
-  `editor`). Each exports a typed `ToolDef[]` and a
-  `register(server, bridge, profile = "full")` function. `ToolDef` is defined
-  in `tools/scene.ts` and re-exported implicitly (via
-  `import { ToolDef } from "./scene.js"`). Tools filter via `includesInProfile`
-  (see `src/types.ts`) so that `--lite` exposes the 16-tool core subset only.
+  `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`). Each exports
+  a typed `ToolDef[]` and a `register(server, bridge, profile = "full")`
+  function. `ToolDef` is defined in `tools/scene.ts` and re-exported implicitly
+  (via `import { ToolDef } from "./scene.js"`). Tools filter via
+  `includesInProfile` (see `src/types.ts`) so that `--lite` exposes the
+  18-tool core subset only.
 - `test/smoke.ts` — harness. **Port-check first** (iter 05 contract) then round-trip
   assertions. Do NOT move the port-check below the assertions — it exits with
   instructions when the editor is down.
@@ -51,41 +52,56 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15)
+## Tool-catalogue profiles (iter 15 / 15b)
 
-- **Full** (default) — every tool in the catalogue (28 by default; 29 with
+- **Full** (default) — every tool in the catalogue (33 by default; 34 with
   `GODOT_MCP_ALLOW_GAME_EVAL=1`).
-- **Lite** — 16-tool token-sensitive subset; opt in by passing `--lite` in
+- **Lite** — 18-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
   keep that set as the single source of truth; do not replicate it elsewhere.
-  `scene_create` is included (clean-start projects need a way to bootstrap a
-  `.tscn`); `scene_delete` + `script_delete` are cleanup-only and deliberately
-  excluded. Iter 22 replaces this coarse flag with a richer profile system.
+  Creation tools are included (`scene_create`, `resource_create`,
+  `folder_create`) so clean-start projects can bootstrap. Cleanup tools
+  (`scene_delete`, `script_delete`, `resource_delete`, `folder_delete`) are
+  deliberately excluded. Iter 22 replaces this coarse flag with a richer
+  profile system.
 
-## Idempotency — status discriminator (iter 15)
+## Idempotency — status discriminator (iter 15 / 15b)
 
 Every `create_*` success payload carries a `status` field:
 
 - `"created"` — fresh create.
 - `"returned"` — idempotent no-op; the thing already existed. This is the
-  default silent-success path for `scene_create_node`, `signal_connect`, and
-  `scene_create` (with the default `if_exists: "return"`).
-- `"replaced"` — file-level `scene_create` with `if_exists: "replace"` only;
-  the response also carries `previous_root_type`.
+  default silent-success path for `scene_create_node`, `signal_connect`,
+  `folder_create`, and file-level `scene_create` / `resource_create` with
+  the default `if_exists: "return"`.
+- `"replaced"` — file-level `scene_create` / `resource_create` with
+  `if_exists: "replace"` only; the response also carries
+  `previous_root_type` / `previous_class` respectively.
+
+`resource_save` is the odd one out: it is an UPDATE, not a create, so it
+carries NO `status` field. The absence is itself the discriminator between
+create and update paths (`resource_create` has `status`; `resource_save`
+does not).
 
 Success payloads do NOT carry `code` — `status` is the single discriminator
 consumers check. `code` is reserved for error payloads.
 
-`scene_create` accepts `if_exists: "return" | "fail" | "replace"`:
-- `"return"` (default) — idempotent no-op, payload `{ status: "returned", path }`.
+File-level creates (`scene_create`, `resource_create`) accept
+`if_exists: "return" | "fail" | "replace"`:
+- `"return"` (default) — idempotent no-op. `{ status: "returned", path }`
+  for `scene_create`; `{ status: "returned", path, class }` for
+  `resource_create`.
 - `"fail"` — hard error `ALREADY_EXISTS` with a message suggesting `replace`.
-- `"replace"` — overwrite, payload `{ status: "replaced", path, root_type, previous_root_type }`.
+- `"replace"` — overwrite. `{ status: "replaced", path, root_type,
+  previous_root_type }` for `scene_create`; `{ status: "replaced", path,
+  class, previous_class, properties, warnings }` for `resource_create`.
 
-Node-level creates (`scene_create_node`, `signal_connect`) intentionally do
-NOT accept `if_exists` — their blast radius is small and silent-success is
-the right default. If a future create tool gains the param, copy this shape
-(zod `z.enum(["return","fail","replace"]).optional()`, toolkit-side default
-`"return"`, three-branch switch in the GDScript handler).
+Node-level creates (`scene_create_node`, `signal_connect`, `folder_create`)
+intentionally do NOT accept `if_exists` — their blast radius is small and
+silent-success is the right default. If a future create tool gains the
+param, copy this shape (zod `z.enum(["return","fail","replace"]).optional()`,
+toolkit-side default `"return"`, three-branch switch in the GDScript
+handler).
 
 ## Workflow
 
@@ -127,31 +143,36 @@ this table. Codes are UPPER_SNAKE_CASE.
 
 | Code               | Origin           | When                                                                          |
 |--------------------|------------------|-------------------------------------------------------------------------------|
-| `ALREADY_EXISTS`   | plugin           | `scene_create` with `if_exists: "fail"` on collision. **Error payload only** post-iter-15 — idempotent collisions now return success with `status: "returned"`. |
+| `ALREADY_EXISTS`   | plugin           | `scene_create` / `resource_create` with `if_exists: "fail"` on collision. **Error payload only** post-iter-15 — idempotent collisions return success with `status: "returned"`. |
 | `CLOSED`           | bridge           | Bridge call after `bridge.close()`.                                           |
 | `CONNECT_FAILED`   | bridge           | WebSocket open failure (cold path; first attempt).                            |
-| `DELETE_FAILED`    | plugin (iter 15) | `DirAccess.remove` returned non-OK from `scene_delete` / `script_delete`.     |
+| `CREATE_DIR_FAILED`| plugin (iter 15b)| `DirAccess.make_dir_recursive_absolute` returned non-OK on `folder_create`.   |
+| `DELETE_FAILED`    | plugin (iter 15 / 15b) | `DirAccess.remove` non-OK from `scene_delete` / `script_delete` / `resource_delete` / `folder_delete`. |
+| `DIR_NOT_EMPTY`    | plugin (iter 15b)| `folder_delete` with `recursive: false` on a non-empty directory.             |
 | `DISCONNECTED`     | bridge           | Socket closed mid-call or no reconnect within `CALL_AWAIT_RECONNECT_MS`.      |
 | `EDITED_SCENE`     | plugin (iter 15) | `scene_delete` against the currently-edited scene; open a different scene first. |
 | `EXECUTE_FAILED`   | plugin (Mode B)  | `game.eval` Expression.execute returned an error.                             |
 | `FEATURE_DISABLED` | both (iter 19+)  | Tool gated off by FeatureGate; reserved.                                      |
 | `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |
+| `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
 | `GAME_NOT_RUNNING` | bridge           | Mode B call when port 9090 isn't listening.                                   |
 | `INTERNAL`         | both             | Catch-all for unexpected failure (viewport unavailable, save_png empty, …).   |
-| `INVALID_CLASS`    | plugin           | `ClassDB` rejection (unknown / not instantiable / not a Node subclass).       |
+| `INVALID_CLASS`    | plugin           | `ClassDB` rejection — unknown / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`). |
 | `INVALID_PARAMS`   | plugin           | JSON-RPC params shape error (missing required field, wrong type).             |
-| `INVALID_PATH`     | plugin           | Semantic refusal — edited-root on `scene_delete_node`, or wrong prefix/extension on `scene_create` / `scene_delete` / `script_delete`. |
+| `INVALID_PATH`     | plugin           | Semantic refusal — edited-root on `scene_delete_node`, wrong prefix/extension on `scene_*` / `script_*` / `resource_*` / `folder_*`. Script tools now require `.gd`/`.cs`/`.gdshader`/`.gdshaderinc`. |
 | `LOAD_FAILED`      | plugin           | `ResourceLoader.load` returned null.                                          |
 | `NO_RUNTIME_URL`   | bridge           | `callRuntime` invoked when `createBridge` got no runtime URL.                 |
 | `NO_SCENE`         | plugin           | `EditorInterface.get_edited_scene_root()` returned null.                      |
-| `NOT_FOUND`        | plugin           | Node / scene file / resource / animation / connection not found.              |
+| `NOT_A_RESOURCE`   | plugin (iter 15b)| `resource_save` / `resource_delete` target loaded but isn't a Resource subclass. |
+| `NOT_FOUND`        | plugin           | Node / scene file / resource / animation / connection / folder not found.     |
 | `PACK_FAILED`      | plugin (iter 15) | `PackedScene.pack(root)` returned non-OK — only `scene_create` emits this.    |
-| `PARENT_NOT_FOUND` | plugin (iter 15) | `scene_create` target's parent dir does not exist (pre-FileGuard guard).      |
+| `PARENT_NOT_FOUND` | plugin (iter 15 / 15b) | `scene_create` / `resource_create` target's parent dir does not exist — use `folder_create` first (pre-FileGuard guard). |
 | `PARSE_ERROR`      | plugin (Mode B)  | `game.eval` Expression.parse failed.                                          |
 | `PATH_DENIED`      | plugin           | Path didn't pass the `res://` prefix check (full FileGuard in iter 18).       |
+| `PATH_IN_USE`      | plugin (iter 15b)| `folder_delete` target contains the currently-edited scene or an open script tab. |
 | `READ_FAILED`      | plugin           | `FileAccess` read error.                                                      |
 | `RPC_ERROR`        | bridge           | Plugin returned a JSON-RPC envelope `error` field (transport-level).          |
-| `SAVE_FAILED`      | plugin           | `EditorInterface.save_scene` / `save_scene_as` failure.                       |
+| `SAVE_FAILED`      | plugin           | `EditorInterface.save_scene` / `save_scene_as` / `ResourceSaver.save` failure. |
 | `SEND_FAILED`      | bridge           | WebSocket send callback errored.                                              |
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |

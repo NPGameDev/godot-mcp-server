@@ -4,11 +4,11 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
-// Iter 15: tool-catalogue profile. `full` registers every tool; `lite` is a
-// 16-tool token-sensitive subset biased toward authoring + inspection +
-// save/load. Catalogue shape decisions live in iter 15 plan §6; retained
-// here (not a per-file constant) so iter 22's richer profile system can
-// build on the same entry point.
+// Iter 15 / 15b: tool-catalogue profile. `full` registers every tool;
+// `lite` is an 18-tool token-sensitive subset biased toward authoring +
+// inspection + save/load. Catalogue shape decisions live in iter 15 plan
+// §6 + iter 15b plan §2; retained here (not a per-file constant) so iter
+// 22's richer profile system can build on the same entry point.
 export type Profile = "full" | "lite";
 
 export const LITE_CORE: ReadonlySet<string> = new Set([
@@ -16,6 +16,8 @@ export const LITE_CORE: ReadonlySet<string> = new Set([
   "scene_create_node",
   "scene_delete_node",
   "scene_create",
+  "resource_create",
+  "folder_create",
   "node_get_property",
   "node_set_property",
   "script_read",
@@ -54,12 +56,15 @@ export type ErrorCode =
   | "ALREADY_EXISTS"
   | "CLOSED"
   | "CONNECT_FAILED"
+  | "CREATE_DIR_FAILED"
   | "DELETE_FAILED"
+  | "DIR_NOT_EMPTY"
   | "DISCONNECTED"
   | "EDITED_SCENE"
   | "EXECUTE_FAILED"
   | "FEATURE_DISABLED"
   | "FILE_TOO_LARGE"
+  | "FOLDER_PROTECTED"
   | "GAME_NOT_RUNNING"
   | "INTERNAL"
   | "INVALID_CLASS"
@@ -68,11 +73,13 @@ export type ErrorCode =
   | "LOAD_FAILED"
   | "NO_RUNTIME_URL"
   | "NO_SCENE"
+  | "NOT_A_RESOURCE"
   | "NOT_FOUND"
   | "PACK_FAILED"
   | "PARENT_NOT_FOUND"
   | "PARSE_ERROR"
   | "PATH_DENIED"
+  | "PATH_IN_USE"
   | "READ_FAILED"
   | "RPC_ERROR"
   | "SAVE_FAILED"
