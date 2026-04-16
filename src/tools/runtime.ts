@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../types.js";
+import { Bridge, Profile, callAndWrap, includesInProfile, toolErrorFromException, toolErrorFromPayload } from "../types.js";
 import { ToolDef } from "./scene.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
@@ -64,8 +64,9 @@ if (process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1") {
   });
 }
 
-export function register(server: McpServer, bridge: Bridge): void {
+export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of runtimeTools) {
+    if (!includesInProfile(tool.name, profile)) continue;
     if (tool.name === "runtime_screenshot") {
       server.registerTool(
         tool.name,

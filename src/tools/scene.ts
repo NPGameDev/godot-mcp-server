@@ -1,6 +1,6 @@
 import { z, ZodRawShape } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, callAndWrap } from "../types.js";
+import { Bridge, Profile, callAndWrap, includesInProfile } from "../types.js";
 
 export type ToolDef = {
   name: string;
@@ -21,7 +21,7 @@ export const sceneTools: ToolDef[] = [
     name: "scene_create_node",
     method: "scene.create_node",
     description:
-      "Create a node of class_name under parent (NodePath). Idempotent: returns existing path if a sibling with the same name exists.",
+      "Create a node of class_name under parent (NodePath). Idempotent: status 'returned' with existing path on collision, 'created' on fresh.",
     inputSchema: {
       class_name: z.string(),
       parent: z.string(),
@@ -35,10 +35,29 @@ export const sceneTools: ToolDef[] = [
       "Delete the node at path (NodePath). Refuses to delete the edited scene root.",
     inputSchema: { path: z.string() },
   },
+  {
+    name: "scene_create",
+    method: "scene.create",
+    description:
+      "Create .tscn at path; root_type = engine class or custom class_name (default Node). Idempotent. Returns status 'created'|'returned'|'replaced'. if_exists: 'return'(default)|'fail'|'replace'.",
+    inputSchema: {
+      path: z.string(),
+      root_type: z.string().optional(),
+      if_exists: z.enum(["return", "fail", "replace"]).optional(),
+    },
+  },
+  {
+    name: "scene_delete",
+    method: "scene.delete",
+    description:
+      "Delete the .tscn and its .uid companion at path. Refuses non-.tscn paths and the currently-edited scene (codes INVALID_PATH / EDITED_SCENE).",
+    inputSchema: { path: z.string() },
+  },
 ];
 
-export function register(server: McpServer, bridge: Bridge): void {
+export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of sceneTools) {
+    if (!includesInProfile(tool.name, profile)) continue;
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },

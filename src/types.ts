@@ -4,6 +4,38 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
+// Iter 15: tool-catalogue profile. `full` registers every tool; `lite` is a
+// 16-tool token-sensitive subset biased toward authoring + inspection +
+// save/load. Catalogue shape decisions live in iter 15 plan §6; retained
+// here (not a per-file constant) so iter 22's richer profile system can
+// build on the same entry point.
+export type Profile = "full" | "lite";
+
+export const LITE_CORE: ReadonlySet<string> = new Set([
+  "scene_get_tree",
+  "scene_create_node",
+  "scene_delete_node",
+  "scene_create",
+  "node_get_property",
+  "node_set_property",
+  "script_read",
+  "script_write",
+  "editor_get_errors",
+  "editor_save_scene",
+  "editor_screenshot",
+  "editor_reload_scripts",
+  "scene_open",
+  "project_get_settings",
+  "debugger_get_log",
+  "runtime_screenshot",
+]);
+
+// Small helper so each tools/<group>.ts register() body stays one line
+// shorter. Returns true if this tool should be registered under `profile`.
+export function includesInProfile(toolName: string, profile: Profile): boolean {
+  return profile === "full" || LITE_CORE.has(toolName);
+}
+
 export class BridgeError extends Error {
   constructor(public code: string, message: string) {
     super(message);
@@ -22,7 +54,9 @@ export type ErrorCode =
   | "ALREADY_EXISTS"
   | "CLOSED"
   | "CONNECT_FAILED"
+  | "DELETE_FAILED"
   | "DISCONNECTED"
+  | "EDITED_SCENE"
   | "EXECUTE_FAILED"
   | "FEATURE_DISABLED"
   | "FILE_TOO_LARGE"
@@ -35,6 +69,8 @@ export type ErrorCode =
   | "NO_RUNTIME_URL"
   | "NO_SCENE"
   | "NOT_FOUND"
+  | "PACK_FAILED"
+  | "PARENT_NOT_FOUND"
   | "PARSE_ERROR"
   | "PATH_DENIED"
   | "READ_FAILED"

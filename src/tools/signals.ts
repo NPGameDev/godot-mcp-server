@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, callAndWrap } from "../types.js";
+import { Bridge, Profile, callAndWrap, includesInProfile } from "../types.js";
 import { ToolDef } from "./scene.js";
 
 // Signal tools (iter 11). signal_emit is dual-mode: default routes to the
@@ -20,7 +20,7 @@ export const signalTools: ToolDef[] = [
   {
     name: "signal_connect",
     method: "signal.connect",
-    description: "Connect source.signal -> target.method in edited scene. UndoRedo-wrapped, idempotent (ALREADY_EXISTS on repeat).",
+    description: "Connect source.signal -> target.method in edited scene. UndoRedo-wrapped. Idempotent: status 'returned' on collision, 'created' on fresh.",
     inputSchema: {
       source_path: z.string(),
       signal: z.string(),
@@ -52,8 +52,9 @@ export const signalTools: ToolDef[] = [
   },
 ];
 
-export function register(server: McpServer, bridge: Bridge): void {
+export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of signalTools) {
+    if (!includesInProfile(tool.name, profile)) continue;
     if (tool.name === "signal_emit") {
       server.registerTool(
         tool.name,

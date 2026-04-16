@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../types.js";
+import { Bridge, Profile, callAndWrap, includesInProfile, toolErrorFromException, toolErrorFromPayload } from "../types.js";
 import { ToolDef } from "./scene.js";
 
 export const editorTools: ToolDef[] = [
@@ -42,8 +42,9 @@ export const editorTools: ToolDef[] = [
   },
 ];
 
-export function register(server: McpServer, bridge: Bridge): void {
+export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of editorTools) {
+    if (!includesInProfile(tool.name, profile)) continue;
     if (tool.name === "editor_screenshot") {
       server.registerTool(
         tool.name,

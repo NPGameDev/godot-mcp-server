@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, callAndWrap } from "../types.js";
+import { Bridge, Profile, callAndWrap, includesInProfile } from "../types.js";
 import { ToolDef } from "./scene.js";
 
 export const scriptTools: ToolDef[] = [
@@ -16,10 +16,18 @@ export const scriptTools: ToolDef[] = [
     description: "Write GDScript file (res:// only). Overwrites existing; integrates with editor UndoRedo so Ctrl-Z restores prior content (or deletes new files).",
     inputSchema: { path: z.string(), content: z.string() },
   },
+  {
+    name: "script_delete",
+    method: "script.delete",
+    description:
+      "Delete the .gd or .cs script and its .uid companion at path. Refuses non-script paths (code INVALID_PATH) or missing files (NOT_FOUND). No open-in-editor guard.",
+    inputSchema: { path: z.string() },
+  },
 ];
 
-export function register(server: McpServer, bridge: Bridge): void {
+export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of scriptTools) {
+    if (!includesInProfile(tool.name, profile)) continue;
     // TODO(iter-18): for script_read, wrap result.content in
     // <untrusted kind="gdscript" source="godot">...</untrusted> before returning.
     server.registerTool(

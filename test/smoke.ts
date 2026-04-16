@@ -10,7 +10,7 @@ import { runtimeTools } from "../src/tools/runtime.js";
 import { signalTools } from "../src/tools/signals.js";
 import { resourceTools } from "../src/tools/resource.js";
 import { diffTools } from "../src/tools/diff.js";
-import { BridgeError } from "../src/types.js";
+import { BridgeError, LITE_CORE } from "../src/types.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GODOT_MCP_PORT ?? "6505");
@@ -120,14 +120,29 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-12 registers 25 tools by default (iter 11's 22
-    // + input_simulate + animation_player_control + scene_diff). With
-    // GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (26).
+    // Tool count — post-iter-15 registers 28 tools by default (iter 12's 25
+    // + scene_create + scene_delete + script_delete). With
+    // GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (29).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 26 : 25;
+    const expectedToolCount = allowGameEval ? 29 : 28;
     const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...diffTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
+
+    // --lite catalogue size (iter 15). Computed in-process by filtering the
+    // full tool list through LITE_CORE — semantically equivalent to spawning
+    // the server with --lite (same `includesInProfile` filter runs). Spec
+    // targets 16 tools; `scene_create` is in, `scene_delete`/`script_delete`
+    // are intentionally out (cleanup-only).
+    const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
+    if (liteTools.length !== 16) fail(`--lite catalogue: expected 16, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 16 (subset of full ${expectedToolCount})`);
+    // LITE_CORE must be a subset of the full catalogue — catches typos in
+    // src/types.ts that name a tool that doesn't exist anywhere.
+    const allToolNames = new Set(allTools.map((t) => t.name));
+    const orphans = [...LITE_CORE].filter((name) => !allToolNames.has(name));
+    if (orphans.length > 0) fail(`LITE_CORE names not in catalogue: ${orphans.join(", ")}`);
+    else pass(`LITE_CORE entries all resolve to catalogue tools`);
 
     // game_eval gating contract (iter 12). Catalogue presence is the only
     // safety surface here — the runtime command itself stays reachable on
@@ -153,13 +168,16 @@ async function main(): Promise<void> {
       pass(`scene.get_tree root=${tree.name}`);
     }
 
-    // scene.create_node idempotency
+    // scene.create_node idempotency (iter 15 status discriminator).
     const nodeName = "SmokeProbe";
-    const c1 = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: nodeName }, 5000) as { path?: string; code?: string; error?: string };
+    const c1 = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: nodeName }, 5000) as { path?: string; status?: string; code?: string; error?: string };
     if (!c1 || typeof c1.path !== "string") fail(`scene.create_node first call: ${JSON.stringify(c1)}`);
-    const c2 = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: nodeName }, 5000) as { path?: string; code?: string };
-    if (!c2 || c2.code !== "ALREADY_EXISTS" || c2.path !== c1.path) fail(`scene.create_node idempotency: ${JSON.stringify(c2)}`);
-    else pass(`scene.create_node idempotent at ${c2.path}`);
+    else if (c1.status !== "created") fail(`scene.create_node fresh: expected status='created', got ${JSON.stringify(c1)}`);
+    else pass(`scene.create_node fresh -> status='created' at ${c1.path}`);
+    const c2 = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: nodeName }, 5000) as { path?: string; status?: string; code?: string };
+    if (!c2 || c2.status !== "returned" || c2.path !== c1.path) fail(`scene.create_node idempotency: expected status='returned' at ${c1.path}, got ${JSON.stringify(c2)}`);
+    else if (c2.code !== undefined) fail(`scene.create_node collision success must not carry code (got ${c2.code})`);
+    else pass(`scene.create_node idempotent -> status='returned' at ${c2.path}`);
 
     // node.set_property / node.get_property round-trip via editor_description (plain String)
     const created = c1?.path ?? nodeName;
@@ -267,15 +285,18 @@ async function main(): Promise<void> {
     else if (!sigList.signals.some((s) => s.name === "child_order_changed")) fail(`signal.list: expected child_order_changed among ${sigList.signals.map((s) => s.name).join(",")}`);
     else pass(`signal.list -> ${sigList.signals.length} signals`);
 
-    // Round-trip: connect + ALREADY_EXISTS + disconnect + NOT_FOUND. Uses
+    // Round-trip: connect + idempotent repeat + disconnect + NOT_FOUND. Uses
     // `child_order_changed` -> `notify_property_list_changed` — both
-    // no-arg, non-destructive, always present on Node.
+    // no-arg, non-destructive, always present on Node. Iter 15 status
+    // discriminator: fresh -> 'created', repeat -> 'returned' (no `code`).
     const sigArgs = { source_path: probePath, signal: "child_order_changed", target_path: probePath, method: "notify_property_list_changed" };
-    const con1 = await bridge.call("signal.connect", sigArgs, 5000) as { ok?: boolean; code?: string };
-    if (!con1?.ok) fail(`signal.connect first: ${JSON.stringify(con1)}`);
-    const con2 = await bridge.call("signal.connect", sigArgs, 5000) as { code?: string };
-    if (con2?.code !== "ALREADY_EXISTS") fail(`signal.connect idempotency: expected ALREADY_EXISTS, got ${JSON.stringify(con2)}`);
-    else pass("signal.connect + ALREADY_EXISTS on repeat (I3)");
+    const con1 = await bridge.call("signal.connect", sigArgs, 5000) as { status?: string; code?: string; signal?: string };
+    if (con1?.status !== "created" || con1.signal !== "child_order_changed") fail(`signal.connect first: expected status='created' with signal echoed, got ${JSON.stringify(con1)}`);
+    else pass(`signal.connect fresh -> status='created'`);
+    const con2 = await bridge.call("signal.connect", sigArgs, 5000) as { status?: string; code?: string };
+    if (con2?.status !== "returned") fail(`signal.connect idempotency: expected status='returned', got ${JSON.stringify(con2)}`);
+    else if (con2.code !== undefined) fail(`signal.connect collision success must not carry code (got ${con2.code})`);
+    else pass("signal.connect repeat -> status='returned' + code absent (I3)");
 
     // signal.emit with no args on the connected signal — should just succeed.
     const emitRes = await bridge.call("signal.emit", { path: probePath, signal: "child_order_changed", args: [] }, 5000) as { ok?: boolean; code?: string };
@@ -421,21 +442,160 @@ async function main(): Promise<void> {
       "PATH_DENIED",
     );
 
-    // ALREADY_EXISTS is a NON-error success (I3): success is absent (or
-    // truthy), code carries "ALREADY_EXISTS". toolErrorFromPayload must
-    // NOT translate this to isError. Re-using the iter-12 SignalProbe-cleanup
-    // pattern: create then re-create.
+    // Iter 15 status discriminator (regression guard): idempotent repeats
+    // stay NON-error (toolErrorFromPayload must not translate to isError)
+    // and carry `status: "returned"` instead of the legacy `code: "ALREADY_EXISTS"`.
     const idemNode = "IdempotencyProbe";
-    const idemFirst = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: idemNode }, 5000) as { path?: string; success?: boolean };
-    const idemSecond = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: idemNode }, 5000) as { path?: string; code?: string; success?: boolean };
-    if (idemSecond?.success === false || idemSecond?.code !== "ALREADY_EXISTS") {
-      fail(`ALREADY_EXISTS must NOT carry success:false: ${JSON.stringify(idemSecond)}`);
+    const idemFirst = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: idemNode }, 5000) as { path?: string; status?: string; success?: boolean };
+    const idemSecond = await bridge.call("scene.create_node", { class_name: "Node", parent: ".", name: idemNode }, 5000) as { path?: string; status?: string; code?: string; success?: boolean };
+    if (idemSecond?.success === false) {
+      fail(`idempotent repeat must NOT carry success:false: ${JSON.stringify(idemSecond)}`);
+    } else if (idemSecond?.status !== "returned") {
+      fail(`idempotent repeat must carry status='returned': ${JSON.stringify(idemSecond)}`);
+    } else if (idemSecond?.code !== undefined) {
+      fail(`idempotent success must NOT carry code (got ${idemSecond.code})`);
     } else if (idemSecond?.path !== idemFirst?.path) {
-      fail(`ALREADY_EXISTS must return same path: ${JSON.stringify({ first: idemFirst, second: idemSecond })}`);
+      fail(`idempotent repeat must return same path: ${JSON.stringify({ first: idemFirst, second: idemSecond })}`);
     } else {
-      pass("ALREADY_EXISTS treated as non-error success (I3)");
+      pass("idempotent repeat -> non-error success, status='returned', code absent (iter 15 I3)");
     }
     await bridge.call("scene.delete_node", { path: idemFirst?.path ?? idemNode }, 5000);
+
+    // ---- Iter 15: scene.create / scene.delete / script.delete ------------
+    // File-level ops (distinct from iter-03's node-level create/delete).
+    // status discriminator, three if_exists branches, five guard rejections
+    // with message-substring checks, plus symmetric script.delete coverage.
+    const createPath = "res://smoke_throwaway.tscn";
+    // Belt-and-braces: any orphan from a previous aborted run would poison
+    // the "fresh create" branch. Best-effort cleanup first (ignore failures).
+    try { await bridge.call("scene.delete", { path: createPath }, 5000); } catch { /* noop */ }
+
+    // Default if_exists (behaves as "return"). Fresh -> status 'created'.
+    const sc1 = await bridge.call("scene.create", { path: createPath, root_type: "Node2D" }, 5000) as { success?: boolean; status?: string; path?: string; root_type?: string; code?: string };
+    if (sc1?.status !== "created" || sc1.path !== createPath || sc1.root_type !== "Node2D") {
+      fail(`scene.create fresh: expected status='created' path=${createPath} root_type='Node2D', got ${JSON.stringify(sc1)}`);
+    } else pass(`scene.create fresh -> status='created' root_type=Node2D`);
+    // Same path again with no if_exists → status 'returned', no code, no root_type re-echo.
+    const sc2 = await bridge.call("scene.create", { path: createPath, root_type: "Node2D" }, 5000) as { success?: boolean; status?: string; path?: string; code?: string };
+    if (sc2?.status !== "returned" || sc2.path !== createPath) {
+      fail(`scene.create default if_exists repeat: expected status='returned', got ${JSON.stringify(sc2)}`);
+    } else if (sc2.code !== undefined) fail(`scene.create returned must not carry code (got ${sc2.code})`);
+    else pass(`scene.create default repeat -> status='returned' (code absent)`);
+
+    // if_exists: 'fail' → hard ALREADY_EXISTS error, message mentions 'replace'.
+    const sc3 = await bridge.call("scene.create", { path: createPath, root_type: "Node2D", if_exists: "fail" }, 5000) as { success?: boolean; code?: string; error?: string };
+    if (sc3?.success !== false || sc3.code !== "ALREADY_EXISTS" || !sc3.error?.includes("replace")) {
+      fail(`scene.create if_exists=fail: expected ALREADY_EXISTS mentioning 'replace', got ${JSON.stringify(sc3)}`);
+    } else pass(`scene.create if_exists='fail' -> ALREADY_EXISTS (message steers to 'replace')`);
+
+    // if_exists: 'replace' → status 'replaced', previous_root_type echoed.
+    const sc4 = await bridge.call("scene.create", { path: createPath, root_type: "Node3D", if_exists: "replace" }, 5000) as { success?: boolean; status?: string; path?: string; root_type?: string; previous_root_type?: string; code?: string };
+    if (sc4?.status !== "replaced" || sc4.root_type !== "Node3D" || sc4.previous_root_type !== "Node2D") {
+      fail(`scene.create if_exists=replace: expected status='replaced' root_type=Node3D prev=Node2D, got ${JSON.stringify(sc4)}`);
+    } else pass(`scene.create if_exists='replace' -> status='replaced' prev=${sc4.previous_root_type}`);
+
+    // Invalid if_exists value → INVALID_PARAMS.
+    const scBadIf = await bridge.call("scene.create", { path: createPath, root_type: "Node", if_exists: "explode" }, 5000) as { success?: boolean; code?: string; error?: string };
+    if (scBadIf?.code !== "INVALID_PARAMS" || !scBadIf.error?.includes("if_exists")) {
+      fail(`scene.create invalid if_exists: expected INVALID_PARAMS, got ${JSON.stringify(scBadIf)}`);
+    } else pass(`scene.create if_exists='explode' -> INVALID_PARAMS`);
+
+    // ---- scene.create guard rejections (each asserts code + message substring)
+    // The LLM agent pattern-matches on message wording for recovery, so
+    // regressions in Step 3's templates (iter 15 spec) must fail smoke.
+    const assertGuard = (label: string, env: unknown, code: string, mustInclude: string | string[]): void => {
+      const e = env as { success?: boolean; code?: string; error?: string };
+      const needles = Array.isArray(mustInclude) ? mustInclude : [mustInclude];
+      if (e?.success !== false || e.code !== code) fail(`${label}: expected code=${code}, got ${JSON.stringify(env)}`);
+      else if (!needles.every((n) => e.error?.includes(n))) fail(`${label}: message missing ${needles.find((n) => !e.error?.includes(n))} in ${JSON.stringify(e.error)}`);
+      else pass(`${label} -> ${code} (message mentions ${needles.join(" + ")})`);
+    };
+    assertGuard(
+      "scene.create /tmp path",
+      await bridge.call("scene.create", { path: "/tmp/foo.tscn", root_type: "Node" }, 5000),
+      "INVALID_PATH",
+      "res://",
+    );
+    assertGuard(
+      "scene.create .txt extension",
+      await bridge.call("scene.create", { path: "res://foo.txt", root_type: "Node" }, 5000),
+      "INVALID_PATH",
+      ".tscn",
+    );
+    assertGuard(
+      "scene.create missing parent dir",
+      await bridge.call("scene.create", { path: "res://nonexistent_smoke_dir/foo.tscn", root_type: "Node" }, 5000),
+      "PARENT_NOT_FOUND",
+      "folder.create",
+    );
+    assertGuard(
+      "scene.create bogus class",
+      await bridge.call("scene.create", { path: "res://smoke_bogus.tscn", root_type: "BogusClass" }, 5000),
+      "INVALID_CLASS",
+      ["ClassDB", "ProjectSettings"],
+    );
+    assertGuard(
+      "scene.create Resource (not a Node)",
+      await bridge.call("scene.create", { path: "res://smoke_resource.tscn", root_type: "Resource" }, 5000),
+      "INVALID_CLASS",
+      "Node",
+    );
+
+    // ---- scene.delete round-trip ------------------------------------------
+    const del1 = await bridge.call("scene.delete", { path: createPath }, 5000) as { success?: boolean; path?: string; code?: string };
+    if (del1?.success !== true || del1.path !== createPath) fail(`scene.delete: ${JSON.stringify(del1)}`);
+    else pass(`scene.delete ${createPath}`);
+    const del2 = await bridge.call("scene.delete", { path: createPath }, 5000) as { success?: boolean; code?: string };
+    if (del2?.success !== false || del2.code !== "NOT_FOUND") fail(`scene.delete repeat: expected NOT_FOUND, got ${JSON.stringify(del2)}`);
+    else pass(`scene.delete repeat -> NOT_FOUND`);
+    assertGuard(
+      "scene.delete .txt extension",
+      await bridge.call("scene.delete", { path: "res://bogus.txt" }, 5000),
+      "INVALID_PATH",
+      ".tscn",
+    );
+
+    // EDITED_SCENE refusal: create a throwaway, open it, attempt delete →
+    // refuse. Restore Main.tscn afterwards and clean up.
+    const editedPath = "res://smoke_edited_probe.tscn";
+    try { await bridge.call("scene.delete", { path: editedPath }, 5000); } catch { /* noop */ }
+    const edCreate = await bridge.call("scene.create", { path: editedPath, root_type: "Node" }, 5000) as { status?: string };
+    if (edCreate?.status !== "created") fail(`edited-probe create: ${JSON.stringify(edCreate)}`);
+    const edOpen = await bridge.call("scene.open", { path: editedPath }, 5000) as { ok?: boolean };
+    if (!edOpen?.ok) fail(`edited-probe scene.open: ${JSON.stringify(edOpen)}`);
+    const edDel = await bridge.call("scene.delete", { path: editedPath }, 5000) as { success?: boolean; code?: string; error?: string };
+    if (edDel?.code !== "EDITED_SCENE") fail(`scene.delete of currently-edited: expected EDITED_SCENE, got ${JSON.stringify(edDel)}`);
+    else pass(`scene.delete refuses currently-edited scene -> EDITED_SCENE`);
+    // Restore Main.tscn (rest of smoke depends on it being open).
+    await bridge.call("scene.open", { path: currentScenePath }, 5000);
+    // Cleanup the edited-probe file now that we're off it.
+    const edCleanup = await bridge.call("scene.delete", { path: editedPath }, 5000) as { success?: boolean };
+    if (edCleanup?.success !== true) fail(`edited-probe cleanup: ${JSON.stringify(edCleanup)}`);
+    else pass(`edited-probe cleanup`);
+
+    // ---- script.delete round-trip -----------------------------------------
+    const scriptDelPath = "res://smoke_throwaway.gd";
+    try { await bridge.call("script.delete", { path: scriptDelPath }, 5000); } catch { /* noop */ }
+    const sw = await bridge.call("script.write", { path: scriptDelPath, content: "extends Node\n" }, 5000) as { ok?: boolean };
+    if (!sw?.ok) fail(`script.write throwaway.gd: ${JSON.stringify(sw)}`);
+    const sd1 = await bridge.call("script.delete", { path: scriptDelPath }, 5000) as { success?: boolean; path?: string; code?: string };
+    if (sd1?.success !== true || sd1.path !== scriptDelPath) fail(`script.delete: ${JSON.stringify(sd1)}`);
+    else pass(`script.delete ${scriptDelPath}`);
+    const sd2 = await bridge.call("script.delete", { path: scriptDelPath }, 5000) as { success?: boolean; code?: string };
+    if (sd2?.success !== false || sd2.code !== "NOT_FOUND") fail(`script.delete repeat: expected NOT_FOUND, got ${JSON.stringify(sd2)}`);
+    else pass(`script.delete repeat -> NOT_FOUND`);
+    assertGuard(
+      "script.delete .tscn extension",
+      await bridge.call("script.delete", { path: "res://bogus.tscn" }, 5000),
+      "INVALID_PATH",
+      ".gd",
+    );
+    assertGuard(
+      "script.delete .txt extension",
+      await bridge.call("script.delete", { path: "res://bogus.txt" }, 5000),
+      "INVALID_PATH",
+      ".gd",
+    );
 
     // ---- Mode B (iter 10 + iter 12) ---------------------------------------
     // Smoke can't reliably F5 the game from here, so we branch on a probe of

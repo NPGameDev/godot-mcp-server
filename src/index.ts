@@ -2,6 +2,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createBridge } from "./bridge.js";
+import { Profile } from "./types.js";
 import * as sceneTools from "./tools/scene.js";
 import * as nodeTools from "./tools/node.js";
 import * as scriptTools from "./tools/script.js";
@@ -10,6 +11,10 @@ import * as runtimeTools from "./tools/runtime.js";
 import * as signalTools from "./tools/signals.js";
 import * as resourceTools from "./tools/resource.js";
 import * as diffTools from "./tools/diff.js";
+
+// Iter 15: `--lite` opts into a 16-tool token-sensitive catalogue; default
+// is the full catalogue. Precursor to iter 22's richer profile system.
+const profile: Profile = process.argv.includes("--lite") ? "lite" : "full";
 
 const port = process.env.GODOT_MCP_PORT ?? "6505";
 const runtimePort = process.env.GODOT_MCP_RUNTIME_PORT ?? "9090";
@@ -20,14 +25,14 @@ const bridge = createBridge(
 
 const server = new McpServer({ name: "godot-mcp-toolkit", version: "0.1.0" });
 
-sceneTools.register(server, bridge);
-nodeTools.register(server, bridge);
-scriptTools.register(server, bridge);
-editorTools.register(server, bridge);
-runtimeTools.register(server, bridge);
-signalTools.register(server, bridge);
-resourceTools.register(server, bridge);
-diffTools.register(server, bridge);
+sceneTools.register(server, bridge, profile);
+nodeTools.register(server, bridge, profile);
+scriptTools.register(server, bridge, profile);
+editorTools.register(server, bridge, profile);
+runtimeTools.register(server, bridge, profile);
+signalTools.register(server, bridge, profile);
+resourceTools.register(server, bridge, profile);
+diffTools.register(server, bridge, profile);
 
 async function shutdown(): Promise<void> {
   try {
