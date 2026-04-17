@@ -5,12 +5,12 @@ import { Bridge, BridgeError } from "./types.js";
 const JSONRPC_VERSION = "2.0";
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-// Reconnect tuning (iter 13). 2^6 = 64s clamped to 60s ceiling, so the
-// attempt progression is 1, 2, 4, 8, 16, 32, 60, 60, ... seconds. The
-// per-call await ceiling (CALL_AWAIT_RECONNECT_MS) bounds how long a
-// fresh call() will wait for the bridge to come back before rejecting
-// DISCONNECTED — covers the first two backoff rungs (1s + 2s) plus
-// editor-restart settle margin.
+// Reconnect tuning. 2^6 = 64s clamped to 60s ceiling, so the attempt
+// progression is 1, 2, 4, 8, 16, 32, 60, 60, ... seconds. The per-call
+// await ceiling (CALL_AWAIT_RECONNECT_MS) bounds how long a fresh call()
+// will wait for the bridge to come back before rejecting DISCONNECTED —
+// covers the first two backoff rungs (1s + 2s) plus editor-restart
+// settle margin.
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 60_000;
 const RECONNECT_MAX_ATTEMPT = 6;
@@ -56,25 +56,25 @@ function createChannel(url: string): Channel {
   let hasConnectedOnce = false;
 
   function rejectAllPending(code: string, message: string): void {
-    for (const [id, p] of pending) {
-      clearTimeout(p.timer);
-      p.reject(new BridgeError(code, message));
+    for (const [id, pendingRequest] of pending) {
+      clearTimeout(pendingRequest.timer);
+      pendingRequest.reject(new BridgeError(code, message));
       pending.delete(id);
     }
   }
 
   function resolveAllWaiters(socket: WebSocket): void {
-    for (const w of openWaiters) {
-      clearTimeout(w.timer);
-      w.resolve(socket);
+    for (const waiter of openWaiters) {
+      clearTimeout(waiter.timer);
+      waiter.resolve(socket);
     }
     openWaiters.clear();
   }
 
   function rejectAllWaiters(code: string, message: string): void {
-    for (const w of openWaiters) {
-      clearTimeout(w.timer);
-      w.reject(new BridgeError(code, message));
+    for (const waiter of openWaiters) {
+      clearTimeout(waiter.timer);
+      waiter.reject(new BridgeError(code, message));
     }
     openWaiters.clear();
   }
@@ -133,25 +133,25 @@ function createChannel(url: string): Channel {
         reject(error);
       });
       socket.on("message", (data) => {
-        let msg: JsonRpcResponse;
+        let message: JsonRpcResponse;
         try {
-          msg = JSON.parse(data.toString()) as JsonRpcResponse;
+          message = JSON.parse(data.toString()) as JsonRpcResponse;
         } catch {
           return;
         }
-        const id = msg.id;
+        const id = message.id;
         if (id == null) return;
         const key = String(id);
-        const p = pending.get(key);
-        if (!p) return;
-        clearTimeout(p.timer);
+        const pendingRequest = pending.get(key);
+        if (!pendingRequest) return;
+        clearTimeout(pendingRequest.timer);
         pending.delete(key);
-        // Reset backoff on successful round-trip (per iter-13 step 1).
+        // Reset backoff on successful round-trip.
         attempt = 0;
-        if (msg.error) {
-          p.reject(new BridgeError("RPC_ERROR", `${msg.error.code}: ${msg.error.message}`));
+        if (message.error) {
+          pendingRequest.reject(new BridgeError("RPC_ERROR", `${message.error.code}: ${message.error.message}`));
         } else {
-          p.resolve(msg.result);
+          pendingRequest.resolve(message.result);
         }
       });
       socket.on("close", () => {
@@ -204,9 +204,9 @@ function createChannel(url: string): Channel {
         pending.set(id, { resolve, reject, timer });
         socket.send(payload, (err) => {
           if (err) {
-            const p = pending.get(id);
-            if (p) {
-              clearTimeout(p.timer);
+            const pendingRequest = pending.get(id);
+            if (pendingRequest) {
+              clearTimeout(pendingRequest.timer);
               pending.delete(id);
               reject(new BridgeError("SEND_FAILED", err.message));
             }
@@ -235,11 +235,10 @@ function createChannel(url: string): Channel {
 
 export function createBridge(editorUrl: string, runtimeUrl?: string): Bridge {
   const editor = createChannel(editorUrl);
-  // Runtime channel is created lazily so dogfood calls that never touch
-  // Mode B don't pay a failed-connect cost at startup. `callRuntime`
-  // translates the channel's CONNECT_FAILED / DISCONNECTED into
-  // GAME_NOT_RUNNING so the MCP tool layer can surface a clean,
-  // actionable error.
+  // Runtime channel is created lazily so calls that never touch Mode B
+  // don't pay a failed-connect cost at startup. callRuntime translates
+  // the channel's CONNECT_FAILED / DISCONNECTED into GAME_NOT_RUNNING
+  // so the MCP tool layer can surface a clean, actionable error.
   const runtime = runtimeUrl ? createChannel(runtimeUrl) : null;
 
   return {

@@ -1,11 +1,13 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, Profile, callAndWrap, includesInProfile } from "../types.js";
-import { ToolDef } from "./scene.js";
+
+import type { Bridge, Profile, ToolDef } from "../types.js";
+import { callAndWrap } from "../types.js";
 
 export const tilemapTools: ToolDef[] = [
   {
     name: "tilemap_set_cells",
+    tier: "full",
     method: "tilemap.set_cells",
     description:
       "Batch-set cells on TileMap or TileMapLayer. Single UndoRedo action. Returns cells_written + cells_unchanged. source_id:-1 clears a cell.",
@@ -19,7 +21,7 @@ export const tilemapTools: ToolDef[] = [
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of tilemapTools) {
-    if (!includesInProfile(tool.name, profile)) continue;
+    if (profile === "lite" && tool.tier !== "lite") continue;
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },

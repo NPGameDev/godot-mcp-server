@@ -1,23 +1,24 @@
 import net from "node:net";
 import { WebSocketServer, WebSocket as WS } from "ws";
 import type { AddressInfo } from "node:net";
+
 import { createBridge } from "../src/bridge.js";
-import { sceneTools } from "../src/tools/scene.js";
-import { nodeTools } from "../src/tools/node.js";
-import { scriptTools } from "../src/tools/script.js";
-import { editorTools } from "../src/tools/editor.js";
-import { runtimeTools } from "../src/tools/runtime.js";
-import { signalTools } from "../src/tools/signals.js";
-import { resourceTools } from "../src/tools/resource.js";
-import { folderTools } from "../src/tools/folder.js";
-import { diffTools } from "../src/tools/diff.js";
-import { playtestTools } from "../src/tools/playtest.js";
-import { inputMapTools } from "../src/tools/input_map.js";
 import { animationTools } from "../src/tools/animation.js";
-import { tilemapTools } from "../src/tools/tilemap.js";
 import { assetTools } from "../src/tools/asset.js";
+import { diffTools } from "../src/tools/diff.js";
+import { editorTools } from "../src/tools/editor.js";
 import { fileTools } from "../src/tools/file.js";
-import { BridgeError, LITE_CORE } from "../src/types.js";
+import { folderTools } from "../src/tools/folder.js";
+import { inputMapTools } from "../src/tools/input_map.js";
+import { nodeTools } from "../src/tools/node.js";
+import { playtestTools } from "../src/tools/playtest.js";
+import { resourceTools } from "../src/tools/resource.js";
+import { runtimeTools } from "../src/tools/runtime.js";
+import { sceneTools } from "../src/tools/scene.js";
+import { scriptTools } from "../src/tools/script.js";
+import { signalTools } from "../src/tools/signals.js";
+import { tilemapTools } from "../src/tools/tilemap.js";
+import { BridgeError } from "../src/types.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GODOT_MCP_PORT ?? "6505");
@@ -162,40 +163,33 @@ async function main(): Promise<void> {
   };
 
   try {
-    // echo round-trip (iter 05)
+    // echo round-trip
     const payload = { t: Date.now(), nonce: "smoke-01" };
     const echoResult = await bridge.call("echo", payload, 5000);
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15i registers 55 tools by default (iter 15h's
-    // 54 + file_delete = 55).
-    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (56).
+    // Tool count — 55 tools by default; 56 with GODOT_MCP_ALLOW_GAME_EVAL=1.
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
     const expectedToolCount = allowGameEval ? 56 : 55;
     const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools, ...assetTools, ...fileTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e / 15f / 15g / 15h / 15i).
-    // Computed in-process by filtering the full tool list through LITE_CORE —
-    // semantically equivalent to spawning the server with --lite (same
-    // `includesInProfile` filter runs). Spec targets 31 tools post-15i
-    // (unchanged from 15h — file_delete is full-only). node_set_script is the
-    // natural companion to node_set_property — enables custom-class workflows in lite.
-    const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
-    if (liteTools.length !== 31) fail(`--lite catalogue: expected 31, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-    else pass(`--lite catalogue == 31 (subset of full ${expectedToolCount})`);
-    // LITE_CORE must be a subset of the full catalogue — catches typos in
-    // src/types.ts that name a tool that doesn't exist anywhere.
+    // --lite catalogue size. Tier is declared per-tool at registration site
+    // (I14 single-source). Lite ≈ 14 tools matching toolkit-side registry.
+    const liteTools = allTools.filter((t) => t.tier === "lite");
+    if (liteTools.length !== 14) fail(`--lite catalogue: expected 14, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 14 (subset of full ${expectedToolCount})`);
+    // Every lite tool must appear in the full catalogue (tier is a subset).
     const allToolNames = new Set(allTools.map((t) => t.name));
-    const orphans = [...LITE_CORE].filter((name) => !allToolNames.has(name));
-    if (orphans.length > 0) fail(`LITE_CORE names not in catalogue: ${orphans.join(", ")}`);
-    else pass(`LITE_CORE entries all resolve to catalogue tools`);
+    const liteOrphans = liteTools.filter((t) => !allToolNames.has(t.name));
+    if (liteOrphans.length > 0) fail(`lite tools not in full catalogue: ${liteOrphans.map((t) => t.name).join(", ")}`);
+    else pass(`all lite tools resolve to catalogue entries`);
 
-    // game_eval gating contract (iter 12). Catalogue presence is the only
-    // safety surface here — the runtime command itself stays reachable on
-    // 9090 either way; iter 19 adds the proper FeatureGate.
+    // game_eval gating contract. Catalogue presence is the only safety
+    // surface here — the runtime command itself stays reachable on 9090
+    // either way; the FeatureGate (iter 19) will generalise this.
     const hasGameEval = runtimeTools.some((t) => t.name === "game_eval");
     if (allowGameEval && !hasGameEval) fail("game_eval expected in runtimeTools when GODOT_MCP_ALLOW_GAME_EVAL=1");
     else if (!allowGameEval && hasGameEval) fail("game_eval expected ABSENT from runtimeTools by default");

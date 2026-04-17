@@ -1,11 +1,13 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, Profile, callAndWrap, includesInProfile } from "../types.js";
-import { ToolDef } from "./scene.js";
+
+import type { Bridge, Profile, ToolDef } from "../types.js";
+import { callAndWrap } from "../types.js";
 
 export const inputMapTools: ToolDef[] = [
   {
     name: "input_map_add_action",
+    tier: "full",
     method: "input_map.add_action",
     description:
       "Register an InputMap action with deadzone. Idempotent: status created on fresh, returned if action exists (reports existing deadzone).",
@@ -16,6 +18,7 @@ export const inputMapTools: ToolDef[] = [
   },
   {
     name: "input_map_action_add_event",
+    tier: "full",
     method: "input_map.action_add_event",
     description:
       "Bind an event (key / mouse_button / joypad_button / joypad_motion dict) to an action. Silent-return on equivalent-event duplicate.",
@@ -26,6 +29,7 @@ export const inputMapTools: ToolDef[] = [
   },
   {
     name: "input_map_action_remove_event",
+    tier: "full",
     method: "input_map.action_remove_event",
     description:
       "Unbind an event from an action (matching via type + indices + modifiers). NOT_FOUND if no match.",
@@ -36,6 +40,7 @@ export const inputMapTools: ToolDef[] = [
   },
   {
     name: "input_map_remove_action",
+    tier: "full",
     method: "input_map.remove_action",
     description:
       "Remove an InputMap action. Refuses built-in ui_* actions (would break editor nav). NOT_FOUND if missing.",
@@ -45,7 +50,7 @@ export const inputMapTools: ToolDef[] = [
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of inputMapTools) {
-    if (!includesInProfile(tool.name, profile)) continue;
+    if (profile === "lite" && tool.tier !== "lite") continue;
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },

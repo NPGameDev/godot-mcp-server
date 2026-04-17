@@ -1,11 +1,13 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, Profile, callAndWrap, includesInProfile } from "../types.js";
-import { ToolDef } from "./scene.js";
+
+import type { Bridge, Profile, ToolDef } from "../types.js";
+import { callAndWrap } from "../types.js";
 
 export const animationTools: ToolDef[] = [
   {
     name: "animation_add_key",
+    tier: "full",
     method: "animation.add_key",
     description:
       "Insert/update a keyframe on AnimationPlayer track. Auto-creates value track if missing. UndoRedo-wrapped. Silent-return on exact-time duplicate.",
@@ -20,6 +22,7 @@ export const animationTools: ToolDef[] = [
   },
   {
     name: "animation_remove_key",
+    tier: "full",
     method: "animation.remove_key",
     description:
       "Remove a keyframe at exact time from an AnimationPlayer track. UndoRedo-wrapped. NOT_FOUND if no key at time.",
@@ -32,6 +35,7 @@ export const animationTools: ToolDef[] = [
   },
   {
     name: "animation_get_keys",
+    tier: "full",
     method: "animation.get_keys",
     description:
       "List keys on an AnimationPlayer track: { time, value, transition }. Read-only; no auto-track-create.",
@@ -45,7 +49,7 @@ export const animationTools: ToolDef[] = [
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of animationTools) {
-    if (!includesInProfile(tool.name, profile)) continue;
+    if (profile === "lite" && tool.tier !== "lite") continue;
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },

@@ -1,11 +1,13 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, Profile, callAndWrap, includesInProfile } from "../types.js";
-import { ToolDef } from "./scene.js";
+
+import type { Bridge, Profile, ToolDef } from "../types.js";
+import { callAndWrap } from "../types.js";
 
 export const assetTools: ToolDef[] = [
   {
     name: "asset_list",
+    tier: "full",
     method: "asset.list",
     description:
       "Enumerate res:// assets with filters (path_prefix, name_glob, class_filter ancestry-aware, extension_filter). Returns [{path,class,modified_unix}]. Cap max_results 2000.",
@@ -19,6 +21,7 @@ export const assetTools: ToolDef[] = [
   },
   {
     name: "asset_get_dependencies",
+    tier: "full",
     method: "asset.get_dependencies",
     description:
       "Forward dependencies of a res:// resource/scene via EditorFileSystem cache. include_transitive walks deps-of-deps. Returns [{path,raw_path,class}].",
@@ -30,6 +33,7 @@ export const assetTools: ToolDef[] = [
   },
   {
     name: "asset_import",
+    tier: "full",
     method: "asset.import",
     description:
       "Import binary asset (image/audio/font/3D) into res:// via source_path (filesystem copy) or base64_data. Triggers EditorFileSystem scan. if_exists:return|fail|replace.",
@@ -45,7 +49,7 @@ export const assetTools: ToolDef[] = [
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of assetTools) {
-    if (!includesInProfile(tool.name, profile)) continue;
+    if (profile === "lite" && tool.tier !== "lite") continue;
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },

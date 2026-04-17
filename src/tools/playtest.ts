@@ -1,11 +1,13 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Bridge, Profile, callAndWrap, includesInProfile } from "../types.js";
-import { ToolDef } from "./scene.js";
+
+import type { Bridge, Profile, ToolDef } from "../types.js";
+import { callAndWrap } from "../types.js";
 
 export const playtestTools: ToolDef[] = [
   {
     name: "game_start",
+    tier: "full",
     method: "game.start",
     description:
       "Start playtest via EditorInterface. target:'main'|'current'(default)|res://path. Polls Mode-B port 9090 when wait_for_runtime:true(default). ALREADY_PLAYING if one is live.",
@@ -16,6 +18,7 @@ export const playtestTools: ToolDef[] = [
   },
   {
     name: "game_stop",
+    tier: "full",
     method: "game.stop",
     description:
       "Stop the currently-playing scene (idempotent — returns was_running:false if nothing was running). No params.",
@@ -25,7 +28,7 @@ export const playtestTools: ToolDef[] = [
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of playtestTools) {
-    if (!includesInProfile(tool.name, profile)) continue;
+    if (profile === "lite" && tool.tier !== "lite") continue;
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },
