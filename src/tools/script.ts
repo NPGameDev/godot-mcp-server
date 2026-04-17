@@ -10,22 +10,22 @@ export const scriptTools: ToolDef[] = [
     tier: "lite",
     method: "script.read",
     description: "Read a GDScript file (res:// only). Returns the file content as text.",
-    inputSchema: { path: z.string() },
+    inputSchema: { file_path: z.string() },
   },
   {
     name: "script_write",
     tier: "lite",
     method: "script.write",
-    description: "Write .gd/.cs/.gdshader/.gdshaderinc at path (res:// only, creates or overwrites). Not idempotent. Use script.delete to remove; resource.create for .tres; scene.create for .tscn.",
-    inputSchema: { path: z.string(), content: z.string() },
+    description: "Write .gd/.cs/.gdshader/.gdshaderinc at file_path (res:// only, creates or overwrites). Not idempotent. Use script.delete to remove; resource.create for .tres; scene.create for .tscn.",
+    inputSchema: { file_path: z.string(), content: z.string() },
   },
   {
     name: "script_delete",
     tier: "full",
     method: "script.delete",
     description:
-      "Delete .gd/.cs/.gdshader/.gdshaderinc at path (and .uid companion). Refuses non-script paths (INVALID_PATH). No open-in-editor guard.",
-    inputSchema: { path: z.string() },
+      "Delete .gd/.cs/.gdshader/.gdshaderinc at file_path (and .uid companion). Refuses non-script paths (INVALID_PATH). No open-in-editor guard.",
+    inputSchema: { file_path: z.string() },
   },
 ];
 

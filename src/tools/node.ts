@@ -10,21 +10,21 @@ export const nodeTools: ToolDef[] = [
     tier: "lite",
     method: "node.get_property",
     description: "Read a property from the node at path. Returns { value } (engine types are dict-wrapped).",
-    inputSchema: { path: z.string(), property: z.string() },
+    inputSchema: { node_path: z.string(), property: z.string() },
   },
   {
     name: "node_set_property",
     tier: "lite",
     method: "node.set_property",
-    description: "Set a property on the node at path. Engine types pass as { type, ... } dicts (e.g. {type:'Vector2',x:0,y:0}).",
-    inputSchema: { path: z.string(), property: z.string(), value: z.unknown() },
+    description: "Set a property on the node at node_path. Engine types pass as { type, ... } dicts (e.g. {type:'Vector2',x:0,y:0}).",
+    inputSchema: { node_path: z.string(), property: z.string(), value: z.unknown() },
   },
   {
     name: "node_get_property_list",
     tier: "lite",
     method: "node.get_property_list",
     description: "Introspect inspector-visible properties of a node. Returns [{ name, type, hint, hint_string }] filtered by PROPERTY_USAGE_EDITOR.",
-    inputSchema: { path: z.string() },
+    inputSchema: { node_path: z.string() },
   },
   {
     name: "node_call_method",
@@ -33,8 +33,8 @@ export const nodeTools: ToolDef[] = [
     description:
       "Call node's method with args (editor-side only). has_method-gated. Args + result support Resource refs via {type:'Resource',path:...}.",
     inputSchema: {
-      path: z.string(),
-      method: z.string(),
+      node_path: z.string(),
+      method_name: z.string(),
       args: z.array(z.unknown()).optional(),
     },
   },
@@ -43,10 +43,10 @@ export const nodeTools: ToolDef[] = [
     tier: "full",
     method: "node.set_script",
     description:
-      "Attach a script (.gd/.cs) to a node. Returns @export properties exposed by the script. Empty script string detaches.",
+      "Attach a script (.gd/.cs) to a node. Returns @export properties exposed by the script. Empty script_path string detaches.",
     inputSchema: {
-      path: z.string(),
-      script: z.string(),
+      node_path: z.string(),
+      script_path: z.string(),
     },
   },
 ];

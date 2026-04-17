@@ -17,8 +17,8 @@ export const editorTools: ToolDef[] = [
     name: "editor_save_scene",
     tier: "lite",
     method: "editor.save_scene",
-    description: "Save the current edited scene. Optional path triggers save-as.",
-    inputSchema: { path: z.string().optional() },
+    description: "Save the current edited scene. Optional file_path triggers save-as.",
+    inputSchema: { file_path: z.string().optional() },
   },
   {
     name: "editor_screenshot",
@@ -39,15 +39,15 @@ export const editorTools: ToolDef[] = [
     tier: "lite",
     method: "scene.open",
     description: "Open a scene (.tscn / .scn) as the active edited scene. res:// only; NOT_FOUND if the file doesn't exist.",
-    inputSchema: { path: z.string() },
+    inputSchema: { file_path: z.string() },
   },
   {
     name: "scene_close",
     tier: "full",
     method: "scene.close",
     description:
-      "Close an open scene tab by path. Refuses the last remaining tab (EDITED_SCENE). NOT_FOUND if the scene is not open. Frees the tab leaked by scene.open.",
-    inputSchema: { path: z.string() },
+      "Close an open scene tab by file_path. Refuses the last remaining tab (EDITED_SCENE). NOT_FOUND if the scene is not open. Frees the tab leaked by scene.open.",
+    inputSchema: { file_path: z.string() },
   },
   {
     name: "project_get_settings",
@@ -74,7 +74,7 @@ export const editorTools: ToolDef[] = [
     description:
       "Focus + capture a specific node in the editor viewport. Atomic focus-restore (prior selection preserved). Inline base64 PNG.",
     inputSchema: {
-      path: z.string(),
+      node_path: z.string(),
       size: z.object({ width: z.number(), height: z.number() }).optional(),
     },
   },

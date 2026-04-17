@@ -21,8 +21,8 @@ export const sceneTools: ToolDef[] = [
       "Create a node of class_name under parent. Supports engine + user-defined class_name classes. Idempotent: 'returned' on collision, 'created' on fresh.",
     inputSchema: {
       class_name: z.string(),
-      parent: z.string(),
-      name: z.string().optional(),
+      parent_path: z.string(),
+      node_name: z.string().optional(),
     },
   },
   {
@@ -31,16 +31,16 @@ export const sceneTools: ToolDef[] = [
     method: "scene.delete_node",
     description:
       "Delete the node at path (NodePath). Refuses to delete the edited scene root.",
-    inputSchema: { path: z.string() },
+    inputSchema: { node_path: z.string() },
   },
   {
     name: "scene_create",
     tier: "full",
     method: "scene.create",
     description:
-      "Create .tscn at path; root_type = engine class or custom class_name (default Node). Idempotent. Returns status 'created'|'returned'|'replaced'. if_exists: 'return'(default)|'fail'|'replace'.",
+      "Create .tscn at file_path; root_type = engine class or custom class_name (default Node). Idempotent. Returns status 'created'|'returned'|'replaced'. if_exists: 'return'(default)|'fail'|'replace'.",
     inputSchema: {
-      path: z.string(),
+      file_path: z.string(),
       root_type: z.string().optional(),
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
     },
@@ -51,7 +51,7 @@ export const sceneTools: ToolDef[] = [
     method: "scene.delete",
     description:
       "Delete the .tscn and its .uid companion at path. Refuses non-.tscn paths and the currently-edited scene (codes INVALID_PATH / EDITED_SCENE).",
-    inputSchema: { path: z.string() },
+    inputSchema: { file_path: z.string() },
   },
   {
     name: "scene_instantiate",

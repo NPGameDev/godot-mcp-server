@@ -10,7 +10,7 @@ export const resourceTools: ToolDef[] = [
     tier: "full",
     method: "resource.load",
     description: "Load a res:// resource and return { class, path, properties, metadata }. Heavy fields (image, mesh_arrays) pruned; Texture2D gets size in metadata.",
-    inputSchema: { path: z.string() },
+    inputSchema: { file_path: z.string() },
   },
   {
     name: "resource_create",
@@ -19,7 +19,7 @@ export const resourceTools: ToolDef[] = [
     description:
       "Create .tres/.res for resource_class. Idempotent (status created/returned/replaced; if_exists:return|fail|replace). Values: primitives, {type:'Resource'|'Vector2..4'|'Color'|'Rect2'|'NodePath',...}.",
     inputSchema: {
-      path: z.string(),
+      file_path: z.string(),
       resource_class: z.string(),
       properties: z.record(z.string(), z.unknown()).optional(),
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
@@ -32,7 +32,7 @@ export const resourceTools: ToolDef[] = [
     description:
       "Update properties of existing .tres/.res. warnings[] for unknown keys. NOT_FOUND if missing. Values: primitives, {type:'Resource'|'Vector2..4'|'Color'|'Rect2'|'NodePath',...}.",
     inputSchema: {
-      path: z.string(),
+      file_path: z.string(),
       properties: z.record(z.string(), z.unknown()),
     },
   },
@@ -41,8 +41,8 @@ export const resourceTools: ToolDef[] = [
     tier: "full",
     method: "resource.delete",
     description:
-      "Delete the .tres/.res and its .uid companion at path. No active-use guard (Godot refs survive file deletion; detect orphans via editor_get_errors).",
-    inputSchema: { path: z.string() },
+      "Delete the .tres/.res and its .uid companion at file_path. No active-use guard (Godot refs survive file deletion; detect orphans via editor_get_errors).",
+    inputSchema: { file_path: z.string() },
   },
 ];
 

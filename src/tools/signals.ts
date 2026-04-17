@@ -14,40 +14,40 @@ export const signalTools: ToolDef[] = [
     tier: "full",
     method: "signal.list",
     description: "List signals on a node in the edited scene. Returns [{ name, args: [{name, type}] }] from get_signal_list().",
-    inputSchema: { path: z.string() },
+    inputSchema: { node_path: z.string() },
   },
   {
     name: "signal_connect",
     tier: "full",
     method: "signal.connect",
-    description: "Connect source.signal -> target.method in edited scene. UndoRedo-wrapped. Idempotent: status 'returned' on collision, 'created' on fresh.",
+    description: "Connect source.signal_name -> target.method_name in edited scene. UndoRedo-wrapped. Idempotent: status 'returned' on collision, 'created' on fresh.",
     inputSchema: {
       source_path: z.string(),
-      signal: z.string(),
+      signal_name: z.string(),
       target_path: z.string(),
-      method: z.string(),
+      method_name: z.string(),
     },
   },
   {
     name: "signal_disconnect",
     tier: "full",
     method: "signal.disconnect",
-    description: "Disconnect source.signal -> target.method in edited scene. UndoRedo-wrapped. Returns NOT_FOUND if no such connection.",
+    description: "Disconnect source.signal_name -> target.method_name in edited scene. UndoRedo-wrapped. Returns NOT_FOUND if no such connection.",
     inputSchema: {
       source_path: z.string(),
-      signal: z.string(),
+      signal_name: z.string(),
       target_path: z.string(),
-      method: z.string(),
+      method_name: z.string(),
     },
   },
   {
     name: "signal_emit",
     tier: "full",
     method: "signal.emit",
-    description: "Emit signal on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (live game, Mode B).",
+    description: "Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (live game, Mode B).",
     inputSchema: {
-      path: z.string(),
-      signal: z.string(),
+      node_path: z.string(),
+      signal_name: z.string(),
       args: z.array(z.unknown()).optional(),
       mode: z.enum(["editor", "runtime"]).optional(),
     },
@@ -62,9 +62,9 @@ export function register(server: McpServer, bridge: Bridge, profile: Profile = "
         tool.name,
         { description: tool.description, inputSchema: tool.inputSchema },
         (input: unknown) => {
-          const parsed = input as { path: string; signal: string; args?: unknown[]; mode?: "editor" | "runtime" };
+          const parsed = input as { node_path: string; signal_name: string; args?: unknown[]; mode?: "editor" | "runtime" };
           const mode = parsed.mode ?? "editor";
-          const params = { path: parsed.path, signal: parsed.signal, args: parsed.args ?? [] };
+          const params = { node_path: parsed.node_path, signal_name: parsed.signal_name, args: parsed.args ?? [] };
           return callAndWrap(bridge, tool.method, params, { runtime: mode === "runtime" });
         },
       );

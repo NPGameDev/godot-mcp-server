@@ -26,7 +26,7 @@ export const assetTools: ToolDef[] = [
     description:
       "Forward dependencies of a res:// resource/scene via EditorFileSystem cache. include_transitive walks deps-of-deps. Returns [{path,raw_path,class}].",
     inputSchema: {
-      path: z.string(),
+      file_path: z.string(),
       include_transitive: z.boolean().optional(),
       max_results: z.number().optional(),
     },

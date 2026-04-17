@@ -11,7 +11,7 @@ export const folderTools: ToolDef[] = [
     method: "folder.create",
     description:
       "Create directory at res:// path (recursive — parents auto-created). Idempotent: status created on fresh, returned if pre-existing.",
-    inputSchema: { path: z.string() },
+    inputSchema: { folder_path: z.string() },
   },
   {
     name: "folder_delete",
@@ -20,7 +20,7 @@ export const folderTools: ToolDef[] = [
     description:
       "Delete directory. recursive:false(default) requires empty. Refuses project root, addons, and folders containing open scenes/scripts (PATH_IN_USE).",
     inputSchema: {
-      path: z.string(),
+      folder_path: z.string(),
       recursive: z.boolean().optional(),
     },
   },

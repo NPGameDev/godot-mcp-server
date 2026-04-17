@@ -10,9 +10,9 @@ export const playtestTools: ToolDef[] = [
     tier: "full",
     method: "game.start",
     description:
-      "Start playtest via EditorInterface. target:'main'|'current'(default)|res://path. Polls Mode-B port 9090 when wait_for_runtime:true(default). ALREADY_PLAYING if one is live.",
+      "Start playtest via EditorInterface. scene_path:'main'|'current'(default)|res://path. Polls Mode-B port 9090 when wait_for_runtime:true(default). ALREADY_PLAYING if one is live.",
     inputSchema: {
-      target: z.string().optional(),
+      scene_path: z.string().optional(),
       wait_for_runtime: z.boolean().optional(),
     },
   },

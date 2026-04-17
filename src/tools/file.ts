@@ -12,7 +12,7 @@ export const fileTools: ToolDef[] = [
     description:
       "Delete any file under res:// and its .import companion. Use for assets (.png, .wav, .glb, etc.) not covered by scene/script/resource.delete.",
     inputSchema: {
-      path: z.string(),
+      file_path: z.string(),
     },
   },
 ];
