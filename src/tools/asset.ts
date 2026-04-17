@@ -28,6 +28,19 @@ export const assetTools: ToolDef[] = [
       max_results: z.number().optional(),
     },
   },
+  {
+    name: "asset_import",
+    method: "asset.import",
+    description:
+      "Import binary asset (image/audio/font/3D) into res:// via source_path (filesystem copy) or base64_data. Triggers EditorFileSystem scan. if_exists:return|fail|replace.",
+    inputSchema: {
+      source_path: z.string().optional(),
+      base64_data: z.string().optional(),
+      dest_path: z.string(),
+      if_exists: z.enum(["return", "fail", "replace"]).optional(),
+      wait_for_scan_ms: z.number().optional(),
+    },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {

@@ -161,24 +161,24 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15e registers 50 tools by default (iter 15d's
-    // 47 + asset_list + asset_get_dependencies + editor_get_console = 50).
-    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (51).
+    // Tool count — post-iter-15f registers 52 tools by default (iter 15e's
+    // 50 + asset_import + editor_wait_for_idle = 52).
+    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (53).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 51 : 50;
+    const expectedToolCount = allowGameEval ? 53 : 52;
     const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools, ...assetTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e). Computed
+    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e / 15f). Computed
     // in-process by filtering the full tool list through LITE_CORE —
     // semantically equivalent to spawning the server with --lite (same
-    // `includesInProfile` filter runs). Spec targets 28 tools post-15e
-    // (iter 15d's 26 + asset_list + editor_get_console).
-    // asset_get_dependencies is full-only (specialty introspection).
+    // `includesInProfile` filter runs). Spec targets 29 tools post-15f
+    // (iter 15e's 28 + asset_import). editor_wait_for_idle is full-only
+    // (asset.import's built-in wait_for_scan_ms covers the common case).
     const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
-    if (liteTools.length !== 28) fail(`--lite catalogue: expected 28, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-    else pass(`--lite catalogue == 28 (subset of full ${expectedToolCount})`);
+    if (liteTools.length !== 29) fail(`--lite catalogue: expected 29, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 29 (subset of full ${expectedToolCount})`);
     // LITE_CORE must be a subset of the full catalogue — catches typos in
     // src/types.ts that name a tool that doesn't exist anywhere.
     const allToolNames = new Set(allTools.map((t) => t.name));
@@ -1419,6 +1419,124 @@ async function main(): Promise<void> {
     if (errResult?.stub === true) fail(`editor.get_errors: still returning stub`);
     else if (!errResult?.success) fail(`editor.get_errors: ${JSON.stringify(errResult)}`);
     else pass(`editor.get_errors -> count=${errResult.count} (stub replaced)`);
+
+    // ---- asset.import (iter 15f) -------------------------------------------
+    // Minimal 1x1 transparent PNG (67 bytes decoded).
+    const MINI_PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAABJRU5ErkJggg==";
+    const smokeImportDest = "res://smoke_import_b64.png";
+
+    // Happy: base64 import — fresh create.
+    const impCreate = await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: smokeImportDest, if_exists: "replace" }, 15000) as { success?: boolean; status?: string; source?: string; size_bytes?: number; path?: string; class?: string | null; warnings?: string[]; code?: string };
+    if (!impCreate?.success || (impCreate.status !== "created" && impCreate.status !== "replaced") || impCreate.source !== "base64" || !impCreate.size_bytes || impCreate.size_bytes <= 0) {
+      fail(`asset.import base64 create: ${JSON.stringify({ status: impCreate?.status, source: impCreate?.source, size_bytes: impCreate?.size_bytes, code: (impCreate as { code?: string })?.code })}`);
+    } else {
+      pass(`asset.import base64 -> status=${impCreate.status} size=${impCreate.size_bytes}B class=${impCreate.class ?? "null"}`);
+    }
+
+    // Happy: if_exists="return" — idempotent no-op.
+    const impReturn = await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: smokeImportDest, if_exists: "return" }, 10000) as { success?: boolean; status?: string; source?: unknown; code?: string };
+    if (!impReturn?.success || impReturn.status !== "returned") fail(`asset.import if_exists=return: expected status=returned, got ${JSON.stringify(impReturn)}`);
+    else pass(`asset.import if_exists=return -> status=returned`);
+
+    // Happy: if_exists="replace" — overwrite.
+    const impReplace = await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: smokeImportDest, if_exists: "replace" }, 15000) as { success?: boolean; status?: string; code?: string };
+    if (!impReplace?.success || impReplace.status !== "replaced") fail(`asset.import if_exists=replace: expected status=replaced, got ${JSON.stringify(impReplace)}`);
+    else pass(`asset.import if_exists=replace -> status=replaced`);
+
+    // Happy: if_exists="fail" — ALREADY_EXISTS.
+    assertGuard(
+      "asset.import if_exists=fail (file exists)",
+      await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: smokeImportDest, if_exists: "fail" }, 5000),
+      "ALREADY_EXISTS",
+      "already exists",
+    );
+
+    // Verify imported file is discoverable via asset.list.
+    try { await bridge.call("editor.wait_for_idle", { timeout_ms: 5000 }, 10000); } catch { /* noop */ }
+    const impList = await bridge.call("asset.list", { name_glob: "smoke_import_b64*" }, 5000) as { entries?: { path: string }[]; count?: number; code?: string };
+    if (!impList?.entries?.some((e) => e.path === smokeImportDest)) {
+      fail(`asset.import discovery: expected ${smokeImportDest} in asset.list, got ${JSON.stringify(impList)}`);
+    } else {
+      pass(`asset.import discovery: ${smokeImportDest} found in asset.list`);
+    }
+
+    // Guard: bad dest_path (not res://)
+    assertGuard(
+      "asset.import /tmp dest_path",
+      await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: "/tmp/foo.png" }, 5000),
+      "INVALID_PATH",
+      "res://",
+    );
+    // Guard: bad extension
+    assertGuard(
+      "asset.import .txt extension",
+      await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: "res://foo.txt" }, 5000),
+      "INVALID_PATH",
+      "allowlist",
+    );
+    // Guard: both source_path and base64_data
+    assertGuard(
+      "asset.import both params",
+      await bridge.call("asset.import", { source_path: "C:\\tmp\\x.png", base64_data: MINI_PNG_B64, dest_path: "res://foo.png" }, 5000),
+      "INVALID_PARAMS",
+      "exactly one",
+    );
+    // Guard: neither param
+    assertGuard(
+      "asset.import neither param",
+      await bridge.call("asset.import", { dest_path: "res://foo.png" }, 5000),
+      "INVALID_PARAMS",
+      "source_path",
+    );
+    // Guard: source_path with Godot scheme
+    assertGuard(
+      "asset.import res:// source_path",
+      await bridge.call("asset.import", { source_path: "res://icon.svg", dest_path: "res://foo.svg" }, 5000),
+      "INVALID_PATH",
+      "Godot scheme",
+    );
+    // Guard: invalid base64
+    assertGuard(
+      "asset.import bad base64",
+      await bridge.call("asset.import", { base64_data: "not-valid-base64!!!", dest_path: "res://foo.png" }, 5000),
+      "INVALID_PARAMS",
+      "base64",
+    );
+    // Guard: wait_for_scan_ms out of range
+    assertGuard(
+      "asset.import wait_for_scan_ms=50000",
+      await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: "res://foo.png", wait_for_scan_ms: 50000 }, 5000),
+      "INVALID_PARAMS",
+      "[0, 30000]",
+    );
+
+    // ---- editor.wait_for_idle (iter 15f) ------------------------------------
+    // Happy: no scan in progress — returns immediately.
+    const idleBase = await bridge.call("editor.wait_for_idle", {}, 10000) as { success?: boolean; was_scanning?: boolean; waited_ms?: number; code?: string };
+    if (!idleBase?.success || typeof idleBase.was_scanning !== "boolean") {
+      fail(`editor.wait_for_idle base: ${JSON.stringify(idleBase)}`);
+    } else {
+      pass(`editor.wait_for_idle -> was_scanning=${idleBase.was_scanning} waited_ms=${idleBase.waited_ms}`);
+    }
+
+    // Happy: explicit short timeout — still returns immediately.
+    const idleShort = await bridge.call("editor.wait_for_idle", { timeout_ms: 100 }, 5000) as { success?: boolean; was_scanning?: boolean; code?: string };
+    if (!idleShort?.success) fail(`editor.wait_for_idle timeout_ms=100: ${JSON.stringify(idleShort)}`);
+    else pass(`editor.wait_for_idle timeout_ms=100 -> was_scanning=${idleShort.was_scanning}`);
+
+    // Guard: timeout_ms out of range
+    assertGuard(
+      "editor.wait_for_idle timeout_ms=50000",
+      await bridge.call("editor.wait_for_idle", { timeout_ms: 50000 }, 5000),
+      "INVALID_PARAMS",
+      "[0, 30000]",
+    );
+
+    // ---- Cleanup (iter 15f) -----------------------------------------------
+    // No delete tool for .png — leave smoke_import_b64.png in place (guarded
+    // by if_exists:"return" idempotency on subsequent runs). Flag for iter 16
+    // or 18 — a generic file.delete or broader delete-tool extension coverage.
+    pass("iter 15f cleanup: smoke_import_b64.png persists (no .png delete tool)");
 
     // ---- Cleanup (iter 15e) -----------------------------------------------
     try { await bridge.call("script.delete", { path: consoleProbe }, 5000); } catch { /* noop */ }

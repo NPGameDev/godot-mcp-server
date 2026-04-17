@@ -72,6 +72,15 @@ export const editorTools: ToolDef[] = [
       since_id: z.number().optional(),
     },
   },
+  {
+    name: "editor_wait_for_idle",
+    method: "editor.wait_for_idle",
+    description:
+      "Poll EditorFileSystem.is_scanning() until idle or timeout_ms (default 10s, cap 30s). Use after asset.import, editor.reload_scripts, or file mutations.",
+    inputSchema: {
+      timeout_ms: z.number().optional(),
+    },
+  },
 ];
 
 // Shared multi-content handler for editor screenshot tools (editor_screenshot
