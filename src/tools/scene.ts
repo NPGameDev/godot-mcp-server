@@ -21,7 +21,7 @@ export const sceneTools: ToolDef[] = [
     name: "scene_create_node",
     method: "scene.create_node",
     description:
-      "Create a node of class_name under parent (NodePath). Idempotent: status 'returned' with existing path on collision, 'created' on fresh.",
+      "Create a node of class_name under parent. Supports engine + user-defined class_name classes. Idempotent: 'returned' on collision, 'created' on fresh.",
     inputSchema: {
       class_name: z.string(),
       parent: z.string(),

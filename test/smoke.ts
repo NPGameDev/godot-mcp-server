@@ -167,24 +167,24 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15g registers 53 tools by default (iter 15f's
-    // 52 + scene_close = 53).
-    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (54).
+    // Tool count — post-iter-15h registers 54 tools by default (iter 15g's
+    // 53 + node_set_script = 54).
+    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (55).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 54 : 53;
+    const expectedToolCount = allowGameEval ? 55 : 54;
     const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools, ...assetTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e / 15f / 15g).
+    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e / 15f / 15g / 15h).
     // Computed in-process by filtering the full tool list through LITE_CORE —
     // semantically equivalent to spawning the server with --lite (same
-    // `includesInProfile` filter runs). Spec targets 30 tools post-15g
-    // (iter 15f's 29 + scene_close). scene_close is the natural pair of
-    // scene_open — without it, lite-mode agents leak tabs on every open call.
+    // `includesInProfile` filter runs). Spec targets 31 tools post-15h
+    // (iter 15g's 30 + node_set_script). node_set_script is the natural
+    // companion to node_set_property — enables custom-class workflows in lite.
     const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
-    if (liteTools.length !== 30) fail(`--lite catalogue: expected 30, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-    else pass(`--lite catalogue == 30 (subset of full ${expectedToolCount})`);
+    if (liteTools.length !== 31) fail(`--lite catalogue: expected 31, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 31 (subset of full ${expectedToolCount})`);
     // LITE_CORE must be a subset of the full catalogue — catches typos in
     // src/types.ts that name a tool that doesn't exist anywhere.
     const allToolNames = new Set(allTools.map((t) => t.name));
@@ -1539,6 +1539,51 @@ async function main(): Promise<void> {
       "INVALID_PARAMS",
       "[0, 30000]",
     );
+
+    // ---- scene.create_node global class resolution (iter 15h) ----------------
+    const customClassScript = `class_name SmokeCustomNode\nextends Node2D\n\n@export var smoke_speed: float = 10.0\n`;
+    await bridge.call("script.write", { path: "res://smoke_custom_class.gd", content: customClassScript }, 5000);
+    await bridge.call("editor.reload_scripts", {}, 5000);
+    await bridge.call("editor.wait_for_idle", { timeout_ms: 5000 }, 10000);
+    // Create a node using the custom class_name.
+    const customNode = await bridge.call("scene.create_node", { class_name: "SmokeCustomNode", parent: "", name: "SmokeCustom" }, 5000) as { success?: boolean; status?: string };
+    if (!customNode?.success || customNode.status !== "created")
+      fail(`scene.create_node with global class: ${JSON.stringify(customNode)}`);
+    else pass("scene.create_node with global class_name -> created");
+    // Idempotency: same name -> returned.
+    const customIdem = await bridge.call("scene.create_node", { class_name: "SmokeCustomNode", parent: "", name: "SmokeCustom" }, 5000) as { success?: boolean; status?: string };
+    if (!customIdem?.success || customIdem.status !== "returned")
+      fail(`scene.create_node global class idempotency: ${JSON.stringify(customIdem)}`);
+    else pass("scene.create_node with global class_name -> idempotent returned");
+    // Clean up the node.
+    await bridge.call("scene.delete_node", { path: "SmokeCustom" }, 5000);
+
+    // ---- node.set_script round-trip (iter 15h) --------------------------------
+    // Create a bare Node2D to attach a script to.
+    await bridge.call("scene.create_node", { class_name: "Node2D", parent: "", name: "ScriptTarget" }, 5000);
+    // Attach the custom script.
+    const attachRes = await bridge.call("node.set_script", { path: "ScriptTarget", script: "res://smoke_custom_class.gd" }, 5000) as { success?: boolean; properties?: { name: string }[] };
+    if (!attachRes?.success) fail(`node.set_script attach: ${JSON.stringify(attachRes)}`);
+    else pass("node.set_script attach -> success");
+    // Verify @export properties are returned.
+    if (!Array.isArray(attachRes?.properties) || !attachRes.properties.some((p: any) => p.name === "smoke_speed"))
+      fail(`node.set_script should return @export properties, got: ${JSON.stringify(attachRes?.properties)}`);
+    else pass("node.set_script returns @export properties (smoke_speed found)");
+    // Detach the script.
+    const detachRes = await bridge.call("node.set_script", { path: "ScriptTarget", script: "" }, 5000) as { success?: boolean; script?: string | null; properties?: unknown[] };
+    if (!detachRes?.success || detachRes.script !== null)
+      fail(`node.set_script detach: ${JSON.stringify(detachRes)}`);
+    else pass("node.set_script detach -> success, script: null");
+    if (!Array.isArray(detachRes?.properties) || detachRes.properties.length !== 0)
+      fail(`node.set_script detach should return empty properties, got: ${JSON.stringify(detachRes?.properties)}`);
+    else pass("node.set_script detach -> properties empty");
+    // Clean up node + script.
+    await bridge.call("scene.delete_node", { path: "ScriptTarget" }, 5000);
+    await bridge.call("script.delete", { path: "res://smoke_custom_class.gd" }, 5000);
+
+    // node.set_script guard rejections (iter 15h).
+    assertGuard("node.set_script no res://", await bridge.call("node.set_script", { path: ".", script: "/tmp/foo.gd" }, 5000), "INVALID_PATH", "res://");
+    assertGuard("node.set_script not found", await bridge.call("node.set_script", { path: ".", script: "res://nonexistent_script.gd" }, 5000), "LOAD_FAILED", "cannot load");
 
     // ---- Cleanup (iter 15f) -----------------------------------------------
     // No delete tool for .png — leave smoke_import_b64.png in place (guarded

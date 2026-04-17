@@ -53,11 +53,11 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g)
+## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g / 15h)
 
-- **Full** (default) — every tool in the catalogue (53 by default; 54 with
+- **Full** (default) — every tool in the catalogue (54 by default; 55 with
   `GODOT_MCP_ALLOW_GAME_EVAL=1`).
-- **Lite** — 30-tool token-sensitive subset; opt in by passing `--lite` in
+- **Lite** — 31-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
   keep that set as the single source of truth; do not replicate it elsewhere.
   Creation tools are included (`scene_create`, `scene_instantiate`,
@@ -76,7 +76,9 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   mode; `asset.import`'s built-in `wait_for_scan_ms` covers the common
   case). Iter 15g adds `scene_close` to lite (natural pair of `scene_open` —
   without it, lite-mode agents leak tabs on every open call with no way to
-  clean up). Cleanup tools (`scene_delete`, `script_delete`, `resource_delete`,
+  clean up). Iter 15h adds `node_set_script` to lite (natural companion to
+  `node_set_property` — enables the custom-class workflow that is otherwise
+  invisible in lite mode). Cleanup tools (`scene_delete`, `script_delete`, `resource_delete`,
   `folder_delete`, `input_map_remove_action` / `action_remove_event`,
   `animation_remove_key`) are deliberately excluded; `node_call_method` and
   `editor_screenshot_node` are full-only on risk-/polish-grounds (same
@@ -177,7 +179,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
 | `GAME_NOT_RUNNING` | bridge           | Mode B call when port 9090 isn't listening.                                   |
 | `INTERNAL`         | both             | Catch-all for unexpected failure (viewport unavailable, save_png empty, …).   |
-| `INVALID_CLASS`    | plugin           | `ClassDB` rejection — unknown / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`) / packed file is not a `PackedScene` (`scene_instantiate`). |
+| `INVALID_CLASS`    | plugin           | Class resolution failure — unknown in both ClassDB + global class list / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`) / packed file is not a `PackedScene` (`scene_instantiate`) / script load failure for global class (`scene_create_node` iter 15h). |
 | `INVALID_METHOD`   | plugin (iter 15c)| `node_call_method` target node exists but `has_method(method)` is false.     |
 | `INVALID_PARAMS`   | plugin           | JSON-RPC params shape error (missing required field, wrong type).             |
 | `INVALID_PATH`     | plugin           | Semantic refusal — edited-root on `scene_delete_node`, wrong prefix/extension on `scene_*` / `script_*` / `resource_*` / `folder_*`. Script tools now require `.gd`/`.cs`/`.gdshader`/`.gdshaderinc`. |

@@ -4,14 +4,15 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
-// Iter 15 / 15b / 15c / 15d / 15e / 15f / 15g: tool-catalogue profile. `full`
-// registers every tool; `lite` is a 30-tool token-sensitive subset biased
-// toward authoring + inspection + save/load + playtest + content-authoring +
-// asset-discovery + console-debugging + binary-asset-import. Catalogue shape
-// decisions live in iter 15 plan §6 + iter 15b plan §2 + iter 15c plan §8 +
-// iter 15d plan step 13 + iter 15e plan step 7 + iter 15f plan step 6;
-// retained here (not a per-file constant) so iter 22's richer profile system
-// can build on the same entry point.
+// Iter 15 / 15b / 15c / 15d / 15e / 15f / 15g / 15h: tool-catalogue profile.
+// `full` registers every tool; `lite` is a 31-tool token-sensitive subset
+// biased toward authoring + inspection + save/load + playtest +
+// content-authoring + asset-discovery + console-debugging + binary-asset-import
+// + script attachment. Catalogue shape decisions live in iter 15 plan §6 +
+// iter 15b plan §2 + iter 15c plan §8 + iter 15d plan step 13 + iter 15e plan
+// step 7 + iter 15f plan step 6 + iter 15h plan step 6; retained here (not a
+// per-file constant) so iter 22's richer profile system can build on the same
+// entry point.
 export type Profile = "full" | "lite";
 
 export const LITE_CORE: ReadonlySet<string> = new Set([
@@ -48,6 +49,8 @@ export const LITE_CORE: ReadonlySet<string> = new Set([
   "editor_get_console",
   // Iter 15f additions (lite 28 -> 29)
   "asset_import",
+  // Iter 15h addition (lite 30 -> 31)
+  "node_set_script",
 ]);
 
 // Small helper so each tools/<group>.ts register() body stays one line

@@ -33,6 +33,16 @@ export const nodeTools: ToolDef[] = [
       args: z.array(z.unknown()).optional(),
     },
   },
+  {
+    name: "node_set_script",
+    method: "node.set_script",
+    description:
+      "Attach a script (.gd/.cs) to a node. Returns @export properties exposed by the script. Empty script string detaches.",
+    inputSchema: {
+      path: z.string(),
+      script: z.string(),
+    },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
