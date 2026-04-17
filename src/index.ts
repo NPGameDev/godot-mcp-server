@@ -17,6 +17,7 @@ import * as inputMapTools from "./tools/input_map.js";
 import * as animationTools from "./tools/animation.js";
 import * as tilemapTools from "./tools/tilemap.js";
 import * as assetTools from "./tools/asset.js";
+import * as fileTools from "./tools/file.js";
 
 // Iter 15b / 15c: `--lite` opts into a 20-tool token-sensitive catalogue;
 // default is the full catalogue. Precursor to iter 22's richer profile system.
@@ -45,6 +46,7 @@ inputMapTools.register(server, bridge, profile);
 animationTools.register(server, bridge, profile);
 tilemapTools.register(server, bridge, profile);
 assetTools.register(server, bridge, profile);
+fileTools.register(server, bridge, profile);
 
 async function shutdown(): Promise<void> {
   try {

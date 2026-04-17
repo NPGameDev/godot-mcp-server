@@ -53,9 +53,9 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g / 15h)
+## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g / 15h / 15i)
 
-- **Full** (default) — every tool in the catalogue (54 by default; 55 with
+- **Full** (default) — every tool in the catalogue (55 by default; 56 with
   `GODOT_MCP_ALLOW_GAME_EVAL=1`).
 - **Lite** — 31-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
@@ -80,10 +80,10 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   `node_set_property` — enables the custom-class workflow that is otherwise
   invisible in lite mode). Cleanup tools (`scene_delete`, `script_delete`, `resource_delete`,
   `folder_delete`, `input_map_remove_action` / `action_remove_event`,
-  `animation_remove_key`) are deliberately excluded; `node_call_method` and
-  `editor_screenshot_node` are full-only on risk-/polish-grounds (same
-  rationale as `game_eval`). Iter 22 replaces this coarse flag with a richer
-  profile system.
+  `animation_remove_key`, `file_delete`) are deliberately excluded;
+  `node_call_method` and `editor_screenshot_node` are full-only on
+  risk-/polish-grounds (same rationale as `game_eval`). Iter 22 replaces
+  this coarse flag with a richer profile system.
 
 ## Idempotency — status discriminator (iter 15 / 15b)
 

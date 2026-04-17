@@ -16,6 +16,7 @@ import { inputMapTools } from "../src/tools/input_map.js";
 import { animationTools } from "../src/tools/animation.js";
 import { tilemapTools } from "../src/tools/tilemap.js";
 import { assetTools } from "../src/tools/asset.js";
+import { fileTools } from "../src/tools/file.js";
 import { BridgeError, LITE_CORE } from "../src/types.js";
 
 const HOST = "127.0.0.1";
@@ -167,21 +168,21 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15h registers 54 tools by default (iter 15g's
-    // 53 + node_set_script = 54).
-    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (55).
+    // Tool count — post-iter-15i registers 55 tools by default (iter 15h's
+    // 54 + file_delete = 55).
+    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (56).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 55 : 54;
-    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools, ...assetTools];
+    const expectedToolCount = allowGameEval ? 56 : 55;
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools, ...assetTools, ...fileTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e / 15f / 15g / 15h).
+    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e / 15f / 15g / 15h / 15i).
     // Computed in-process by filtering the full tool list through LITE_CORE —
     // semantically equivalent to spawning the server with --lite (same
-    // `includesInProfile` filter runs). Spec targets 31 tools post-15h
-    // (iter 15g's 30 + node_set_script). node_set_script is the natural
-    // companion to node_set_property — enables custom-class workflows in lite.
+    // `includesInProfile` filter runs). Spec targets 31 tools post-15i
+    // (unchanged from 15h — file_delete is full-only). node_set_script is the
+    // natural companion to node_set_property — enables custom-class workflows in lite.
     const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
     if (liteTools.length !== 31) fail(`--lite catalogue: expected 31, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
     else pass(`--lite catalogue == 31 (subset of full ${expectedToolCount})`);
@@ -1585,11 +1586,26 @@ async function main(): Promise<void> {
     assertGuard("node.set_script no res://", await bridge.call("node.set_script", { path: ".", script: "/tmp/foo.gd" }, 5000), "INVALID_PATH", "res://");
     assertGuard("node.set_script not found", await bridge.call("node.set_script", { path: ".", script: "res://nonexistent_script.gd" }, 5000), "LOAD_FAILED", "cannot load");
 
-    // ---- Cleanup (iter 15f) -----------------------------------------------
-    // No delete tool for .png — leave smoke_import_b64.png in place (guarded
-    // by if_exists:"return" idempotency on subsequent runs). Flag for iter 16
-    // or 18 — a generic file.delete or broader delete-tool extension coverage.
-    pass("iter 15f cleanup: smoke_import_b64.png persists (no .png delete tool)");
+    // ---- file.delete round-trip (iter 15i) ------------------------------------
+    // Import a tiny 1x1 PNG for deletion testing (same base64 payload as 15f).
+    const fileDelPath = "res://smoke_15i_file_del.png";
+    await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: fileDelPath, if_exists: "replace" }, 10000);
+    // Delete via file.delete.
+    const fdRes = await bridge.call("file.delete", { path: fileDelPath }, 5000) as { success?: boolean; code?: string };
+    if (!fdRes?.success) fail(`file.delete: ${JSON.stringify(fdRes)}`);
+    else pass("file.delete -> success");
+    // Re-delete should return NOT_FOUND (confirms file is gone).
+    assertGuard("file.delete re-delete", await bridge.call("file.delete", { path: fileDelPath }, 5000), "NOT_FOUND", "not found");
+
+    // file.delete guard rejections (iter 15i).
+    assertGuard("file.delete no res://", await bridge.call("file.delete", { path: "/tmp/foo.png" }, 5000), "INVALID_PATH", "res://");
+    assertGuard("file.delete nonexistent", await bridge.call("file.delete", { path: "res://no_such_file_15i.png" }, 5000), "NOT_FOUND", "not found");
+    assertGuard("file.delete plugin self-protect", await bridge.call("file.delete", { path: "res://addons/godot_mcp_toolkit/plugin.cfg" }, 5000), "PATH_DENIED", "toolkit");
+
+    // ---- Cleanup (iter 15f + 15i) -------------------------------------------
+    // Now that file.delete exists, clean up the 15f smoke PNG artifact too.
+    try { await bridge.call("file.delete", { path: "res://smoke_import_b64.png" }, 5000); } catch { /* noop */ }
+    pass("iter 15f + 15i cleanup: smoke PNGs deleted via file.delete");
 
     // ---- Cleanup (iter 15e) -----------------------------------------------
     try { await bridge.call("script.delete", { path: consoleProbe }, 5000); } catch { /* noop */ }
