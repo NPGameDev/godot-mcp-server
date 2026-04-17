@@ -36,6 +36,13 @@ export const editorTools: ToolDef[] = [
     inputSchema: { path: z.string() },
   },
   {
+    name: "scene_close",
+    method: "scene.close",
+    description:
+      "Close an open scene tab by path. Refuses the last remaining tab (EDITED_SCENE). NOT_FOUND if the scene is not open. Frees the tab leaked by scene.open.",
+    inputSchema: { path: z.string() },
+  },
+  {
     name: "project_get_settings",
     method: "project.get_settings",
     description: "List ProjectSettings keys + values. Optional prefix filter. Keys matching /password|token|secret|key/i are dropped (MVP filter — proper scrub lands iter 20).",

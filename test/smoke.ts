@@ -128,13 +128,10 @@ function deepEqual(a: unknown, b: unknown): boolean {
 //   (a) The `Cleanup (iter 15c + 15d)` block below — every PackedScene
 //       instance of `instChildPath` must be detached from Main BEFORE
 //       save_scene, and the scene file deleted only after.
-//   (b) A new smoke section that opens a scene via scene.open without
-//       keeping the backing file + its parent folder persistent. Godot
-//       4.4.1 has no public `EditorInterface.close_scene()` (added in
-//       4.5), so any `scene.open` leaks a tab for the rest of the session;
-//       `game.start` → `save_all_scenes()` must be able to write every
-//       such tab to disk. See the EDITED_SCENE and PATH_IN_USE probes for
-//       the "persistent probe" pattern.
+//   (b) A smoke section that opens a scene via scene.open should close
+//       the tab via scene.close before deleting the backing file. If
+//       scene.close breaks, stale probe files (smoke_edited_probe.tscn,
+//       smoke_path_in_use/) may persist in the toolkit repo.
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
   const reachable = await probePort(HOST, PORT, PROBE_TIMEOUT_MS);
@@ -154,6 +151,15 @@ async function main(): Promise<void> {
   };
   const pass = (msg: string) => console.log(`[smoke] PASS ${msg}`);
 
+  // Guard-assertion helper — used throughout for code + message-substring checks.
+  const assertGuard = (label: string, env: unknown, code: string, mustInclude: string | string[]): void => {
+    const e = env as { success?: boolean; code?: string; error?: string };
+    const needles = Array.isArray(mustInclude) ? mustInclude : [mustInclude];
+    if (e?.success !== false || e.code !== code) fail(`${label}: expected code=${code}, got ${JSON.stringify(env)}`);
+    else if (!needles.every((n) => e.error?.includes(n))) fail(`${label}: message missing ${needles.find((n) => !e.error?.includes(n))} in ${JSON.stringify(e.error)}`);
+    else pass(`${label} -> ${code} (message mentions ${needles.join(" + ")})`);
+  };
+
   try {
     // echo round-trip (iter 05)
     const payload = { t: Date.now(), nonce: "smoke-01" };
@@ -161,24 +167,24 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15f registers 52 tools by default (iter 15e's
-    // 50 + asset_import + editor_wait_for_idle = 52).
-    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (53).
+    // Tool count — post-iter-15g registers 53 tools by default (iter 15f's
+    // 52 + scene_close = 53).
+    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (54).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 53 : 52;
+    const expectedToolCount = allowGameEval ? 54 : 53;
     const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools, ...assetTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e / 15f). Computed
-    // in-process by filtering the full tool list through LITE_CORE —
+    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e / 15f / 15g).
+    // Computed in-process by filtering the full tool list through LITE_CORE —
     // semantically equivalent to spawning the server with --lite (same
-    // `includesInProfile` filter runs). Spec targets 29 tools post-15f
-    // (iter 15e's 28 + asset_import). editor_wait_for_idle is full-only
-    // (asset.import's built-in wait_for_scan_ms covers the common case).
+    // `includesInProfile` filter runs). Spec targets 30 tools post-15g
+    // (iter 15f's 29 + scene_close). scene_close is the natural pair of
+    // scene_open — without it, lite-mode agents leak tabs on every open call.
     const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
-    if (liteTools.length !== 29) fail(`--lite catalogue: expected 29, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-    else pass(`--lite catalogue == 29 (subset of full ${expectedToolCount})`);
+    if (liteTools.length !== 30) fail(`--lite catalogue: expected 30, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 30 (subset of full ${expectedToolCount})`);
     // LITE_CORE must be a subset of the full catalogue — catches typos in
     // src/types.ts that name a tool that doesn't exist anywhere.
     const allToolNames = new Set(allTools.map((t) => t.name));
@@ -300,6 +306,26 @@ async function main(): Promise<void> {
     const openMiss = await bridge.call("scene.open", { path: "res://does_not_exist_smoke.tscn" }, 5000) as { code?: string };
     if (openMiss?.code !== "NOT_FOUND") fail(`scene.open bogus: expected NOT_FOUND, got ${JSON.stringify(openMiss)}`);
     else pass("scene.open bogus -> NOT_FOUND");
+
+    // ---- scene.close round-trip -----------------------------------------------
+    const closeTestPath = "res://smoke_close_test.tscn";
+    // Create + open a throwaway scene (2 tabs: Main + closeTest).
+    await bridge.call("scene.create", { path: closeTestPath, root_type: "Node", if_exists: "return" }, 5000);
+    await bridge.call("scene.open", { path: closeTestPath }, 5000);
+    // Close it — happy path.
+    const closedRes = await bridge.call("scene.close", { path: closeTestPath }, 5000) as { success?: boolean };
+    if (!closedRes?.success) fail(`scene.close happy path: ${JSON.stringify(closedRes)}`);
+    else pass("scene.close happy path -> success");
+    // NOT_FOUND on an already-closed path.
+    assertGuard("scene.close already-closed", await bridge.call("scene.close", { path: closeTestPath }, 5000), "NOT_FOUND", "not open");
+    // Clean up the backing file.
+    await bridge.call("scene.delete", { path: closeTestPath }, 5000);
+
+    // scene.close guard rejections.
+    assertGuard("scene.close no res://", await bridge.call("scene.close", { path: "/tmp/foo.tscn" }, 5000), "INVALID_PATH", "res://");
+    assertGuard("scene.close not open", await bridge.call("scene.close", { path: "res://nonexistent_scene.tscn" }, 5000), "NOT_FOUND", "not open");
+    // Last-tab guard: with only Main.tscn open, refuse.
+    assertGuard("scene.close last tab", await bridge.call("scene.close", { path: currentScenePath }, 5000), "EDITED_SCENE", "last");
 
     // project.get_settings with prefix — a narrow slice, no secret-like keys.
     const settings = await bridge.call("project.get_settings", { prefix: "application/" }, 5000) as { settings?: Record<string, unknown>; count?: number; filtered_secret_count?: number; code?: string };
@@ -547,13 +573,6 @@ async function main(): Promise<void> {
     // ---- scene.create guard rejections (each asserts code + message substring)
     // The LLM agent pattern-matches on message wording for recovery, so
     // regressions in Step 3's templates (iter 15 spec) must fail smoke.
-    const assertGuard = (label: string, env: unknown, code: string, mustInclude: string | string[]): void => {
-      const e = env as { success?: boolean; code?: string; error?: string };
-      const needles = Array.isArray(mustInclude) ? mustInclude : [mustInclude];
-      if (e?.success !== false || e.code !== code) fail(`${label}: expected code=${code}, got ${JSON.stringify(env)}`);
-      else if (!needles.every((n) => e.error?.includes(n))) fail(`${label}: message missing ${needles.find((n) => !e.error?.includes(n))} in ${JSON.stringify(e.error)}`);
-      else pass(`${label} -> ${code} (message mentions ${needles.join(" + ")})`);
-    };
     assertGuard(
       "scene.create /tmp path",
       await bridge.call("scene.create", { path: "/tmp/foo.tscn", root_type: "Node" }, 5000),
@@ -599,23 +618,20 @@ async function main(): Promise<void> {
       ".tscn",
     );
 
-    // EDITED_SCENE refusal: create a probe scene, open it, attempt delete →
-    // refuse. Probe is NEVER torn down for the same reason as the
-    // PATH_IN_USE probe below — no `EditorInterface.close_scene()` on 4.4.1,
-    // so the tab persists for the session and needs a valid disk backing
-    // so play-test `save_all_scenes()` succeeds without popping up.
+    // EDITED_SCENE refusal + clean teardown via scene.close.
     const editedPath = "res://smoke_edited_probe.tscn";
-    // Idempotent: file may persist across runs (by design).
     await bridge.call("scene.create", { path: editedPath, root_type: "Node", if_exists: "return" }, 5000);
-    const edOpen = await bridge.call("scene.open", { path: editedPath }, 5000) as { ok?: boolean };
-    if (!edOpen?.ok) fail(`edited-probe scene.open: ${JSON.stringify(edOpen)}`);
+    await bridge.call("scene.open", { path: editedPath }, 5000);
+    // Attempt delete while it's the active scene -> should refuse.
     const edDel = await bridge.call("scene.delete", { path: editedPath }, 5000) as { success?: boolean; code?: string; error?: string };
     if (edDel?.code !== "EDITED_SCENE") fail(`scene.delete of currently-edited: expected EDITED_SCENE, got ${JSON.stringify(edDel)}`);
-    else pass(`scene.delete refuses currently-edited scene -> EDITED_SCENE`);
-    // Restore Main.tscn (rest of smoke depends on it being open).
-    await bridge.call("scene.open", { path: currentScenePath }, 5000);
-    // Intentionally NOT deleting editedPath — phantom tab persists, file
-    // must persist too. Swap for scene.close + full teardown on Godot 4.5.
+    else pass("scene.delete refuses currently-edited scene -> EDITED_SCENE");
+    // Clean teardown: close the probe tab, then delete the file.
+    const edClose = await bridge.call("scene.close", { path: editedPath }, 5000) as { success?: boolean };
+    if (!edClose?.success) fail(`edited-probe scene.close: ${JSON.stringify(edClose)}`);
+    await bridge.call("scene.delete", { path: editedPath }, 5000);
+    pass("EDITED_SCENE probe: clean teardown via scene.close + scene.delete");
+    // Main.tscn auto-restores as the only remaining tab.
 
     // ---- script.delete round-trip -----------------------------------------
     const scriptDelPath = "res://smoke_throwaway.gd";
@@ -779,31 +795,23 @@ async function main(): Promise<void> {
       "res://",
     );
 
-    // folder.delete — PATH_IN_USE for currently-edited scene under the folder.
-    // The probe lives in a DEDICATED folder (distinct from folderRoot, which
-    // is recursively deleted later) and is NEVER torn down. Rationale:
-    // Godot 4.4.1 has no public `EditorInterface.close_scene()` (added in
-    // 4.5), so opening a scene leaves a tab open for the rest of the editor
-    // session. When `game.start` fires later, Godot's play-test path calls
-    // `save_all_scenes()` internally — if that tab's backing file or parent
-    // folder is gone, the editor pops up "Could not save one or more
-    // scenes!". Keeping the probe + its folder persistent gives the phantom
-    // tab a writeable disk backing → save-all succeeds silently. Swap for a
-    // proper `scene.close` tool when/if we upgrade the dogfood editor to 4.5.
+    // folder.delete — PATH_IN_USE refusal + clean teardown via scene.close.
     const pathInUseDir = "res://smoke_path_in_use";
     const pathInUseProbe = `${pathInUseDir}/probe.tscn`;
     try { await bridge.call("folder.create", { path: pathInUseDir }, 5000); } catch { /* noop */ }
-    // Idempotent: file may persist across runs (by design — see above).
     await bridge.call("scene.create", { path: pathInUseProbe, root_type: "Node", if_exists: "return" }, 5000);
-    const openedInFolder = await bridge.call("scene.open", { path: pathInUseProbe }, 5000) as { ok?: boolean };
-    if (!openedInFolder?.ok) fail(`folder.delete PATH_IN_USE probe: scene.open: ${JSON.stringify(openedInFolder)}`);
+    await bridge.call("scene.open", { path: pathInUseProbe }, 5000);
     const fdInUse = await bridge.call("folder.delete", { path: pathInUseDir, recursive: true }, 5000) as { code?: string; error?: string };
     if (fdInUse?.code !== "PATH_IN_USE" || !fdInUse.error?.includes(pathInUseProbe)) {
       fail(`folder.delete on folder containing edited scene: expected PATH_IN_USE naming ${pathInUseProbe}, got ${JSON.stringify(fdInUse)}`);
     } else pass(`folder.delete refuses folder containing edited scene -> PATH_IN_USE`);
-    // Restore Main.tscn so the rest of smoke isn't disrupted.
-    await bridge.call("scene.open", { path: currentScenePath }, 5000);
-    // Intentionally NOT deleting pathInUseProbe — see design note above.
+    // Clean teardown: close the probe tab, delete file, delete folder.
+    const piuClose = await bridge.call("scene.close", { path: pathInUseProbe }, 5000) as { success?: boolean };
+    if (!piuClose?.success) fail(`PATH_IN_USE probe scene.close: ${JSON.stringify(piuClose)}`);
+    await bridge.call("scene.delete", { path: pathInUseProbe }, 5000);
+    await bridge.call("folder.delete", { path: pathInUseDir, recursive: true }, 5000);
+    pass("PATH_IN_USE probe: clean teardown via scene.close + delete");
+    // Main.tscn auto-restores as the only remaining tab.
 
     // folder.delete — FOLDER_PROTECTED guards.
     assertGuard(

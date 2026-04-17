@@ -4,8 +4,8 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
-// Iter 15 / 15b / 15c / 15d / 15e / 15f: tool-catalogue profile. `full`
-// registers every tool; `lite` is a 29-tool token-sensitive subset biased
+// Iter 15 / 15b / 15c / 15d / 15e / 15f / 15g: tool-catalogue profile. `full`
+// registers every tool; `lite` is a 30-tool token-sensitive subset biased
 // toward authoring + inspection + save/load + playtest + content-authoring +
 // asset-discovery + console-debugging + binary-asset-import. Catalogue shape
 // decisions live in iter 15 plan §6 + iter 15b plan §2 + iter 15c plan §8 +
@@ -31,6 +31,7 @@ export const LITE_CORE: ReadonlySet<string> = new Set([
   "editor_screenshot",
   "editor_reload_scripts",
   "scene_open",
+  "scene_close",
   "project_get_settings",
   "game_start",
   "debugger_get_log",

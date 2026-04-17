@@ -53,11 +53,11 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f)
+## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g)
 
-- **Full** (default) — every tool in the catalogue (52 by default; 53 with
+- **Full** (default) — every tool in the catalogue (53 by default; 54 with
   `GODOT_MCP_ALLOW_GAME_EVAL=1`).
-- **Lite** — 29-tool token-sensitive subset; opt in by passing `--lite` in
+- **Lite** — 30-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
   keep that set as the single source of truth; do not replicate it elsewhere.
   Creation tools are included (`scene_create`, `scene_instantiate`,
@@ -74,7 +74,9 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   ingestion is the primary remaining authoring gap); `editor_wait_for_idle`
   is full-only (agents can retry on `FILESYSTEM_NOT_READY` manually in lite
   mode; `asset.import`'s built-in `wait_for_scan_ms` covers the common
-  case). Cleanup tools (`scene_delete`, `script_delete`, `resource_delete`,
+  case). Iter 15g adds `scene_close` to lite (natural pair of `scene_open` —
+  without it, lite-mode agents leak tabs on every open call with no way to
+  clean up). Cleanup tools (`scene_delete`, `script_delete`, `resource_delete`,
   `folder_delete`, `input_map_remove_action` / `action_remove_event`,
   `animation_remove_key`) are deliberately excluded; `node_call_method` and
   `editor_screenshot_node` are full-only on risk-/polish-grounds (same
