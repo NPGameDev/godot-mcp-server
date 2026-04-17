@@ -4,13 +4,13 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
-// Iter 15 / 15b / 15c / 15d: tool-catalogue profile. `full` registers every
-// tool; `lite` is a 26-tool token-sensitive subset biased toward authoring +
-// inspection + save/load + playtest + content-authoring (project /
-// input_map / animation / tilemap). Catalogue shape decisions live in iter
-// 15 plan §6 + iter 15b plan §2 + iter 15c plan §8 + iter 15d plan step 13;
-// retained here (not a per-file constant) so iter 22's richer profile
-// system can build on the same entry point.
+// Iter 15 / 15b / 15c / 15d / 15e: tool-catalogue profile. `full` registers
+// every tool; `lite` is a 28-tool token-sensitive subset biased toward
+// authoring + inspection + save/load + playtest + content-authoring +
+// asset-discovery + console-debugging. Catalogue shape decisions live in
+// iter 15 plan §6 + iter 15b plan §2 + iter 15c plan §8 + iter 15d plan
+// step 13 + iter 15e plan step 7; retained here (not a per-file constant)
+// so iter 22's richer profile system can build on the same entry point.
 export type Profile = "full" | "lite";
 
 export const LITE_CORE: ReadonlySet<string> = new Set([
@@ -41,6 +41,9 @@ export const LITE_CORE: ReadonlySet<string> = new Set([
   "animation_add_key",
   "animation_get_keys",
   "tilemap_set_cells",
+  // Iter 15e additions (lite 26 -> 28)
+  "asset_list",
+  "editor_get_console",
 ]);
 
 // Small helper so each tools/<group>.ts register() body stays one line
@@ -76,6 +79,7 @@ export type ErrorCode =
   | "EXECUTE_FAILED"
   | "FEATURE_DISABLED"
   | "FILE_TOO_LARGE"
+  | "FILESYSTEM_NOT_READY"
   | "FOLDER_PROTECTED"
   | "GAME_NOT_RUNNING"
   | "INTERNAL"
@@ -84,6 +88,7 @@ export type ErrorCode =
   | "INVALID_PARAMS"
   | "INVALID_PATH"
   | "LOAD_FAILED"
+  | "LOG_UNAVAILABLE"
   | "NO_RUNTIME_URL"
   | "NO_SCENE"
   | "NOT_A_RESOURCE"

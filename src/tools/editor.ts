@@ -7,8 +7,9 @@ export const editorTools: ToolDef[] = [
   {
     name: "editor_get_errors",
     method: "editor.get_errors",
-    description: "Return recent GDScript compile/runtime errors from the editor. (MVP stub; iter 10 replaces with debugger_get_log.)",
-    inputSchema: {},
+    description:
+      "Editor-time error tail (wraps editor.get_console with level='error'). Iter-15e replaces the iter-04 stub. Use editor.get_console for warnings/info/print output.",
+    inputSchema: { limit: z.number().optional() },
   },
   {
     name: "editor_save_scene",
@@ -58,6 +59,17 @@ export const editorTools: ToolDef[] = [
     inputSchema: {
       path: z.string(),
       size: z.object({ width: z.number(), height: z.number() }).optional(),
+    },
+  },
+  {
+    name: "editor_get_console",
+    method: "editor.get_console",
+    description:
+      "Tail editor Output panel (user://logs/). level_filter: info|warning|error. since_id for incremental polls. Iter-15e replaces iter-04 editor.get_errors stub.",
+    inputSchema: {
+      limit: z.number().optional(),
+      level_filter: z.array(z.enum(["info", "warning", "error"])).optional(),
+      since_id: z.number().optional(),
     },
   },
 ];

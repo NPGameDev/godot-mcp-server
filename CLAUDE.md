@@ -23,7 +23,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   on `Bridge`, NOT on the concrete `createBridge` function (DIP).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
   `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,
-  `input_map`, `animation`, `tilemap`).
+  `input_map`, `animation`, `tilemap`, `asset`).
   Each exports a typed `ToolDef[]` and a `register(server, bridge, profile = "full")`
   function. `ToolDef` is defined in `tools/scene.ts` and re-exported implicitly
   (via `import { ToolDef } from "./scene.js"`). Tools filter via
@@ -55,9 +55,9 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 
 ## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d)
 
-- **Full** (default) — every tool in the catalogue (47 by default; 48 with
+- **Full** (default) — every tool in the catalogue (50 by default; 51 with
   `GODOT_MCP_ALLOW_GAME_EVAL=1`).
-- **Lite** — 26-tool token-sensitive subset; opt in by passing `--lite` in
+- **Lite** — 28-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
   keep that set as the single source of truth; do not replicate it elsewhere.
   Creation tools are included (`scene_create`, `scene_instantiate`,
@@ -67,12 +67,15 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   Iter 15d's content-authoring lite picks: `project_set_setting` +
   `input_map_add_action` + `input_map_action_add_event` +
   `animation_add_key` + `animation_get_keys` + `tilemap_set_cells` —
-  the create/inspect tools per domain. Cleanup tools (`scene_delete`,
-  `script_delete`, `resource_delete`, `folder_delete`,
-  `input_map_remove_action` / `action_remove_event`, `animation_remove_key`)
-  are deliberately excluded; `node_call_method` and `editor_screenshot_node`
-  are full-only on risk-/polish-grounds (same rationale as `game_eval`).
-  Iter 22 replaces this coarse flag with a richer profile system.
+  the create/inspect tools per domain. Iter 15e adds `asset_list` +
+  `editor_get_console` to lite (discovery + debugging are core agent
+  workflows); `asset_get_dependencies` is full-only (specialty
+  introspection). Cleanup tools (`scene_delete`, `script_delete`,
+  `resource_delete`, `folder_delete`, `input_map_remove_action` /
+  `action_remove_event`, `animation_remove_key`) are deliberately excluded;
+  `node_call_method` and `editor_screenshot_node` are full-only on
+  risk-/polish-grounds (same rationale as `game_eval`). Iter 22 replaces
+  this coarse flag with a richer profile system.
 
 ## Idempotency — status discriminator (iter 15 / 15b)
 
@@ -164,6 +167,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `EXECUTE_FAILED`   | plugin (Mode B)  | `game.eval` Expression.execute returned an error.                             |
 | `FEATURE_DISABLED` | both (iter 19+)  | Tool gated off by FeatureGate; reserved.                                      |
 | `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |
+| `FILESYSTEM_NOT_READY` | plugin (iter 15e) | `EditorFileSystem.is_scanning()` true when `asset_list` or `asset_get_dependencies` called. Agent should retry in 500-2000ms. |
 | `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
 | `GAME_NOT_RUNNING` | bridge           | Mode B call when port 9090 isn't listening.                                   |
 | `INTERNAL`         | both             | Catch-all for unexpected failure (viewport unavailable, save_png empty, …).   |
@@ -172,6 +176,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `INVALID_PARAMS`   | plugin           | JSON-RPC params shape error (missing required field, wrong type).             |
 | `INVALID_PATH`     | plugin           | Semantic refusal — edited-root on `scene_delete_node`, wrong prefix/extension on `scene_*` / `script_*` / `resource_*` / `folder_*`. Script tools now require `.gd`/`.cs`/`.gdshader`/`.gdshaderinc`. |
 | `LOAD_FAILED`      | plugin           | `ResourceLoader.load` returned null.                                          |
+| `LOG_UNAVAILABLE`  | plugin (iter 15e)| `editor_get_console` / `editor_get_errors` couldn't find a readable log under `user://logs/`. Check `application/config/use_file_logging`. |
 | `NO_RUNTIME_URL`   | bridge           | `callRuntime` invoked when `createBridge` got no runtime URL.                 |
 | `NO_SCENE`         | plugin           | `EditorInterface.get_edited_scene_root()` returned null.                      |
 | `NOT_A_RESOURCE`   | plugin (iter 15b)| `resource_save` / `resource_delete` target loaded but isn't a Resource subclass. |

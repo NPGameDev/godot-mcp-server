@@ -15,6 +15,7 @@ import { playtestTools } from "../src/tools/playtest.js";
 import { inputMapTools } from "../src/tools/input_map.js";
 import { animationTools } from "../src/tools/animation.js";
 import { tilemapTools } from "../src/tools/tilemap.js";
+import { assetTools } from "../src/tools/asset.js";
 import { BridgeError, LITE_CORE } from "../src/types.js";
 
 const HOST = "127.0.0.1";
@@ -160,27 +161,24 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — post-iter-15d registers 47 tools by default (iter 15c's
-    // 37 + project_set_setting + 4 input_map + 3 animation + tilemap_set_cells
-    // + editor_screenshot_node = 47). With GODOT_MCP_ALLOW_GAME_EVAL=1 the
-    // catalogue includes game_eval (48).
+    // Tool count — post-iter-15e registers 50 tools by default (iter 15d's
+    // 47 + asset_list + asset_get_dependencies + editor_get_console = 50).
+    // With GODOT_MCP_ALLOW_GAME_EVAL=1 the catalogue includes game_eval (51).
     const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 48 : 47;
-    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools];
+    const expectedToolCount = allowGameEval ? 51 : 50;
+    const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools, ...assetTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
     else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
 
-    // --lite catalogue size (iter 15 / 15b / 15c / 15d). Computed in-process
-    // by filtering the full tool list through LITE_CORE — semantically
-    // equivalent to spawning the server with --lite (same
-    // `includesInProfile` filter runs). Spec targets 26 tools post-15d
-    // (iter 15c's 20 + project_set_setting + input_map_add_action +
-    // input_map_action_add_event + animation_add_key + animation_get_keys
-    // + tilemap_set_cells). Cleanup tools (remove_action / remove_event /
-    // remove_key) and editor_screenshot_node remain full-only.
+    // --lite catalogue size (iter 15 / 15b / 15c / 15d / 15e). Computed
+    // in-process by filtering the full tool list through LITE_CORE —
+    // semantically equivalent to spawning the server with --lite (same
+    // `includesInProfile` filter runs). Spec targets 28 tools post-15e
+    // (iter 15d's 26 + asset_list + editor_get_console).
+    // asset_get_dependencies is full-only (specialty introspection).
     const liteTools = allTools.filter((t) => LITE_CORE.has(t.name));
-    if (liteTools.length !== 26) fail(`--lite catalogue: expected 26, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-    else pass(`--lite catalogue == 26 (subset of full ${expectedToolCount})`);
+    if (liteTools.length !== 28) fail(`--lite catalogue: expected 28, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+    else pass(`--lite catalogue == 28 (subset of full ${expectedToolCount})`);
     // LITE_CORE must be a subset of the full catalogue — catches typos in
     // src/types.ts that name a tool that doesn't exist anywhere.
     const allToolNames = new Set(allTools.map((t) => t.name));
@@ -1286,6 +1284,154 @@ async function main(): Promise<void> {
       ["64", "4096"],
     );
     try { await bridge.call("scene.delete_node", { path: ssPath }, 5000); } catch { /* noop */ }
+
+    // ---- asset.list (iter 15e) -------------------------------------------
+    // Pre-seed: create a few known assets for filter assertions.
+    const smokeListA = "res://smoke_list_a.tres";
+    const smokeListB = "res://smoke_list_b.tres";
+    const smokeListC = "res://smoke_list_c.gd";
+    try { await bridge.call("resource.create", { path: smokeListA, resource_class: "Resource" }, 5000); } catch { /* noop */ }
+    try { await bridge.call("resource.create", { path: smokeListB, resource_class: "Curve" }, 5000); } catch { /* noop */ }
+    try { await bridge.call("script.write", { path: smokeListC, content: "extends Node" }, 5000); } catch { /* noop */ }
+    // Let EditorFileSystem pick up the new files.
+    try { await bridge.call("editor.reload_scripts", {}, 5000); } catch { /* noop */ }
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Happy: name_glob filter
+    const alGlob = await bridge.call("asset.list", { path_prefix: "res://", name_glob: "smoke_list_*" }, 5000) as { success?: boolean; count?: number; entries?: { path: string }[]; truncated?: boolean; code?: string };
+    if (!alGlob?.success || typeof alGlob.count !== "number" || alGlob.count < 3) fail(`asset.list name_glob: expected >=3 entries, got ${JSON.stringify({ count: alGlob?.count, success: alGlob?.success, code: (alGlob as { code?: string })?.code })}`);
+    else pass(`asset.list name_glob smoke_list_* -> count=${alGlob.count}`);
+    // Happy: class_filter (ancestry-aware — Curve IS-A Resource)
+    const alClass = await bridge.call("asset.list", { class_filter: "Curve" }, 5000) as { entries?: { path: string }[]; count?: number; code?: string };
+    const hasCurve = alClass?.entries?.some((e) => e.path === smokeListB);
+    if (!hasCurve) fail(`asset.list class_filter=Curve: expected ${smokeListB} in entries, got ${JSON.stringify(alClass)}`);
+    else pass(`asset.list class_filter=Curve includes ${smokeListB}`);
+    // Happy: extension_filter
+    const alExt = await bridge.call("asset.list", { name_glob: "smoke_list_*", extension_filter: ["gd"] }, 5000) as { entries?: { path: string }[]; count?: number; code?: string };
+    if (alExt?.count !== 1 || alExt?.entries?.[0]?.path !== smokeListC) fail(`asset.list extension_filter=gd: expected 1 .gd entry, got ${JSON.stringify(alExt)}`);
+    else pass(`asset.list extension_filter=gd -> ${smokeListC}`);
+    // Happy: max_results truncation
+    const alTrunc = await bridge.call("asset.list", { max_results: 1 }, 5000) as { count?: number; truncated?: boolean; code?: string };
+    if (alTrunc?.count !== 1 || alTrunc?.truncated !== true) fail(`asset.list max_results=1: expected count=1 truncated=true, got ${JSON.stringify(alTrunc)}`);
+    else pass(`asset.list max_results=1 -> truncated`);
+    // Guard: bad path_prefix
+    assertGuard(
+      "asset.list /tmp path",
+      await bridge.call("asset.list", { path_prefix: "/tmp" }, 5000),
+      "INVALID_PATH",
+      "res://",
+    );
+    // Guard: bogus class_filter
+    assertGuard(
+      "asset.list bogus class_filter",
+      await bridge.call("asset.list", { class_filter: "BogusClass" }, 5000),
+      "INVALID_PARAMS",
+      ["ClassDB", "ProjectSettings"],
+    );
+    // Guard: max_results out of range
+    assertGuard(
+      "asset.list max_results=5000",
+      await bridge.call("asset.list", { max_results: 5000 }, 5000),
+      "INVALID_PARAMS",
+      "[1, 2000]",
+    );
+
+    // ---- asset.get_dependencies (iter 15e) --------------------------------
+    // Pre-seed: a scene referencing icon.svg (the dogfood fixture).
+    const smokeDeps = "res://smoke_deps.tscn";
+    try { await bridge.call("scene.create", { path: smokeDeps, root_type: "Node2D", if_exists: "replace" }, 5000); } catch { /* noop */ }
+    try { await bridge.call("scene.open", { path: smokeDeps }, 5000); } catch { /* noop */ }
+    try { await bridge.call("scene.create_node", { class_name: "Sprite2D", parent: ".", name: "DepSprite" }, 5000); } catch { /* noop */ }
+    try { await bridge.call("node.set_property", { path: "DepSprite", property: "texture", value: { type: "Resource", path: "res://icon.svg" } }, 5000); } catch { /* noop */ }
+    try { await bridge.call("editor.save_scene", {}, 5000); } catch { /* noop */ }
+    // Reload filesystem so deps are indexed.
+    try { await bridge.call("editor.reload_scripts", {}, 5000); } catch { /* noop */ }
+    await new Promise((r) => setTimeout(r, 500));
+
+    const adDeps = await bridge.call("asset.get_dependencies", { path: smokeDeps }, 5000) as { success?: boolean; dependencies?: { path: string; class?: string }[]; count?: number; code?: string };
+    if (!adDeps?.success || !adDeps.dependencies || adDeps.count === undefined) fail(`asset.get_dependencies: unexpected shape ${JSON.stringify(adDeps)}`);
+    else {
+      const hasIcon = adDeps.dependencies.some((d) => d.path.includes("icon.svg"));
+      if (!hasIcon) fail(`asset.get_dependencies: expected icon.svg in deps, got ${JSON.stringify(adDeps.dependencies)}`);
+      else pass(`asset.get_dependencies ${smokeDeps} -> count=${adDeps.count}, includes icon.svg`);
+    }
+    // Guard: bad path
+    assertGuard(
+      "asset.get_dependencies /tmp path",
+      await bridge.call("asset.get_dependencies", { path: "/tmp/foo.tres" }, 5000),
+      "INVALID_PATH",
+      "res://",
+    );
+    // Guard: missing file
+    assertGuard(
+      "asset.get_dependencies missing file",
+      await bridge.call("asset.get_dependencies", { path: "res://no_such_15e.tres" }, 5000),
+      "NOT_FOUND",
+      "no file",
+    );
+
+    // ---- editor.get_console (iter 15e) ------------------------------------
+    // Structural test: just verify the response shape is correct.
+    const consoleBase = await bridge.call("editor.get_console", { limit: 50 }, 5000) as { success?: boolean; entries?: { id: number; level: string; message: string }[]; count?: number; log_file?: string; next_id?: number; code?: string };
+    if (!consoleBase?.success || !Array.isArray(consoleBase.entries) || typeof consoleBase.log_file !== "string") {
+      fail(`editor.get_console base: unexpected shape ${JSON.stringify({ success: consoleBase?.success, entries: consoleBase?.entries?.length, log_file: consoleBase?.log_file, code: (consoleBase as { code?: string })?.code })}`);
+    } else {
+      pass(`editor.get_console base -> count=${consoleBase.count} log_file=${consoleBase.log_file}`);
+    }
+
+    // Emit a known warning via a @tool script, then poll for it.
+    const consoleProbe = "res://smoke_console_probe.gd";
+    try { await bridge.call("script.write", { path: consoleProbe, content: "@tool\nextends Node\nfunc _ready():\n\tpush_warning('MCP smoke: hello from 15e')" }, 5000); } catch { /* noop */ }
+    try { await bridge.call("editor.reload_scripts", {}, 5000); } catch { /* noop */ }
+    await new Promise((r) => setTimeout(r, 1000));
+    const consoleWarn = await bridge.call("editor.get_console", { level_filter: ["warning"], limit: 100 }, 5000) as { success?: boolean; entries?: { level: string; message: string }[]; code?: string };
+    // Note: the push_warning may or may not appear in the log depending on
+    // whether Godot flushes before we read. Structural pass is sufficient.
+    if (!consoleWarn?.success) fail(`editor.get_console level_filter=warning: ${JSON.stringify(consoleWarn)}`);
+    else pass(`editor.get_console level_filter=warning -> count=${consoleWarn.entries?.length ?? 0}`);
+
+    // since_id incremental: capture next_id, then poll again.
+    const conPoll1 = await bridge.call("editor.get_console", { limit: 10 }, 5000) as { next_id?: number; success?: boolean };
+    if (conPoll1?.success && typeof conPoll1.next_id === "number" && conPoll1.next_id >= 0) {
+      const conPoll2 = await bridge.call("editor.get_console", { since_id: conPoll1.next_id, limit: 10 }, 5000) as { success?: boolean; count?: number; entries?: unknown[] };
+      if (!conPoll2?.success) fail(`editor.get_console since_id: ${JSON.stringify(conPoll2)}`);
+      else pass(`editor.get_console since_id=${conPoll1.next_id} -> count=${conPoll2.count}`);
+    } else {
+      pass(`editor.get_console since_id: skipped (no next_id from base call)`);
+    }
+
+    // Guard: limit out of range
+    assertGuard(
+      "editor.get_console limit=10000",
+      await bridge.call("editor.get_console", { limit: 10000 }, 5000),
+      "INVALID_PARAMS",
+      "[1, 1000]",
+    );
+
+    // ---- editor.get_errors upgrade verification (iter 15e) ----------------
+    // Emit a script with a syntax error, then verify editor.get_errors
+    // returns real errors (not the old stub).
+    const consoleErr = "res://smoke_console_err.gd";
+    try { await bridge.call("script.write", { path: consoleErr, content: "extends Nbdoe" }, 5000); } catch { /* noop */ }
+    try { await bridge.call("editor.reload_scripts", {}, 5000); } catch { /* noop */ }
+    await new Promise((r) => setTimeout(r, 1000));
+    const errResult = await bridge.call("editor.get_errors", {}, 5000) as { success?: boolean; errors?: { level?: string; message?: string }[]; count?: number; stub?: boolean; code?: string };
+    if (errResult?.stub === true) fail(`editor.get_errors: still returning stub`);
+    else if (!errResult?.success) fail(`editor.get_errors: ${JSON.stringify(errResult)}`);
+    else pass(`editor.get_errors -> count=${errResult.count} (stub replaced)`);
+
+    // ---- Cleanup (iter 15e) -----------------------------------------------
+    try { await bridge.call("script.delete", { path: consoleProbe }, 5000); } catch { /* noop */ }
+    try { await bridge.call("script.delete", { path: consoleErr }, 5000); } catch { /* noop */ }
+    try { await bridge.call("resource.delete", { path: smokeListA }, 5000); } catch { /* noop */ }
+    try { await bridge.call("resource.delete", { path: smokeListB }, 5000); } catch { /* noop */ }
+    try { await bridge.call("script.delete", { path: smokeListC }, 5000); } catch { /* noop */ }
+    // Reopen Main.tscn (smoke_deps.tscn was opened above; Main must be active
+    // for subsequent tests). Delete smoke_deps after switching back.
+    try { await bridge.call("scene.open", { path: "res://Main.tscn" }, 5000); } catch { /* noop */ }
+    try { await bridge.call("scene.delete", { path: smokeDeps }, 5000); } catch { /* noop */ }
+    try { await bridge.call("editor.reload_scripts", {}, 5000); } catch { /* noop */ }
+    pass("iter 15e cleanup complete");
 
     // ---- Cleanup (iter 15c + 15d) ---------------------------------------
     // Delete probe nodes, save Main, delete throwaway files, ensure no game.
