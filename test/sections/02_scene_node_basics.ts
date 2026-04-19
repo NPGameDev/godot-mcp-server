@@ -1,16 +1,19 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT } from "../helpers.js";
+import { CALL_TIMEOUT, unwrapUntrusted } from "../helpers.js";
 
 export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
-  const tree = await bridge.call("scene.get_tree", null, CALL_TIMEOUT) as { name?: string; children?: unknown[]; code?: string };
-  if (tree && tree.code === "NO_SCENE") {
+  const raw = await bridge.call("scene.get_tree", null, CALL_TIMEOUT) as { tree?: string; name?: string; children?: unknown[]; code?: string };
+  if (raw && raw.code === "NO_SCENE") {
     fail("scene.get_tree: NO_SCENE — open Main.tscn in the Godot editor before running smoke");
-  } else if (!tree || typeof tree.name !== "string" || !Array.isArray(tree.children)) {
-    fail(`scene.get_tree: unexpected shape ${JSON.stringify(tree)}`);
   } else {
-    pass(`scene.get_tree root=${tree.name}`);
+    const tree = (raw?.tree ? unwrapUntrusted(raw.tree) : raw) as { name?: string; children?: unknown[] };
+    if (!tree || typeof tree.name !== "string" || !Array.isArray(tree.children)) {
+      fail(`scene.get_tree: unexpected shape ${JSON.stringify(raw)}`);
+    } else {
+      pass(`scene.get_tree root=${tree.name}`);
+    }
   }
 
   // Idempotent create (iter 15 status discriminator).

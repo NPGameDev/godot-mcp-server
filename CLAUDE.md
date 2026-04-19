@@ -109,6 +109,25 @@ Default tool count: 49 (no gates enabled). Each enabled gate adds its
 tools: `game_eval` +1, `node_call_method` +1, `project_set_setting` +1,
 `input_map_write` +4, `read_user_scope` +4 = 60 max.
 
+### Dual-pass smoke runner (`npm run smoke`)
+
+`test/run-smoke.ts` runs `test/smoke.ts` twice in child processes:
+
+1. **Pass 1 — ALL GATES OFF**: no `GODOT_MCP_ALLOW_*` env vars.
+   Verifies the base catalogue (49 tools), gated sections skip gracefully.
+2. **Pass 2 — ALL GATES ON**: all gate env vars set to `"1"` plus
+   `MCP_ENABLE_USER_SCOPE=1`. Verifies the expanded catalogue (up to 60).
+   Sections that hit a Godot-side dual-gate rejection (`FEATURE_DISABLED`)
+   skip rather than fail — the TS-side gate is confirmed, but the
+   ProjectSettings side may not be configured in this editor instance.
+
+Both passes set `GODOT_MCP_PROJECT_NAME` so token resolution works when
+CWD is the server repo (not the Godot project root).
+
+Use `npm run smoke:single` for a single pass that inherits whatever
+env vars the caller provides (useful for debugging a specific gate
+configuration).
+
 ### Conditional smoke for user-scope tools
 
 The smoke test exercises `save.*` round-trips only when
@@ -116,7 +135,9 @@ The smoke test exercises `save.*` round-trips only when
 from `GODOT_MCP_ALLOW_USER_SCOPE` — running the gate'd tests requires
 both: (a) Godot launched with the gate enabled AND (b) the smoke harness
 told to exercise them. Without `MCP_ENABLE_USER_SCOPE=1`, the smoke test
-logs a skip message and proceeds.
+logs a skip message and proceeds. Even with both env vars set, the
+Godot-side dual gate or a missing whitelist file may reject — the test
+detects `FEATURE_DISABLED` / `USER_SCOPE_DISABLED` and skips gracefully.
 
 ## Idempotency — status discriminator (iter 15 / 15b)
 
@@ -156,12 +177,22 @@ param, copy this shape (zod `z.enum(["return","fail","replace"]).optional()`,
 toolkit-side default `"return"`, three-branch switch in the GDScript
 handler).
 
+## Environment variables (non-gate)
+
+| Variable                    | Default                 | Purpose |
+|-----------------------------|-------------------------|---------|
+| `GODOT_MCP_PORT`            | `6505`                  | Editor WebSocket port |
+| `GODOT_MCP_RUNTIME_PORT`    | `9090`                  | Game runtime WebSocket port |
+| `GODOT_MCP_TOKEN_PATH`      | (resolved from project) | Absolute override for the session-token file |
+| `GODOT_MCP_PROJECT_NAME`    | (read from project.godot, else `[unnamed project]`) | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
+
 ## Workflow
 
 ```
 npm install          # once
 npm run build        # tsc -> dist/, postbuild adds shebang
-npm run smoke        # port-check + round-trip assertions (editor must be up)
+npm run smoke        # dual-pass: gates-off then gates-on (editor must be up)
+npm run smoke:single # single-pass (inherits env vars from caller)
 npm link             # dogfood: global `godot-mcp-server` resolves to this dist/
 ```
 

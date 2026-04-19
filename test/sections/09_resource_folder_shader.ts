@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
 
 export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -44,7 +44,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   } else pass(`resource.create if_exists='explode' -> INVALID_PARAMS`);
 
   // Guard rejections.
-  assertGuard(ctx, "resource.create /tmp path", await bridge.call("resource.create", { file_path: "/tmp/foo.tres", resource_class: "Resource" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "resource.create /tmp path", await bridge.call("resource.create", { file_path: "/tmp/foo.tres", resource_class: "Resource" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "resource.create .gd extension", await bridge.call("resource.create", { file_path: "res://foo.gd", resource_class: "Resource" }, CALL_TIMEOUT), "INVALID_PATH", "script.write");
   assertGuard(ctx, "resource.create missing parent dir", await bridge.call("resource.create", { file_path: "res://no_such_dir_smoke/foo.tres", resource_class: "Resource" }, CALL_TIMEOUT), "PARENT_NOT_FOUND", "folder.create");
   assertGuard(ctx, "resource.create bogus class", await bridge.call("resource.create", { file_path: "res://smoke_bogus.tres", resource_class: "BogusClass" }, CALL_TIMEOUT), "INVALID_CLASS", ["ClassDB", "ProjectSettings"]);
@@ -67,8 +67,9 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   else if (!Array.isArray(resourceSaved.warnings) || resourceSaved.warnings.length !== 0) fail(`resource.save: expected warnings=[], got ${JSON.stringify(resourceSaved.warnings)}`);
   else pass(`resource.save round-trip -> class=Curve, no warnings, no status field`);
 
-  const resourceLoaded = await bridge.call("resource.load", { file_path: resourcePath }, CALL_TIMEOUT) as { properties?: { bake_resolution?: number }; code?: string };
-  if (resourceLoaded?.properties?.bake_resolution !== 200) fail(`resource.load after save: expected bake_resolution=200, got ${JSON.stringify(resourceLoaded?.properties)}`);
+  const resourceLoaded = await bridge.call("resource.load", { file_path: resourcePath }, CALL_TIMEOUT) as { properties?: unknown; code?: string };
+  const loadedProps = unwrapUntrusted(resourceLoaded?.properties) as { bake_resolution?: number } | undefined;
+  if (loadedProps?.bake_resolution !== 200) fail(`resource.load after save: expected bake_resolution=200, got ${JSON.stringify(loadedProps)}`);
   else pass(`resource.load after save -> bake_resolution=200`);
   assertGuard(ctx, "resource.save missing file", await bridge.call("resource.save", { file_path: "res://no_such_smoke.tres", properties: {} }, CALL_TIMEOUT), "NOT_FOUND", "resource.create");
 
@@ -90,7 +91,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   if (folderIdempotent?.status !== "returned") fail(`folder.create idempotency: expected status='returned', got ${JSON.stringify(folderIdempotent)}`);
   else if (folderIdempotent.code !== undefined) fail(`folder.create returned must not carry code (got ${folderIdempotent.code})`);
   else pass(`folder.create idempotent -> status='returned' (code absent)`);
-  assertGuard(ctx, "folder.create /tmp path", await bridge.call("folder.create", { folder_path: "/tmp/smoke_bogus" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "folder.create /tmp path", await bridge.call("folder.create", { folder_path: "/tmp/smoke_bogus" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
 
   // folder.delete — PATH_IN_USE refusal + clean teardown via scene.close.
   const pathInUseDir = "res://smoke_path_in_use";

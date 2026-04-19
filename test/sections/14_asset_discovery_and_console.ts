@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
 
 export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -36,7 +36,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   else pass(`asset.list max_results=1 -> truncated`);
 
   // Guard rejections.
-  assertGuard(ctx, "asset.list /tmp path", await bridge.call("asset.list", { path_prefix: "/tmp" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "asset.list /tmp path", await bridge.call("asset.list", { path_prefix: "/tmp" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "asset.list bogus class_filter", await bridge.call("asset.list", { class_filter: "BogusClass" }, CALL_TIMEOUT), "INVALID_PARAMS", ["ClassDB", "ProjectSettings"]);
   assertGuard(ctx, "asset.list max_results=5000", await bridge.call("asset.list", { max_results: 5000 }, CALL_TIMEOUT), "INVALID_PARAMS", "[1, 2000]");
 
@@ -57,13 +57,15 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     if (!hasIcon) fail(`asset.get_dependencies: expected icon.svg in deps, got ${JSON.stringify(depsResult.dependencies)}`);
     else pass(`asset.get_dependencies ${smokeDeps} -> count=${depsResult.count}, includes icon.svg`);
   }
-  assertGuard(ctx, "asset.get_dependencies /tmp path", await bridge.call("asset.get_dependencies", { file_path: "/tmp/foo.tres" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "asset.get_dependencies /tmp path", await bridge.call("asset.get_dependencies", { file_path: "/tmp/foo.tres" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "asset.get_dependencies missing file", await bridge.call("asset.get_dependencies", { file_path: "res://no_such_15e.tres" }, CALL_TIMEOUT), "NOT_FOUND", "no file");
 
   // ── editor.get_console ──
-  const consoleBaseResult = await bridge.call("editor.get_console", { limit: 50 }, CALL_TIMEOUT) as { success?: boolean; entries?: { id: number; level: string; message: string }[]; count?: number; log_file?: string; next_id?: number; code?: string };
-  if (!consoleBaseResult?.success || !Array.isArray(consoleBaseResult.entries) || typeof consoleBaseResult.log_file !== "string") {
-    fail(`editor.get_console base: unexpected shape ${JSON.stringify({ success: consoleBaseResult?.success, entries: consoleBaseResult?.entries?.length, log_file: consoleBaseResult?.log_file, code: (consoleBaseResult as { code?: string })?.code })}`);
+  const consoleBaseResult = await bridge.call("editor.get_console", { limit: 50 }, CALL_TIMEOUT) as { success?: boolean; entries?: unknown; count?: number; log_file?: string; next_id?: number; code?: string };
+  // entries may be wrapped in an <untrusted> security envelope.
+  const consoleEntries = unwrapUntrusted(consoleBaseResult?.entries);
+  if (!consoleBaseResult?.success || !Array.isArray(consoleEntries) || typeof consoleBaseResult.log_file !== "string") {
+    fail(`editor.get_console base: unexpected shape ${JSON.stringify({ success: consoleBaseResult?.success, entries: Array.isArray(consoleEntries) ? consoleEntries.length : typeof consoleEntries, log_file: consoleBaseResult?.log_file, code: (consoleBaseResult as { code?: string })?.code })}`);
   } else {
     pass(`editor.get_console base -> count=${consoleBaseResult.count} log_file=${consoleBaseResult.log_file}`);
   }

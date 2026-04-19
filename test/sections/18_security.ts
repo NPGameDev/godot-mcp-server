@@ -24,7 +24,7 @@ export async function testSecurity(ctx: TestCtx): Promise<void> {
   if (userScreenshot?.path !== userShotPath || !userScreenshot.image_base64) fail(`editor.screenshot user://screenshots/ whitelist: ${JSON.stringify(userScreenshot)}`);
   else pass(`editor.screenshot user://screenshots/ whitelist -> ${userScreenshot.path}`);
   assertGuard(ctx, "editor.screenshot user://other/x.png",
-    await bridge.call("editor.screenshot", { save_path: "user://other/x.png" }, CALL_TIMEOUT), "PATH_DENIED", "prefix");
+    await bridge.call("editor.screenshot", { save_path: "user://other/x.png" }, CALL_TIMEOUT), "PATH_DENIED", "user://screenshots");
 
   // Untrusted envelope check — script.read wraps content.
   const envelopeScriptPath = "res://smoke_probe.gd"; // written in testScriptOps

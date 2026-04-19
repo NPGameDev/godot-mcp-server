@@ -41,7 +41,7 @@ export async function testCustomClassAndFileOps(ctx: TestCtx): Promise<void> {
   await bridge.call("script.delete", { file_path: "res://smoke_custom_class.gd" }, CALL_TIMEOUT);
 
   // node.set_script guard rejections.
-  assertGuard(ctx, "node.set_script no res://", await bridge.call("node.set_script", { node_path: ".", script_path: "/tmp/foo.gd" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "node.set_script no res://", await bridge.call("node.set_script", { node_path: ".", script_path: "/tmp/foo.gd" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "node.set_script not found", await bridge.call("node.set_script", { node_path: ".", script_path: "res://nonexistent_script.gd" }, CALL_TIMEOUT), "LOAD_FAILED", "cannot load");
 
   // ── file.delete round-trip (iter 15i) ──
@@ -52,7 +52,7 @@ export async function testCustomClassAndFileOps(ctx: TestCtx): Promise<void> {
   if (!fileDelResult?.success) fail(`file.delete: ${JSON.stringify(fileDelResult)}`);
   else pass("file.delete -> success");
   assertGuard(ctx, "file.delete re-delete", await bridge.call("file.delete", { file_path: fileDelPath }, CALL_TIMEOUT), "NOT_FOUND", "not found");
-  assertGuard(ctx, "file.delete no res://", await bridge.call("file.delete", { file_path: "/tmp/foo.png" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "file.delete no res://", await bridge.call("file.delete", { file_path: "/tmp/foo.png" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "file.delete nonexistent", await bridge.call("file.delete", { file_path: "res://no_such_file_15i.png" }, CALL_TIMEOUT), "NOT_FOUND", "not found");
   assertGuard(ctx, "file.delete plugin self-protect", await bridge.call("file.delete", { file_path: "res://addons/godot_mcp_toolkit/plugin.cfg" }, CALL_TIMEOUT), "PATH_DENIED", "toolkit");
 }

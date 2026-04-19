@@ -32,7 +32,8 @@
     "build": "tsc",
     "postbuild": "node scripts/add-shebang.mjs",
     "start": "node dist/index.js",
-    "smoke": "tsx test/smoke.ts",
+    "smoke": "tsx test/run-smoke.ts",
+    "smoke:single": "tsx test/smoke.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

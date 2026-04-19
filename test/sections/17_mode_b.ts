@@ -55,9 +55,14 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     else pass("animation_player.control bogus -> NOT_FOUND");
 
     if (gameEvalEnabled) {
-      const gameEvalResult = await bridge.callRuntime("game.eval", { code: "1+2" }, CALL_TIMEOUT) as { result?: unknown; code?: string };
-      if (gameEvalResult?.result !== 3) fail(`game.eval 1+2: expected 3, got ${JSON.stringify(gameEvalResult)}`);
-      else pass("game.eval 1+2 -> 3");
+      const gameEvalResult = await bridge.callRuntime("game.eval", { code: "1+2" }, CALL_TIMEOUT) as { result?: unknown; code?: string; success?: boolean };
+      if (gameEvalResult?.code === "FEATURE_DISABLED") {
+        pass("game.eval -> FEATURE_DISABLED (Godot-side dual gate off; skipping)");
+      } else if (gameEvalResult?.result !== 3) {
+        fail(`game.eval 1+2: expected 3, got ${JSON.stringify(gameEvalResult)}`);
+      } else {
+        pass("game.eval 1+2 -> 3");
+      }
     }
   }
 }

@@ -61,6 +61,18 @@ export function assertError(
   }
 }
 
+/**
+ * Strip an `<untrusted>` security envelope if present. Returns the inner
+ * content — JSON-parsed if valid JSON, raw string otherwise. Passes
+ * non-string values through unchanged.
+ */
+export function unwrapUntrusted(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const match = value.match(/^<untrusted[^>]*>\n?([\s\S]*?)\n?<\/untrusted>$/);
+  if (!match) return value;
+  try { return JSON.parse(match[1]); } catch { return match[1]; }
+}
+
 // ─── Standalone helpers ──────────────────────────────────────────────────
 
 export async function probePort(host: string, port: number, timeoutMs: number): Promise<boolean> {
@@ -102,7 +114,12 @@ export async function makeFakeEchoServer(): Promise<{ port: number; dropAll: () 
     sock.on("close", () => sockets.delete(sock));
     sock.on("message", (data) => {
       try {
-        const msg = JSON.parse(data.toString()) as { id?: unknown; method?: string; params?: unknown };
+        const msg = JSON.parse(data.toString()) as { auth?: unknown; id?: unknown; method?: string; params?: unknown };
+        // Accept any auth handshake so the bridge's token-auth completes.
+        if (msg.auth !== undefined) {
+          sock.send(JSON.stringify({ authed: true }));
+          return;
+        }
         if (msg.method === "echo") {
           sock.send(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: msg.params }));
         }

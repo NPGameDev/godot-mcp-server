@@ -41,7 +41,7 @@ export async function testAssetImport(ctx: TestCtx): Promise<void> {
   }
 
   // Guard rejections.
-  assertGuard(ctx, "asset.import /tmp dest_path", await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: "/tmp/foo.png" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "asset.import /tmp dest_path", await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: "/tmp/foo.png" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "asset.import .txt extension", await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: "res://foo.txt" }, CALL_TIMEOUT), "INVALID_PATH", "allowlist");
   assertGuard(ctx, "asset.import both params", await bridge.call("asset.import", { source_path: "C:\\tmp\\x.png", base64_data: MINI_PNG_B64, dest_path: "res://foo.png" }, CALL_TIMEOUT), "INVALID_PARAMS", "exactly one");
   assertGuard(ctx, "asset.import neither param", await bridge.call("asset.import", { dest_path: "res://foo.png" }, CALL_TIMEOUT), "INVALID_PARAMS", "source_path");

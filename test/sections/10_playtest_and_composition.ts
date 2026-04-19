@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
 
 export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -36,7 +36,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
   else pass(`game.stop idempotent -> was_running=false`);
 
   // game.start guard rejections.
-  assertGuard(ctx, "game.start target=bogus", await bridge.call("game.start", { scene_path: "bogus" }, CALL_TIMEOUT), "INVALID_PARAMS", ["main", "current", "res://"]);
+  assertGuard(ctx, "game.start target=bogus", await bridge.call("game.start", { scene_path: "bogus" }, CALL_TIMEOUT), "PATH_DENIED", "res://");
   assertGuard(ctx, "game.start missing res:// scene", await bridge.call("game.start", { scene_path: "res://no_such_game_smoke.tscn" }, CALL_TIMEOUT), "NOT_FOUND", "scene.create");
   assertGuard(ctx, "game.start .tres extension", await bridge.call("game.start", { scene_path: "res://bogus_smoke_scene.tres" }, CALL_TIMEOUT), "INVALID_PATH", ".tscn");
 
@@ -60,7 +60,8 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
   const saveAfterInstantiate = await bridge.call("editor.save_scene", {}, CALL_TIMEOUT) as { ok?: boolean; code?: string };
   if (!saveAfterInstantiate?.ok) fail(`editor.save_scene after instantiate: ${JSON.stringify(saveAfterInstantiate)}`);
   await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
-  const reloadedTree = await bridge.call("scene.get_tree", null, CALL_TIMEOUT) as { children?: { name?: string }[]; code?: string };
+  const rawReloaded = await bridge.call("scene.get_tree", null, CALL_TIMEOUT) as { tree?: string; children?: { name?: string }[]; code?: string };
+  const reloadedTree = (rawReloaded?.tree ? unwrapUntrusted(rawReloaded.tree) : rawReloaded) as { children?: { name?: string }[] };
   if (!reloadedTree?.children?.some((c) => c.name === defaultName)) fail(`instantiated child missing after save+reload: ${JSON.stringify(reloadedTree?.children?.map((c) => c.name))}`);
   else pass(`scene.instantiate owner-set survives save+reload`);
 
@@ -81,7 +82,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
   } else pass(`scene.instantiate transform Vector2 round-trip -> x=32 y=48`);
 
   // scene.instantiate guard rejections.
-  assertGuard(ctx, "scene.instantiate /tmp packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "/tmp/foo.tscn" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "scene.instantiate /tmp packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "/tmp/foo.tscn" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "scene.instantiate .tres packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://bogus_smoke.tres" }, CALL_TIMEOUT), "INVALID_PATH", ["resource.create", ".tscn"]);
   assertGuard(ctx, "scene.instantiate missing packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://no_such_inst_smoke.tscn" }, CALL_TIMEOUT), "NOT_FOUND", "scene.create");
   assertGuard(ctx, "scene.instantiate bogus parent_path", await bridge.call("scene.instantiate", { parent_path: "NoSuchParent_xyz", packed_path: instChildPath }, CALL_TIMEOUT), "NOT_FOUND", "parent_path");

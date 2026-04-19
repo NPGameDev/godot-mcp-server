@@ -39,7 +39,7 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   } else pass(`scene.create if_exists='explode' -> INVALID_PARAMS`);
 
   // Guard rejections.
-  assertGuard(ctx, "scene.create /tmp path", await bridge.call("scene.create", { file_path: "/tmp/foo.tscn", root_type: "Node" }, CALL_TIMEOUT), "INVALID_PATH", "res://");
+  assertGuard(ctx, "scene.create /tmp path", await bridge.call("scene.create", { file_path: "/tmp/foo.tscn", root_type: "Node" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "scene.create .txt extension", await bridge.call("scene.create", { file_path: "res://foo.txt", root_type: "Node" }, CALL_TIMEOUT), "INVALID_PATH", ".tscn");
   assertGuard(ctx, "scene.create missing parent dir", await bridge.call("scene.create", { file_path: "res://nonexistent_smoke_dir/foo.tscn", root_type: "Node" }, CALL_TIMEOUT), "PARENT_NOT_FOUND", "folder.create");
   assertGuard(ctx, "scene.create bogus class", await bridge.call("scene.create", { file_path: "res://smoke_bogus.tscn", root_type: "BogusClass" }, CALL_TIMEOUT), "INVALID_CLASS", ["ClassDB", "ProjectSettings"]);

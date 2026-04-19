@@ -41,19 +41,24 @@ type JsonRpcResponse = {
 // -- Token resolution --------------------------------------------------------
 
 /**
- * Resolve the Godot project name from project.godot in the working directory.
- * Falls back to "unnamed" if the file is missing or can't be parsed.
+ * Resolve the Godot project name.
+ *
+ * Precedence:
+ *   1. GODOT_MCP_PROJECT_NAME env var  (set by smoke harness / CI)
+ *   2. config/name in project.godot in cwd
+ *   3. "[unnamed project]"  (matches Godot's actual appdata dir name)
  */
 async function resolveProjectName(): Promise<string> {
+  const envName = process.env.GODOT_MCP_PROJECT_NAME;
+  if (envName) return envName;
   try {
     const content = await readFile("project.godot", "utf-8");
     const match = content.match(/config\/name="([^"]+)"/);
     if (match) return match[1];
   } catch {
-    // project.godot not in cwd — try the common case where the server is
-    // launched from the project root.
+    // project.godot not in cwd.
   }
-  return "unnamed";
+  return "[unnamed project]";
 }
 
 /**
