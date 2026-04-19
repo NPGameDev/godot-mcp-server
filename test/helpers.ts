@@ -68,7 +68,7 @@ export function assertError(
  */
 export function unwrapUntrusted(value: unknown): unknown {
   if (typeof value !== "string") return value;
-  const match = value.match(/^<untrusted[^>]*>\n?([\s\S]*?)\n?<\/untrusted>$/);
+  const match = value.match(/^<untrusted(?:-[0-9a-f]+)?[^>]*>\n?([\s\S]*?)\n?<\/untrusted(?:-[0-9a-f]+)?>$/);
   if (!match) return value;
   try { return JSON.parse(match[1]); } catch { return match[1]; }
 }

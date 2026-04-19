@@ -31,19 +31,19 @@ export async function testSecurity(ctx: TestCtx): Promise<void> {
   const envelopeRead = await bridge.call("script.read", { file_path: envelopeScriptPath }, CALL_TIMEOUT) as { content?: string; code?: string };
   if (!envelopeRead?.content) {
     fail(`envelope check: script.read returned no content: ${JSON.stringify(envelopeRead)}`);
-  } else if (!envelopeRead.content.includes('<untrusted kind="script"')) {
-    fail(`envelope check: script.read content missing <untrusted> envelope`);
+  } else if (!/untrusted-[0-9a-f]+ kind="script"/.test(envelopeRead.content)) {
+    fail(`envelope check: script.read content missing nonce-tagged <untrusted-*> envelope`);
   } else if (!envelopeRead.content.includes(`source="${envelopeScriptPath}"`)) {
     fail(`envelope check: script.read envelope missing source="${envelopeScriptPath}"`);
   } else {
-    pass(`envelope check: script.read content wrapped in <untrusted kind="script" source="${envelopeScriptPath}">`);
+    pass(`envelope check: script.read content wrapped in nonce-tagged <untrusted-* kind="script" source="${envelopeScriptPath}">`);
   }
 
   // Untrusted envelope on project.get_settings.
   const envelopeSettings = await bridge.call("project.get_settings", { prefix: "application/" }, CALL_TIMEOUT) as { settings?: string; code?: string };
-  if (typeof envelopeSettings?.settings !== "string" || !envelopeSettings.settings.includes('<untrusted kind="project_settings"')) {
-    fail(`envelope check: project.get_settings missing <untrusted> wrapper: ${JSON.stringify(envelopeSettings)?.slice(0, 200)}`);
+  if (typeof envelopeSettings?.settings !== "string" || !/untrusted-[0-9a-f]+ kind="project_settings"/.test(envelopeSettings.settings)) {
+    fail(`envelope check: project.get_settings missing nonce-tagged <untrusted-*> wrapper: ${JSON.stringify(envelopeSettings)?.slice(0, 200)}`);
   } else {
-    pass(`envelope check: project.get_settings wrapped in <untrusted kind="project_settings">`);
+    pass(`envelope check: project.get_settings wrapped in nonce-tagged <untrusted-* kind="project_settings">`);
   }
 }

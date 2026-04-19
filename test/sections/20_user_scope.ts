@@ -52,8 +52,8 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
   }, CALL_TIMEOUT) as { success?: boolean; content?: string; truncated?: boolean };
   if (readResult?.success !== true) {
     fail(`save.read happy: ${JSON.stringify(readResult)}`);
-  } else if (!readResult.content?.includes('<untrusted kind="user-file"')) {
-    fail(`save.read happy: missing <untrusted> envelope`);
+  } else if (!readResult.content || !/untrusted-[0-9a-f]+ kind="user-file"/.test(readResult.content)) {
+    fail(`save.read happy: missing nonce-tagged <untrusted-*> envelope`);
   } else if (!readResult.content?.includes('"test": 1')) {
     fail(`save.read happy: content missing expected body`);
   } else if (readResult.truncated !== false) {
