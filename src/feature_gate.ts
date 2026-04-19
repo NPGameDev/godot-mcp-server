@@ -11,7 +11,7 @@
 const FEATURE_ENV_VARS: Record<string, string> = {
   game_eval: "GODOT_MCP_ALLOW_GAME_EVAL",
   os_execute: "GODOT_MCP_ALLOW_OS_EXECUTE",
-  write_user_scope: "GODOT_MCP_ALLOW_WRITE_USER_SCOPE",
+  read_user_scope: "GODOT_MCP_ALLOW_USER_SCOPE",
   outbound_http: "GODOT_MCP_ALLOW_OUTBOUND_HTTP",
   node_call_method: "GODOT_MCP_ALLOW_NODE_CALL_METHOD",
   project_set_setting: "GODOT_MCP_ALLOW_PROJECT_SET_SETTING",

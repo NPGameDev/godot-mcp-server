@@ -68,9 +68,14 @@ export type ErrorCode =
   | "PATH_IN_USE"
   | "READ_FAILED"
   | "RPC_ERROR"
+  | "SAVE_DELETE_FAILED"
   | "SAVE_FAILED"
+  | "SAVE_READ_FAILED"
+  | "SAVE_WRITE_FAILED"
   | "SEND_FAILED"
   | "TIMEOUT"
+  | "USER_PATH_NOT_WHITELISTED"
+  | "USER_SCOPE_DISABLED"
   | "WRITE_FAILED";
 
 export type ToolTextResult = {

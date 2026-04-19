@@ -18,6 +18,7 @@ import * as runtimeTools from "./tools/runtime.js";
 import * as sceneTools from "./tools/scene.js";
 import * as scriptTools from "./tools/script.js";
 import * as signalTools from "./tools/signals.js";
+import * as saveTools from "./tools/save.js";
 import * as tilemapTools from "./tools/tilemap.js";
 
 // --lite opts into a ~15-tool token-sensitive catalogue; default is the
@@ -48,6 +49,7 @@ animationTools.register(server, bridge, profile);
 tilemapTools.register(server, bridge, profile);
 assetTools.register(server, bridge, profile);
 fileTools.register(server, bridge, profile);
+saveTools.register(server, bridge, profile);
 
 async function shutdown(): Promise<void> {
   try {

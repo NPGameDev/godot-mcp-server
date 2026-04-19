@@ -23,7 +23,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   on `Bridge`, NOT on the concrete `createBridge` function (DIP).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
   `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,
-  `input_map`, `animation`, `tilemap`, `asset`).
+  `input_map`, `animation`, `tilemap`, `asset`, `save`).
   Each exports a typed `ToolDef[]` and a `register(server, bridge, profile = "full")`
   function. `ToolDef` is defined in `tools/scene.ts` and re-exported implicitly
   (via `import { ToolDef } from "./scene.js"`). Tools filter via
@@ -53,9 +53,9 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g / 15h / 15i / 19)
+## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g / 15h / 15i / 19 / 19c)
 
-- **Full** (default) — 49 tools by default; up to 56 with all feature gates
+- **Full** (default) — 49 tools by default; up to 60 with all feature gates
   enabled (see **Feature gates** below).
 - **Lite** — 31-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
@@ -100,14 +100,23 @@ defence-in-depth.
 | `outbound_http`       | dual      | `GODOT_MCP_ALLOW_OUTBOUND_HTTP`         | (future) |
 | `node_call_method`    | single    | `GODOT_MCP_ALLOW_NODE_CALL_METHOD`      | `node_call_method` |
 | `input_map_write`     | single    | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE`       | `input_map_add_action`, `input_map_action_add_event`, `input_map_action_remove_event`, `input_map_remove_action` |
-| `write_user_scope`    | single    | `GODOT_MCP_ALLOW_WRITE_USER_SCOPE`      | (future) |
+| `read_user_scope`     | dual      | `GODOT_MCP_ALLOW_USER_SCOPE`            | `save_read`, `save_write`, `save_delete`, `save_list` |
 
 Gate logic lives in `src/feature_gate.ts`. Each tool group's `register()`
 conditionally pushes gated tools based on `isEnabled(feature)`.
 
 Default tool count: 49 (no gates enabled). Each enabled gate adds its
 tools: `game_eval` +1, `node_call_method` +1, `project_set_setting` +1,
-`input_map_write` +4 = 56 max.
+`input_map_write` +4, `read_user_scope` +4 = 60 max.
+
+### Conditional smoke for user-scope tools
+
+The smoke test exercises `save.*` round-trips only when
+`MCP_ENABLE_USER_SCOPE=1` is set. This env var is intentionally distinct
+from `GODOT_MCP_ALLOW_USER_SCOPE` — running the gate'd tests requires
+both: (a) Godot launched with the gate enabled AND (b) the smoke harness
+told to exercise them. Without `MCP_ENABLE_USER_SCOPE=1`, the smoke test
+logs a skip message and proceeds.
 
 ## Idempotency — status discriminator (iter 15 / 15b)
 
@@ -220,9 +229,14 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `PATH_IN_USE`      | plugin (iter 15b)| `folder_delete` target contains the currently-edited scene or an open script tab. |
 | `READ_FAILED`      | plugin           | `FileAccess` read error.                                                      |
 | `RPC_ERROR`        | bridge           | Plugin returned a JSON-RPC envelope `error` field (transport-level).          |
+| `SAVE_DELETE_FAILED` | plugin (iter 19c) | `DirAccess.remove_absolute` failed on a `user://` file via `save_delete`.   |
 | `SAVE_FAILED`      | plugin           | `EditorInterface.save_scene` / `save_scene_as` / `ResourceSaver.save` failure. |
+| `SAVE_READ_FAILED`  | plugin (iter 19c) | `FileAccess.open(READ)` failed on a whitelisted `user://` file.              |
+| `SAVE_WRITE_FAILED` | plugin (iter 19c) | `FileAccess.open(WRITE)` failed on a whitelisted `user://` file.             |
 | `SEND_FAILED`      | bridge           | WebSocket send callback errored.                                              |
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
+| `USER_PATH_NOT_WHITELISTED` | plugin (iter 19c) | `user://` path not in the plugin author's whitelist for the requested mode (read/write/delete). Message lists allowed entries. |
+| `USER_SCOPE_DISABLED` | plugin (iter 19c) | `read_user_scope` feature gate is off or `user_scope_whitelist.json` is missing/malformed. |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |
 
 ## Pointers
