@@ -29,11 +29,12 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   if (!deepEqual(echoResult, echoPayload)) fail(`echo: expected ${JSON.stringify(echoPayload)} got ${JSON.stringify(echoResult)}`);
   else pass("echo round-trip");
 
-  // Tool count — 49 base; feature gates add more when env vars are set.
+  // Tool count — 50 base; feature gates add more when env vars are set.
   // iter 19: game_eval (+1), node_call_method (+1), project_set_setting (+1),
-  // input_map_write (+4) are gated. All off = 49; all on = 60.
+  // input_map_write (+4) are gated. All off = 50; all on = 61.
   // iter 19c: read_user_scope (+4) adds save_read/write/delete/list.
-  let expectedToolCount = 49;
+  // iter 20: script_read_range (+1, always present, lite tier).
+  let expectedToolCount = 50;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("project_set_setting")) expectedToolCount += 1;
@@ -50,8 +51,8 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
 
   // --lite catalogue size. No gated tools are lite-tier, so count is stable.
   const liteTools = allTools.filter((t) => t.tier === "lite");
-  if (liteTools.length !== 14) fail(`--lite catalogue: expected 14, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-  else pass(`--lite catalogue == 14 (subset of full ${expectedToolCount})`);
+  if (liteTools.length !== 15) fail(`--lite catalogue: expected 15, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+  else pass(`--lite catalogue == 15 (subset of full ${expectedToolCount})`);
 
   const allToolNames = new Set(allTools.map((t) => t.name));
   const liteOrphans = liteTools.filter((t) => !allToolNames.has(t.name));

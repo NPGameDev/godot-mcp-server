@@ -20,6 +20,14 @@ export const scriptTools: ToolDef[] = [
     inputSchema: { file_path: z.string(), content: z.string() },
   },
   {
+    name: "script_read_range",
+    tier: "lite",
+    method: "script.read_range",
+    description:
+      "Read lines [start_line, end_line] (1-indexed, inclusive) from a script file (res:// only). Use when script_read returns FILE_TOO_LARGE.",
+    inputSchema: { file_path: z.string(), start_line: z.number(), end_line: z.number() },
+  },
+  {
     name: "script_delete",
     tier: "full",
     method: "script.delete",
