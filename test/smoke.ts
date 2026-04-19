@@ -1707,6 +1707,66 @@ async function main(): Promise<void> {
       }
     }
 
+    // ---- Phase 8: Security (iter 18) — FileGuard path traversal -----------
+    // Each assertion exercises FileGuard.resolve_safe rejecting traversal
+    // attempts, absolute OS paths, and non-allowed prefixes.
+
+    // script.read traversal via ..
+    assertGuard("FileGuard ../../../etc/passwd",
+      await bridge.call("script.read", { file_path: "../../../etc/passwd" }, 5000),
+      "PATH_DENIED", "..");
+    // script.read absolute path
+    assertGuard("FileGuard /etc/passwd",
+      await bridge.call("script.read", { file_path: "/etc/passwd" }, 5000),
+      "PATH_DENIED", "absolute");
+    // script.read traversal buried inside res://
+    assertGuard("FileGuard res://../../../etc/passwd",
+      await bridge.call("script.read", { file_path: "res://../../../etc/passwd" }, 5000),
+      "PATH_DENIED", "..");
+    // resource.load traversal (15b path)
+    assertGuard("FileGuard resource.load ../../secret.tres",
+      await bridge.call("resource.load", { file_path: "../../secret.tres" }, 5000),
+      "PATH_DENIED", "..");
+    // scene.instantiate packed_path traversal (15c path)
+    assertGuard("FileGuard scene.instantiate traversal packed_path",
+      await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "../../x.tscn" }, 5000),
+      "PATH_DENIED", "..");
+    // folder.create traversal (15b path)
+    assertGuard("FileGuard folder.create ../../up",
+      await bridge.call("folder.create", { folder_path: "../../up" }, 5000),
+      "PATH_DENIED", "..");
+
+    // Screenshot user://screenshots/ whitelist — allowed prefix.
+    const userShotPath = "user://screenshots/smoke_sec.png";
+    const userShot = await bridge.call("editor.screenshot", { save_path: userShotPath }, 10000) as { path?: string; image_base64?: string; code?: string };
+    if (userShot?.path !== userShotPath || !userShot.image_base64) fail(`editor.screenshot user://screenshots/ whitelist: ${JSON.stringify(userShot)}`);
+    else pass(`editor.screenshot user://screenshots/ whitelist -> ${userShot.path}`);
+    // user://other/ is NOT whitelisted — must be rejected.
+    assertGuard("editor.screenshot user://other/x.png",
+      await bridge.call("editor.screenshot", { save_path: "user://other/x.png" }, 5000),
+      "PATH_DENIED", "prefix");
+
+    // Untrusted envelope check — script.read wraps content.
+    const envScriptPath = "res://smoke_probe.gd"; // written earlier in smoke
+    const envRead = await bridge.call("script.read", { file_path: envScriptPath }, 5000) as { content?: string; code?: string };
+    if (!envRead?.content) {
+      fail(`envelope check: script.read returned no content: ${JSON.stringify(envRead)}`);
+    } else if (!envRead.content.includes('<untrusted kind="script"')) {
+      fail(`envelope check: script.read content missing <untrusted> envelope`);
+    } else if (!envRead.content.includes(`source="${envScriptPath}"`)) {
+      fail(`envelope check: script.read envelope missing source="${envScriptPath}"`);
+    } else {
+      pass(`envelope check: script.read content wrapped in <untrusted kind="script" source="${envScriptPath}">`);
+    }
+
+    // Untrusted envelope on project.get_settings.
+    const envSettings = await bridge.call("project.get_settings", { prefix: "application/" }, 5000) as { settings?: string; code?: string };
+    if (typeof envSettings?.settings !== "string" || !envSettings.settings.includes('<untrusted kind="project_settings"')) {
+      fail(`envelope check: project.get_settings missing <untrusted> wrapper: ${JSON.stringify(envSettings)?.slice(0, 200)}`);
+    } else {
+      pass(`envelope check: project.get_settings wrapped in <untrusted kind="project_settings">`);
+    }
+
     // ---- Reconnect (iter 13) ---------------------------------------------
     // Decoupled from Godot: a fake echo server on a free port. We terminate
     // the connected peer (server keeps listening) to mimic plugin disable

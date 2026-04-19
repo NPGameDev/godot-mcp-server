@@ -1,5 +1,8 @@
 import { WebSocket } from "ws";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { Bridge, BridgeError } from "./types.js";
 
 const JSONRPC_VERSION = "2.0";
@@ -34,6 +37,114 @@ type JsonRpcResponse = {
   result?: unknown;
   error?: { code: number; message: string };
 };
+
+// -- Token resolution --------------------------------------------------------
+
+/**
+ * Resolve the Godot project name from project.godot in the working directory.
+ * Falls back to "unnamed" if the file is missing or can't be parsed.
+ */
+async function resolveProjectName(): Promise<string> {
+  try {
+    const content = await readFile("project.godot", "utf-8");
+    const match = content.match(/config\/name="([^"]+)"/);
+    if (match) return match[1];
+  } catch {
+    // project.godot not in cwd — try the common case where the server is
+    // launched from the project root.
+  }
+  return "unnamed";
+}
+
+/**
+ * Cross-platform Godot user:// path resolution.
+ *   win32:  %APPDATA%/Godot/app_userdata/<project>/mcp_token
+ *   darwin: ~/Library/Application Support/Godot/app_userdata/<project>/mcp_token
+ *   linux:  ~/.local/share/godot/app_userdata/<project>/mcp_token
+ */
+async function resolveTokenPath(): Promise<string> {
+  const envPath = process.env.GODOT_MCP_TOKEN_PATH;
+  if (envPath) return envPath;
+
+  const projectName = await resolveProjectName();
+  switch (process.platform) {
+    case "win32":
+      return join(
+        process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
+        "Godot", "app_userdata", projectName, "mcp_token",
+      );
+    case "darwin":
+      return join(
+        homedir(), "Library", "Application Support",
+        "Godot", "app_userdata", projectName, "mcp_token",
+      );
+    default:
+      return join(
+        homedir(), ".local", "share",
+        "godot", "app_userdata", projectName, "mcp_token",
+      );
+  }
+}
+
+/**
+ * Read the session token from disk. Re-reads on every call (no caching) so
+ * reconnects after a plugin restart pick up the rotated token.
+ */
+async function readToken(): Promise<string> {
+  const tokenPath = await resolveTokenPath();
+  try {
+    const token = (await readFile(tokenPath, "utf-8")).trim();
+    return token;
+  } catch (err) {
+    throw new BridgeError(
+      "AUTH_FAILED",
+      `cannot read token file at ${tokenPath}: ${(err as Error).message}`,
+    );
+  }
+}
+
+/**
+ * Send the auth handshake and wait for {"authed": true} or a close frame.
+ * Resolves on success, rejects on failure or timeout (2s).
+ */
+function authenticate(ws: WebSocket, token: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new BridgeError("AUTH_FAILED", "auth handshake timed out"));
+    }, 5000);
+
+    function cleanup(): void {
+      clearTimeout(timer);
+      ws.removeListener("message", onMessage);
+      ws.removeListener("close", onClose);
+    }
+
+    function onMessage(data: unknown): void {
+      try {
+        const msg = JSON.parse(String(data)) as { authed?: boolean };
+        if (msg.authed === true) {
+          cleanup();
+          resolve();
+        }
+      } catch {
+        // Not JSON — ignore, keep waiting.
+      }
+    }
+
+    function onClose(_code: number, reason: Buffer): void {
+      cleanup();
+      reject(new BridgeError(
+        "AUTH_FAILED",
+        `server closed connection during auth: ${reason.toString()}`,
+      ));
+    }
+
+    ws.on("message", onMessage);
+    ws.on("close", onClose);
+    ws.send(JSON.stringify({ auth: token }));
+  });
+}
 
 interface Channel {
   call(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
@@ -109,14 +220,31 @@ function createChannel(url: string): Channel {
           reconnectTimer = null;
         }
         const wasReconnect = hasConnectedOnce;
-        hasConnectedOnce = true;
         // Note: attempt is reset on successful message round-trip (below),
         // not on open — open alone isn't proof the peer is healthy. A
         // half-broken peer that accepts then immediately closes the socket
         // would otherwise reset backoff every cycle.
-        process.stderr.write(`[bridge] ${url} ${wasReconnect ? "reconnected" : "connected"}\n`);
-        resolveAllWaiters(socket);
-        resolve(socket);
+        process.stderr.write(`[bridge] ${url} ${wasReconnect ? "reconnected" : "connected"}, authenticating…\n`);
+        // Re-read token from disk on every connect (including reconnects)
+        // so rotated tokens after a plugin restart are picked up.
+        readToken()
+          .then((token) => authenticate(socket, token))
+          .then(() => {
+            hasConnectedOnce = true;
+            process.stderr.write(`[bridge] ${url} authenticated\n`);
+            resolveAllWaiters(socket);
+            resolve(socket);
+          })
+          .catch((err) => {
+            ws = null;
+            socket.close();
+            const error = err instanceof BridgeError
+              ? err
+              : new BridgeError("AUTH_FAILED", (err as Error).message);
+            rejectAllWaiters(error.code, error.message);
+            reject(error);
+            if (!closed) scheduleReconnect();
+          });
       });
       socket.once("error", (err) => {
         connectPromise = null;
