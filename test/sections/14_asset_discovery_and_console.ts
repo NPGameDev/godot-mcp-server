@@ -109,6 +109,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   try { await bridge.call("resource.delete", { file_path: smokeListB }, CALL_TIMEOUT); } catch { /* noop */ }
   try { await bridge.call("script.delete", { file_path: smokeListC }, CALL_TIMEOUT); } catch { /* noop */ }
   try { await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT); } catch { /* noop */ }
+  try { await bridge.call("scene.close", { file_path: smokeDeps }, CALL_TIMEOUT); } catch { /* noop */ }
   try { await bridge.call("scene.delete", { file_path: smokeDeps }, CALL_TIMEOUT); } catch { /* noop */ }
   try { await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT); } catch { /* noop */ }
   pass("asset discovery + console cleanup complete");

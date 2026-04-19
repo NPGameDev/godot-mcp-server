@@ -50,12 +50,8 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
   // scene.close guard rejections.
   assertGuard(ctx, "scene.close no res://", await bridge.call("scene.close", { file_path: "/tmp/foo.tscn" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "scene.close not open", await bridge.call("scene.close", { file_path: "res://nonexistent_scene.tscn" }, CALL_TIMEOUT), "NOT_FOUND", "not open");
-  // Closing the last tab is allowed (editor shows an empty scene after).
-  const closeLastResult = await bridge.call("scene.close", { file_path: MAIN_SCENE }, CALL_TIMEOUT) as { success?: boolean; path?: string; code?: string };
-  if (closeLastResult?.success !== true) fail(`scene.close last tab: expected success, got ${JSON.stringify(closeLastResult)}`);
-  else pass(`scene.close last tab -> success (path=${closeLastResult.path})`);
-  // Re-open Main.tscn so subsequent sections have the expected scene.
-  await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
+  // Closing the last tab is refused — the editor must always have at least one scene open.
+  assertGuard(ctx, "scene.close last tab", await bridge.call("scene.close", { file_path: MAIN_SCENE }, CALL_TIMEOUT), "EDITED_SCENE", "last open scene tab");
 
   // project.get_settings with prefix.
   const settingsResult = await bridge.call("project.get_settings", { prefix: "application/" }, CALL_TIMEOUT) as { settings?: Record<string, unknown>; count?: number; filtered_secret_count?: number; code?: string };
