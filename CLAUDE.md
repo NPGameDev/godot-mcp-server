@@ -53,10 +53,10 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g / 15h / 15i)
+## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g / 15h / 15i / 19)
 
-- **Full** (default) — every tool in the catalogue (55 by default; 56 with
-  `GODOT_MCP_ALLOW_GAME_EVAL=1`).
+- **Full** (default) — 49 tools by default; up to 56 with all feature gates
+  enabled (see **Feature gates** below).
 - **Lite** — 31-tool token-sensitive subset; opt in by passing `--lite` in
   `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
   keep that set as the single source of truth; do not replicate it elsewhere.
@@ -84,6 +84,30 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   `node_call_method` and `editor_screenshot_node` are full-only on
   risk-/polish-grounds (same rationale as `game_eval`). Iter 22 replaces
   this coarse flag with a richer profile system.
+
+## Feature gates (iter 19)
+
+Seven features are gated behind explicit opt-in via env vars. The TS side
+controls MCP catalogue visibility only (env-var check at registration
+time); the plugin side performs the full dual/single-gate check as
+defence-in-depth.
+
+| Feature               | Gate type | Env var                                  | Tools affected |
+|-----------------------|-----------|------------------------------------------|----------------|
+| `game_eval`           | dual      | `GODOT_MCP_ALLOW_GAME_EVAL`             | `game_eval` (runtime) |
+| `os_execute`          | dual      | `GODOT_MCP_ALLOW_OS_EXECUTE`            | (future) |
+| `project_set_setting` | dual      | `GODOT_MCP_ALLOW_PROJECT_SET_SETTING`   | `project_set_setting` |
+| `outbound_http`       | dual      | `GODOT_MCP_ALLOW_OUTBOUND_HTTP`         | (future) |
+| `node_call_method`    | single    | `GODOT_MCP_ALLOW_NODE_CALL_METHOD`      | `node_call_method` |
+| `input_map_write`     | single    | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE`       | `input_map_add_action`, `input_map_action_add_event`, `input_map_action_remove_event`, `input_map_remove_action` |
+| `write_user_scope`    | single    | `GODOT_MCP_ALLOW_WRITE_USER_SCOPE`      | (future) |
+
+Gate logic lives in `src/feature_gate.ts`. Each tool group's `register()`
+conditionally pushes gated tools based on `isEnabled(feature)`.
+
+Default tool count: 49 (no gates enabled). Each enabled gate adds its
+tools: `game_eval` +1, `node_call_method` +1, `project_set_setting` +1,
+`input_map_write` +4 = 56 max.
 
 ## Idempotency — status discriminator (iter 15 / 15b)
 

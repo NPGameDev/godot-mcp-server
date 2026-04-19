@@ -18,7 +18,8 @@ import { sceneTools } from "../src/tools/scene.js";
 import { scriptTools } from "../src/tools/script.js";
 import { signalTools } from "../src/tools/signals.js";
 import { tilemapTools } from "../src/tools/tilemap.js";
-import { BridgeError } from "../src/types.js";
+import { BridgeError, type ToolDef } from "../src/types.js";
+import { isEnabled as featureEnabled } from "../src/feature_gate.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GODOT_MCP_PORT ?? "6505");
@@ -169,15 +170,19 @@ async function main(): Promise<void> {
     if (!deepEqual(echoResult, payload)) fail(`echo: expected ${JSON.stringify(payload)} got ${JSON.stringify(echoResult)}`);
     else pass("echo round-trip");
 
-    // Tool count — 55 tools by default; 56 with GODOT_MCP_ALLOW_GAME_EVAL=1.
-    const allowGameEval = process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1";
-    const expectedToolCount = allowGameEval ? 56 : 55;
+    // Tool count — 49 base tools; feature gates add more when env vars are set.
+    // iter 19: game_eval (+1), node_call_method (+1), project_set_setting (+1),
+    // input_map_write (+4) are gated. All off = 49; all on = 56.
+    let expectedToolCount = 49;
+    if (featureEnabled("game_eval")) expectedToolCount += 1;
+    if (featureEnabled("node_call_method")) expectedToolCount += 1;
+    if (featureEnabled("project_set_setting")) expectedToolCount += 1;
+    if (featureEnabled("input_map_write")) expectedToolCount += 4;
     const allTools = [...sceneTools, ...nodeTools, ...scriptTools, ...editorTools, ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools, ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools, ...tilemapTools, ...assetTools, ...fileTools];
     if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
-    else pass(`tool count == ${expectedToolCount} (game_eval ${allowGameEval ? "ENABLED" : "gated off"})`);
+    else pass(`tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, input_map_write=${featureEnabled("input_map_write")})`);
 
-    // --lite catalogue size. Tier is declared per-tool at registration site
-    // (I14 single-source). Lite ≈ 14 tools matching toolkit-side registry.
+    // --lite catalogue size. No gated tools are lite-tier, so count is stable.
     const liteTools = allTools.filter((t) => t.tier === "lite");
     if (liteTools.length !== 14) fail(`--lite catalogue: expected 14, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
     else pass(`--lite catalogue == 14 (subset of full ${expectedToolCount})`);
@@ -187,13 +192,39 @@ async function main(): Promise<void> {
     if (liteOrphans.length > 0) fail(`lite tools not in full catalogue: ${liteOrphans.map((t) => t.name).join(", ")}`);
     else pass(`all lite tools resolve to catalogue entries`);
 
-    // game_eval gating contract. Catalogue presence is the only safety
-    // surface here — the runtime command itself stays reachable on 9090
-    // either way; the FeatureGate (iter 19) will generalise this.
-    const hasGameEval = runtimeTools.some((t) => t.name === "game_eval");
-    if (allowGameEval && !hasGameEval) fail("game_eval expected in runtimeTools when GODOT_MCP_ALLOW_GAME_EVAL=1");
-    else if (!allowGameEval && hasGameEval) fail("game_eval expected ABSENT from runtimeTools by default");
-    else pass(`game_eval gating consistent with env (${hasGameEval ? "registered" : "absent"})`);
+    // ---- Feature gate catalogue checks (iter 19) --------------------------
+    // Each gated feature is present in its tool array iff the env var is set.
+    const gateChecks: [string, string, ToolDef[]][] = [
+      ["game_eval", "game_eval", runtimeTools],
+      ["node_call_method", "node_call_method", nodeTools],
+      ["project_set_setting", "project_set_setting", editorTools],
+      ["input_map_write", "input_map_add_action", inputMapTools],
+    ];
+    for (const [feature, toolName, toolArray] of gateChecks) {
+      const present = toolArray.some((t: ToolDef) => t.name === toolName);
+      const enabled = featureEnabled(feature);
+      if (enabled && !present) fail(`${toolName} expected in catalogue when ${feature} enabled`);
+      else if (!enabled && present) fail(`${toolName} expected ABSENT from catalogue when ${feature} disabled`);
+      else pass(`${feature} gate -> catalogue ${present ? "includes" : "omits"} ${toolName}`);
+    }
+
+    // Defence-in-depth: call a gated editor-side method directly. The Godot
+    // handler checks FeatureGate even though the TS catalogue may omit the
+    // tool. Without env/PS in the Godot process, expect FEATURE_DISABLED.
+    const gateProbe = await bridge.call("node.call_method", { node_path: ".", method_name: "get_name" }, 5000) as { code?: string; how_to_enable?: string; risk?: string; success?: boolean; result?: unknown };
+    if (gateProbe?.code === "FEATURE_DISABLED") {
+      if (!gateProbe.how_to_enable?.includes("mcp/unsafe/allow_node_call_method")) {
+        fail(`defence-in-depth: FEATURE_DISABLED missing how_to_enable path`);
+      } else if (!gateProbe.risk) {
+        fail(`defence-in-depth: FEATURE_DISABLED missing risk field`);
+      } else {
+        pass(`defence-in-depth: node.call_method -> FEATURE_DISABLED with risk + how_to_enable`);
+      }
+    } else if (gateProbe?.success === true) {
+      pass(`defence-in-depth: node.call_method -> enabled on Godot side (gate open)`);
+    } else {
+      fail(`defence-in-depth: unexpected response ${JSON.stringify(gateProbe)}`);
+    }
 
     // I2: tool description length
     for (const t of allTools) {
@@ -1020,31 +1051,37 @@ async function main(): Promise<void> {
     );
 
     // ---- node.call_method -----------------------------------------------
-    // get_name on Main (".") → result is the StringName-as-string "Main".
-    const callGet = await bridge.call("node.call_method", { node_path: ".", method_name: "get_name" }, 5000) as { success?: boolean; path?: string; method?: string; result?: unknown; code?: string };
-    if (callGet?.success !== true || callGet.result !== "Main") fail(`node.call_method .get_name on Main: expected "Main", got ${JSON.stringify(callGet)}`);
-    else pass(`node.call_method .get_name -> "Main"`);
+    // Feature-gated (iter 19). Reuse the defence-in-depth probe from above.
+    const ncmGated = gateProbe?.code === "FEATURE_DISABLED";
+    if (ncmGated) {
+      pass("node.call_method -> FEATURE_DISABLED (skipping functional tests)");
+    } else {
+      // get_name on Main (".") → result is the StringName-as-string "Main".
+      // (already probed above — verify shape)
+      if (gateProbe?.success !== true || gateProbe.result !== "Main") fail(`node.call_method .get_name on Main: expected "Main", got ${JSON.stringify(gateProbe)}`);
+      else pass(`node.call_method .get_name -> "Main"`);
 
-    // set_name round-trip on CellA → rename to Renamed, verify via get_property.
-    const callSet = await bridge.call("node.call_method", { node_path: "CellA", method_name: "set_name", args: ["Renamed"] }, 5000) as { success?: boolean; code?: string };
-    if (callSet?.success !== true) fail(`node.call_method set_name: ${JSON.stringify(callSet)}`);
-    const renamedProbe = await bridge.call("node.get_property", { node_path: "Renamed", property: "name" }, 5000) as { value?: string; code?: string };
-    if (renamedProbe?.value !== "Renamed") fail(`set_name round-trip: expected name='Renamed' at path='Renamed', got ${JSON.stringify(renamedProbe)}`);
-    else pass(`node.call_method set_name round-trip -> "Renamed"`);
+      // set_name round-trip on CellA → rename to Renamed, verify via get_property.
+      const callSet = await bridge.call("node.call_method", { node_path: "CellA", method_name: "set_name", args: ["Renamed"] }, 5000) as { success?: boolean; code?: string };
+      if (callSet?.success !== true) fail(`node.call_method set_name: ${JSON.stringify(callSet)}`);
+      const renamedProbe2 = await bridge.call("node.get_property", { node_path: "Renamed", property: "name" }, 5000) as { value?: string; code?: string };
+      if (renamedProbe2?.value !== "Renamed") fail(`set_name round-trip: expected name='Renamed' at path='Renamed', got ${JSON.stringify(renamedProbe2)}`);
+      else pass(`node.call_method set_name round-trip -> "Renamed"`);
 
-    // node.call_method — guard rejections.
-    assertGuard(
-      "node.call_method bogus method",
-      await bridge.call("node.call_method", { node_path: ".", method_name: "no_such_method_xyz" }, 5000),
-      "INVALID_METHOD",
-      "scene.get_tree",
-    );
-    assertGuard(
-      "node.call_method bogus path",
-      await bridge.call("node.call_method", { node_path: "NoSuchNode_xyz", method_name: "get_name" }, 5000),
-      "NOT_FOUND",
-      "NoSuchNode_xyz",
-    );
+      // node.call_method — guard rejections.
+      assertGuard(
+        "node.call_method bogus method",
+        await bridge.call("node.call_method", { node_path: ".", method_name: "no_such_method_xyz" }, 5000),
+        "INVALID_METHOD",
+        "scene.get_tree",
+      );
+      assertGuard(
+        "node.call_method bogus path",
+        await bridge.call("node.call_method", { node_path: "NoSuchNode_xyz", method_name: "get_name" }, 5000),
+        "NOT_FOUND",
+        "NoSuchNode_xyz",
+      );
+    }
 
     // ---- Resource-value coercion (end-to-end) ---------------------------
     // GradientTexture2D + Sprite2D — Resource-typed property round-trip.
@@ -1068,9 +1105,12 @@ async function main(): Promise<void> {
     } else pass(`node.get_property texture -> {type:Resource,class:GradientTexture2D} round-trip`);
 
     // Via node.call_method: set_texture with Resource arg (exercises arg-coercion path).
-    const callTex = await bridge.call("node.call_method", { node_path: spritePath, method_name: "set_texture", args: [{ type: "Resource", path: smokeTexPath }] }, 5000) as { success?: boolean; code?: string };
-    if (callTex?.success !== true) fail(`node.call_method set_texture via Resource arg: ${JSON.stringify(callTex)}`);
-    else pass(`node.call_method set_texture (Resource arg coercion) ok`);
+    // Gated (iter 19) — skip if handler returns FEATURE_DISABLED.
+    if (!ncmGated) {
+      const callTex = await bridge.call("node.call_method", { node_path: spritePath, method_name: "set_texture", args: [{ type: "Resource", path: smokeTexPath }] }, 5000) as { success?: boolean; code?: string };
+      if (callTex?.success !== true) fail(`node.call_method set_texture via Resource arg: ${JSON.stringify(callTex)}`);
+      else pass(`node.call_method set_texture (Resource arg coercion) ok`);
+    }
 
     // Color coercion — modulate is a Color property on CanvasItem.
     const setColor = await bridge.call("node.set_property", { node_path: spritePath, property: "modulate", value: { type: "Color", r: 1.0, g: 0.5, b: 0.0 } }, 5000) as { ok?: boolean; code?: string };
@@ -1089,105 +1129,121 @@ async function main(): Promise<void> {
     );
 
     // ---- project.set_setting (iter 15d) --------------------------------
-    // Happy path: write + read back + restore. Use a benign key under a
-    // throwaway namespace so we don't pollute the dogfood project.
+    // Feature-gated (iter 19, dual-gate). Probe and skip if gated.
     const setSmokeKey = "application/config/mcp_smoke_15d";
-    const preGet = await bridge.call("project.get_settings", { prefix: "application/config" }, 5000) as { settings?: Record<string, unknown> };
-    const preValue = preGet?.settings?.[setSmokeKey] ?? null;
-    const setOk = await bridge.call("project.set_setting", { key: setSmokeKey, value: "smoke-15d-marker" }, 5000) as { success?: boolean; was_set_before?: boolean; previous_value?: unknown; key?: string; value?: unknown; code?: string };
-    if (setOk?.success !== true) fail(`project.set_setting: ${JSON.stringify(setOk)}`);
-    else pass(`project.set_setting ${setSmokeKey} -> success (was_set_before=${setOk.was_set_before})`);
-    const postGet = await bridge.call("project.get_settings", { prefix: "application/config" }, 5000) as { settings?: Record<string, unknown> };
-    if (postGet?.settings?.[setSmokeKey] !== "smoke-15d-marker") fail(`project.set_setting round-trip: read-back ${JSON.stringify(postGet?.settings?.[setSmokeKey])}`);
-    else pass(`project.set_setting -> read-back via project.get_settings matches`);
-    // Guard: mcp/unsafe/* prefix refusal.
-    assertGuard(
-      "project.set_setting mcp/unsafe/*",
-      await bridge.call("project.set_setting", { key: "mcp/unsafe/allow_game_eval", value: true }, 5000),
-      "INVALID_PATH",
-      "FeatureGate",
-    );
-    // Guard: editor/* prefix refusal.
-    assertGuard(
-      "project.set_setting editor/*",
-      await bridge.call("project.set_setting", { key: "editor/something", value: "x" }, 5000),
-      "INVALID_PATH",
-      "editor-session state",
-    );
-    // Guard: empty key.
-    assertGuard(
-      "project.set_setting empty key",
-      await bridge.call("project.set_setting", { key: "", value: 1 }, 5000),
-      "INVALID_PARAMS",
-      "non-empty",
-    );
+    let pssPreValue: unknown = null;
+    const pssProbe = await bridge.call("project.set_setting", { key: setSmokeKey, value: "smoke-15d-marker" }, 5000) as { success?: boolean; was_set_before?: boolean; previous_value?: unknown; key?: string; value?: unknown; code?: string };
+    const pssGated = pssProbe?.code === "FEATURE_DISABLED";
+    if (pssGated) {
+      pass("project.set_setting -> FEATURE_DISABLED (skipping functional tests)");
+    } else {
+      // Happy path: write + read back + restore.
+      const preGet = await bridge.call("project.get_settings", { prefix: "application/config" }, 5000) as { settings?: Record<string, unknown> };
+      pssPreValue = preGet?.settings?.[setSmokeKey] ?? null;
+      if (pssProbe?.success !== true) fail(`project.set_setting: ${JSON.stringify(pssProbe)}`);
+      else pass(`project.set_setting ${setSmokeKey} -> success (was_set_before=${pssProbe.was_set_before})`);
+      const postGet = await bridge.call("project.get_settings", { prefix: "application/config" }, 5000) as { settings?: Record<string, unknown> };
+      if (postGet?.settings?.[setSmokeKey] !== "smoke-15d-marker") fail(`project.set_setting round-trip: read-back ${JSON.stringify(postGet?.settings?.[setSmokeKey])}`);
+      else pass(`project.set_setting -> read-back via project.get_settings matches`);
+      // Guard: mcp/unsafe/* prefix refusal.
+      assertGuard(
+        "project.set_setting mcp/unsafe/*",
+        await bridge.call("project.set_setting", { key: "mcp/unsafe/allow_game_eval", value: true }, 5000),
+        "INVALID_PATH",
+        "FeatureGate",
+      );
+      // Guard: editor/* prefix refusal.
+      assertGuard(
+        "project.set_setting editor/*",
+        await bridge.call("project.set_setting", { key: "editor/something", value: "x" }, 5000),
+        "INVALID_PATH",
+        "editor-session state",
+      );
+      // Guard: empty key.
+      assertGuard(
+        "project.set_setting empty key",
+        await bridge.call("project.set_setting", { key: "", value: 1 }, 5000),
+        "INVALID_PARAMS",
+        "non-empty",
+      );
+    }
 
     // ---- input_map.* (iter 15d) ----------------------------------------
+    // Feature-gated (iter 19, single-gate). Probe and skip if gated.
     const smokeAction = "mcp_smoke_jump_15d";
-    // Best-effort cleanup of any stale entry from a prior crashed run.
-    try { await bridge.call("input_map.remove_action", { action: smokeAction }, 5000); } catch { /* noop */ }
-    const addAct = await bridge.call("input_map.add_action", { action: smokeAction, deadzone: 0.4 }, 5000) as { status?: string; deadzone?: number; code?: string };
-    if (addAct?.status !== "created" || addAct.deadzone !== 0.4) fail(`input_map.add_action: ${JSON.stringify(addAct)}`);
-    else pass(`input_map.add_action ${smokeAction} -> status=created, deadzone=0.4`);
-    // Idempotency: same action again -> returned, EXISTING deadzone (Godot
-    // stores deadzone as a float32 — compare with tolerance, not equality).
-    const addAct2 = await bridge.call("input_map.add_action", { action: smokeAction, deadzone: 0.9 }, 5000) as { status?: string; deadzone?: number; code?: string };
-    if (addAct2?.status !== "returned" || typeof addAct2.deadzone !== "number" || Math.abs(addAct2.deadzone - 0.4) > 0.001) fail(`input_map.add_action repeat: expected status=returned + deadzone~=0.4 (existing), got ${JSON.stringify(addAct2)}`);
-    else pass(`input_map.add_action repeat -> status=returned + deadzone~=0.4 (existing wins per 15d contract)`);
-    // Bind a key event.
-    const addKey = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { status?: string; event?: { type?: string }; code?: string };
-    if (addKey?.status !== "created" || addKey.event?.type !== "key") fail(`input_map.action_add_event SPACE: ${JSON.stringify(addKey)}`);
-    else pass(`input_map.action_add_event SPACE -> status=created`);
-    // Equivalent-event idempotency.
-    const addKey2 = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { status?: string; code?: string };
-    if (addKey2?.status !== "returned") fail(`input_map.action_add_event SPACE repeat: expected status=returned, got ${JSON.stringify(addKey2)}`);
-    else pass(`input_map.action_add_event SPACE repeat -> status=returned (equivalent-event idempotency)`);
-    // Distinct event (joypad button) does not collide with the key event.
-    const addJoy = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "joypad_button", button_index: 0, device: -1 } }, 5000) as { status?: string; code?: string };
-    if (addJoy?.status !== "created") fail(`input_map.action_add_event joypad: ${JSON.stringify(addJoy)}`);
-    else pass(`input_map.action_add_event joypad_button -> status=created (no collision with SPACE)`);
-    // Remove the key event; symmetric remove returns no status.
-    const remKey = await bridge.call("input_map.action_remove_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { success?: boolean; event?: { type?: string }; code?: string };
-    if (remKey?.success !== true || remKey.event?.type !== "key") fail(`input_map.action_remove_event: ${JSON.stringify(remKey)}`);
-    else pass(`input_map.action_remove_event SPACE -> success`);
-    // Remove again -> NOT_FOUND with event-count hint.
-    assertGuard(
-      "input_map.action_remove_event missing",
-      await bridge.call("input_map.action_remove_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000),
-      "NOT_FOUND",
-      "events",
-    );
-    // Built-in UI action refusal.
-    assertGuard(
-      "input_map.remove_action ui_accept refusal",
-      await bridge.call("input_map.remove_action", { action: "ui_accept" }, 5000),
-      "INVALID_PARAMS",
-      ["built-in UI action", "input_map.action_remove_event"],
-    );
-    // Bogus event type.
-    assertGuard(
-      "input_map.action_add_event bogus type",
-      await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "telepathy" } }, 5000),
-      "INVALID_PARAMS",
-      ["key", "mouse_button", "joypad_button", "joypad_motion"],
-    );
-    // Bogus keycode.
-    assertGuard(
-      "input_map.action_add_event bogus keycode",
-      await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "NONSENSE" } }, 5000),
-      "INVALID_PARAMS",
-      "symbolic names",
-    );
-    // Empty action name.
-    assertGuard(
-      "input_map.add_action empty",
-      await bridge.call("input_map.add_action", { action: "" }, 5000),
-      "INVALID_PARAMS",
-      "non-empty",
-    );
-    // Cleanup the smoke action.
-    try { await bridge.call("input_map.remove_action", { action: smokeAction }, 5000); } catch { /* noop */ }
-    pass(`input_map.* round-trip + guards complete`);
+    const imProbe = await bridge.call("input_map.add_action", { action: smokeAction, deadzone: 0.4 }, 5000) as { status?: string; deadzone?: number; code?: string };
+    const imGated = imProbe?.code === "FEATURE_DISABLED";
+    if (imGated) {
+      pass("input_map.* -> FEATURE_DISABLED (skipping functional tests)");
+    } else {
+      // Best-effort cleanup of any stale entry from a prior crashed run,
+      // then re-create fresh if the probe returned "returned" (stale).
+      if (imProbe?.status === "returned") {
+        try { await bridge.call("input_map.remove_action", { action: smokeAction }, 5000); } catch { /* noop */ }
+        const freshAdd = await bridge.call("input_map.add_action", { action: smokeAction, deadzone: 0.4 }, 5000) as { status?: string; deadzone?: number };
+        if (freshAdd?.status !== "created") fail(`input_map.add_action re-create after stale: ${JSON.stringify(freshAdd)}`);
+      }
+      if (imProbe?.status !== "created" && imProbe?.status !== "returned") fail(`input_map.add_action: ${JSON.stringify(imProbe)}`);
+      else pass(`input_map.add_action ${smokeAction} -> status=${imProbe.status}, deadzone=0.4`);
+      // Idempotency: same action again -> returned, EXISTING deadzone.
+      const addAct2 = await bridge.call("input_map.add_action", { action: smokeAction, deadzone: 0.9 }, 5000) as { status?: string; deadzone?: number; code?: string };
+      if (addAct2?.status !== "returned" || typeof addAct2.deadzone !== "number" || Math.abs(addAct2.deadzone - 0.4) > 0.001) fail(`input_map.add_action repeat: expected status=returned + deadzone~=0.4 (existing), got ${JSON.stringify(addAct2)}`);
+      else pass(`input_map.add_action repeat -> status=returned + deadzone~=0.4 (existing wins per 15d contract)`);
+      // Bind a key event.
+      const addKey = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { status?: string; event?: { type?: string }; code?: string };
+      if (addKey?.status !== "created" || addKey.event?.type !== "key") fail(`input_map.action_add_event SPACE: ${JSON.stringify(addKey)}`);
+      else pass(`input_map.action_add_event SPACE -> status=created`);
+      // Equivalent-event idempotency.
+      const addKey2 = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { status?: string; code?: string };
+      if (addKey2?.status !== "returned") fail(`input_map.action_add_event SPACE repeat: expected status=returned, got ${JSON.stringify(addKey2)}`);
+      else pass(`input_map.action_add_event SPACE repeat -> status=returned (equivalent-event idempotency)`);
+      // Distinct event (joypad button) does not collide with the key event.
+      const addJoy = await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "joypad_button", button_index: 0, device: -1 } }, 5000) as { status?: string; code?: string };
+      if (addJoy?.status !== "created") fail(`input_map.action_add_event joypad: ${JSON.stringify(addJoy)}`);
+      else pass(`input_map.action_add_event joypad_button -> status=created (no collision with SPACE)`);
+      // Remove the key event; symmetric remove returns no status.
+      const remKey = await bridge.call("input_map.action_remove_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000) as { success?: boolean; event?: { type?: string }; code?: string };
+      if (remKey?.success !== true || remKey.event?.type !== "key") fail(`input_map.action_remove_event: ${JSON.stringify(remKey)}`);
+      else pass(`input_map.action_remove_event SPACE -> success`);
+      // Remove again -> NOT_FOUND with event-count hint.
+      assertGuard(
+        "input_map.action_remove_event missing",
+        await bridge.call("input_map.action_remove_event", { action: smokeAction, event: { type: "key", keycode: "SPACE" } }, 5000),
+        "NOT_FOUND",
+        "events",
+      );
+      // Built-in UI action refusal.
+      assertGuard(
+        "input_map.remove_action ui_accept refusal",
+        await bridge.call("input_map.remove_action", { action: "ui_accept" }, 5000),
+        "INVALID_PARAMS",
+        ["built-in UI action", "input_map.action_remove_event"],
+      );
+      // Bogus event type.
+      assertGuard(
+        "input_map.action_add_event bogus type",
+        await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "telepathy" } }, 5000),
+        "INVALID_PARAMS",
+        ["key", "mouse_button", "joypad_button", "joypad_motion"],
+      );
+      // Bogus keycode.
+      assertGuard(
+        "input_map.action_add_event bogus keycode",
+        await bridge.call("input_map.action_add_event", { action: smokeAction, event: { type: "key", keycode: "NONSENSE" } }, 5000),
+        "INVALID_PARAMS",
+        "symbolic names",
+      );
+      // Empty action name.
+      assertGuard(
+        "input_map.add_action empty",
+        await bridge.call("input_map.add_action", { action: "" }, 5000),
+        "INVALID_PARAMS",
+        "non-empty",
+      );
+      // Cleanup the smoke action.
+      try { await bridge.call("input_map.remove_action", { action: smokeAction }, 5000); } catch { /* noop */ }
+      pass(`input_map.* round-trip + guards complete`);
+    }
 
     // ---- animation.* (iter 15d) ----------------------------------------
     // Smoke focuses on guards + the helpful NOT_FOUND message. The full
@@ -1635,10 +1691,13 @@ async function main(): Promise<void> {
     try { await bridge.call("scene.delete", { file_path: instChildPath }, 5000); } catch { /* noop */ }
     try { await bridge.call("game.stop", {}, 5000); } catch { /* noop */ }
     // Restore the throwaway project setting if pre-state was null/absent.
-    if (preValue === null) {
-      try { await bridge.call("project.set_setting", { key: setSmokeKey, value: "" }, 5000); } catch { /* noop */ }
-    } else {
-      try { await bridge.call("project.set_setting", { key: setSmokeKey, value: preValue }, 5000); } catch { /* noop */ }
+    // Guarded: if project.set_setting is gated, nothing was written.
+    if (!pssGated) {
+      if (pssPreValue === null) {
+        try { await bridge.call("project.set_setting", { key: setSmokeKey, value: "" }, 5000); } catch { /* noop */ }
+      } else {
+        try { await bridge.call("project.set_setting", { key: setSmokeKey, value: pssPreValue }, 5000); } catch { /* noop */ }
+      }
     }
     pass(`iter 15c + 15d cleanup complete`);
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, Profile, ToolDef } from "../types.js";
 import { callAndWrap } from "../types.js";
+import { isEnabled } from "../feature_gate.js";
 
 export const nodeTools: ToolDef[] = [
   {
@@ -27,18 +28,6 @@ export const nodeTools: ToolDef[] = [
     inputSchema: { node_path: z.string() },
   },
   {
-    name: "node_call_method",
-    tier: "full",
-    method: "node.call_method",
-    description:
-      "Call node's method with args (editor-side only). has_method-gated. Args + result support Resource refs via {type:'Resource',path:...}.",
-    inputSchema: {
-      node_path: z.string(),
-      method_name: z.string(),
-      args: z.array(z.unknown()).optional(),
-    },
-  },
-  {
     name: "node_set_script",
     tier: "full",
     method: "node.set_script",
@@ -50,6 +39,24 @@ export const nodeTools: ToolDef[] = [
     },
   },
 ];
+
+// node_call_method is feature-gated (single-gate: env OR PS). Plugin-side
+// FeatureGate performs the full check as defence-in-depth; this controls
+// MCP catalogue visibility only.
+if (isEnabled("node_call_method")) {
+  nodeTools.push({
+    name: "node_call_method",
+    tier: "full",
+    method: "node.call_method",
+    description:
+      "Call node's method with args (editor-side only). has_method-gated. Args + result support Resource refs via {type:'Resource',path:...}.",
+    inputSchema: {
+      node_path: z.string(),
+      method_name: z.string(),
+      args: z.array(z.unknown()).optional(),
+    },
+  });
+}
 
 export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
   for (const tool of nodeTools) {

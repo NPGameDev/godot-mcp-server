@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, Profile, ToolDef } from "../types.js";
 import { callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../types.js";
+import { isEnabled } from "../feature_gate.js";
 
 export const editorTools: ToolDef[] = [
   {
@@ -57,17 +58,6 @@ export const editorTools: ToolDef[] = [
     inputSchema: { prefix: z.string().optional() },
   },
   {
-    name: "project_set_setting",
-    tier: "full",
-    method: "project.set_setting",
-    description:
-      "Write a ProjectSettings key and persist via ProjectSettings.save. Refuses mcp/unsafe/* and editor/* prefixes. Returns previous_value. Update (no status).",
-    inputSchema: {
-      key: z.string(),
-      value: z.unknown(),
-    },
-  },
-  {
     name: "editor_screenshot_node",
     tier: "full",
     method: "editor.screenshot_node",
@@ -101,6 +91,23 @@ export const editorTools: ToolDef[] = [
     },
   },
 ];
+
+// project_set_setting is feature-gated (dual-gate: env AND PS). Plugin-side
+// FeatureGate performs the full check as defence-in-depth; this controls
+// MCP catalogue visibility only.
+if (isEnabled("project_set_setting")) {
+  editorTools.push({
+    name: "project_set_setting",
+    tier: "full",
+    method: "project.set_setting",
+    description:
+      "Write a ProjectSettings key and persist via ProjectSettings.save. Refuses mcp/unsafe/* and editor/* prefixes. Returns previous_value. Update (no status).",
+    inputSchema: {
+      key: z.string(),
+      value: z.unknown(),
+    },
+  });
+}
 
 // Multi-content handler for editor screenshot tools. Both return the same
 // plugin-side shape ({ image_base64, mime_type, width, height, bytes,

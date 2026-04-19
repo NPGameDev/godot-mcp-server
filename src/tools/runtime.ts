@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, Profile, ToolDef } from "../types.js";
 import { callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../types.js";
+import { isEnabled } from "../feature_gate.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:9090. Only works while the game is running in a debug build
@@ -56,11 +57,10 @@ export const runtimeTools: ToolDef[] = [
 ];
 
 // game_eval is RCE-equivalent and intentionally absent from the catalogue
-// unless the user opts in via env var. The plugin-side handler
-// (game.eval in mcp_runtime_server.gd) is always listening on port 9090
-// — anyone with localhost access can reach it directly. The gate here
-// only controls MCP-catalogue exposure to Claude.
-if (process.env.GODOT_MCP_ALLOW_GAME_EVAL === "1") {
+// unless the user opts in via env var. The plugin-side FeatureGate
+// (feature_gate.gd) performs the full dual-gate check as defence-in-depth;
+// the gate here only controls MCP-catalogue exposure to Claude.
+if (isEnabled("game_eval")) {
   runtimeTools.push({
     name: "game_eval",
     tier: "full",
