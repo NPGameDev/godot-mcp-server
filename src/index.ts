@@ -7,6 +7,12 @@ import { lookupProject } from "./registry.js";
 import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS } from "./profiles.js";
 import { registerGroupSystem, registerAllGroupTools, GROUP_TOOL_NAMES } from "./groups.js";
 import { registerStubs } from "./stubs.js";
+import { createHookPipeline } from "./hooks.js";
+import { registerPrompts } from "./prompts.js";
+import { registerResources } from "./resources.js";
+import { init as initRoots, registerRoots } from "./roots.js";
+import type { ToolTextResult } from "./types.js";
+import { callAndWrap } from "./types.js";
 
 import * as animation from "./tools/animation.js";
 import * as asset from "./tools/asset.js";
@@ -91,7 +97,27 @@ const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
   explicitEditorPort: !!explicitPort,
 });
 
-const server = new McpServer({ name: "godot-mcp-toolkit", version: "0.1.0" });
+const server = new McpServer(
+  { name: "godot-mcp-toolkit", version: "0.1.0" },
+  { capabilities: { tools: { listChanged: true } } },
+);
+
+// --- Hook pipeline (iter 25) ---
+const hookPipeline = createHookPipeline();
+// Wrap registerTool so every tool handler passes through the hook pipeline.
+const _origRegisterTool = server.registerTool.bind(server);
+(server as any).registerTool = (
+  name: string,
+  config: Parameters<typeof server.registerTool>[1],
+  handler: (input: any) => Promise<ToolTextResult>,
+) => {
+  _origRegisterTool(name, config, (input: any) =>
+    hookPipeline.execute(
+      { name, input: (input ?? {}) as Record<string, unknown> },
+      () => handler(input),
+    ),
+  );
+};
 
 // --- Register core (non-group) tools ---
 scene.register(server, bridge, moduleAllowed);
@@ -121,9 +147,55 @@ if (profile === "full") {
 // --- Locked stubs for gated tools (non-minimal only) ---
 registerStubs(server, profile);
 
+// --- MCP Prompts, Resources, Roots (iter 25) ---
+registerPrompts(server);
+registerResources(server, bridge);
+initRoots(projectPath);
+registerRoots(server);
+
 process.stderr.write(
-  `[godot-mcp] profile=${profile} readOnly=${readOnly} tools=${moduleAllowed.size}+groups\n`,
+  `[godot-mcp] profile=${profile} readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length}\n`,
 );
+
+// --- User command discovery (iter 25) ---
+// After the server starts, discover user-defined commands from the toolkit
+// and register them as MCP tools. Non-blocking: if the editor is unreachable,
+// built-in tools still work and user commands will be missing.
+async function discoverUserCommands(): Promise<void> {
+  try {
+    const result = (await bridge.call("meta.user_commands", {}, 5000)) as {
+      success?: boolean;
+      commands?: { method: string; tier: string }[];
+    };
+    if (!result?.success || !Array.isArray(result.commands)) return;
+    let registered = 0;
+    for (const cmd of result.commands) {
+      const toolName = cmd.method.replace(/\./g, "_");
+      server.registerTool(
+        toolName,
+        {
+          description: `User command: ${cmd.method}`,
+          inputSchema: {},
+          annotations: {
+            readOnlyHint: false,
+            destructiveHint: false,
+            openWorldHint: false,
+          },
+        },
+        (input: unknown) => callAndWrap(bridge, cmd.method, input),
+      );
+      registered++;
+    }
+    if (registered > 0) {
+      process.stderr.write(
+        `[godot-mcp] registered ${registered} user command(s)\n`,
+      );
+      server.sendToolListChanged();
+    }
+  } catch {
+    // Editor unreachable or meta.user_commands not available — not an error.
+  }
+}
 
 // --- Lifecycle ---
 async function shutdown(): Promise<void> {
@@ -138,3 +210,6 @@ process.on("SIGTERM", shutdown);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+// Non-blocking: discover user commands in the background.
+discoverUserCommands();

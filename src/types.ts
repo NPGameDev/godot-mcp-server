@@ -84,6 +84,23 @@ export type ToolTextResult = {
   isError?: true;
 };
 
+// ── Hook pipeline types (iter 25) ─────────────────────────────────────
+
+/** Identifies the tool being called — passed to every hook. */
+export type ToolRequest = {
+  name: string;
+  input: Record<string, unknown>;
+};
+
+/**
+ * Middleware function that wraps tool dispatch.
+ * Call `next()` to continue the chain; return early to short-circuit.
+ */
+export type Hook = (
+  req: ToolRequest,
+  next: () => Promise<ToolTextResult>,
+) => Promise<ToolTextResult>;
+
 // Canonical MCP failure response per I1. Plugin emits
 // {success: false, error, code} inside the JSON-RPC result payload;
 // transport-level failures surface as BridgeError and are translated
