@@ -46,18 +46,25 @@ type JsonRpcResponse = {
  *
  * Precedence:
  *   1. GODOT_MCP_PROJECT_NAME env var  (set by smoke harness / CI)
- *   2. config/name in project.godot in cwd
- *   3. "[unnamed project]"  (matches Godot's actual appdata dir name)
+ *   2. config/name in project.godot at projectPath (from registry)
+ *   3. config/name in project.godot in cwd
+ *   4. "[unnamed project]"  (matches Godot's actual appdata dir name)
  */
-async function resolveProjectName(): Promise<string> {
+async function resolveProjectName(projectPath?: string): Promise<string> {
   const envName = process.env.GODOT_MCP_PROJECT_NAME;
   if (envName) return envName;
-  try {
-    const content = await readFile("project.godot", "utf-8");
-    const match = content.match(/config\/name="([^"]+)"/);
-    if (match) return match[1];
-  } catch {
-    // project.godot not in cwd.
+  // Try the known project directory first, then fall back to cwd.
+  const candidates = projectPath
+    ? [join(projectPath, "project.godot"), "project.godot"]
+    : ["project.godot"];
+  for (const path of candidates) {
+    try {
+      const content = await readFile(path, "utf-8");
+      const match = content.match(/config\/name="([^"]+)"/);
+      if (match) return match[1];
+    } catch {
+      // Not found at this location — try next.
+    }
   }
   return "[unnamed project]";
 }
@@ -76,7 +83,7 @@ async function resolveTokenPath(projectPath?: string): Promise<string> {
   const envPath = process.env.GODOT_MCP_TOKEN_PATH;
   if (envPath) return envPath;
 
-  const projectName = await resolveProjectName();
+  const projectName = await resolveProjectName(projectPath);
 
   // Per-worktree: hash the canonical project path so two worktrees of the
   // same repo (same config/name → same user://) get distinct token files.
