@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, Profile, ToolDef } from "../types.js";
+import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap } from "../types.js";
 import { isEnabled } from "../feature_gate.js";
 
@@ -22,6 +22,7 @@ if (isEnabled("read_user_scope")) {
         path: z.string(),
         max_bytes: z.number().int().positive().max(262144).optional(),
       },
+      annotations: { readOnlyHint: true, openWorldHint: false },
     },
     {
       name: "save_write",
@@ -33,6 +34,7 @@ if (isEnabled("read_user_scope")) {
         path: z.string(),
         content: z.string(),
       },
+      annotations: { openWorldHint: false },
     },
     {
       name: "save_delete",
@@ -43,6 +45,7 @@ if (isEnabled("read_user_scope")) {
       inputSchema: {
         path: z.string(),
       },
+      annotations: { destructiveHint: true, openWorldHint: false },
     },
     {
       name: "save_list",
@@ -53,16 +56,21 @@ if (isEnabled("read_user_scope")) {
       inputSchema: {
         path: z.string(),
       },
+      annotations: { readOnlyHint: true, openWorldHint: false },
     },
   );
 }
 
-export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of saveTools) {
-    if (profile === "lite" && tool.tier !== "lite") continue;
+    if (allowedTools && !allowedTools.has(tool.name)) continue;
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.inputSchema },
+      {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: tool.annotations,
+      },
       (input: unknown) => callAndWrap(bridge, tool.method, input),
     );
   }

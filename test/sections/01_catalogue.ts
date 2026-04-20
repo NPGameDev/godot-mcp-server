@@ -29,16 +29,17 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   if (!deepEqual(echoResult, echoPayload)) fail(`echo: expected ${JSON.stringify(echoPayload)} got ${JSON.stringify(echoResult)}`);
   else pass("echo round-trip");
 
-  // Tool count — 50 base; feature gates add more when env vars are set.
-  // iter 19: game_eval (+1), node_call_method (+1), project_set_setting (+1),
-  // input_map_write (+4) are gated. All off = 50; all on = 61.
+  // Tool count — 47 base; feature gates add more when env vars are set.
+  // iter 19+22: game_eval (+1), node_call_method (+1), project_set_setting (+1),
+  // input_map_write (+2, merged from +4) are gated. All off = 47; all on = 56.
   // iter 19c: read_user_scope (+4) adds save_read/write/delete/list.
-  // iter 20: script_read_range (+1, always present, lite tier).
-  let expectedToolCount = 50;
+  // iter 22: 5 tool-pair merges (signal_manage, resource_write, input_map_action,
+  //   input_map_event, animation_keyframe) reduced total from 61 → 56.
+  let expectedToolCount = 47;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("project_set_setting")) expectedToolCount += 1;
-  if (featureEnabled("input_map_write")) expectedToolCount += 4;
+  if (featureEnabled("input_map_write")) expectedToolCount += 2;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;
   const allTools = [
     ...sceneTools, ...nodeTools, ...scriptTools, ...editorTools,
@@ -64,7 +65,7 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
     ["game_eval", "game_eval", runtimeTools],
     ["node_call_method", "node_call_method", nodeTools],
     ["project_set_setting", "project_set_setting", editorTools],
-    ["input_map_write", "input_map_add_action", inputMapTools],
+    ["input_map_write", "input_map_action", inputMapTools],
     ["read_user_scope", "save_read", saveTools],
   ];
   for (const [feature, toolName, toolArray] of gateChecks) {

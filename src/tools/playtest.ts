@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, Profile, ToolDef } from "../types.js";
+import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap } from "../types.js";
 
 export const playtestTools: ToolDef[] = [
@@ -15,6 +15,7 @@ export const playtestTools: ToolDef[] = [
       scene_path: z.string().optional(),
       wait_for_runtime: z.boolean().optional(),
     },
+    annotations: { openWorldHint: false },
   },
   {
     name: "game_stop",
@@ -23,15 +24,20 @@ export const playtestTools: ToolDef[] = [
     description:
       "Stop the currently-playing scene (idempotent — returns was_running:false if nothing was running). No params.",
     inputSchema: {},
+    annotations: { destructiveHint: true, openWorldHint: false },
   },
 ];
 
-export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of playtestTools) {
-    if (profile === "lite" && tool.tier !== "lite") continue;
+    if (allowedTools && !allowedTools.has(tool.name)) continue;
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.inputSchema },
+      {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: tool.annotations,
+      },
       (input: unknown) => callAndWrap(bridge, tool.method, input),
     );
   }

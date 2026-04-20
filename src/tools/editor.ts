@@ -1,8 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, Profile, ToolDef } from "../types.js";
+import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../types.js";
+import { stableStringify } from "../schema_min.js";
 import { isEnabled } from "../feature_gate.js";
 
 export const editorTools: ToolDef[] = [
@@ -13,6 +14,7 @@ export const editorTools: ToolDef[] = [
     description:
       "Editor-time error tail (wraps editor.get_console with level='error'). Use editor.get_console for warnings/info/print output.",
     inputSchema: { limit: z.number().optional() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "editor_save_scene",
@@ -20,6 +22,7 @@ export const editorTools: ToolDef[] = [
     method: "editor.save_scene",
     description: "Save the current edited scene. Optional file_path triggers save-as.",
     inputSchema: { file_path: z.string().optional() },
+    annotations: { idempotentHint: true, openWorldHint: false },
   },
   {
     name: "editor_screenshot",
@@ -27,6 +30,7 @@ export const editorTools: ToolDef[] = [
     method: "editor.screenshot",
     description: "Capture a screenshot of the editor viewport. Returns image content inline. Optional save_path (res:// .png) also persists it to disk.",
     inputSchema: { save_path: z.string().optional() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "editor_reload_scripts",
@@ -34,6 +38,7 @@ export const editorTools: ToolDef[] = [
     method: "editor.reload_scripts",
     description: "Rescan res:// and soft-reload already-loaded scripts so the editor picks up on-disk changes. Returns { ok: true }.",
     inputSchema: {},
+    annotations: { openWorldHint: false },
   },
   {
     name: "scene_open",
@@ -41,6 +46,7 @@ export const editorTools: ToolDef[] = [
     method: "scene.open",
     description: "Open a scene (.tscn / .scn) as the active edited scene. res:// only; NOT_FOUND if the file doesn't exist.",
     inputSchema: { file_path: z.string() },
+    annotations: { openWorldHint: false },
   },
   {
     name: "scene_close",
@@ -49,6 +55,7 @@ export const editorTools: ToolDef[] = [
     description:
       "Close an open scene tab by file_path. Refuses the last remaining tab (EDITED_SCENE). NOT_FOUND if the scene is not open. Frees the tab leaked by scene.open.",
     inputSchema: { file_path: z.string() },
+    annotations: { openWorldHint: false },
   },
   {
     name: "project_get_settings",
@@ -56,6 +63,7 @@ export const editorTools: ToolDef[] = [
     method: "project.get_settings",
     description: "List ProjectSettings keys + values. Optional prefix filter. Keys matching /password|token|secret|key/i are dropped (MVP filter).",
     inputSchema: { prefix: z.string().optional() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "editor_screenshot_node",
@@ -67,6 +75,7 @@ export const editorTools: ToolDef[] = [
       node_path: z.string(),
       size: z.object({ width: z.number(), height: z.number() }).optional(),
     },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "editor_get_console",
@@ -79,6 +88,7 @@ export const editorTools: ToolDef[] = [
       level_filter: z.array(z.enum(["info", "warning", "error"])).optional(),
       since_id: z.number().optional(),
     },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "editor_wait_for_idle",
@@ -89,6 +99,7 @@ export const editorTools: ToolDef[] = [
     inputSchema: {
       timeout_ms: z.number().optional(),
     },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
 ];
 
@@ -106,6 +117,7 @@ if (isEnabled("project_set_setting")) {
       key: z.string(),
       value: z.unknown(),
     },
+    annotations: { openWorldHint: false },
   });
 }
 
@@ -144,19 +156,54 @@ async function screenshotHandler(
   };
 }
 
-export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of editorTools) {
-    if (profile === "lite" && tool.tier !== "lite") continue;
+    if (allowedTools && !allowedTools.has(tool.name)) continue;
+    // Summary-first: prefix error count so the model sees the headline
+    // before the (potentially large) wrapped error text.
+    if (tool.name === "editor_get_errors") {
+      server.registerTool(
+        tool.name,
+        {
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
+        },
+        async (input: unknown) => {
+          try {
+            const result = await bridge.call(tool.method, input);
+            const err = toolErrorFromPayload(result);
+            if (err) return err;
+            const obj = result as Record<string, unknown>;
+            const count = typeof obj.count === "number" ? obj.count : 0;
+            const summary = `${count} error${count !== 1 ? "s" : ""}`;
+            const text = stableStringify({ _summary: summary, ...obj });
+            return { content: [{ type: "text" as const, text }] };
+          } catch (e) {
+            return toolErrorFromException(e);
+          }
+        },
+      );
+      continue;
+    }
     if (tool.name === "editor_screenshot" || tool.name === "editor_screenshot_node") {
       server.registerTool(
         tool.name,
-        { description: tool.description, inputSchema: tool.inputSchema },
+        {
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
+        },
         (input: unknown) => screenshotHandler(bridge, tool.method, input),
       );
     } else {
       server.registerTool(
         tool.name,
-        { description: tool.description, inputSchema: tool.inputSchema },
+        {
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
+        },
         (input: unknown) => callAndWrap(bridge, tool.method, input),
       );
     }

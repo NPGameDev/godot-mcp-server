@@ -1,4 +1,6 @@
 import type { ZodRawShape } from "zod";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import { stableStringify } from "./schema_min.js";
 
 export interface Bridge {
   call(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
@@ -6,9 +8,7 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
-// `full` registers every tool; `lite` is a ~15-tool token-sensitive subset
-// biased toward authoring, inspection, and read-side essentials.
-export type Profile = "full" | "lite";
+export type { ToolAnnotations };
 
 export type Tier = "lite" | "full";
 
@@ -18,6 +18,7 @@ export type ToolDef = {
   method: string;
   description: string;
   inputSchema: ZodRawShape;
+  annotations?: ToolAnnotations;
 };
 
 export class BridgeError extends Error {
@@ -115,7 +116,7 @@ export async function callAndWrap(
       : await bridge.call(method, input, opts.timeoutMs);
     const err = toolErrorFromPayload(result);
     if (err) return err;
-    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    return { content: [{ type: "text", text: stableStringify(result) }] };
   } catch (err) {
     return toolErrorFromException(err);
   }

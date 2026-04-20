@@ -16,24 +16,24 @@ export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
 
   // Connect + idempotent repeat + disconnect + NOT_FOUND.
   const connectionArgs = { source_path: signalProbePath, signal_name: "child_order_changed", target_path: signalProbePath, method_name: "notify_property_list_changed" };
-  const connectFresh = await bridge.call("signal.connect", connectionArgs, CALL_TIMEOUT) as { status?: string; code?: string; signal?: string };
-  if (connectFresh?.status !== "created" || connectFresh.signal !== "child_order_changed") fail(`signal.connect first: expected status='created' with signal echoed, got ${JSON.stringify(connectFresh)}`);
-  else pass(`signal.connect fresh -> status='created'`);
+  const connectFresh = await bridge.call("signal.manage", { action: "connect", ...connectionArgs }, CALL_TIMEOUT) as { status?: string; code?: string; signal?: string };
+  if (connectFresh?.status !== "created" || connectFresh.signal !== "child_order_changed") fail(`signal.manage connect first: expected status='created' with signal echoed, got ${JSON.stringify(connectFresh)}`);
+  else pass(`signal.manage connect fresh -> status='created'`);
 
-  const connectIdempotent = await bridge.call("signal.connect", connectionArgs, CALL_TIMEOUT) as { status?: string; code?: string };
-  if (connectIdempotent?.status !== "returned") fail(`signal.connect idempotency: expected status='returned', got ${JSON.stringify(connectIdempotent)}`);
-  else if (connectIdempotent.code !== undefined) fail(`signal.connect collision success must not carry code (got ${connectIdempotent.code})`);
-  else pass("signal.connect repeat -> status='returned' + code absent (I3)");
+  const connectIdempotent = await bridge.call("signal.manage", { action: "connect", ...connectionArgs }, CALL_TIMEOUT) as { status?: string; code?: string };
+  if (connectIdempotent?.status !== "returned") fail(`signal.manage connect idempotency: expected status='returned', got ${JSON.stringify(connectIdempotent)}`);
+  else if (connectIdempotent.code !== undefined) fail(`signal.manage connect collision success must not carry code (got ${connectIdempotent.code})`);
+  else pass("signal.manage connect repeat -> status='returned' + code absent (I3)");
 
   const emitResult = await bridge.call("signal.emit", { node_path: signalProbePath, signal_name: "child_order_changed", args: [] }, CALL_TIMEOUT) as { ok?: boolean; code?: string };
   if (!emitResult?.ok) fail(`signal.emit: ${JSON.stringify(emitResult)}`);
   else pass("signal.emit child_order_changed");
 
-  const disconnectFirst = await bridge.call("signal.disconnect", connectionArgs, CALL_TIMEOUT) as { ok?: boolean; code?: string };
-  if (!disconnectFirst?.ok) fail(`signal.disconnect first: ${JSON.stringify(disconnectFirst)}`);
-  const disconnectRepeat = await bridge.call("signal.disconnect", connectionArgs, CALL_TIMEOUT) as { code?: string };
-  if (disconnectRepeat?.code !== "NOT_FOUND") fail(`signal.disconnect repeat: expected NOT_FOUND, got ${JSON.stringify(disconnectRepeat)}`);
-  else pass("signal.disconnect + NOT_FOUND on repeat");
+  const disconnectFirst = await bridge.call("signal.manage", { action: "disconnect", ...connectionArgs }, CALL_TIMEOUT) as { success?: boolean; code?: string };
+  if (!disconnectFirst?.success) fail(`signal.manage disconnect first: ${JSON.stringify(disconnectFirst)}`);
+  const disconnectRepeat = await bridge.call("signal.manage", { action: "disconnect", ...connectionArgs }, CALL_TIMEOUT) as { code?: string };
+  if (disconnectRepeat?.code !== "NOT_FOUND") fail(`signal.manage disconnect repeat: expected NOT_FOUND, got ${JSON.stringify(disconnectRepeat)}`);
+  else pass("signal.manage disconnect + NOT_FOUND on repeat");
 
   // node.get_property_list.
   const propertyList = await bridge.call("node.get_property_list", { node_path: signalProbePath }, CALL_TIMEOUT) as { properties?: { name?: string; type?: number; hint?: number; hint_string?: string }[]; count?: number; code?: string };

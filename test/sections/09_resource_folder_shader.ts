@@ -16,62 +16,53 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   try { await bridge.call("script.delete", { file_path: shaderIncPath }, CALL_TIMEOUT); } catch { /* noop */ }
   try { await bridge.call("folder.delete", { folder_path: folderRoot, recursive: true }, CALL_TIMEOUT); } catch { /* noop */ }
 
-  // resource.create happy path + idempotency.
-  const resourceCreated = await bridge.call("resource.create", { file_path: resourcePath, resource_class: "Resource", properties: { resource_name: "smoke" } }, CALL_TIMEOUT) as { success?: boolean; status?: string; path?: string; resource_class?: string; warnings?: string[]; code?: string };
-  if (resourceCreated?.status !== "created" || resourceCreated.resource_class !== "Resource") fail(`resource.create fresh: expected status='created' class='Resource', got ${JSON.stringify(resourceCreated)}`);
-  else if (!Array.isArray(resourceCreated.warnings) || resourceCreated.warnings.length !== 0) fail(`resource.create fresh: expected warnings=[], got ${JSON.stringify(resourceCreated.warnings)}`);
-  else pass(`resource.create fresh -> status='created' class=Resource warnings=0`);
+  // resource.write create (upsert — file does not exist yet).
+  const resourceCreated = await bridge.call("resource.write", { file_path: resourcePath, type: "Resource", properties: { resource_name: "smoke" } }, CALL_TIMEOUT) as { success?: boolean; status?: string; path?: string; resource_class?: string; warnings?: string[]; code?: string };
+  if (resourceCreated?.status !== "created" || resourceCreated.resource_class !== "Resource") fail(`resource.write create: expected status='created' class='Resource', got ${JSON.stringify(resourceCreated)}`);
+  else if (!Array.isArray(resourceCreated.warnings) || resourceCreated.warnings.length !== 0) fail(`resource.write create: expected warnings=[], got ${JSON.stringify(resourceCreated.warnings)}`);
+  else pass(`resource.write create -> status='created' class=Resource warnings=0`);
 
-  const resourceReturned = await bridge.call("resource.create", { file_path: resourcePath, resource_class: "Resource" }, CALL_TIMEOUT) as { status?: string; code?: string; path?: string };
-  if (resourceReturned?.status !== "returned" || resourceReturned.path !== resourcePath) fail(`resource.create default repeat: expected status='returned', got ${JSON.stringify(resourceReturned)}`);
-  else if (resourceReturned.code !== undefined) fail(`resource.create returned must not carry code (got ${resourceReturned.code})`);
-  else pass(`resource.create default repeat -> status='returned' (code absent)`);
-
-  // if_exists branches.
-  const resourceFailed = await bridge.call("resource.create", { file_path: resourcePath, resource_class: "Resource", if_exists: "fail" }, CALL_TIMEOUT) as { success?: boolean; code?: string; error?: string };
-  if (resourceFailed?.success !== false || resourceFailed.code !== "ALREADY_EXISTS" || !resourceFailed.error?.includes("replace")) {
-    fail(`resource.create if_exists=fail: expected ALREADY_EXISTS mentioning 'replace', got ${JSON.stringify(resourceFailed)}`);
-  } else pass(`resource.create if_exists='fail' -> ALREADY_EXISTS (message steers to 'replace')`);
-
-  const resourceReplaced = await bridge.call("resource.create", { file_path: resourcePath, resource_class: "Curve", properties: { bake_resolution: 100 }, if_exists: "replace" }, CALL_TIMEOUT) as { status?: string; resource_class?: string; previous_class?: string; warnings?: string[]; code?: string };
-  if (resourceReplaced?.status !== "replaced" || resourceReplaced.resource_class !== "Curve" || resourceReplaced.previous_class !== "Resource") {
-    fail(`resource.create if_exists=replace: expected status='replaced' class=Curve prev=Resource, got ${JSON.stringify(resourceReplaced)}`);
-  } else pass(`resource.create if_exists='replace' -> status='replaced' prev=${resourceReplaced.previous_class}`);
-
-  const resourceBadIfExists = await bridge.call("resource.create", { file_path: resourcePath, resource_class: "Resource", if_exists: "explode" }, CALL_TIMEOUT) as { code?: string; error?: string };
-  if (resourceBadIfExists?.code !== "INVALID_PARAMS" || !resourceBadIfExists.error?.includes("if_exists")) {
-    fail(`resource.create invalid if_exists: expected INVALID_PARAMS, got ${JSON.stringify(resourceBadIfExists)}`);
-  } else pass(`resource.create if_exists='explode' -> INVALID_PARAMS`);
+  // resource.write update (upsert — file exists, no status field).
+  const resourceUpdated = await bridge.call("resource.write", { file_path: resourcePath, properties: { resource_name: "smoke2" } }, CALL_TIMEOUT) as { success?: boolean; status?: string; code?: string };
+  if (resourceUpdated?.success !== true) fail(`resource.write update: expected success=true, got ${JSON.stringify(resourceUpdated)}`);
+  else if (resourceUpdated.status !== undefined) fail(`resource.write update must NOT carry status (upsert update): got ${resourceUpdated.status}`);
+  else pass(`resource.write update -> success, no status field`);
 
   // Guard rejections.
-  assertGuard(ctx, "resource.create /tmp path", await bridge.call("resource.create", { file_path: "/tmp/foo.tres", resource_class: "Resource" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
-  assertGuard(ctx, "resource.create .gd extension", await bridge.call("resource.create", { file_path: "res://foo.gd", resource_class: "Resource" }, CALL_TIMEOUT), "INVALID_PATH", "script.write");
-  assertGuard(ctx, "resource.create missing parent dir", await bridge.call("resource.create", { file_path: "res://no_such_dir_smoke/foo.tres", resource_class: "Resource" }, CALL_TIMEOUT), "PARENT_NOT_FOUND", "folder.create");
-  assertGuard(ctx, "resource.create bogus class", await bridge.call("resource.create", { file_path: "res://smoke_bogus.tres", resource_class: "BogusClass" }, CALL_TIMEOUT), "INVALID_CLASS", ["ClassDB", "ProjectSettings"]);
-  assertGuard(ctx, "resource.create Node2D (not a Resource)", await bridge.call("resource.create", { file_path: "res://smoke_node2d.tres", resource_class: "Node2D" }, CALL_TIMEOUT), "NOT_A_RESOURCE", "base chain");
+  assertGuard(ctx, "resource.write /tmp path", await bridge.call("resource.write", { file_path: "/tmp/foo.tres", type: "Resource" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
+  assertGuard(ctx, "resource.write .gd extension", await bridge.call("resource.write", { file_path: "res://foo.gd", type: "Resource" }, CALL_TIMEOUT), "INVALID_PATH", "script.write");
+  assertGuard(ctx, "resource.write missing parent dir", await bridge.call("resource.write", { file_path: "res://no_such_dir_smoke/foo.tres", type: "Resource" }, CALL_TIMEOUT), "PARENT_NOT_FOUND", "folder.create");
+  assertGuard(ctx, "resource.write bogus class", await bridge.call("resource.write", { file_path: "res://smoke_bogus.tres", type: "BogusClass" }, CALL_TIMEOUT), "INVALID_CLASS", ["ClassDB", "ProjectSettings"]);
+  assertGuard(ctx, "resource.write Node2D (not a Resource)", await bridge.call("resource.write", { file_path: "res://smoke_node2d.tres", type: "Node2D" }, CALL_TIMEOUT), "NOT_A_RESOURCE", "base chain");
 
   // Unknown-key warning.
   const warnPath = "res://smoke_warn.tres";
   try { await bridge.call("resource.delete", { file_path: warnPath }, CALL_TIMEOUT); } catch { /* noop */ }
-  const resourceWithWarning = await bridge.call("resource.create", { file_path: warnPath, resource_class: "Resource", properties: { bogus_key: 42 } }, CALL_TIMEOUT) as { status?: string; warnings?: string[]; code?: string };
-  if (resourceWithWarning?.status !== "created") fail(`resource.create warn probe: expected status='created', got ${JSON.stringify(resourceWithWarning)}`);
+  const resourceWithWarning = await bridge.call("resource.write", { file_path: warnPath, type: "Resource", properties: { bogus_key: 42 } }, CALL_TIMEOUT) as { status?: string; warnings?: string[]; code?: string };
+  if (resourceWithWarning?.status !== "created") fail(`resource.write warn probe: expected status='created', got ${JSON.stringify(resourceWithWarning)}`);
   else if (!Array.isArray(resourceWithWarning.warnings) || resourceWithWarning.warnings.length !== 1 || !resourceWithWarning.warnings[0].includes("bogus_key") || !resourceWithWarning.warnings[0].includes("Resource")) {
-    fail(`resource.create unknown-key warning: expected warnings[0] mentioning bogus_key + Resource, got ${JSON.stringify(resourceWithWarning.warnings)}`);
-  } else pass(`resource.create unknown key -> warnings[0] names 'bogus_key' + 'Resource'`);
+    fail(`resource.write unknown-key warning: expected warnings[0] mentioning bogus_key + Resource, got ${JSON.stringify(resourceWithWarning.warnings)}`);
+  } else pass(`resource.write unknown key -> warnings[0] names 'bogus_key' + 'Resource'`);
   await bridge.call("resource.delete", { file_path: warnPath }, CALL_TIMEOUT);
 
-  // resource.save round-trip.
-  const resourceSaved = await bridge.call("resource.save", { file_path: resourcePath, properties: { bake_resolution: 200 } }, CALL_TIMEOUT) as { success?: boolean; resource_class?: string; warnings?: string[]; status?: string; code?: string };
-  if (resourceSaved?.success !== true || resourceSaved.resource_class !== "Curve") fail(`resource.save round-trip: ${JSON.stringify(resourceSaved)}`);
-  else if (resourceSaved.status !== undefined) fail(`resource.save must NOT carry status (update, not create): got ${resourceSaved.status}`);
-  else if (!Array.isArray(resourceSaved.warnings) || resourceSaved.warnings.length !== 0) fail(`resource.save: expected warnings=[], got ${JSON.stringify(resourceSaved.warnings)}`);
-  else pass(`resource.save round-trip -> class=Curve, no warnings, no status field`);
+  // resource.write update with property change (replace the Resource with a Curve first).
+  await bridge.call("resource.delete", { file_path: resourcePath }, CALL_TIMEOUT);
+  await bridge.call("resource.write", { file_path: resourcePath, type: "Curve", properties: { bake_resolution: 100 } }, CALL_TIMEOUT);
+  const resourceSaved = await bridge.call("resource.write", { file_path: resourcePath, properties: { bake_resolution: 200 } }, CALL_TIMEOUT) as { success?: boolean; resource_class?: string; warnings?: string[]; status?: string; code?: string };
+  if (resourceSaved?.success !== true || resourceSaved.resource_class !== "Curve") fail(`resource.write update round-trip: ${JSON.stringify(resourceSaved)}`);
+  else if (resourceSaved.status !== undefined) fail(`resource.write update must NOT carry status: got ${resourceSaved.status}`);
+  else if (!Array.isArray(resourceSaved.warnings) || resourceSaved.warnings.length !== 0) fail(`resource.write update: expected warnings=[], got ${JSON.stringify(resourceSaved.warnings)}`);
+  else pass(`resource.write update round-trip -> class=Curve, no warnings, no status field`);
 
   const resourceLoaded = await bridge.call("resource.load", { file_path: resourcePath }, CALL_TIMEOUT) as { properties?: unknown; code?: string };
   const loadedProps = unwrapUntrusted(resourceLoaded?.properties) as { bake_resolution?: number } | undefined;
-  if (loadedProps?.bake_resolution !== 200) fail(`resource.load after save: expected bake_resolution=200, got ${JSON.stringify(loadedProps)}`);
-  else pass(`resource.load after save -> bake_resolution=200`);
-  assertGuard(ctx, "resource.save missing file", await bridge.call("resource.save", { file_path: "res://no_such_smoke.tres", properties: {} }, CALL_TIMEOUT), "NOT_FOUND", "resource.create");
+  if (loadedProps?.bake_resolution !== 200) fail(`resource.load after write: expected bake_resolution=200, got ${JSON.stringify(loadedProps)}`);
+  else pass(`resource.load after write -> bake_resolution=200`);
+
+  // resource.write on missing file without type → error suggesting type param.
+  const writeMissing = await bridge.call("resource.write", { file_path: "res://no_such_smoke.tres", properties: {} }, CALL_TIMEOUT) as { code?: string; error?: string };
+  if (writeMissing?.code !== "NOT_FOUND" || !writeMissing.error?.includes("type")) fail(`resource.write missing file: expected NOT_FOUND mentioning 'type', got ${JSON.stringify(writeMissing)}`);
+  else pass(`resource.write missing file -> NOT_FOUND (message steers to 'type')`);
 
   // resource.delete round-trip.
   const resourceDeleted = await bridge.call("resource.delete", { file_path: resourcePath }, CALL_TIMEOUT) as { success?: boolean; path?: string; code?: string };

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, Profile, ToolDef } from "../types.js";
+import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap } from "../types.js";
 
 export const folderTools: ToolDef[] = [
@@ -12,6 +12,7 @@ export const folderTools: ToolDef[] = [
     description:
       "Create directory at res:// path (recursive — parents auto-created). Idempotent: status created on fresh, returned if pre-existing.",
     inputSchema: { folder_path: z.string() },
+    annotations: { idempotentHint: true, openWorldHint: false },
   },
   {
     name: "folder_delete",
@@ -23,17 +24,22 @@ export const folderTools: ToolDef[] = [
       folder_path: z.string(),
       recursive: z.boolean().optional(),
     },
+    annotations: { destructiveHint: true, openWorldHint: false },
   },
 ];
 
-export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of folderTools) {
-    if (profile === "lite" && tool.tier !== "lite") continue;
+    if (allowedTools && !allowedTools.has(tool.name)) continue;
     // TODO(security): path sanitisation. folder.create auto-creates
     // intermediates so FileGuard's escape-rejection matters especially here.
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.inputSchema },
+      {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: tool.annotations,
+      },
       (input: unknown) => callAndWrap(bridge, tool.method, input),
     );
   }

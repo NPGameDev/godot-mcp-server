@@ -83,7 +83,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
 
   // scene.instantiate guard rejections.
   assertGuard(ctx, "scene.instantiate /tmp packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "/tmp/foo.tscn" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
-  assertGuard(ctx, "scene.instantiate .tres packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://bogus_smoke.tres" }, CALL_TIMEOUT), "INVALID_PATH", ["resource.create", ".tscn"]);
+  assertGuard(ctx, "scene.instantiate .tres packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://bogus_smoke.tres" }, CALL_TIMEOUT), "INVALID_PATH", [".tscn"]);
   assertGuard(ctx, "scene.instantiate missing packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://no_such_inst_smoke.tscn" }, CALL_TIMEOUT), "NOT_FOUND", "scene.create");
   assertGuard(ctx, "scene.instantiate bogus parent_path", await bridge.call("scene.instantiate", { parent_path: "NoSuchParent_xyz", packed_path: instChildPath }, CALL_TIMEOUT), "NOT_FOUND", "parent_path");
 
@@ -106,9 +106,9 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
   }
 
   // ── Resource-value coercion ──
-  const textureCreated = await bridge.call("resource.create", { file_path: smokeTexPath, resource_class: "GradientTexture2D", properties: { width: 32, height: 32 } }, CALL_TIMEOUT) as { status?: string; code?: string };
-  if (textureCreated?.status !== "created") fail(`resource.create ${smokeTexPath}: ${JSON.stringify(textureCreated)}`);
-  else pass(`resource.create ${smokeTexPath} -> status='created' (GradientTexture2D)`);
+  const textureCreated = await bridge.call("resource.write", { file_path: smokeTexPath, type: "GradientTexture2D", properties: { width: 32, height: 32 } }, CALL_TIMEOUT) as { status?: string; code?: string };
+  if (textureCreated?.status !== "created") fail(`resource.write ${smokeTexPath}: ${JSON.stringify(textureCreated)}`);
+  else pass(`resource.write ${smokeTexPath} -> status='created' (GradientTexture2D)`);
 
   const coercionSpriteNode = await bridge.call("scene.create_node", { class_name: "Sprite2D", parent_path: ".", node_name: "CoercionSprite" }, CALL_TIMEOUT) as { status?: string; path?: string; code?: string };
   if (coercionSpriteNode?.status !== "created") fail(`scene.create_node Sprite2D: ${JSON.stringify(coercionSpriteNode)}`);
@@ -139,7 +139,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
 
   assertGuard(ctx, "node.set_property Resource missing path",
     await bridge.call("node.set_property", { node_path: coercionSpritePath, property: "texture", value: { type: "Resource", path: "res://no_such_coerce_smoke.tres" } }, CALL_TIMEOUT),
-    "LOAD_FAILED", "resource.create");
+    "LOAD_FAILED", "resource.write");
 
   // ── Self-cleanup ──
   try { await bridge.call("scene.delete_node", { node_path: coercionSpritePath }, CALL_TIMEOUT); } catch { /* noop */ }

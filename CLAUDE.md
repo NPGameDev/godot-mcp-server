@@ -15,20 +15,26 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 
 ## Architecture
 
-- `src/index.ts` — entry. Constructs one `McpServer`, one `Bridge`, registers
-  tool groups, connects the `StdioServerTransport`.
+- `src/index.ts` — entry. Resolves profile/readOnly, constructs `McpServer` +
+  `Bridge`, registers tools per profile, connects `StdioServerTransport`.
 - `src/bridge.ts` — WebSocket client (lazy-connect, pending-map keyed by uuid,
   per-call timeout). Exposes `Bridge.call(method, params, timeoutMs)` and `close()`.
-- `src/types.ts` — `Bridge` interface + `BridgeError` class. Tool modules depend
-  on `Bridge`, NOT on the concrete `createBridge` function (DIP).
+- `src/types.ts` — `Bridge` interface, `BridgeError`, `ToolDef`, `callAndWrap`
+  (uses `stableStringify` for deterministic output), `toolError*` helpers.
+- `src/profiles.ts` — profile resolution (`selectedProfile`, `resolveAllowedTools`,
+  `isReadOnly`). Defines `MINIMAL_TOOLS`, `STANDARD_TOOLS`, `MUTATING_TOOLS`.
+- `src/groups.ts` — lazy-load group system. `registerGroupSystem` (standard/custom)
+  or `registerAllGroupTools` (full). `enable_tool_group` meta-tool + `GROUP_TOOL_NAMES`.
+- `src/stubs.ts` — locked stubs for gated tools. `registerStubs(server, profile)`.
+- `src/feature_gate.ts` — env-var-only gate checks (`isEnabled`, `envVarFor`).
+- `src/schema_min.ts` — `minifySchema` + `stableStringify` (sorted-key JSON for
+  prompt-cache hits).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
   `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,
-  `input_map`, `animation`, `tilemap`, `asset`, `save`).
-  Each exports a typed `ToolDef[]` and a `register(server, bridge, profile = "full")`
-  function. `ToolDef` is defined in `tools/scene.ts` and re-exported implicitly
-  (via `import { ToolDef } from "./scene.js"`). Tools filter via
-  `includesInProfile` (see `src/types.ts`) so that `--lite` exposes the
-  26-tool core subset only.
+  `input_map`, `animation`, `tilemap`, `asset`, `file`, `save`).
+  Each exports a typed `ToolDef[]` (with MCP annotations) and a
+  `register(server, bridge, allowedTools)` function. Tools filter via the
+  `allowedTools` Set.
 - `test/smoke.ts` — harness. **Port-check first** (iter 05 contract) then round-trip
   assertions. Do NOT move the port-check below the assertions — it exits with
   instructions when the editor is down.
@@ -53,37 +59,46 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 15 / 15b / 15c / 15d / 15f / 15g / 15h / 15i / 19 / 19c)
+## Tool-catalogue profiles (iter 22)
 
-- **Full** (default) — 49 tools by default; up to 60 with all feature gates
-  enabled (see **Feature gates** below).
-- **Lite** — 31-tool token-sensitive subset; opt in by passing `--lite` in
-  `.mcp.json` args. The exact list lives in `LITE_CORE` (`src/types.ts`) —
-  keep that set as the single source of truth; do not replicate it elsewhere.
-  Creation tools are included (`scene_create`, `scene_instantiate`,
-  `resource_create`, `folder_create`) so clean-start projects can bootstrap.
-  `game_start` is in lite (playtest is the core verification workflow);
-  `game_stop` is full-only (the editor UI stop button is always available).
-  Iter 15d's content-authoring lite picks: `project_set_setting` +
-  `input_map_add_action` + `input_map_action_add_event` +
-  `animation_add_key` + `animation_get_keys` + `tilemap_set_cells` —
-  the create/inspect tools per domain. Iter 15e adds `asset_list` +
-  `editor_get_console` to lite (discovery + debugging are core agent
-  workflows); `asset_get_dependencies` is full-only (specialty
-  introspection). Iter 15f adds `asset_import` to lite (binary asset
-  ingestion is the primary remaining authoring gap); `editor_wait_for_idle`
-  is full-only (agents can retry on `FILESYSTEM_NOT_READY` manually in lite
-  mode; `asset.import`'s built-in `wait_for_scan_ms` covers the common
-  case). Iter 15g adds `scene_close` to lite (natural pair of `scene_open` —
-  without it, lite-mode agents leak tabs on every open call with no way to
-  clean up). Iter 15h adds `node_set_script` to lite (natural companion to
-  `node_set_property` — enables the custom-class workflow that is otherwise
-  invisible in lite mode). Cleanup tools (`scene_delete`, `script_delete`, `resource_delete`,
-  `folder_delete`, `input_map_remove_action` / `action_remove_event`,
-  `animation_remove_key`, `file_delete`) are deliberately excluded;
-  `node_call_method` and `editor_screenshot_node` are full-only on
-  risk-/polish-grounds (same rationale as `game_eval`). Iter 22 replaces
-  this coarse flag with a richer profile system.
+Three-axis system: **profiles** control safe-tool visibility, **groups**
+enable specialized tools on demand, **stubs** expose locked gates.
+
+### Profiles (`GODOT_MCP_PROFILE` env var)
+
+| Profile      | Behaviour | Default tools |
+|--------------|-----------|---------------|
+| **standard** (default) | 31 core tools + `enable_tool_group` meta-tool + 3 locked stubs = 35 in `tools/list`. Groups loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
+| **minimal** | 10 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
+| **full**     | All 56 tools registered at startup (group tools eager-loaded, no meta-tool). | Everything passing its feature gate. |
+| **custom**   | Comma-separated tool list via `GODOT_MCP_CUSTOM_TOOLS` env var. | Whatever you list. |
+
+`--lite` still works but maps to `minimal` with a deprecation warning.
+
+`GODOT_MCP_READ_ONLY=1` removes all tools in the `MUTATING_TOOLS` set from
+any profile. Single source of truth: `src/profiles.ts`.
+
+### Lazy-load groups (standard / custom profiles)
+
+Six groups (22 tools total) loaded via `enable_tool_group`:
+
+| Group                 | Tools | Gate |
+|-----------------------|-------|------|
+| `runtime`             | `runtime_screenshot`, `runtime_get_node_state`, `debugger_get_log`, `input_simulate`, `animation_player_control` | — |
+| `signals`             | `signal_list`, `signal_manage`, `signal_emit` | — |
+| `animation_authoring` | `animation_keyframe`, `animation_get_keys` | — |
+| `input_map`           | `input_map_action`, `input_map_event` | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE` |
+| `asset_management`    | `asset_get_dependencies`, `asset_import`, `resource_delete`, `file_delete`, `scene_delete`, `scene_close` | — |
+| `user_data`           | `save_read`, `save_write`, `save_delete`, `save_list` | `GODOT_MCP_ALLOW_USER_SCOPE` |
+
+Groups persist for the session. Gated groups require their env var.
+Source of truth: `src/groups.ts`.
+
+### Locked stubs
+
+For standard/full/custom profiles, gated tools whose gate is closed appear
+as `LOCKED —` stubs in `tools/list` so the model can discover them and
+tell the user how to enable. Stubs defined in `src/stubs.ts`.
 
 ## Feature gates (iter 19)
 
@@ -99,15 +114,14 @@ defence-in-depth.
 | `project_set_setting` | dual      | `GODOT_MCP_ALLOW_PROJECT_SET_SETTING`   | `project_set_setting` |
 | `outbound_http`       | dual      | `GODOT_MCP_ALLOW_OUTBOUND_HTTP`         | (future) |
 | `node_call_method`    | single    | `GODOT_MCP_ALLOW_NODE_CALL_METHOD`      | `node_call_method` |
-| `input_map_write`     | single    | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE`       | `input_map_add_action`, `input_map_action_add_event`, `input_map_action_remove_event`, `input_map_remove_action` |
+| `input_map_write`     | single    | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE`       | `input_map_action`, `input_map_event` |
 | `read_user_scope`     | dual      | `GODOT_MCP_ALLOW_USER_SCOPE`            | `save_read`, `save_write`, `save_delete`, `save_list` |
 
-Gate logic lives in `src/feature_gate.ts`. Each tool group's `register()`
+Gate logic lives in `src/feature_gate.ts`. Each tool module's exported array
 conditionally pushes gated tools based on `isEnabled(feature)`.
 
-Default tool count: 49 (no gates enabled). Each enabled gate adds its
-tools: `game_eval` +1, `node_call_method` +1, `project_set_setting` +1,
-`input_map_write` +4, `read_user_scope` +4 = 60 max.
+Default tool count (standard profile): 31 + meta-tool + 3 stubs = 35 in
+`tools/list`. Full profile with all gates: 56 tools.
 
 ### Dual-pass smoke runner (`npm run smoke`)
 
@@ -205,18 +219,21 @@ for end users with no further edits. See iter 13b + iter 20 in the plan repo.
 
 ## Adding a tool
 
-1. Append a `ToolDef` to the appropriate group file (`src/tools/<group>.ts`).
+1. Append a `ToolDef` to the appropriate module file (`src/tools/<group>.ts`).
+   Include `annotations` (readOnlyHint, destructiveHint, idempotentHint,
+   openWorldHint: false).
 2. Keep `description` ≤ 200 chars (I2).
-3. If the tool belongs in the lite-profile core, add its name to `LITE_CORE`
-   in `src/types.ts`. Otherwise it's full-only by default (the `register()`
-   filter via `includesInProfile` takes care of gating).
+3. Decide placement: add the tool's name to `STANDARD_TOOLS` (standard profile),
+   or to a group's `tools` array in `src/groups.ts` (lazy-loaded), or leave it
+   full-only (only visible in the `full` profile). Gated tools go in their
+   module's conditional push block.
 4. If the tool returns non-text content (images, binary), handle it explicitly
-   in that group's `register()` function — see `editor.ts` `editor_screenshot`
-   for the image path.
+   in the module's `register()` function — see `editor.ts` `editor_screenshot`
+   for the image path. Group tools with custom handlers go in `createHandler`
+   in `src/groups.ts`.
 5. Add a smoke-test round-trip assertion under the existing ones in
    `test/smoke.ts`, appended (never re-ordered — port-check must stay first).
-6. Update the tool count in the smoke-test assertion and the toolkit-repo
-   `CLAUDE.md` "tool list" section.
+6. Update tool counts and the toolkit-repo `CLAUDE.md` tool table.
 
 ## Error code reference (I1)
 

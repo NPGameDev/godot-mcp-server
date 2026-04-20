@@ -8,8 +8,8 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   const smokeListA = "res://smoke_list_a.tres";
   const smokeListB = "res://smoke_list_b.tres";
   const smokeListC = "res://smoke_list_c.gd";
-  try { await bridge.call("resource.create", { file_path: smokeListA, resource_class: "Resource" }, CALL_TIMEOUT); } catch { /* noop */ }
-  try { await bridge.call("resource.create", { file_path: smokeListB, resource_class: "Curve" }, CALL_TIMEOUT); } catch { /* noop */ }
+  try { await bridge.call("resource.write", { file_path: smokeListA, type: "Resource" }, CALL_TIMEOUT); } catch { /* noop */ }
+  try { await bridge.call("resource.write", { file_path: smokeListB, type: "Curve" }, CALL_TIMEOUT); } catch { /* noop */ }
   try { await bridge.call("script.write", { file_path: smokeListC, content: "extends Node" }, CALL_TIMEOUT); } catch { /* noop */ }
   try { await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT); } catch { /* noop */ }
   await new Promise((r) => setTimeout(r, 500));

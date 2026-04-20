@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, Profile, ToolDef } from "../types.js";
+import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../types.js";
 import { isEnabled } from "../feature_gate.js";
 
@@ -17,6 +17,7 @@ export const runtimeTools: ToolDef[] = [
     method: "runtime.screenshot",
     description: "Capture a frame from the running game's main viewport (Mode B, debug build). Returns inline PNG image content.",
     inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "runtime_get_node_state",
@@ -24,6 +25,7 @@ export const runtimeTools: ToolDef[] = [
     method: "runtime.get_node_state",
     description: "Inspect a live node at path in the running game: returns { name, class, path, properties } (inspector-visible fields only).",
     inputSchema: { node_path: z.string() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "debugger_get_log",
@@ -31,6 +33,7 @@ export const runtimeTools: ToolDef[] = [
     method: "debugger.get_log",
     description: "Return recent lines from the running game's log file (user://logs/godot.log). Optional limit (default 200).",
     inputSchema: { limit: z.number().int().positive().optional() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "input_simulate",
@@ -41,6 +44,7 @@ export const runtimeTools: ToolDef[] = [
       event_type: z.enum(["key", "mouse_button", "mouse_motion", "action"]),
       event_data: z.unknown().optional(),
     },
+    annotations: { openWorldHint: false },
   },
   {
     name: "animation_player_control",
@@ -53,6 +57,7 @@ export const runtimeTools: ToolDef[] = [
       animation_name: z.string().optional(),
       time: z.number().optional(),
     },
+    annotations: { openWorldHint: false },
   },
 ];
 
@@ -67,16 +72,21 @@ if (isEnabled("game_eval")) {
     method: "game.eval",
     description: "DANGER: evaluates GDScript via Expression in the running game's context. Disabled by default. Set GODOT_MCP_ALLOW_GAME_EVAL=1 to enable.",
     inputSchema: { code: z.string(), scope_path: z.string().optional() },
+    annotations: { destructiveHint: true, openWorldHint: false },
   });
 }
 
-export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of runtimeTools) {
-    if (profile === "lite" && tool.tier !== "lite") continue;
+    if (allowedTools && !allowedTools.has(tool.name)) continue;
     if (tool.name === "runtime_screenshot") {
       server.registerTool(
         tool.name,
-        { description: tool.description, inputSchema: tool.inputSchema },
+        {
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
+        },
         async () => {
           let result: {
             image_base64?: string;
@@ -109,7 +119,11 @@ export function register(server: McpServer, bridge: Bridge, profile: Profile = "
       // returning.
       server.registerTool(
         tool.name,
-        { description: tool.description, inputSchema: tool.inputSchema },
+        {
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
+        },
         (input: unknown) => callAndWrap(bridge, tool.method, input, { runtime: true }),
       );
     }

@@ -22,8 +22,8 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
     await bridge.call("editor.save_scene", { file_path: "/tmp/bad.tscn" }, CALL_TIMEOUT), "PATH_DENIED");
   assertError(ctx, "signal.list bogus path",
     await bridge.call("signal.list", { node_path: "NoSuchNode_xyz" }, CALL_TIMEOUT), "NOT_FOUND");
-  assertError(ctx, "signal.connect bogus signal",
-    await bridge.call("signal.connect", { source_path: ".", signal_name: "no_such_signal_xyz", target_path: ".", method_name: "notify_property_list_changed" }, CALL_TIMEOUT), "INVALID_PARAMS");
+  assertError(ctx, "signal.manage connect bogus signal",
+    await bridge.call("signal.manage", { action: "connect", source_path: ".", signal_name: "no_such_signal_xyz", target_path: ".", method_name: "notify_property_list_changed" }, CALL_TIMEOUT), "INVALID_PARAMS");
   assertError(ctx, "signal.emit bogus signal",
     await bridge.call("signal.emit", { node_path: ".", signal_name: "no_such_signal_xyz" }, CALL_TIMEOUT), "INVALID_PARAMS");
   assertError(ctx, "scene.diff missing before",

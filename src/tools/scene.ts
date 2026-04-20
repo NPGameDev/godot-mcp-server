@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, Profile, ToolDef } from "../types.js";
+import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap } from "../types.js";
 
 export const sceneTools: ToolDef[] = [
@@ -11,7 +11,11 @@ export const sceneTools: ToolDef[] = [
     method: "scene.get_tree",
     description:
       "Return the current edited scene's node tree as nested JSON { name, class, path, children }.",
-    inputSchema: {},
+    inputSchema: {
+      depth: z.number().optional().describe("Tree depth. Default 2. Use -1 for full tree."),
+      include_properties: z.boolean().optional().describe("Embed property snapshot per node. Default false."),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "scene_create_node",
@@ -24,6 +28,7 @@ export const sceneTools: ToolDef[] = [
       parent_path: z.string(),
       node_name: z.string().optional(),
     },
+    annotations: { idempotentHint: true, openWorldHint: false },
   },
   {
     name: "scene_delete_node",
@@ -32,6 +37,7 @@ export const sceneTools: ToolDef[] = [
     description:
       "Delete the node at path (NodePath). Refuses to delete the edited scene root.",
     inputSchema: { node_path: z.string() },
+    annotations: { destructiveHint: true, openWorldHint: false },
   },
   {
     name: "scene_create",
@@ -44,6 +50,7 @@ export const sceneTools: ToolDef[] = [
       root_type: z.string().optional(),
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
     },
+    annotations: { idempotentHint: true, openWorldHint: false },
   },
   {
     name: "scene_delete",
@@ -52,6 +59,7 @@ export const sceneTools: ToolDef[] = [
     description:
       "Delete the .tscn and its .uid companion at path. Refuses non-.tscn paths and the currently-edited scene (codes INVALID_PATH / EDITED_SCENE).",
     inputSchema: { file_path: z.string() },
+    annotations: { destructiveHint: true, openWorldHint: false },
   },
   {
     name: "scene_instantiate",
@@ -65,15 +73,20 @@ export const sceneTools: ToolDef[] = [
       as_name: z.string().optional(),
       transform: z.record(z.string(), z.unknown()).optional(),
     },
+    annotations: { idempotentHint: true, openWorldHint: false },
   },
 ];
 
-export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of sceneTools) {
-    if (profile === "lite" && tool.tier !== "lite") continue;
+    if (allowedTools && !allowedTools.has(tool.name)) continue;
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.inputSchema },
+      {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: tool.annotations,
+      },
       (input: unknown) => callAndWrap(bridge, tool.method, input),
     );
   }

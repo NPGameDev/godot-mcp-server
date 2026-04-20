@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, Profile, ToolDef } from "../types.js";
+import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap } from "../types.js";
 import { isEnabled } from "../feature_gate.js";
 
@@ -12,6 +12,7 @@ export const nodeTools: ToolDef[] = [
     method: "node.get_property",
     description: "Read a property from the node at path. Returns { value } (engine types are dict-wrapped).",
     inputSchema: { node_path: z.string(), property: z.string() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "node_set_property",
@@ -19,13 +20,18 @@ export const nodeTools: ToolDef[] = [
     method: "node.set_property",
     description: "Set a property on the node at node_path. Engine types pass as { type, ... } dicts (e.g. {type:'Vector2',x:0,y:0}).",
     inputSchema: { node_path: z.string(), property: z.string(), value: z.unknown() },
+    annotations: { openWorldHint: false },
   },
   {
     name: "node_get_property_list",
     tier: "lite",
     method: "node.get_property_list",
     description: "Introspect inspector-visible properties of a node. Returns [{ name, type, hint, hint_string }] filtered by PROPERTY_USAGE_EDITOR.",
-    inputSchema: { node_path: z.string() },
+    inputSchema: {
+      node_path: z.string(),
+      mask: z.enum(["common", "all", "groups"]).optional().describe("Property filter. 'common' (default) returns 8-12 most-edited. 'all' returns full list. 'groups' returns names+usage only."),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "node_set_script",
@@ -37,6 +43,7 @@ export const nodeTools: ToolDef[] = [
       node_path: z.string(),
       script_path: z.string(),
     },
+    annotations: { openWorldHint: false },
   },
 ];
 
@@ -55,15 +62,20 @@ if (isEnabled("node_call_method")) {
       method_name: z.string(),
       args: z.array(z.unknown()).optional(),
     },
+    annotations: { openWorldHint: false },
   });
 }
 
-export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of nodeTools) {
-    if (profile === "lite" && tool.tier !== "lite") continue;
+    if (allowedTools && !allowedTools.has(tool.name)) continue;
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.inputSchema },
+      {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: tool.annotations,
+      },
       (input: unknown) => callAndWrap(bridge, tool.method, input),
     );
   }

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, Profile, ToolDef } from "../types.js";
+import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap } from "../types.js";
 
 export const assetTools: ToolDef[] = [
@@ -18,6 +18,7 @@ export const assetTools: ToolDef[] = [
       extension_filter: z.array(z.string()).optional(),
       max_results: z.number().optional(),
     },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "asset_get_dependencies",
@@ -30,6 +31,7 @@ export const assetTools: ToolDef[] = [
       include_transitive: z.boolean().optional(),
       max_results: z.number().optional(),
     },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "asset_import",
@@ -44,15 +46,20 @@ export const assetTools: ToolDef[] = [
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
       wait_for_scan_ms: z.number().optional(),
     },
+    annotations: { idempotentHint: true, openWorldHint: false },
   },
 ];
 
-export function register(server: McpServer, bridge: Bridge, profile: Profile = "full"): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of assetTools) {
-    if (profile === "lite" && tool.tier !== "lite") continue;
+    if (allowedTools && !allowedTools.has(tool.name)) continue;
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.inputSchema },
+      {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: tool.annotations,
+      },
       (input: unknown) => callAndWrap(bridge, tool.method, input),
     );
   }

@@ -10,14 +10,14 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
   const animPlayerPath = animPlayerNode?.path ?? "MCPSmokeAP";
   const animSpritePath = animSpriteNode?.path ?? "MCPSmokeASprite";
 
-  assertGuard(ctx, "animation.add_key missing animation",
-    await bridge.call("animation.add_key", { player_path: animPlayerPath, animation_name: "no_such_anim", track_path: "MCPSmokeASprite:position", time: 0.0, value: 0 }, CALL_TIMEOUT),
+  assertGuard(ctx, "animation.keyframe add missing animation",
+    await bridge.call("animation.keyframe", { action: "add", player_path: animPlayerPath, animation_name: "no_such_anim", track_path: "MCPSmokeASprite:position", time: 0.0, value: 0 }, CALL_TIMEOUT),
     "NOT_FOUND", ["available", "no_such_anim"]);
-  assertGuard(ctx, "animation.add_key non-AP",
-    await bridge.call("animation.add_key", { player_path: animSpritePath, animation_name: "x", track_path: "y:position", time: 0, value: 0 }, CALL_TIMEOUT),
+  assertGuard(ctx, "animation.keyframe add non-AP",
+    await bridge.call("animation.keyframe", { action: "add", player_path: animSpritePath, animation_name: "x", track_path: "y:position", time: 0, value: 0 }, CALL_TIMEOUT),
     "INVALID_CLASS", "AnimationPlayer");
-  assertGuard(ctx, "animation.add_key bare NodePath",
-    await bridge.call("animation.add_key", { player_path: animPlayerPath, animation_name: "no_such_anim", track_path: "MCPSmokeASprite", time: 0, value: 0 }, CALL_TIMEOUT),
+  assertGuard(ctx, "animation.keyframe add bare NodePath",
+    await bridge.call("animation.keyframe", { action: "add", player_path: animPlayerPath, animation_name: "no_such_anim", track_path: "MCPSmokeASprite", time: 0, value: 0 }, CALL_TIMEOUT),
     "INVALID_PARAMS", "property");
 
   try { await bridge.call("scene.delete_node", { node_path: animPlayerPath }, CALL_TIMEOUT); } catch { /* noop */ }
