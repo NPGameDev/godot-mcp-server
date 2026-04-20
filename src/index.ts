@@ -88,6 +88,7 @@ if (explicitPort) {
 const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
   projectPath,
   explicitRuntimePort,
+  explicitEditorPort: !!explicitPort,
 });
 
 const server = new McpServer({ name: "godot-mcp-toolkit", version: "0.1.0" });

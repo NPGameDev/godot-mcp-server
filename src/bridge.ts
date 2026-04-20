@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { Bridge, BridgeError } from "./types.js";
-import { discoverRuntime } from "./registry.js";
+import { discoverRuntime, lookupProject } from "./registry.js";
 
 const JSONRPC_VERSION = "2.0";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -369,15 +369,50 @@ function createChannel(url: string): Channel {
 
 /** Options for bridge creation (iter 23). */
 export interface BridgeOptions {
-  /** Absolute path to the Godot project. Used for registry-based runtime
-   *  port discovery. Falls back to CWD if not set. */
+  /** Absolute path to the Godot project. Used for registry-based port
+   *  discovery (editor + runtime). Falls back to CWD if not set. */
   projectPath?: string;
   /** If set, bypass registry and use this static port for Mode B. */
   explicitRuntimePort?: string | null;
+  /** When true, editor URL is static (GODOT_MCP_PORT set). Skips
+   *  registry re-discovery on editor connection loss. */
+  explicitEditorPort?: boolean;
 }
 
 export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
-  const editor = createChannel(editorUrl);
+  let editor = createChannel(editorUrl);
+  let cachedEditorPort = Number(new URL(editorUrl).port);
+
+  // iter 23b: editor-port re-discovery. When the editor channel fails
+  // with CONNECT_FAILED / DISCONNECTED, re-read the registry. If the
+  // port changed (plugin restarted on a different port), close the old
+  // channel, create a fresh one, and retry the call once. Skipped when
+  // the editor port is explicitly set (GODOT_MCP_PORT) or no projectPath
+  // is available for registry lookup. TTL prevents thrashing the registry
+  // file when the editor is truly unreachable.
+  const staticEditor = !!opts?.explicitEditorPort;
+  const EDITOR_REDISCOVER_TTL_MS = 5_000;
+  let lastRediscoverAt = 0;
+
+  async function rediscoverEditor(): Promise<boolean> {
+    if (staticEditor) return false;
+    const projectPath = opts?.projectPath;
+    if (!projectPath) return false;
+    const now = Date.now();
+    if (now - lastRediscoverAt < EDITOR_REDISCOVER_TTL_MS) return false;
+    lastRediscoverAt = now;
+    const entry = lookupProject(projectPath);
+    if (!entry) return false;
+    if (entry.port === cachedEditorPort) return false;
+    const oldPort = cachedEditorPort;
+    cachedEditorPort = entry.port;
+    await editor.close();
+    editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`);
+    process.stderr.write(
+      `[bridge] editor port changed ${oldPort} → ${cachedEditorPort}\n`,
+    );
+    return true;
+  }
 
   // iter 23: runtime channel management. When an explicit port is set,
   // create a static channel (pre-iter-23 behaviour). Otherwise, callRuntime
@@ -391,8 +426,21 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
     : null;
 
   return {
-    call(method, params, timeoutMs) {
-      return editor.call(method, params, timeoutMs);
+    async call(method, params, timeoutMs) {
+      try {
+        return await editor.call(method, params, timeoutMs);
+      } catch (err) {
+        // iter 23b: on editor connection failure, re-read the registry.
+        // If the port changed, retry once against the new channel.
+        if (
+          err instanceof BridgeError &&
+          (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")
+        ) {
+          const changed = await rediscoverEditor();
+          if (changed) return editor.call(method, params, timeoutMs);
+        }
+        throw err;
+      }
     },
     async callRuntime(method, params, timeoutMs) {
       // Static port override — same as pre-iter-23 behaviour.
