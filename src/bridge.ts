@@ -1,5 +1,5 @@
 import { WebSocket } from "ws";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -64,30 +64,44 @@ async function resolveProjectName(): Promise<string> {
 
 /**
  * Cross-platform Godot user:// path resolution.
- *   win32:  %APPDATA%/Godot/app_userdata/<project>/mcp_token
- *   darwin: ~/Library/Application Support/Godot/app_userdata/<project>/mcp_token
- *   linux:  ~/.local/share/godot/app_userdata/<project>/mcp_token
+ *   win32:  %APPDATA%/Godot/app_userdata/<project>/mcp_token[_<hash>]
+ *   darwin: ~/Library/Application Support/Godot/app_userdata/<project>/mcp_token[_<hash>]
+ *   linux:  ~/.local/share/godot/app_userdata/<project>/mcp_token[_<hash>]
+ *
+ * Per-worktree (iter 24): when projectPath is known, the token filename
+ * includes a SHA-256 hash of the canonical path, matching the plugin's
+ * auth.gd derivation. Two worktrees of the same repo get distinct files.
  */
-async function resolveTokenPath(): Promise<string> {
+async function resolveTokenPath(projectPath?: string): Promise<string> {
   const envPath = process.env.GODOT_MCP_TOKEN_PATH;
   if (envPath) return envPath;
 
   const projectName = await resolveProjectName();
+
+  // Per-worktree: hash the canonical project path so two worktrees of the
+  // same repo (same config/name → same user://) get distinct token files.
+  let tokenFile = "mcp_token";
+  if (projectPath) {
+    const canonical = projectPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    const hash = createHash("sha256").update(canonical).digest("hex").slice(0, 12);
+    tokenFile = `mcp_token_${hash}`;
+  }
+
   switch (process.platform) {
     case "win32":
       return join(
         process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
-        "Godot", "app_userdata", projectName, "mcp_token",
+        "Godot", "app_userdata", projectName, tokenFile,
       );
     case "darwin":
       return join(
         homedir(), "Library", "Application Support",
-        "Godot", "app_userdata", projectName, "mcp_token",
+        "Godot", "app_userdata", projectName, tokenFile,
       );
     default:
       return join(
         homedir(), ".local", "share",
-        "godot", "app_userdata", projectName, "mcp_token",
+        "godot", "app_userdata", projectName, tokenFile,
       );
   }
 }
@@ -96,8 +110,8 @@ async function resolveTokenPath(): Promise<string> {
  * Read the session token from disk. Re-reads on every call (no caching) so
  * reconnects after a plugin restart pick up the rotated token.
  */
-async function readToken(): Promise<string> {
-  const tokenPath = await resolveTokenPath();
+async function readToken(projectPath?: string): Promise<string> {
+  const tokenPath = await resolveTokenPath(projectPath);
   try {
     const token = (await readFile(tokenPath, "utf-8")).trim();
     return token;
@@ -157,7 +171,7 @@ interface Channel {
   close(): Promise<void>;
 }
 
-function createChannel(url: string): Channel {
+function createChannel(url: string, projectPath?: string): Channel {
   const pending = new Map<string, Pending>();
   const openWaiters = new Set<Waiter>();
   let ws: WebSocket | null = null;
@@ -233,7 +247,7 @@ function createChannel(url: string): Channel {
         process.stderr.write(`[bridge] ${url} ${wasReconnect ? "reconnected" : "connected"}, authenticating…\n`);
         // Re-read token from disk on every connect (including reconnects)
         // so rotated tokens after a plugin restart are picked up.
-        readToken()
+        readToken(projectPath)
           .then((token) => authenticate(socket, token))
           .then(() => {
             hasConnectedOnce = true;
@@ -380,7 +394,8 @@ export interface BridgeOptions {
 }
 
 export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
-  let editor = createChannel(editorUrl);
+  const projectPath = opts?.projectPath;
+  let editor = createChannel(editorUrl, projectPath);
   let cachedEditorPort = Number(new URL(editorUrl).port);
 
   // iter 23b: editor-port re-discovery. When the editor channel fails
@@ -407,7 +422,7 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
     const oldPort = cachedEditorPort;
     cachedEditorPort = entry.port;
     await editor.close();
-    editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`);
+    editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`, projectPath);
     process.stderr.write(
       `[bridge] editor port changed ${oldPort} → ${cachedEditorPort}\n`,
     );
@@ -419,7 +434,7 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
   // re-reads the registry on each invocation to pick up newly-started
   // playtests. The channel is cached and recreated only when the port changes.
   let runtimeChannel: Channel | null = opts?.explicitRuntimePort
-    ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`)
+    ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`, projectPath)
     : null;
   let cachedRuntimePort: number | null = opts?.explicitRuntimePort
     ? Number(opts.explicitRuntimePort)
@@ -484,7 +499,7 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
       // Port changed (new playtest or different runtime instance).
       if (currentPort !== cachedRuntimePort) {
         if (runtimeChannel) await runtimeChannel.close();
-        runtimeChannel = createChannel(`ws://127.0.0.1:${currentPort}`);
+        runtimeChannel = createChannel(`ws://127.0.0.1:${currentPort}`, projectPath);
         cachedRuntimePort = currentPort;
       }
 

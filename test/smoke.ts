@@ -7,6 +7,8 @@
 // ═════════════════════════════════════════════════════════════════════════
 
 import { createBridge } from "../src/bridge.js";
+import { registryPath } from "../src/registry.js";
+import { readFileSync } from "node:fs";
 
 import {
   HOST, PORT, RUNTIME_PORT, PROBE_TIMEOUT_MS,
@@ -64,6 +66,25 @@ import { testResponseCaps } from "./sections/21_response_caps.js";
 //       the tab via scene.close before deleting the backing file. If
 //       scene.close breaks, stale probe files may persist in the toolkit repo.
 
+// iter 24: discover the project path for the editor listening on PORT so the
+// bridge can derive the per-worktree token filename. Prefers env var, then
+// searches the registry for a matching port entry.
+function discoverProjectPath(): string | undefined {
+  const envPath = process.env.GODOT_MCP_PROJECT_PATH;
+  if (envPath) return envPath;
+  try {
+    const data = JSON.parse(readFileSync(registryPath(), "utf-8")) as {
+      by_path?: Record<string, { port?: number }>;
+    };
+    for (const [path, entry] of Object.entries(data.by_path ?? {})) {
+      if (entry.port === PORT) return path;
+    }
+  } catch {
+    // Registry unreadable — fall through.
+  }
+  return undefined;
+}
+
 async function main(): Promise<void> {
   const reachable = await probePort(HOST, PORT, PROBE_TIMEOUT_MS);
   if (!reachable) {
@@ -71,7 +92,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const projectPath = discoverProjectPath();
   const bridge = createBridge(`ws://${HOST}:${PORT}`, {
+    projectPath,
     explicitRuntimePort: String(RUNTIME_PORT),
   });
   let failed = false;
