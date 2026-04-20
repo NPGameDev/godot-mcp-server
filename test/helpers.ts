@@ -23,6 +23,7 @@ export type TestCtx = {
   bridge: BridgeInstance;
   pass: (msg: string) => void;
   fail: (msg: string) => void;
+  projectPath?: string;
 };
 
 // ─── Assertion helpers ───────────────────────────────────────────────────

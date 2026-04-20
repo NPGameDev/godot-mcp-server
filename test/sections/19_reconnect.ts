@@ -7,7 +7,9 @@ export async function testReconnect(ctx: TestCtx): Promise<void> {
   const { pass, fail } = ctx;
 
   const fake = await makeFakeEchoServer();
-  const fakeBridge = createBridge(`ws://127.0.0.1:${fake.port}`);
+  const fakeBridge = createBridge(`ws://127.0.0.1:${fake.port}`, {
+    projectPath: ctx.projectPath,
+  });
   try {
     const beforeResult = await fakeBridge.call("echo", { ping: "before" }, CALL_TIMEOUT);
     if (!deepEqual(beforeResult, { ping: "before" })) {

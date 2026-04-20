@@ -103,6 +103,7 @@ async function main(): Promise<void> {
     bridge,
     fail: (msg: string) => { console.error(`[smoke] FAIL ${msg}`); failed = true; },
     pass: (msg: string) => console.log(`[smoke] PASS ${msg}`),
+    projectPath,
   };
 
   try {
