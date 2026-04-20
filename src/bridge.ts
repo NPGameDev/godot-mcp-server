@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { Bridge, BridgeError } from "./types.js";
+import { discoverRuntime } from "./registry.js";
 
 const JSONRPC_VERSION = "2.0";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -366,32 +367,89 @@ function createChannel(url: string): Channel {
   };
 }
 
-export function createBridge(editorUrl: string, runtimeUrl?: string): Bridge {
+/** Options for bridge creation (iter 23). */
+export interface BridgeOptions {
+  /** Absolute path to the Godot project. Used for registry-based runtime
+   *  port discovery. Falls back to CWD if not set. */
+  projectPath?: string;
+  /** If set, bypass registry and use this static port for Mode B. */
+  explicitRuntimePort?: string | null;
+}
+
+export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
   const editor = createChannel(editorUrl);
-  // Runtime channel is created lazily so calls that never touch Mode B
-  // don't pay a failed-connect cost at startup. callRuntime translates
-  // the channel's CONNECT_FAILED / DISCONNECTED into GAME_NOT_RUNNING
-  // so the MCP tool layer can surface a clean, actionable error.
-  const runtime = runtimeUrl ? createChannel(runtimeUrl) : null;
+
+  // iter 23: runtime channel management. When an explicit port is set,
+  // create a static channel (pre-iter-23 behaviour). Otherwise, callRuntime
+  // re-reads the registry on each invocation to pick up newly-started
+  // playtests. The channel is cached and recreated only when the port changes.
+  let runtimeChannel: Channel | null = opts?.explicitRuntimePort
+    ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`)
+    : null;
+  let cachedRuntimePort: number | null = opts?.explicitRuntimePort
+    ? Number(opts.explicitRuntimePort)
+    : null;
 
   return {
     call(method, params, timeoutMs) {
       return editor.call(method, params, timeoutMs);
     },
     async callRuntime(method, params, timeoutMs) {
-      if (!runtime) {
+      // Static port override — same as pre-iter-23 behaviour.
+      if (opts?.explicitRuntimePort) {
+        try {
+          return await runtimeChannel!.call(method, params, timeoutMs);
+        } catch (err) {
+          if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
+            throw new BridgeError(
+              "GAME_NOT_RUNNING",
+              `no runtime server on 127.0.0.1:${opts.explicitRuntimePort} — start the game in the editor (F5) with a debug build`,
+            );
+          }
+          throw err;
+        }
+      }
+
+      // Registry-based discovery.
+      const projectPath = opts?.projectPath;
+      if (!projectPath) {
         throw new BridgeError(
-          "NO_RUNTIME_URL",
-          "runtime URL not configured; pass a second arg to createBridge()",
+          "GAME_NOT_RUNNING",
+          "no runtime port configured and no project path for registry lookup",
         );
       }
+
+      const currentPort = discoverRuntime(projectPath);
+      if (currentPort === null) {
+        // No playtest running — close stale channel and reject immediately.
+        if (runtimeChannel) {
+          await runtimeChannel.close();
+          runtimeChannel = null;
+          cachedRuntimePort = null;
+        }
+        throw new BridgeError(
+          "GAME_NOT_RUNNING",
+          "no runtime_port in registry — start the game in the editor (F5) with a debug build",
+        );
+      }
+
+      // Port changed (new playtest or different runtime instance).
+      if (currentPort !== cachedRuntimePort) {
+        if (runtimeChannel) await runtimeChannel.close();
+        runtimeChannel = createChannel(`ws://127.0.0.1:${currentPort}`);
+        cachedRuntimePort = currentPort;
+      }
+
       try {
-        return await runtime.call(method, params, timeoutMs);
+        return await runtimeChannel!.call(method, params, timeoutMs);
       } catch (err) {
         if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
+          await runtimeChannel!.close();
+          runtimeChannel = null;
+          cachedRuntimePort = null;
           throw new BridgeError(
             "GAME_NOT_RUNNING",
-            "no runtime server on 127.0.0.1:9090 — start the game in the editor (F5) with a debug build",
+            `runtime server on port ${currentPort} is not responding — playtest may have ended`,
           );
         }
         throw err;
@@ -399,7 +457,7 @@ export function createBridge(editorUrl: string, runtimeUrl?: string): Bridge {
     },
     async close() {
       await editor.close();
-      if (runtime) await runtime.close();
+      if (runtimeChannel) await runtimeChannel.close();
     },
   };
 }

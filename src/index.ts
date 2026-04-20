@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { createBridge } from "./bridge.js";
+import { lookupProject } from "./registry.js";
 import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS } from "./profiles.js";
 import { registerGroupSystem, registerAllGroupTools, GROUP_TOOL_NAMES } from "./groups.js";
 import { registerStubs } from "./stubs.js";
@@ -60,12 +61,34 @@ const moduleAllowed = new Set(allowedTools);
 for (const name of GROUP_TOOL_NAMES) moduleAllowed.delete(name);
 
 // --- Bridge / server setup ---
-const port = process.env.GODOT_MCP_PORT ?? "6505";
-const runtimePort = process.env.GODOT_MCP_RUNTIME_PORT ?? "9090";
-const bridge = createBridge(
-  `ws://127.0.0.1:${port}`,
-  `ws://127.0.0.1:${runtimePort}`,
-);
+// iter 23: registry-based discovery. GODOT_MCP_PORT bypasses registry for
+// backwards compat. Otherwise resolve via the system-wide projects.json.
+const explicitPort = process.env.GODOT_MCP_PORT;
+const explicitRuntimePort = process.env.GODOT_MCP_RUNTIME_PORT ?? null;
+const projectPath = process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
+
+let editorPort: string;
+if (explicitPort) {
+  editorPort = explicitPort;
+} else {
+  const entry = lookupProject(projectPath);
+  if (entry) {
+    editorPort = String(entry.port);
+    process.stderr.write(
+      `[godot-mcp] registry: ${projectPath} → port ${editorPort}\n`,
+    );
+  } else {
+    editorPort = "6505";
+    process.stderr.write(
+      `[godot-mcp] registry: no entry for ${projectPath}; falling back to port ${editorPort}\n`,
+    );
+  }
+}
+
+const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
+  projectPath,
+  explicitRuntimePort,
+});
 
 const server = new McpServer({ name: "godot-mcp-toolkit", version: "0.1.0" });
 

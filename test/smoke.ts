@@ -71,10 +71,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const bridge = createBridge(
-    `ws://${HOST}:${PORT}`,
-    `ws://${HOST}:${RUNTIME_PORT}`,
-  );
+  const bridge = createBridge(`ws://${HOST}:${PORT}`, {
+    explicitRuntimePort: String(RUNTIME_PORT),
+  });
   let failed = false;
   const ctx: TestCtx = {
     bridge,
