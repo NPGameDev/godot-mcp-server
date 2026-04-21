@@ -68,9 +68,9 @@ enable specialized tools on demand, **stubs** expose locked gates.
 
 | Profile      | Behaviour | Default tools |
 |--------------|-----------|---------------|
-| **standard** (default) | 33 core tools + `enable_tool_group` meta-tool + 3 locked stubs = 37 in `tools/list`. Groups loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
-| **minimal** | 12 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
-| **full**     | All 58 tools registered at startup (group tools eager-loaded, no meta-tool). | Everything passing its feature gate. |
+| **standard** (default) | 34 core tools + `enable_tool_group` meta-tool + 3 locked stubs = 38 in `tools/list`. Groups loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
+| **minimal** | 13 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
+| **full**     | All 59 tools registered at startup (group tools eager-loaded, no meta-tool). | Everything passing its feature gate. |
 | **custom**   | Comma-separated tool list via `GODOT_MCP_CUSTOM_TOOLS` env var. | Whatever you list. |
 
 `--lite` still works but maps to `minimal` with a deprecation warning.
@@ -120,17 +120,17 @@ defence-in-depth.
 Gate logic lives in `src/feature_gate.ts`. Each tool module's exported array
 conditionally pushes gated tools based on `isEnabled(feature)`.
 
-Default tool count (standard profile): 33 + meta-tool + 3 stubs = 37 in
-`tools/list`. Full profile with all gates: 58 tools.
+Default tool count (standard profile): 34 + meta-tool + 3 stubs = 38 in
+`tools/list`. Full profile with all gates: 59 tools.
 
 ### Dual-pass smoke runner (`npm run smoke`)
 
 `test/run-smoke.ts` runs `test/smoke.ts` twice in child processes:
 
 1. **Pass 1 — ALL GATES OFF**: no `GODOT_MCP_ALLOW_*` env vars.
-   Verifies the base catalogue (49 tools), gated sections skip gracefully.
+   Verifies the base catalogue (50 tools), gated sections skip gracefully.
 2. **Pass 2 — ALL GATES ON**: all gate env vars set to `"1"` plus
-   `MCP_ENABLE_USER_SCOPE=1`. Verifies the expanded catalogue (up to 60).
+   `MCP_ENABLE_USER_SCOPE=1`. Verifies the expanded catalogue (up to 61).
    Sections that hit a Godot-side dual-gate rejection (`FEATURE_DISABLED`)
    skip rather than fail — the TS-side gate is confirmed, but the
    ProjectSettings side may not be configured in this editor instance.

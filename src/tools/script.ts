@@ -39,6 +39,15 @@ export const scriptTools: ToolDef[] = [
     inputSchema: { file_path: z.string() },
     annotations: { destructiveHint: true, openWorldHint: false },
   },
+  {
+    name: "script_check",
+    tier: "lite",
+    method: "script.check",
+    description:
+      "Validate a GDScript file. Returns structured diagnostics (errors/warnings with line numbers). Read-only — does not modify the script.",
+    inputSchema: { file_path: z.string().describe("res:// path to a .gd file") },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {

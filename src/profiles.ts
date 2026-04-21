@@ -20,9 +20,10 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "asset_list",
   "classdb_get_info",
   "classdb_search",
+  "script_check",
 ];
 
-/** 31 standard tools (enable_tool_group is added programmatically). */
+/** 34 standard tools (enable_tool_group is added programmatically). */
 export const STANDARD_TOOLS: readonly string[] = [
   // Scene (7)
   "scene_get_tree", "scene_create_node", "scene_delete_node",
@@ -44,6 +45,8 @@ export const STANDARD_TOOLS: readonly string[] = [
   // ClassDB (2)
   "classdb_get_info",
   "classdb_search",
+  // Script diagnostics (1)
+  "script_check",
 ];
 
 /** Tools that modify state. Subtracted from catalogue when GODOT_MCP_READ_ONLY=1. */

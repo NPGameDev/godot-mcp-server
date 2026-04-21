@@ -36,7 +36,7 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   // iter 19c: read_user_scope (+4) adds save_read/write/delete/list.
   // iter 22: 5 tool-pair merges (signal_manage, resource_write, input_map_action,
   //   input_map_event, animation_keyframe) reduced total from 61 → 56.
-  let expectedToolCount = 49;
+  let expectedToolCount = 50;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("project_set_setting")) expectedToolCount += 1;
@@ -54,8 +54,8 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
 
   // --lite catalogue size. No gated tools are lite-tier, so count is stable.
   const liteTools = allTools.filter((t) => t.tier === "lite");
-  if (liteTools.length !== 17) fail(`--lite catalogue: expected 17, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-  else pass(`--lite catalogue == 17 (subset of full ${expectedToolCount})`);
+  if (liteTools.length !== 18) fail(`--lite catalogue: expected 18, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+  else pass(`--lite catalogue == 18 (subset of full ${expectedToolCount})`);
 
   const allToolNames = new Set(allTools.map((t) => t.name));
   const liteOrphans = liteTools.filter((t) => !allToolNames.has(t.name));
