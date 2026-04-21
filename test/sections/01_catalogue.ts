@@ -14,6 +14,7 @@ import { sceneTools } from "../../src/tools/scene.js";
 import { scriptTools } from "../../src/tools/script.js";
 import { signalTools } from "../../src/tools/signals.js";
 import { tilemapTools } from "../../src/tools/tilemap.js";
+import { classdbTools } from "../../src/tools/classdb.js";
 import type { ToolDef } from "../../src/types.js";
 import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 
@@ -35,7 +36,7 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   // iter 19c: read_user_scope (+4) adds save_read/write/delete/list.
   // iter 22: 5 tool-pair merges (signal_manage, resource_write, input_map_action,
   //   input_map_event, animation_keyframe) reduced total from 61 → 56.
-  let expectedToolCount = 47;
+  let expectedToolCount = 48;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("project_set_setting")) expectedToolCount += 1;
@@ -46,14 +47,15 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
     ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools,
     ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools,
     ...tilemapTools, ...assetTools, ...fileTools, ...saveTools,
+    ...classdbTools,
   ];
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else pass(`tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, input_map_write=${featureEnabled("input_map_write")}, read_user_scope=${featureEnabled("read_user_scope")})`);
 
   // --lite catalogue size. No gated tools are lite-tier, so count is stable.
   const liteTools = allTools.filter((t) => t.tier === "lite");
-  if (liteTools.length !== 15) fail(`--lite catalogue: expected 15, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-  else pass(`--lite catalogue == 15 (subset of full ${expectedToolCount})`);
+  if (liteTools.length !== 16) fail(`--lite catalogue: expected 16, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
+  else pass(`--lite catalogue == 16 (subset of full ${expectedToolCount})`);
 
   const allToolNames = new Set(allTools.map((t) => t.name));
   const liteOrphans = liteTools.filter((t) => !allToolNames.has(t.name));

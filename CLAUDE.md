@@ -31,7 +31,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   prompt-cache hits).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
   `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,
-  `input_map`, `animation`, `tilemap`, `asset`, `file`, `save`).
+  `input_map`, `animation`, `tilemap`, `asset`, `file`, `save`, `classdb`).
   Each exports a typed `ToolDef[]` (with MCP annotations) and a
   `register(server, bridge, allowedTools)` function. Tools filter via the
   `allowedTools` Set.
@@ -68,9 +68,9 @@ enable specialized tools on demand, **stubs** expose locked gates.
 
 | Profile      | Behaviour | Default tools |
 |--------------|-----------|---------------|
-| **standard** (default) | 31 core tools + `enable_tool_group` meta-tool + 3 locked stubs = 35 in `tools/list`. Groups loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
-| **minimal** | 10 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
-| **full**     | All 56 tools registered at startup (group tools eager-loaded, no meta-tool). | Everything passing its feature gate. |
+| **standard** (default) | 32 core tools + `enable_tool_group` meta-tool + 3 locked stubs = 36 in `tools/list`. Groups loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
+| **minimal** | 11 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
+| **full**     | All 57 tools registered at startup (group tools eager-loaded, no meta-tool). | Everything passing its feature gate. |
 | **custom**   | Comma-separated tool list via `GODOT_MCP_CUSTOM_TOOLS` env var. | Whatever you list. |
 
 `--lite` still works but maps to `minimal` with a deprecation warning.
@@ -120,8 +120,8 @@ defence-in-depth.
 Gate logic lives in `src/feature_gate.ts`. Each tool module's exported array
 conditionally pushes gated tools based on `isEnabled(feature)`.
 
-Default tool count (standard profile): 31 + meta-tool + 3 stubs = 35 in
-`tools/list`. Full profile with all gates: 56 tools.
+Default tool count (standard profile): 32 + meta-tool + 3 stubs = 36 in
+`tools/list`. Full profile with all gates: 57 tools.
 
 ### Dual-pass smoke runner (`npm run smoke`)
 
@@ -283,6 +283,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `SAVE_WRITE_FAILED` | plugin (iter 19c) | `FileAccess.open(WRITE)` failed on a whitelisted `user://` file.             |
 | `SEND_FAILED`      | bridge           | WebSocket send callback errored.                                              |
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
+| `UNKNOWN_CLASS`    | plugin (iter 26)   | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |
 | `USER_PATH_NOT_WHITELISTED` | plugin (iter 19c) | `user://` path not in the plugin author's whitelist for the requested mode (read/write/delete). Message lists allowed entries. |
 | `USER_SCOPE_DISABLED` | plugin (iter 19c) | `read_user_scope` feature gate is off or `user_scope_whitelist.json` is missing/malformed. |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |

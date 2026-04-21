@@ -30,6 +30,7 @@ import * as script from "./tools/script.js";
 import * as signal from "./tools/signals.js";
 import * as save from "./tools/save.js";
 import * as tilemap from "./tools/tilemap.js";
+import * as classdb from "./tools/classdb.js";
 
 // All module tool-def arrays (gate-conditional arrays may be empty at
 // import time when their env var is unset — that is correct: gated tools
@@ -41,6 +42,7 @@ const ALL_MODULE_DEFS = [
   resource.resourceTools, runtime.runtimeTools, scene.sceneTools,
   script.scriptTools, signal.signalTools, save.saveTools,
   tilemap.tilemapTools,
+  classdb.classdbTools,
 ];
 
 // --- Profile resolution ---
@@ -136,6 +138,7 @@ animation.register(server, bridge, moduleAllowed);
 inputMap.register(server, bridge, moduleAllowed);
 file.register(server, bridge, moduleAllowed);
 save.register(server, bridge, moduleAllowed);
+classdb.register(server, bridge, moduleAllowed);
 
 // --- Group tools ---
 if (profile === "full") {

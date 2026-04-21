@@ -6,7 +6,7 @@
 
 export type ProfileName = "minimal" | "standard" | "full" | "custom";
 
-/** 10 read-only tools for exploration and code review. */
+/** 11 read-only tools for exploration and code review. */
 export const MINIMAL_TOOLS: readonly string[] = [
   "scene_get_tree",
   "node_get_property",
@@ -18,6 +18,7 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "editor_get_console",
   "project_get_settings",
   "asset_list",
+  "classdb_get_info",
 ];
 
 /** 31 standard tools (enable_tool_group is added programmatically). */
@@ -39,6 +40,8 @@ export const STANDARD_TOOLS: readonly string[] = [
   "resource_load", "resource_write", "folder_create", "folder_delete", "asset_list",
   // Content (1)
   "tilemap_set_cells",
+  // ClassDB (1)
+  "classdb_get_info",
 ];
 
 /** Tools that modify state. Subtracted from catalogue when GODOT_MCP_READ_ONLY=1. */
