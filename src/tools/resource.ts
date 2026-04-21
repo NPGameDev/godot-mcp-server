@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const resourceTools: ToolDef[] = [
   {
     name: "resource_load",
-    tier: "full",
     method: "resource.load",
     description: "Load a res:// resource and return { class, path, properties, metadata }. Heavy fields (image, mesh_arrays) pruned; Texture2D gets size in metadata.",
     inputSchema: { file_path: z.string() },
@@ -15,7 +14,6 @@ export const resourceTools: ToolDef[] = [
   },
   {
     name: "resource_write",
-    tier: "full",
     method: "resource.write",
     description:
       "Write/create a .tres/.res resource. If file exists, updates properties. If not, 'type' (class name) is required to create it.",
@@ -28,7 +26,6 @@ export const resourceTools: ToolDef[] = [
   },
   {
     name: "resource_delete",
-    tier: "full",
     method: "resource.delete",
     description:
       "Delete the .tres/.res and its .uid companion at file_path. No active-use guard (Godot refs survive file deletion; detect orphans via editor_get_errors).",

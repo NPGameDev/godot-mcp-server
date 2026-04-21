@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const tilemapTools: ToolDef[] = [
   {
     name: "tilemap_set_cells",
-    tier: "full",
     method: "tilemap.set_cells",
     description:
       "Batch-set cells on TileMap or TileMapLayer. Single UndoRedo action. Returns cells_written + cells_unchanged. source_id:-1 clears a cell.",

@@ -5,12 +5,12 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
   // ── meta.user_commands endpoint ──────────────────────────────────────
-  // The meta.user_commands command should always be registered (iter 25
+  // The meta.user_commands command should always be registered (the
   // user_commands_loader always registers it). With no user .gd files in
   // the user_commands/ folder, it returns an empty list.
   const ucResult = (await bridge.call("meta.user_commands", {}, CALL_TIMEOUT)) as {
     success?: boolean;
-    commands?: { method: string; tier: string }[];
+    commands?: { method: string }[];
   };
   if (!ucResult?.success) {
     fail(`meta.user_commands: expected success, got ${JSON.stringify(ucResult)}`);

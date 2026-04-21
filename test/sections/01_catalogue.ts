@@ -30,12 +30,10 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   if (!deepEqual(echoResult, echoPayload)) fail(`echo: expected ${JSON.stringify(echoPayload)} got ${JSON.stringify(echoResult)}`);
   else pass("echo round-trip");
 
-  // Tool count — 47 base; feature gates add more when env vars are set.
-  // iter 19+22: game_eval (+1), node_call_method (+1), project_set_setting (+1),
-  // input_map_write (+2, merged from +4) are gated. All off = 47; all on = 56.
-  // iter 19c: read_user_scope (+4) adds save_read/write/delete/list.
-  // iter 22: 5 tool-pair merges (signal_manage, resource_write, input_map_action,
-  //   input_map_event, animation_keyframe) reduced total from 61 → 56.
+  // Tool count — 50 base; feature gates add more when env vars are set.
+  // game_eval (+1), node_call_method (+1), project_set_setting (+1),
+  // input_map_write (+2) are gated. read_user_scope (+4) adds
+  // save_read/write/delete/list. All off = 50; all on = 59.
   let expectedToolCount = 50;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
@@ -52,17 +50,7 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else pass(`tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, input_map_write=${featureEnabled("input_map_write")}, read_user_scope=${featureEnabled("read_user_scope")})`);
 
-  // --lite catalogue size. No gated tools are lite-tier, so count is stable.
-  const liteTools = allTools.filter((t) => t.tier === "lite");
-  if (liteTools.length !== 18) fail(`--lite catalogue: expected 18, got ${liteTools.length} (${liteTools.map((t) => t.name).join(", ")})`);
-  else pass(`--lite catalogue == 18 (subset of full ${expectedToolCount})`);
-
-  const allToolNames = new Set(allTools.map((t) => t.name));
-  const liteOrphans = liteTools.filter((t) => !allToolNames.has(t.name));
-  if (liteOrphans.length > 0) fail(`lite tools not in full catalogue: ${liteOrphans.map((t) => t.name).join(", ")}`);
-  else pass(`all lite tools resolve to catalogue entries`);
-
-  // Feature gate catalogue checks (iter 19).
+  // Feature gate catalogue checks.
   const gateChecks: [string, string, ToolDef[]][] = [
     ["game_eval", "game_eval", runtimeTools],
     ["node_call_method", "node_call_method", nodeTools],
@@ -98,7 +86,7 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
     ncmGated = true;
   }
 
-  // I2: tool description length.
+  // Tool description length.
   for (const t of allTools) {
     if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
   }

@@ -16,7 +16,7 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
     }
   }
 
-  // Idempotent create (iter 15 status discriminator).
+  // Idempotent create (status discriminator).
   const nodeName = "SmokeProbe";
   const freshNode = await bridge.call("scene.create_node", { class_name: "Node", parent_path: ".", node_name: nodeName }, CALL_TIMEOUT) as { path?: string; status?: string; code?: string; error?: string };
   if (!freshNode || typeof freshNode.path !== "string") fail(`scene.create_node first call: ${JSON.stringify(freshNode)}`);

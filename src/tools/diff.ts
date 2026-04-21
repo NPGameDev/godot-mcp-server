@@ -12,7 +12,6 @@ import { callAndWrap } from "../types.js";
 export const diffTools: ToolDef[] = [
   {
     name: "scene_diff",
-    tier: "full",
     method: "scene.diff",
     description: "Compare a prior scene-tree snapshot against another snapshot (or current edited scene if 'after' omitted). Returns { changed, diff, added, removed }.",
     inputSchema: { before: z.any(), after: z.any().optional() },

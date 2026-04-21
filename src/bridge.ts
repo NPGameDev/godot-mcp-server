@@ -75,9 +75,9 @@ async function resolveProjectName(projectPath?: string): Promise<string> {
  *   darwin: ~/Library/Application Support/Godot/app_userdata/<project>/mcp_token[_<hash>]
  *   linux:  ~/.local/share/godot/app_userdata/<project>/mcp_token[_<hash>]
  *
- * Per-worktree (iter 24): when projectPath is known, the token filename
- * includes a SHA-256 hash of the canonical path, matching the plugin's
- * auth.gd derivation. Two worktrees of the same repo get distinct files.
+ * Per-worktree: when projectPath is known, the token filename includes a
+ * SHA-256 hash of the canonical path, matching the plugin's auth.gd
+ * derivation. Two worktrees of the same repo get distinct files.
  */
 async function resolveTokenPath(projectPath?: string): Promise<string> {
   const envPath = process.env.GODOT_MCP_TOKEN_PATH;
@@ -388,7 +388,7 @@ function createChannel(url: string, projectPath?: string): Channel {
   };
 }
 
-/** Options for bridge creation (iter 23). */
+/** Options for bridge creation. */
 export interface BridgeOptions {
   /** Absolute path to the Godot project. Used for registry-based port
    *  discovery (editor + runtime). Falls back to CWD if not set. */
@@ -405,9 +405,9 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
   let editor = createChannel(editorUrl, projectPath);
   let cachedEditorPort = Number(new URL(editorUrl).port);
 
-  // iter 23b: editor-port re-discovery. When the editor channel fails
-  // with CONNECT_FAILED / DISCONNECTED, re-read the registry. If the
-  // port changed (plugin restarted on a different port), close the old
+  // Editor-port re-discovery. When the editor channel fails with
+  // CONNECT_FAILED / DISCONNECTED, re-read the registry. If the port
+  // changed (plugin restarted on a different port), close the old
   // channel, create a fresh one, and retry the call once. Skipped when
   // the editor port is explicitly set (GODOT_MCP_PORT) or no projectPath
   // is available for registry lookup. TTL prevents thrashing the registry
@@ -436,10 +436,10 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
     return true;
   }
 
-  // iter 23: runtime channel management. When an explicit port is set,
-  // create a static channel (pre-iter-23 behaviour). Otherwise, callRuntime
-  // re-reads the registry on each invocation to pick up newly-started
-  // playtests. The channel is cached and recreated only when the port changes.
+  // Runtime channel management. When an explicit port is set, create a
+  // static channel. Otherwise, callRuntime re-reads the registry on each
+  // invocation to pick up newly-started playtests. The channel is cached
+  // and recreated only when the port changes.
   let runtimeChannel: Channel | null = opts?.explicitRuntimePort
     ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`, projectPath)
     : null;
@@ -452,8 +452,8 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
       try {
         return await editor.call(method, params, timeoutMs);
       } catch (err) {
-        // iter 23b: on editor connection failure, re-read the registry.
-        // If the port changed, retry once against the new channel.
+        // On editor connection failure, re-read the registry. If the
+        // port changed, retry once against the new channel.
         if (
           err instanceof BridgeError &&
           (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")
@@ -465,7 +465,7 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
       }
     },
     async callRuntime(method, params, timeoutMs) {
-      // Static port override — same as pre-iter-23 behaviour.
+      // Static port override — same as explicit-port behaviour.
       if (opts?.explicitRuntimePort) {
         try {
           return await runtimeChannel!.call(method, params, timeoutMs);

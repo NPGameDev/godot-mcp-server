@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const folderTools: ToolDef[] = [
   {
     name: "folder_create",
-    tier: "full",
     method: "folder.create",
     description:
       "Create directory at res:// path (recursive — parents auto-created). Idempotent: status created on fresh, returned if pre-existing.",
@@ -16,7 +15,6 @@ export const folderTools: ToolDef[] = [
   },
   {
     name: "folder_delete",
-    tier: "full",
     method: "folder.delete",
     description:
       "Delete directory. recursive:false(default) requires empty. Refuses project root, addons, and folders containing open scenes/scripts (PATH_IN_USE).",

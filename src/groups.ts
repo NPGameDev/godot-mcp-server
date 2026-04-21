@@ -170,7 +170,6 @@ function registerGroupTools(
   return registered;
 }
 
-/** Description for the enable_tool_group meta-tool (kept under 200 chars not possible here — it's a long description, but it's a meta-tool, so clarity > brevity). */
 const ENABLE_GROUP_DESC =
   "Load additional tool groups for specialized workflows. " +
   "Available: runtime, signals, animation_authoring, input_map (gated), asset_management, user_data (gated). " +
@@ -201,7 +200,6 @@ export function registerGroupSystem(
       let anyLoaded = false;
 
       for (const groupName of requested) {
-        // Already loaded — no-op
         if (loadedGroups.has(groupName)) {
           const group = GROUPS.find(g => g.name === groupName)!;
           results[groupName] = { loaded: true, tools: group.tools };
@@ -224,14 +222,12 @@ export function registerGroupSystem(
           continue;
         }
 
-        // Register group tools
         const registered = registerGroupTools(server, bridge, group, readOnly);
         loadedGroups.add(groupName);
         results[groupName] = { loaded: true, tools: registered };
         anyLoaded = true;
       }
 
-      // Notify client of new tools
       if (anyLoaded) {
         server.sendToolListChanged();
       }

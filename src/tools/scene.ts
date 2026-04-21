@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const sceneTools: ToolDef[] = [
   {
     name: "scene_get_tree",
-    tier: "lite",
     method: "scene.get_tree",
     description:
       "Return the current edited scene's node tree as nested JSON { name, class, path, children }.",
@@ -19,7 +18,6 @@ export const sceneTools: ToolDef[] = [
   },
   {
     name: "scene_create_node",
-    tier: "lite",
     method: "scene.create_node",
     description:
       "Create a node of class_name under parent. Supports engine + user-defined class_name classes. Idempotent: 'returned' on collision, 'created' on fresh.",
@@ -32,7 +30,6 @@ export const sceneTools: ToolDef[] = [
   },
   {
     name: "scene_delete_node",
-    tier: "lite",
     method: "scene.delete_node",
     description:
       "Delete the node at path (NodePath). Refuses to delete the edited scene root.",
@@ -41,7 +38,6 @@ export const sceneTools: ToolDef[] = [
   },
   {
     name: "scene_create",
-    tier: "full",
     method: "scene.create",
     description:
       "Create .tscn at file_path; root_type = engine class or custom class_name (default Node). Idempotent. Returns status 'created'|'returned'|'replaced'. if_exists: 'return'(default)|'fail'|'replace'.",
@@ -54,7 +50,6 @@ export const sceneTools: ToolDef[] = [
   },
   {
     name: "scene_delete",
-    tier: "full",
     method: "scene.delete",
     description:
       "Delete the .tscn and its .uid companion at path. Refuses non-.tscn paths and the currently-edited scene (codes INVALID_PATH / EDITED_SCENE).",
@@ -63,7 +58,6 @@ export const sceneTools: ToolDef[] = [
   },
   {
     name: "scene_instantiate",
-    tier: "full",
     method: "scene.instantiate",
     description:
       "Instantiate PackedScene at packed_path under parent_path. Silent-return on name collision (status: returned). UndoRedo-wrapped; owner set for save.",

@@ -10,11 +10,8 @@ export interface Bridge {
 
 export type { ToolAnnotations };
 
-export type Tier = "lite" | "full";
-
 export type ToolDef = {
   name: string;
-  tier: Tier;
   method: string;
   description: string;
   inputSchema: ZodRawShape;
@@ -84,7 +81,7 @@ export type ToolTextResult = {
   isError?: true;
 };
 
-// ── Hook pipeline types (iter 25) ─────────────────────────────────────
+// ── Hook pipeline types ───────────────────────────────────────────────
 
 /** Identifies the tool being called — passed to every hook. */
 export type ToolRequest = {
@@ -101,7 +98,7 @@ export type Hook = (
   next: () => Promise<ToolTextResult>,
 ) => Promise<ToolTextResult>;
 
-// Canonical MCP failure response per I1. Plugin emits
+// Canonical MCP failure response. Plugin emits
 // {success: false, error, code} inside the JSON-RPC result payload;
 // transport-level failures surface as BridgeError and are translated
 // here. String `code` is accepted (in addition to the ErrorCode union)
@@ -115,7 +112,7 @@ export function toolError(code: ErrorCode | string, message: string): ToolTextRe
 }
 
 // Shared handler body for tools that do a single bridge call and
-// JSON-stringify the result. Centralises I1 compliance:
+// JSON-stringify the result. Centralises error-contract compliance:
 //   1. Try/catch around the bridge call — BridgeError becomes toolError.
 //   2. Result payload inspection — {success: false} becomes toolError.
 //   3. Happy path — JSON-stringified into a text content block.
@@ -141,7 +138,7 @@ export async function callAndWrap(
 
 // If the plugin returned {success: false, ...} inside the JSON-RPC
 // result, translate it to an MCP isError response. Non-error successes
-// (including idempotent create returns per I3) have success absent or
+// (including idempotent create returns) have success absent or
 // truthy and pass through unchanged.
 export function toolErrorFromPayload(result: unknown): ToolTextResult | null {
   if (!result || typeof result !== "object") return null;
@@ -154,7 +151,7 @@ export function toolErrorFromPayload(result: unknown): ToolTextResult | null {
 
 // Map a thrown BridgeError (or any Error) to a toolError response.
 // Preserves the bridge's transport-layer code (TIMEOUT, DISCONNECTED,
-// GAME_NOT_RUNNING, CONNECT_FAILED, ...) so the Claude-facing response
+// GAME_NOT_RUNNING, CONNECT_FAILED, ...) so the client-facing response
 // is specific enough to retry-or-give-up on.
 export function toolErrorFromException(err: unknown): ToolTextResult {
   const code = err instanceof BridgeError ? err.code : "INTERNAL";

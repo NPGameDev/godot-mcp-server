@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const animationTools: ToolDef[] = [
   {
     name: "animation_keyframe",
-    tier: "full",
     method: "animation.keyframe",
     description:
       "Add or remove a keyframe on an AnimationPlayer track. action='add' auto-creates value track; UndoRedo-wrapped; idempotent on exact-time duplicate.",
@@ -24,7 +23,6 @@ export const animationTools: ToolDef[] = [
   },
   {
     name: "animation_get_keys",
-    tier: "full",
     method: "animation.get_keys",
     description:
       "List keys on an AnimationPlayer track: { time, value, transition }. Read-only; no auto-track-create.",

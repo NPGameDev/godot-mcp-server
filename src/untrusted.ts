@@ -1,13 +1,13 @@
 import { randomBytes } from "crypto";
 
 /**
- * Untrusted-content envelope wrapper (I5) — TypeScript mirror of
+ * Untrusted-content envelope wrapper — TypeScript mirror of
  * addons/godot_mcp_toolkit/untrusted.gd.
  *
  * Wraps user-authored / project-authored content before it reaches the
  * LLM in a nonce-tagged envelope to prevent tag-breakout injection.
- * Not applicable for iter 18 outputs (all wrapping happens
- * GDScript-side), but available for server-originated wrapping.
+ * Most wrapping happens GDScript-side, but this is available for
+ * server-originated wrapping.
  */
 
 /** Matches any <untrusted...> or </untrusted...> tag variant. */

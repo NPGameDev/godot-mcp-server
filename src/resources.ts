@@ -1,8 +1,8 @@
 /**
- * MCP Resources registration (iter 25).
+ * MCP Resources registration.
  *
  * Exposes Godot project artifacts as URI-addressable resources that
- * Claude can list, fetch, and reference in conversation. Resources are
+ * the MCP client can list, fetch, and reference in conversation. Resources are
  * complementary to tools — reads vs actions.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

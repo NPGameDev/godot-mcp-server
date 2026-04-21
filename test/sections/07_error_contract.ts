@@ -31,7 +31,7 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
   assertError(ctx, "resource.load non-res://",
     await bridge.call("resource.load", { file_path: "/etc/passwd" }, CALL_TIMEOUT), "PATH_DENIED");
 
-  // Iter 15 status discriminator regression guard.
+  // Status discriminator regression guard.
   const idemNodeName = "IdempotencyProbe";
   const idemFirst = await bridge.call("scene.create_node", { class_name: "Node", parent_path: ".", node_name: idemNodeName }, CALL_TIMEOUT) as { path?: string; status?: string; success?: boolean };
   const idemSecond = await bridge.call("scene.create_node", { class_name: "Node", parent_path: ".", node_name: idemNodeName }, CALL_TIMEOUT) as { path?: string; status?: string; code?: string; success?: boolean };
@@ -44,7 +44,7 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
   } else if (idemSecond?.path !== idemFirst?.path) {
     ctx.fail(`idempotent repeat must return same path: ${JSON.stringify({ first: idemFirst, second: idemSecond })}`);
   } else {
-    pass("idempotent repeat -> non-error success, status='returned', code absent (iter 15 I3)");
+    pass("idempotent repeat -> non-error success, status='returned', code absent");
   }
   await bridge.call("scene.delete_node", { node_path: idemFirst?.path ?? idemNodeName }, CALL_TIMEOUT);
 }

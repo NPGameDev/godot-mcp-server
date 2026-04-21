@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const classdbTools: ToolDef[] = [
   {
     name: "classdb_get_info",
-    tier: "lite",
     method: "classdb.get_info",
     description:
       "Inspect any Godot class: properties, methods, signals, constants, inheritance. Supports engine + user class_name classes.",
@@ -22,7 +21,6 @@ export const classdbTools: ToolDef[] = [
   },
   {
     name: "classdb_search",
-    tier: "lite",
     method: "classdb.search",
     description:
       "Find Godot classes by inheritance and/or name pattern. Returns class list with parent + instantiability.",

@@ -1,5 +1,5 @@
 /**
- * System-wide project registry reader (iter 23).
+ * System-wide project registry reader.
  *
  * Mirrors the GDScript `registry_client.gd` — same file, same schema, same
  * path normalisation. The plugin writes; this module reads.

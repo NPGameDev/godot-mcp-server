@@ -13,7 +13,6 @@ import { isEnabled } from "../feature_gate.js";
 export const runtimeTools: ToolDef[] = [
   {
     name: "runtime_screenshot",
-    tier: "full",
     method: "runtime.screenshot",
     description: "Capture a frame from the running game's main viewport (Mode B, debug build). Returns inline PNG image content.",
     inputSchema: {},
@@ -21,7 +20,6 @@ export const runtimeTools: ToolDef[] = [
   },
   {
     name: "runtime_get_node_state",
-    tier: "full",
     method: "runtime.get_node_state",
     description: "Inspect a live node at path in the running game: returns { name, class, path, properties } (inspector-visible fields only).",
     inputSchema: { node_path: z.string() },
@@ -29,7 +27,6 @@ export const runtimeTools: ToolDef[] = [
   },
   {
     name: "debugger_get_log",
-    tier: "full",
     method: "debugger.get_log",
     description: "Return recent lines from the running game's log file (user://logs/godot.log). Optional limit (default 200).",
     inputSchema: { limit: z.number().int().positive().optional() },
@@ -37,7 +34,6 @@ export const runtimeTools: ToolDef[] = [
   },
   {
     name: "input_simulate",
-    tier: "full",
     method: "input.simulate",
     description: "Inject an input event into the running game (Mode B). event_type: key|mouse_button|mouse_motion|action; event_data shape varies. Returns { ok }.",
     inputSchema: {
@@ -48,7 +44,6 @@ export const runtimeTools: ToolDef[] = [
   },
   {
     name: "animation_player_control",
-    tier: "full",
     method: "animation_player.control",
     description: "Drive an AnimationPlayer in the running game. operation: play|pause|stop|seek. Optional animation_name (play) or time (seek). Returns post-op state.",
     inputSchema: {
@@ -64,11 +59,10 @@ export const runtimeTools: ToolDef[] = [
 // game_eval is RCE-equivalent and intentionally absent from the catalogue
 // unless the user opts in via env var. The plugin-side FeatureGate
 // (feature_gate.gd) performs the full dual-gate check as defence-in-depth;
-// the gate here only controls MCP-catalogue exposure to Claude.
+// the gate here only controls MCP-catalogue exposure to the client.
 if (isEnabled("game_eval")) {
   runtimeTools.push({
     name: "game_eval",
-    tier: "full",
     method: "game.eval",
     description: "DANGER: evaluates GDScript via Expression in the running game's context. Disabled by default. Set GODOT_MCP_ALLOW_GAME_EVAL=1 to enable.",
     inputSchema: { code: z.string(), scope_path: z.string().optional() },

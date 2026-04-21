@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const fileTools: ToolDef[] = [
   {
     name: "file_delete",
-    tier: "full",
     method: "file.delete",
     description:
       "Delete any file under res:// and its .import companion. Use for assets (.png, .wav, .glb, etc.) not covered by scene/script/resource.delete.",

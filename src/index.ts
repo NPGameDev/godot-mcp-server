@@ -69,7 +69,7 @@ const moduleAllowed = new Set(allowedTools);
 for (const name of GROUP_TOOL_NAMES) moduleAllowed.delete(name);
 
 // --- Bridge / server setup ---
-// iter 23: registry-based discovery. GODOT_MCP_PORT bypasses registry for
+// Registry-based discovery. GODOT_MCP_PORT bypasses registry for
 // backwards compat. Otherwise resolve via the system-wide projects.json.
 const explicitPort = process.env.GODOT_MCP_PORT;
 const explicitRuntimePort = process.env.GODOT_MCP_RUNTIME_PORT ?? null;
@@ -104,9 +104,8 @@ const server = new McpServer(
   { capabilities: { tools: { listChanged: true } } },
 );
 
-// --- Hook pipeline (iter 25) ---
+// --- Hook pipeline ---
 const hookPipeline = createHookPipeline();
-// Wrap registerTool so every tool handler passes through the hook pipeline.
 const _origRegisterTool = server.registerTool.bind(server);
 (server as any).registerTool = (
   name: string,
@@ -147,10 +146,8 @@ if (profile === "full") {
   registerGroupSystem(server, bridge, readOnly);
 }
 
-// --- Locked stubs for gated tools (non-minimal only) ---
 registerStubs(server, profile);
 
-// --- MCP Prompts, Resources, Roots (iter 25) ---
 registerPrompts(server);
 registerResources(server, bridge);
 initRoots(projectPath);
@@ -160,7 +157,7 @@ process.stderr.write(
   `[godot-mcp] profile=${profile} readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length}\n`,
 );
 
-// --- User command discovery (iter 25) ---
+// --- User command discovery ---
 // After the server starts, discover user-defined commands from the toolkit
 // and register them as MCP tools. Non-blocking: if the editor is unreachable,
 // built-in tools still work and user commands will be missing.
@@ -168,7 +165,7 @@ async function discoverUserCommands(): Promise<void> {
   try {
     const result = (await bridge.call("meta.user_commands", {}, 5000)) as {
       success?: boolean;
-      commands?: { method: string; tier: string }[];
+      commands?: { method: string }[];
     };
     if (!result?.success || !Array.isArray(result.commands)) return;
     let registered = 0;
@@ -200,7 +197,6 @@ async function discoverUserCommands(): Promise<void> {
   }
 }
 
-// --- Lifecycle ---
 async function shutdown(): Promise<void> {
   try {
     await bridge.close();
@@ -214,5 +210,4 @@ process.on("SIGTERM", shutdown);
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-// Non-blocking: discover user commands in the background.
 discoverUserCommands();

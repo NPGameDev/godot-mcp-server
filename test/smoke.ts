@@ -2,8 +2,8 @@
 // Smoke test orchestrator — imports and runs 22 self-contained test
 // sections sequentially. Each section lives in test/sections/.
 //
-// Port-check first (iter 05 contract): if the editor plugin isn't
-// reachable, print instructions and exit before any assertions.
+// Port-check first: if the editor plugin isn't reachable, print
+// instructions and exit before any assertions.
 // ═════════════════════════════════════════════════════════════════════════
 
 import { createBridge } from "../src/bridge.js";
@@ -69,8 +69,8 @@ import { testScriptCheck } from "./sections/24_script_check.js";
 //       the tab via scene.close before deleting the backing file. If
 //       scene.close breaks, stale probe files may persist in the toolkit repo.
 
-// iter 24: discover the project path for the editor listening on PORT so the
-// bridge can derive the per-worktree token filename. Prefers env var, then
+// Discover the project path for the editor listening on PORT so the bridge
+// can derive the per-worktree token filename. Prefers env var, then
 // searches the registry for a matching port entry.
 function discoverProjectPath(): string | undefined {
   const envPath = process.env.GODOT_MCP_PROJECT_PATH;

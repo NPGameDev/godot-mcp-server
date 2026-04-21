@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const assetTools: ToolDef[] = [
   {
     name: "asset_list",
-    tier: "full",
     method: "asset.list",
     description:
       "Enumerate res:// assets with filters (path_prefix, name_glob, class_filter ancestry-aware, extension_filter). Returns [{path,class,modified_unix}]. Cap max_results 2000.",
@@ -22,7 +21,6 @@ export const assetTools: ToolDef[] = [
   },
   {
     name: "asset_get_dependencies",
-    tier: "full",
     method: "asset.get_dependencies",
     description:
       "Forward dependencies of a res:// resource/scene via EditorFileSystem cache. include_transitive walks deps-of-deps. Returns [{path,raw_path,class}].",
@@ -35,7 +33,6 @@ export const assetTools: ToolDef[] = [
   },
   {
     name: "asset_import",
-    tier: "full",
     method: "asset.import",
     description:
       "Import binary asset (image/audio/font/3D) into res:// via source_path (filesystem copy) or base64_data. Triggers EditorFileSystem scan. if_exists:return|fail|replace.",

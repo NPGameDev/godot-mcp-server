@@ -7,7 +7,6 @@ import { callAndWrap } from "../types.js";
 export const playtestTools: ToolDef[] = [
   {
     name: "game_start",
-    tier: "full",
     method: "game.start",
     description:
       "Start playtest via EditorInterface. scene_path:'main'|'current'(default)|res://path. Polls Mode-B port 9090 when wait_for_runtime:true(default). ALREADY_PLAYING if one is live.",
@@ -19,7 +18,6 @@ export const playtestTools: ToolDef[] = [
   },
   {
     name: "game_stop",
-    tier: "full",
     method: "game.stop",
     description:
       "Stop the currently-playing scene (idempotent — returns was_running:false if nothing was running). No params.",

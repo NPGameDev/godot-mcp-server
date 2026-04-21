@@ -11,7 +11,6 @@ import { callAndWrap } from "../types.js";
 export const signalTools: ToolDef[] = [
   {
     name: "signal_list",
-    tier: "full",
     method: "signal.list",
     description: "List signals on a node in the edited scene. Returns [{ name, args: [{name, type}] }] from get_signal_list().",
     inputSchema: { node_path: z.string() },
@@ -19,7 +18,6 @@ export const signalTools: ToolDef[] = [
   },
   {
     name: "signal_manage",
-    tier: "full",
     method: "signal.manage",
     description: "Connect or disconnect a signal in the edited scene. action='connect' is UndoRedo-wrapped and idempotent (status 'returned' on collision).",
     inputSchema: {
@@ -33,7 +31,6 @@ export const signalTools: ToolDef[] = [
   },
   {
     name: "signal_emit",
-    tier: "full",
     method: "signal.emit",
     description: "Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (live game, Mode B).",
     inputSchema: {

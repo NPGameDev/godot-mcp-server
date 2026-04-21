@@ -1,5 +1,5 @@
 /**
- * Middleware pipeline for MCP tool dispatch (iter 25).
+ * Middleware pipeline for MCP tool dispatch.
  *
  * Each hook wraps the tool handler in an onion-style chain:
  *   hook1( hook2( handler ) )
@@ -76,7 +76,6 @@ export function rateLimitHook(
   const timestamps: number[] = [];
   return async (_req, next) => {
     const now = Date.now();
-    // Evict expired entries.
     while (timestamps.length > 0 && timestamps[0] <= now - windowMs) {
       timestamps.shift();
     }

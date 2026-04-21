@@ -87,7 +87,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
   assertGuard(ctx, "scene.instantiate missing packed_path", await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://no_such_inst_smoke.tscn" }, CALL_TIMEOUT), "NOT_FOUND", "scene.create");
   assertGuard(ctx, "scene.instantiate bogus parent_path", await bridge.call("scene.instantiate", { parent_path: "NoSuchParent_xyz", packed_path: instChildPath }, CALL_TIMEOUT), "NOT_FOUND", "parent_path");
 
-  // ── node.call_method (feature-gated iter 19) ──
+  // ── node.call_method (feature-gated) ──
   if (ncmGated) {
     pass("node.call_method -> FEATURE_DISABLED (skipping functional tests)");
   } else {

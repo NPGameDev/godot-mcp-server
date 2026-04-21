@@ -4,7 +4,7 @@ import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard } from "../helpers.js";
 export async function testCustomClassAndFileOps(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
-  // ── scene.create_node global class resolution (iter 15h) ──
+  // ── scene.create_node global class resolution ──
   const customClassScript = `class_name SmokeCustomNode\nextends Node2D\n\n@export var smoke_speed: float = 10.0\n`;
   await bridge.call("script.write", { file_path: "res://smoke_custom_class.gd", content: customClassScript }, CALL_TIMEOUT);
   await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
@@ -21,7 +21,7 @@ export async function testCustomClassAndFileOps(ctx: TestCtx): Promise<void> {
   else pass("scene.create_node with global class_name -> idempotent returned");
   await bridge.call("scene.delete_node", { node_path: "SmokeCustom" }, CALL_TIMEOUT);
 
-  // ── node.set_script round-trip (iter 15h) ──
+  // ── node.set_script round-trip ──
   await bridge.call("scene.create_node", { class_name: "Node2D", parent_path: "", node_name: "ScriptTarget" }, CALL_TIMEOUT);
   const attachResult = await bridge.call("node.set_script", { node_path: "ScriptTarget", script_path: "res://smoke_custom_class.gd" }, CALL_TIMEOUT) as { success?: boolean; properties?: { name: string }[] };
   if (!attachResult?.success) fail(`node.set_script attach: ${JSON.stringify(attachResult)}`);
@@ -44,7 +44,7 @@ export async function testCustomClassAndFileOps(ctx: TestCtx): Promise<void> {
   assertGuard(ctx, "node.set_script no res://", await bridge.call("node.set_script", { node_path: ".", script_path: "/tmp/foo.gd" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
   assertGuard(ctx, "node.set_script not found", await bridge.call("node.set_script", { node_path: ".", script_path: "res://nonexistent_script.gd" }, CALL_TIMEOUT), "LOAD_FAILED", "cannot load");
 
-  // ── file.delete round-trip (iter 15i) ──
+  // ── file.delete round-trip ──
   const MINI_PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAABJRU5ErkJggg==";
   const fileDelPath = "res://smoke_15i_file_del.png";
   await bridge.call("asset.import", { base64_data: MINI_PNG_B64, dest_path: fileDelPath, if_exists: "replace" }, SCREENSHOT_TIMEOUT);

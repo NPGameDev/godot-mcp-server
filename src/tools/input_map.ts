@@ -14,7 +14,6 @@ if (isEnabled("input_map_write")) {
   inputMapTools.push(
     {
       name: "input_map_action",
-      tier: "full",
       method: "input_map.action",
       description:
         "Add or remove an InputMap action. action='add' is idempotent with optional deadzone.",
@@ -27,7 +26,6 @@ if (isEnabled("input_map_write")) {
     },
     {
       name: "input_map_event",
-      tier: "full",
       method: "input_map.event",
       description:
         "Bind or unbind an input event to an action. action='bind' is idempotent.",

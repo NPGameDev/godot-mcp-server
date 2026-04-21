@@ -9,7 +9,6 @@ import { isEnabled } from "../feature_gate.js";
 export const editorTools: ToolDef[] = [
   {
     name: "editor_get_errors",
-    tier: "lite",
     method: "editor.get_errors",
     description:
       "Editor-time error tail (wraps editor.get_console with level='error'). Use editor.get_console for warnings/info/print output.",
@@ -18,7 +17,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "editor_save_scene",
-    tier: "lite",
     method: "editor.save_scene",
     description: "Save the current edited scene. Optional file_path triggers save-as.",
     inputSchema: { file_path: z.string().optional() },
@@ -26,7 +24,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "editor_screenshot",
-    tier: "lite",
     method: "editor.screenshot",
     description: "Capture a screenshot of the editor viewport. Returns image content inline. Optional save_path (res:// .png) also persists it to disk.",
     inputSchema: { save_path: z.string().optional() },
@@ -34,7 +31,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "editor_reload_scripts",
-    tier: "full",
     method: "editor.reload_scripts",
     description: "Rescan res:// and soft-reload already-loaded scripts so the editor picks up on-disk changes. Returns { ok: true }.",
     inputSchema: {},
@@ -42,7 +38,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "scene_open",
-    tier: "lite",
     method: "scene.open",
     description: "Open a scene (.tscn / .scn) as the active edited scene. res:// only; NOT_FOUND if the file doesn't exist.",
     inputSchema: { file_path: z.string() },
@@ -50,7 +45,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "scene_close",
-    tier: "full",
     method: "scene.close",
     description:
       "Close an open scene tab by file_path. Refuses the last remaining tab (EDITED_SCENE). NOT_FOUND if the scene is not open. Frees the tab leaked by scene.open.",
@@ -59,7 +53,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "project_get_settings",
-    tier: "lite",
     method: "project.get_settings",
     description: "List ProjectSettings keys + values. Optional prefix filter. Keys matching /password|token|secret|key/i are dropped (MVP filter).",
     inputSchema: { prefix: z.string().optional() },
@@ -67,7 +60,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "editor_screenshot_node",
-    tier: "full",
     method: "editor.screenshot_node",
     description:
       "Focus + capture a specific node in the editor viewport. Atomic focus-restore (prior selection preserved). Inline base64 PNG.",
@@ -79,7 +71,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "editor_get_console",
-    tier: "lite",
     method: "editor.get_console",
     description:
       "Tail editor Output panel (user://logs/). level_filter: info|warning|error. since_id for incremental polls.",
@@ -92,7 +83,6 @@ export const editorTools: ToolDef[] = [
   },
   {
     name: "editor_wait_for_idle",
-    tier: "full",
     method: "editor.wait_for_idle",
     description:
       "Poll EditorFileSystem.is_scanning() until idle or timeout_ms (default 10s, cap 30s). Use after asset.import, editor.reload_scripts, or file mutations.",
@@ -109,7 +99,6 @@ export const editorTools: ToolDef[] = [
 if (isEnabled("project_set_setting")) {
   editorTools.push({
     name: "project_set_setting",
-    tier: "full",
     method: "project.set_setting",
     description:
       "Write a ProjectSettings key and persist via ProjectSettings.save. Refuses mcp/unsafe/* and editor/* prefixes. Returns previous_value. Update (no status).",

@@ -23,7 +23,7 @@ export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
   const connectIdempotent = await bridge.call("signal.manage", { action: "connect", ...connectionArgs }, CALL_TIMEOUT) as { status?: string; code?: string };
   if (connectIdempotent?.status !== "returned") fail(`signal.manage connect idempotency: expected status='returned', got ${JSON.stringify(connectIdempotent)}`);
   else if (connectIdempotent.code !== undefined) fail(`signal.manage connect collision success must not carry code (got ${connectIdempotent.code})`);
-  else pass("signal.manage connect repeat -> status='returned' + code absent (I3)");
+  else pass("signal.manage connect repeat -> status='returned' + code absent");
 
   const emitResult = await bridge.call("signal.emit", { node_path: signalProbePath, signal_name: "child_order_changed", args: [] }, CALL_TIMEOUT) as { ok?: boolean; code?: string };
   if (!emitResult?.ok) fail(`signal.emit: ${JSON.stringify(emitResult)}`);
