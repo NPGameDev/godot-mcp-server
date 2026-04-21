@@ -20,6 +20,22 @@ export const classdbTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
+  {
+    name: "classdb_search",
+    tier: "lite",
+    method: "classdb.search",
+    description:
+      "Find Godot classes by inheritance and/or name pattern. Returns class list with parent + instantiability.",
+    inputSchema: {
+      base_class: z.string().optional().describe("Filter to subclasses of this class."),
+      pattern: z.string().optional().describe("Case-insensitive substring match on class name."),
+      instantiable_only: z.boolean().optional()
+        .describe("Exclude abstract classes (default: true)."),
+      include_global: z.boolean().optional()
+        .describe("Include user class_name classes (default: true)."),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {

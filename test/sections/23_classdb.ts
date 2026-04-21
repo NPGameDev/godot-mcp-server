@@ -148,8 +148,80 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
       else pass(`classdb.get_info ${testClassName} has probe_signal signal`);
     }
 
+    // ─── classdb.search: global class in results ──────────────────────────
+    const searchGlobal = (await bridge.call(
+      "classdb.search",
+      { base_class: "Node2D", include_global: true },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; classes?: { name: string; source: string }[] };
+
+    if (!searchGlobal?.success) {
+      fail(`classdb.search global: expected success, got ${JSON.stringify(searchGlobal)}`);
+    } else {
+      const found = searchGlobal.classes?.some((c) => c.name === testClassName && c.source === "global");
+      if (!found) fail(`classdb.search global: ${testClassName} not found in base_class=Node2D results`);
+      else pass(`classdb.search includes global class ${testClassName}`);
+    }
+
     // Clean up: delete the probe script
     await bridge.call("script.delete", { file_path: testScriptPath }, CALL_TIMEOUT);
     await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
   }
+
+  // ─── classdb.search: base_class filter ──────────────────────────────────
+  const searchPhysics = (await bridge.call(
+    "classdb.search",
+    { base_class: "PhysicsBody3D" },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; count?: number; classes?: { name: string }[] };
+
+  if (!searchPhysics?.success) {
+    fail(`classdb.search PhysicsBody3D: expected success, got ${JSON.stringify(searchPhysics)}`);
+  } else {
+    const names = searchPhysics.classes?.map((c) => c.name) ?? [];
+    const hasRigid = names.includes("RigidBody3D");
+    const hasChar = names.includes("CharacterBody3D");
+    if (!hasRigid || !hasChar) fail(`classdb.search PhysicsBody3D: missing RigidBody3D or CharacterBody3D (got ${names.join(", ")})`);
+    else pass(`classdb.search base_class=PhysicsBody3D -> ${searchPhysics.count} classes (includes RigidBody3D, CharacterBody3D)`);
+  }
+
+  // ─── classdb.search: pattern filter ─────────────────────────────────────
+  const searchCamera = (await bridge.call(
+    "classdb.search",
+    { pattern: "Camera" },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; count?: number; classes?: { name: string }[] };
+
+  if (!searchCamera?.success) {
+    fail(`classdb.search Camera: expected success`);
+  } else {
+    const names = searchCamera.classes?.map((c) => c.name) ?? [];
+    const has2d = names.includes("Camera2D");
+    const has3d = names.includes("Camera3D");
+    if (!has2d || !has3d) fail(`classdb.search Camera: missing Camera2D or Camera3D`);
+    else pass(`classdb.search pattern=Camera -> ${searchCamera.count} classes (includes Camera2D, Camera3D)`);
+  }
+
+  // ─── classdb.search: combined filter ────────────────────────────────────
+  const searchNodeButton = (await bridge.call(
+    "classdb.search",
+    { base_class: "Node", pattern: "Button" },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; count?: number; classes?: { name: string }[] };
+
+  if (!searchNodeButton?.success) {
+    fail(`classdb.search Node+Button: expected success`);
+  } else {
+    const names = searchNodeButton.classes?.map((c) => c.name) ?? [];
+    if (!names.includes("Button")) fail(`classdb.search Node+Button: missing Button`);
+    else pass(`classdb.search base_class=Node pattern=Button -> ${searchNodeButton.count} classes`);
+  }
+
+  // ─── classdb.search: unknown base_class → UNKNOWN_CLASS ────────────────
+  const searchUnknown = await bridge.call(
+    "classdb.search",
+    { base_class: "NoSuchClassEverXYZ999" },
+    CALL_TIMEOUT,
+  );
+  assertError(ctx, "classdb.search unknown base_class", searchUnknown, "UNKNOWN_CLASS");
 }
