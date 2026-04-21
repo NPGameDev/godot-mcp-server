@@ -21,7 +21,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     for (const [method, params] of modeBChecks) {
       try {
         await bridge.callRuntime(method, params, 3000);
-        fail(`${method}: expected GAME_NOT_RUNNING when 9090 is down, but it succeeded`);
+        fail(`${method}: expected GAME_NOT_RUNNING when 6525 is down, but it succeeded`);
       } catch (err) {
         const code = err instanceof BridgeError ? err.code : "(unknown)";
         if (code !== "GAME_NOT_RUNNING") fail(`${method}: expected GAME_NOT_RUNNING, got ${code}`);

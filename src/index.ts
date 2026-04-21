@@ -210,4 +210,7 @@ process.on("SIGTERM", shutdown);
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-discoverUserCommands();
+discoverUserCommands().catch(() => {
+  // Swallowed — discoverUserCommands already handles errors internally.
+  // This catch prevents Node's unhandledRejection for edge-case async throws.
+});

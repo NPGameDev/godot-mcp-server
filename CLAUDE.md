@@ -196,7 +196,7 @@ handler).
 | Variable                    | Default                 | Purpose |
 |-----------------------------|-------------------------|---------|
 | `GODOT_MCP_PORT`            | `6505`                  | Editor WebSocket port |
-| `GODOT_MCP_RUNTIME_PORT`    | `9090`                  | Game runtime WebSocket port |
+| `GODOT_MCP_RUNTIME_PORT`    | `6525`                  | Game runtime WebSocket port |
 | `GODOT_MCP_TOKEN_PATH`      | (resolved from project) | Absolute override for the session-token file |
 | `GODOT_MCP_PROJECT_NAME`    | (read from project.godot, else `[unnamed project]`) | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
 
@@ -258,7 +258,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |
 | `FILESYSTEM_NOT_READY` | plugin (iter 15e) | `EditorFileSystem.is_scanning()` true when `asset_list` or `asset_get_dependencies` called. Agent should retry in 500-2000ms. |
 | `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
-| `GAME_NOT_RUNNING` | bridge           | Mode B call when port 9090 isn't listening.                                   |
+| `GAME_NOT_RUNNING` | bridge           | Mode B call when runtime port isn't listening.                                |
 | `INTERNAL`         | both             | Catch-all for unexpected failure (viewport unavailable, save_png empty, …).   |
 | `INVALID_CLASS`    | plugin           | Class resolution failure — unknown in both ClassDB + global class list / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`) / packed file is not a `PackedScene` (`scene_instantiate`) / script load failure for global class (`scene_create_node` iter 15h). |
 | `INVALID_METHOD`   | plugin (iter 15c)| `node_call_method` target node exists but `has_method(method)` is false.     |
