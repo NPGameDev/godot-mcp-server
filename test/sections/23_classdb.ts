@@ -104,10 +104,10 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     "script.write",
     { file_path: testScriptPath, content: scriptContent },
     CALL_TIMEOUT,
-  )) as { success?: boolean };
+  )) as { ok?: boolean };
 
-  if (!writeResult?.success) {
-    fail(`classdb.get_info global: could not write probe script`);
+  if (!writeResult?.ok) {
+    fail(`classdb.get_info global: could not write probe script: ${JSON.stringify(writeResult)}`);
   } else {
     // Reload scripts so Godot picks up the new class_name
     await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
