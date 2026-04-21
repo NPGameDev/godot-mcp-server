@@ -1,10 +1,19 @@
-// ═════════════════════════════════════════════════════════════════════════
-// Smoke test orchestrator — imports and runs 22 self-contained test
+// ═══════════════════════════════════════════════════════════════════════════
+// Smoke test orchestrator — imports and runs 24 self-contained test
 // sections sequentially. Each section lives in test/sections/.
 //
 // Port-check first: if the editor plugin isn't reachable, print
 // instructions and exit before any assertions.
-// ═════════════════════════════════════════════════════════════════════════
+//
+// Exit codes:
+//   0 — all tests passed
+//   1 — one or more tests failed
+//   2 — precondition failure (Godot not running, port not listening, etc.)
+//
+// Flags:
+//   --ci  Skip the port check and run only static catalogue/registration
+//         validation (no Godot calls). Useful in CI where no editor runs.
+// ═══════════════════════════════════════════════════════════════════════════
 
 import { createBridge } from "../src/bridge.js";
 import { registryPath } from "../src/registry.js";
@@ -13,7 +22,7 @@ import { readFileSync } from "node:fs";
 import { HOST, PORT, RUNTIME_PORT, PROBE_TIMEOUT_MS, probePort, printUnreachable } from "./helpers.js";
 import type { TestCtx } from "./helpers.js";
 
-import { testCatalogue } from "./sections/01_catalogue.js";
+import { testCatalogue, testCatalogueStatic } from "./sections/01_catalogue.js";
 import { testSceneNodeBasics } from "./sections/02_scene_node_basics.js";
 import { testScriptOps } from "./sections/03_script_ops.js";
 import { testEditorAndSceneNav } from "./sections/04_editor_and_scene_nav.js";
@@ -66,6 +75,31 @@ import { testScriptCheck } from "./sections/24_script_check.js";
 //       the tab via scene.close before deleting the backing file. If
 //       scene.close breaks, stale probe files may persist in the toolkit repo.
 
+// ─── CLI flag parsing ────────────────────────────────────────────────────
+const CI_MODE = process.argv.includes("--ci");
+
+// ─── Counters ────────────────────────────────────────────────────────────
+let passCount = 0;
+let failCount = 0;
+
+function passFn(msg: string): void {
+  passCount++;
+  console.log(`[smoke] PASS  ${msg}`);
+}
+
+function failFn(msg: string): void {
+  failCount++;
+  console.error(`[smoke] FAIL  ${msg}`);
+}
+
+function printSummary(): void {
+  const total = passCount + failCount;
+  const bar = "-".repeat(50);
+  console.log(`\n${bar}`);
+  console.log(`Smoke: ${passCount} passed, ${failCount} failed, ${total} total`);
+  console.log(bar);
+}
+
 // Discover the project path for the editor listening on PORT so the bridge
 // can derive the per-worktree token filename. Prefers env var, then
 // searches the registry for a matching port entry.
@@ -85,11 +119,22 @@ function discoverProjectPath(): string | undefined {
   return undefined;
 }
 
-async function main(): Promise<void> {
+// ─── CI mode: static catalogue validation only ───────────────────────────
+async function runCiMode(): Promise<void> {
+  console.log("[smoke] CI mode — running static catalogue validation (no Godot required)\n");
+
+  testCatalogueStatic({ pass: passFn, fail: failFn });
+
+  printSummary();
+  process.exit(failCount > 0 ? 1 : 0);
+}
+
+// ─── Full mode: port probe + all test sections ───────────────────────────
+async function runFullMode(): Promise<void> {
   const reachable = await probePort(HOST, PORT, PROBE_TIMEOUT_MS);
   if (!reachable) {
     printUnreachable();
-    process.exit(1);
+    process.exit(2);
   }
 
   const projectPath = discoverProjectPath();
@@ -97,14 +142,10 @@ async function main(): Promise<void> {
     projectPath,
     explicitRuntimePort: String(RUNTIME_PORT),
   });
-  let failed = false;
   const ctx: TestCtx = {
     bridge,
-    fail: (msg: string) => {
-      console.error(`[smoke] FAIL ${msg}`);
-      failed = true;
-    },
-    pass: (msg: string) => console.log(`[smoke] PASS ${msg}`),
+    fail: failFn,
+    pass: passFn,
     projectPath,
   };
 
@@ -134,15 +175,25 @@ async function main(): Promise<void> {
     await testScriptCheck(ctx);
     await testReconnect(ctx);
   } catch (err) {
-    ctx.fail(`unexpected error: ${(err as Error).message}`);
+    failFn(`unexpected error: ${(err as Error).message}`);
   } finally {
     await bridge.close();
   }
 
-  process.exit(failed ? 1 : 0);
+  printSummary();
+  process.exit(failCount > 0 ? 1 : 0);
+}
+
+// ─── Entry ───────────────────────────────────────────────────────────────
+async function main(): Promise<void> {
+  if (CI_MODE) {
+    await runCiMode();
+  } else {
+    await runFullMode();
+  }
 }
 
 main().catch((err) => {
   console.error("[smoke] FAIL unexpected:", err);
-  process.exit(1);
+  process.exit(2);
 });

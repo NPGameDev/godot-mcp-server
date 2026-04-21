@@ -21,27 +21,9 @@ import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, deepEqual } from "../helpers.js";
 
-export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }> {
-  const { bridge, pass, fail } = ctx;
-
-  // Echo round-trip (verifies bridge is alive).
-  const echoPayload = { t: Date.now(), nonce: "smoke-01" };
-  const echoResult = await bridge.call("echo", echoPayload, CALL_TIMEOUT);
-  if (!deepEqual(echoResult, echoPayload))
-    fail(`echo: expected ${JSON.stringify(echoPayload)} got ${JSON.stringify(echoResult)}`);
-  else pass("echo round-trip");
-
-  // Tool count — 50 base; feature gates add more when env vars are set.
-  // game_eval (+1), node_call_method (+1), project_set_setting (+1),
-  // input_map_write (+2) are gated. read_user_scope (+4) adds
-  // save_read/write/delete/list. All off = 50; all on = 59.
-  let expectedToolCount = 50;
-  if (featureEnabled("game_eval")) expectedToolCount += 1;
-  if (featureEnabled("node_call_method")) expectedToolCount += 1;
-  if (featureEnabled("project_set_setting")) expectedToolCount += 1;
-  if (featureEnabled("input_map_write")) expectedToolCount += 2;
-  if (featureEnabled("read_user_scope")) expectedToolCount += 4;
-  const allTools = [
+/** Collect all ToolDef arrays into a single flat list. */
+function getAllToolDefs(): ToolDef[] {
+  return [
     ...sceneTools,
     ...nodeTools,
     ...scriptTools,
@@ -60,6 +42,27 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
     ...saveTools,
     ...classdbTools,
   ];
+}
+
+/**
+ * CI-mode catalogue validation — static checks only, no bridge required.
+ * Validates tool count, feature-gate catalogue membership, and description
+ * length constraints. Safe to run without a Godot editor.
+ */
+export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
+  const { pass, fail } = ctx;
+
+  // Tool count — 50 base; feature gates add more when env vars are set.
+  // game_eval (+1), node_call_method (+1), project_set_setting (+1),
+  // input_map_write (+2) are gated. read_user_scope (+4) adds
+  // save_read/write/delete/list. All off = 50; all on = 59.
+  let expectedToolCount = 50;
+  if (featureEnabled("game_eval")) expectedToolCount += 1;
+  if (featureEnabled("node_call_method")) expectedToolCount += 1;
+  if (featureEnabled("project_set_setting")) expectedToolCount += 1;
+  if (featureEnabled("input_map_write")) expectedToolCount += 2;
+  if (featureEnabled("read_user_scope")) expectedToolCount += 4;
+  const allTools = getAllToolDefs();
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else
     pass(
@@ -81,6 +84,26 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
     else if (!enabled && present) fail(`${toolName} expected ABSENT from catalogue when ${feature} disabled`);
     else pass(`${feature} gate -> catalogue ${present ? "includes" : "omits"} ${toolName}`);
   }
+
+  // Tool description length (I2: <= 200 chars).
+  for (const t of allTools) {
+    if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
+  }
+  pass("tool descriptions <200 chars");
+}
+
+export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }> {
+  const { bridge, pass, fail } = ctx;
+
+  // Echo round-trip (verifies bridge is alive).
+  const echoPayload = { t: Date.now(), nonce: "smoke-01" };
+  const echoResult = await bridge.call("echo", echoPayload, CALL_TIMEOUT);
+  if (!deepEqual(echoResult, echoPayload))
+    fail(`echo: expected ${JSON.stringify(echoPayload)} got ${JSON.stringify(echoResult)}`);
+  else pass("echo round-trip");
+
+  // Static catalogue checks (shared with CI mode).
+  testCatalogueStatic(ctx);
 
   // Defence-in-depth: call a gated editor-side method directly.
   const gateProbe = (await bridge.call(
@@ -105,12 +128,6 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
     fail(`defence-in-depth: unexpected response ${JSON.stringify(gateProbe)}`);
     ncmGated = true;
   }
-
-  // Tool description length.
-  for (const t of allTools) {
-    if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
-  }
-  pass("tool descriptions <200 chars");
 
   return { ncmGated };
 }

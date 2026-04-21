@@ -209,8 +209,15 @@ handler).
   `npm run format:fix` auto-fixes.
 - **`.editorconfig`** — 2-space indent for `.ts`/`.js`/`.json`, UTF-8, LF.
 
-Run `npm run lint && npm run format` before committing. CI (iter 34) will
-enforce both.
+Run `npm run lint && npm run format` before committing.
+
+## CI/CD (GitHub Actions)
+
+- **CI** (`.github/workflows/ci.yml`) — runs on push/PR to main. Node 20+22
+  matrix: `npm ci`, `build`, `lint`, `format`, `smoke:ci`.
+- **Release** (`.github/workflows/release.yml`) — runs on `v*` tag push.
+  Validates tag matches `package.json` version, builds, publishes to npm
+  (`NPM_TOKEN` secret required), and creates a GitHub Release.
 
 ## Workflow
 
@@ -221,6 +228,7 @@ npm run lint         # ESLint check
 npm run format       # Prettier check (format:fix to auto-fix)
 npm run smoke        # dual-pass: gates-off then gates-on (editor must be up)
 npm run smoke:single # single-pass (inherits env vars from caller)
+npm run smoke:ci     # static catalogue validation only (no Godot required)
 npm link             # dogfood: global `godot-mcp-server` resolves to this dist/
 ```
 
