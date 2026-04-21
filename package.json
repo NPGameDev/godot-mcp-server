@@ -1,6 +1,6 @@
 {
   "name": "@npgamedev/godot-mcp-server",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "TypeScript MCP server that bridges Claude Code to the Godot 4.x editor via the companion godot-mcp-toolkit plugin (localhost WebSocket on 127.0.0.1:6505).",
   "type": "module",
   "main": "dist/index.js",
@@ -44,14 +44,14 @@
   ],
   "author": "NPGameDev",
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "@types/ws": "^8.18.1",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "@types/node": "25.6.0",
+    "@types/ws": "8.18.1",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "ws": "^8.20.0",
-    "zod": "^4.3.6"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "ws": "8.20.0",
+    "zod": "4.3.6"
   }
 }

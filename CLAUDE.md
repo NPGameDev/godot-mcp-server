@@ -288,6 +288,23 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `USER_SCOPE_DISABLED` | plugin (iter 19c) | `read_user_scope` feature gate is off or `user_scope_whitelist.json` is missing/malformed. |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |
 
+## Version sync policy
+
+Both repos (toolkit + server) share a single semver. The version lives in:
+- **Server:** `package.json` → `"version"`
+- **Toolkit:** `addons/godot_mcp_toolkit/plugin.cfg` → `version=`
+
+`scripts/get-version.sh` extracts the declared version (CI uses this to
+validate sync). Future version bumps change both files and tag both repos
+with the same `vX.Y.Z` tag.
+
+## Dependency pinning policy
+
+All npm dependencies use **exact** versions (no `^` or `~` prefixes).
+This ensures reproducible installs — two different `npm install` runs
+produce identical `node_modules/`. Dependency updates are deliberate PRs,
+not silent drift from caret ranges.
+
 ## Pointers
 
 - Execution plan (all 26 iterations, cross-repo): `<plan-repo>/Plan/ExecutionPlan/00-index.md`
