@@ -5,7 +5,14 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
   // Inline screenshot.
-  const screenshotResult = await bridge.call("editor.screenshot", {}, SCREENSHOT_TIMEOUT) as { image_base64?: string; code?: string; error?: string; width?: number; height?: number; bytes?: number };
+  const screenshotResult = (await bridge.call("editor.screenshot", {}, SCREENSHOT_TIMEOUT)) as {
+    image_base64?: string;
+    code?: string;
+    error?: string;
+    width?: number;
+    height?: number;
+    bytes?: number;
+  };
   if (!screenshotResult?.image_base64) {
     fail(`editor.screenshot: ${JSON.stringify(screenshotResult)}`);
   } else {
@@ -19,42 +26,92 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
 
   // Screenshot with save_path.
   const savePath = "res://smoke_screenshots/smoke.png";
-  const savedScreenshot = await bridge.call("editor.screenshot", { save_path: savePath }, SCREENSHOT_TIMEOUT) as { image_base64?: string; path?: string; code?: string };
-  if (savedScreenshot?.path !== savePath || !savedScreenshot.image_base64) fail(`editor.screenshot save_path: ${JSON.stringify(savedScreenshot)}`);
+  const savedScreenshot = (await bridge.call("editor.screenshot", { save_path: savePath }, SCREENSHOT_TIMEOUT)) as {
+    image_base64?: string;
+    path?: string;
+    code?: string;
+  };
+  if (savedScreenshot?.path !== savePath || !savedScreenshot.image_base64)
+    fail(`editor.screenshot save_path: ${JSON.stringify(savedScreenshot)}`);
   else pass(`editor.screenshot save_path -> ${savedScreenshot.path}`);
 
   // Reject non-res:// save_path.
-  const rejectedScreenshot = await bridge.call("editor.screenshot", { save_path: "user://bad.png" }, CALL_TIMEOUT) as { code?: string };
-  if (rejectedScreenshot?.code !== "PATH_DENIED") fail(`editor.screenshot save_path user://: expected PATH_DENIED, got ${JSON.stringify(rejectedScreenshot)}`);
+  const rejectedScreenshot = (await bridge.call(
+    "editor.screenshot",
+    { save_path: "user://bad.png" },
+    CALL_TIMEOUT,
+  )) as { code?: string };
+  if (rejectedScreenshot?.code !== "PATH_DENIED")
+    fail(`editor.screenshot save_path user://: expected PATH_DENIED, got ${JSON.stringify(rejectedScreenshot)}`);
   else pass("editor.screenshot save_path user:// -> PATH_DENIED");
 
   // scene.open — re-open the currently-edited scene.
-  const openResult = await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT) as { ok?: boolean; path?: string; code?: string };
+  const openResult = (await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT)) as {
+    ok?: boolean;
+    path?: string;
+    code?: string;
+  };
   if (!openResult?.ok || openResult.path !== MAIN_SCENE) fail(`scene.open: ${JSON.stringify(openResult)}`);
   else pass(`scene.open ${openResult.path}`);
 
-  const openNotFound = await bridge.call("scene.open", { file_path: "res://does_not_exist_smoke.tscn" }, CALL_TIMEOUT) as { code?: string };
-  if (openNotFound?.code !== "NOT_FOUND") fail(`scene.open bogus: expected NOT_FOUND, got ${JSON.stringify(openNotFound)}`);
+  const openNotFound = (await bridge.call(
+    "scene.open",
+    { file_path: "res://does_not_exist_smoke.tscn" },
+    CALL_TIMEOUT,
+  )) as { code?: string };
+  if (openNotFound?.code !== "NOT_FOUND")
+    fail(`scene.open bogus: expected NOT_FOUND, got ${JSON.stringify(openNotFound)}`);
   else pass("scene.open bogus -> NOT_FOUND");
 
   // scene.close round-trip.
   const closeTestPath = "res://smoke_close_test.tscn";
   await bridge.call("scene.create", { file_path: closeTestPath, root_type: "Node", if_exists: "return" }, CALL_TIMEOUT);
   await bridge.call("scene.open", { file_path: closeTestPath }, CALL_TIMEOUT);
-  const closedResult = await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT) as { success?: boolean };
+  const closedResult = (await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT)) as {
+    success?: boolean;
+  };
   if (!closedResult?.success) fail(`scene.close happy path: ${JSON.stringify(closedResult)}`);
   else pass("scene.close happy path -> success");
-  assertGuard(ctx, "scene.close already-closed", await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT), "NOT_FOUND", "not open");
+  assertGuard(
+    ctx,
+    "scene.close already-closed",
+    await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT),
+    "NOT_FOUND",
+    "not open",
+  );
   await bridge.call("scene.delete", { file_path: closeTestPath }, CALL_TIMEOUT);
 
   // scene.close guard rejections.
-  assertGuard(ctx, "scene.close no res://", await bridge.call("scene.close", { file_path: "/tmp/foo.tscn" }, CALL_TIMEOUT), "PATH_DENIED", "absolute");
-  assertGuard(ctx, "scene.close not open", await bridge.call("scene.close", { file_path: "res://nonexistent_scene.tscn" }, CALL_TIMEOUT), "NOT_FOUND", "not open");
+  assertGuard(
+    ctx,
+    "scene.close no res://",
+    await bridge.call("scene.close", { file_path: "/tmp/foo.tscn" }, CALL_TIMEOUT),
+    "PATH_DENIED",
+    "absolute",
+  );
+  assertGuard(
+    ctx,
+    "scene.close not open",
+    await bridge.call("scene.close", { file_path: "res://nonexistent_scene.tscn" }, CALL_TIMEOUT),
+    "NOT_FOUND",
+    "not open",
+  );
   // Closing the last tab is refused — the editor must always have at least one scene open.
-  assertGuard(ctx, "scene.close last tab", await bridge.call("scene.close", { file_path: MAIN_SCENE }, CALL_TIMEOUT), "EDITED_SCENE", "last open scene tab");
+  assertGuard(
+    ctx,
+    "scene.close last tab",
+    await bridge.call("scene.close", { file_path: MAIN_SCENE }, CALL_TIMEOUT),
+    "EDITED_SCENE",
+    "last open scene tab",
+  );
 
   // project.get_settings with prefix.
-  const settingsResult = await bridge.call("project.get_settings", { prefix: "application/" }, CALL_TIMEOUT) as { settings?: Record<string, unknown>; count?: number; filtered_secret_count?: number; code?: string };
+  const settingsResult = (await bridge.call("project.get_settings", { prefix: "application/" }, CALL_TIMEOUT)) as {
+    settings?: Record<string, unknown>;
+    count?: number;
+    filtered_secret_count?: number;
+    code?: string;
+  };
   if (!settingsResult?.settings || typeof settingsResult.count !== "number") {
     fail(`project.get_settings shape: ${JSON.stringify(settingsResult)}`);
   } else if (settingsResult.count < 1) {

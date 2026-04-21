@@ -8,7 +8,8 @@ export const resourceTools: ToolDef[] = [
   {
     name: "resource_load",
     method: "resource.load",
-    description: "Load a res:// resource and return { class, path, properties, metadata }. Heavy fields (image, mesh_arrays) pruned; Texture2D gets size in metadata.",
+    description:
+      "Load a res:// resource and return { class, path, properties, metadata }. Heavy fields (image, mesh_arrays) pruned; Texture2D gets size in metadata.",
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

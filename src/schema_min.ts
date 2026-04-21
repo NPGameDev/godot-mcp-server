@@ -43,9 +43,7 @@ export function minifySchema(schema: Record<string, unknown>): Record<string, un
 /** Trim description to first sentence, capped at 80 chars. */
 function compressDescription(desc: string): string {
   const firstSentence = desc.split(/\.\s/)[0];
-  const trimmed = firstSentence.length <= 80
-    ? firstSentence
-    : firstSentence.slice(0, 77) + "...";
+  const trimmed = firstSentence.length <= 80 ? firstSentence : firstSentence.slice(0, 77) + "...";
   return trimmed.endsWith(".") ? trimmed : trimmed + ".";
 }
 

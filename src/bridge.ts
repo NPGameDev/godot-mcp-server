@@ -54,9 +54,7 @@ async function resolveProjectName(projectPath?: string): Promise<string> {
   const envName = process.env.GODOT_MCP_PROJECT_NAME;
   if (envName) return envName;
   // Try the known project directory first, then fall back to cwd.
-  const candidates = projectPath
-    ? [join(projectPath, "project.godot"), "project.godot"]
-    : ["project.godot"];
+  const candidates = projectPath ? [join(projectPath, "project.godot"), "project.godot"] : ["project.godot"];
   for (const path of candidates) {
     try {
       const content = await readFile(path, "utf-8");
@@ -98,18 +96,15 @@ async function resolveTokenPath(projectPath?: string): Promise<string> {
     case "win32":
       return join(
         process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
-        "Godot", "app_userdata", projectName, tokenFile,
+        "Godot",
+        "app_userdata",
+        projectName,
+        tokenFile,
       );
     case "darwin":
-      return join(
-        homedir(), "Library", "Application Support",
-        "Godot", "app_userdata", projectName, tokenFile,
-      );
+      return join(homedir(), "Library", "Application Support", "Godot", "app_userdata", projectName, tokenFile);
     default:
-      return join(
-        homedir(), ".local", "share",
-        "godot", "app_userdata", projectName, tokenFile,
-      );
+      return join(homedir(), ".local", "share", "godot", "app_userdata", projectName, tokenFile);
   }
 }
 
@@ -123,10 +118,7 @@ async function readToken(projectPath?: string): Promise<string> {
     const token = (await readFile(tokenPath, "utf-8")).trim();
     return token;
   } catch (err) {
-    throw new BridgeError(
-      "AUTH_FAILED",
-      `cannot read token file at ${tokenPath}: ${(err as Error).message}`,
-    );
+    throw new BridgeError("AUTH_FAILED", `cannot read token file at ${tokenPath}: ${(err as Error).message}`);
   }
 }
 
@@ -161,10 +153,7 @@ function authenticate(ws: WebSocket, token: string): Promise<void> {
 
     function onClose(_code: number, reason: Buffer): void {
       cleanup();
-      reject(new BridgeError(
-        "AUTH_FAILED",
-        `server closed connection during auth: ${reason.toString()}`,
-      ));
+      reject(new BridgeError("AUTH_FAILED", `server closed connection during auth: ${reason.toString()}`));
     }
 
     ws.on("message", onMessage);
@@ -220,11 +209,9 @@ function createChannel(url: string, projectPath?: string): Channel {
   function scheduleReconnect(): void {
     if (closed) return;
     if (reconnectTimer) return;
-    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * (2 ** attempt));
+    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** attempt);
     attempt = Math.min(attempt + 1, RECONNECT_MAX_ATTEMPT);
-    process.stderr.write(
-      `[bridge] ${url} disconnected; reconnect in ${delay}ms (attempt ${attempt})\n`,
-    );
+    process.stderr.write(`[bridge] ${url} disconnected; reconnect in ${delay}ms (attempt ${attempt})\n`);
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       if (closed) return;
@@ -265,9 +252,7 @@ function createChannel(url: string, projectPath?: string): Channel {
           .catch((err) => {
             ws = null;
             socket.close();
-            const error = err instanceof BridgeError
-              ? err
-              : new BridgeError("AUTH_FAILED", (err as Error).message);
+            const error = err instanceof BridgeError ? err : new BridgeError("AUTH_FAILED", (err as Error).message);
             rejectAllWaiters(error.code, error.message);
             reject(error);
             if (!closed) scheduleReconnect();
@@ -276,10 +261,7 @@ function createChannel(url: string, projectPath?: string): Channel {
       socket.once("error", (err) => {
         connectPromise = null;
         ws = null;
-        const error = new BridgeError(
-          "CONNECT_FAILED",
-          `WebSocket error: ${(err as Error).message}`,
-        );
+        const error = new BridgeError("CONNECT_FAILED", `WebSocket error: ${(err as Error).message}`);
         // Hot path: keep waiters alive across this failure — they'll either
         // be picked up by a later successful reconnect or hit their per-call
         // 10s timer. Cold path: the connect()'s rejection here propagates
@@ -345,10 +327,7 @@ function createChannel(url: string, projectPath?: string): Channel {
   return {
     async call(method, params = null, timeoutMs = DEFAULT_TIMEOUT_MS) {
       if (closed) throw new BridgeError("CLOSED", "channel is closed");
-      const socket =
-        ws && ws.readyState === WebSocket.OPEN
-          ? ws
-          : await awaitOpenSocket(CALL_AWAIT_RECONNECT_MS);
+      const socket = ws && ws.readyState === WebSocket.OPEN ? ws : await awaitOpenSocket(CALL_AWAIT_RECONNECT_MS);
       const id = randomUUID();
       const payload = JSON.stringify({ jsonrpc: JSONRPC_VERSION, id, method, params });
       return new Promise<unknown>((resolve, reject) => {
@@ -430,9 +409,7 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
     cachedEditorPort = entry.port;
     await editor.close();
     editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`, projectPath);
-    process.stderr.write(
-      `[bridge] editor port changed ${oldPort} → ${cachedEditorPort}\n`,
-    );
+    process.stderr.write(`[bridge] editor port changed ${oldPort} → ${cachedEditorPort}\n`);
     return true;
   }
 
@@ -443,9 +420,7 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
   let runtimeChannel: Channel | null = opts?.explicitRuntimePort
     ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`, projectPath)
     : null;
-  let cachedRuntimePort: number | null = opts?.explicitRuntimePort
-    ? Number(opts.explicitRuntimePort)
-    : null;
+  let cachedRuntimePort: number | null = opts?.explicitRuntimePort ? Number(opts.explicitRuntimePort) : null;
 
   return {
     async call(method, params, timeoutMs) {
@@ -454,10 +429,7 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
       } catch (err) {
         // On editor connection failure, re-read the registry. If the
         // port changed, retry once against the new channel.
-        if (
-          err instanceof BridgeError &&
-          (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")
-        ) {
+        if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
           const changed = await rediscoverEditor();
           if (changed) return editor.call(method, params, timeoutMs);
         }
@@ -483,10 +455,7 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
       // Registry-based discovery.
       const projectPath = opts?.projectPath;
       if (!projectPath) {
-        throw new BridgeError(
-          "GAME_NOT_RUNNING",
-          "no runtime port configured and no project path for registry lookup",
-        );
+        throw new BridgeError("GAME_NOT_RUNNING", "no runtime port configured and no project path for registry lookup");
       }
 
       const currentPort = discoverRuntime(projectPath);

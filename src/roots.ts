@@ -31,28 +31,21 @@ export function getProjectRoot(): string | undefined {
  * connected to without relying on the client's own root list.
  */
 export function registerRoots(server: McpServer): void {
-  server.resource(
-    "roots",
-    "godot://roots",
-    { mimeType: "application/json" },
-    async (uri) => {
-      const roots: { uri: string; name: string }[] = [];
-      if (projectRoot) {
-        // Normalize to file:// URI for cross-platform compatibility.
-        const fileUri = projectRoot.startsWith("file://")
-          ? projectRoot
-          : `file://${projectRoot.replace(/\\/g, "/")}`;
-        roots.push({ uri: fileUri, name: "Godot Project" });
-      }
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            mimeType: "application/json",
-            text: JSON.stringify({ roots }, null, 2),
-          },
-        ],
-      };
-    },
-  );
+  server.resource("roots", "godot://roots", { mimeType: "application/json" }, async (uri) => {
+    const roots: { uri: string; name: string }[] = [];
+    if (projectRoot) {
+      // Normalize to file:// URI for cross-platform compatibility.
+      const fileUri = projectRoot.startsWith("file://") ? projectRoot : `file://${projectRoot.replace(/\\/g, "/")}`;
+      roots.push({ uri: fileUri, name: "Godot Project" });
+    }
+    return {
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: "application/json",
+          text: JSON.stringify({ roots }, null, 2),
+        },
+      ],
+    };
+  });
 }

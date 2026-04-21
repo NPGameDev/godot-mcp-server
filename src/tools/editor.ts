@@ -25,21 +25,24 @@ export const editorTools: ToolDef[] = [
   {
     name: "editor_screenshot",
     method: "editor.screenshot",
-    description: "Capture a screenshot of the editor viewport. Returns image content inline. Optional save_path (res:// .png) also persists it to disk.",
+    description:
+      "Capture a screenshot of the editor viewport. Returns image content inline. Optional save_path (res:// .png) also persists it to disk.",
     inputSchema: { save_path: z.string().optional() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "editor_reload_scripts",
     method: "editor.reload_scripts",
-    description: "Rescan res:// and soft-reload already-loaded scripts so the editor picks up on-disk changes. Returns { ok: true }.",
+    description:
+      "Rescan res:// and soft-reload already-loaded scripts so the editor picks up on-disk changes. Returns { ok: true }.",
     inputSchema: {},
     annotations: { openWorldHint: false },
   },
   {
     name: "scene_open",
     method: "scene.open",
-    description: "Open a scene (.tscn / .scn) as the active edited scene. res:// only; NOT_FOUND if the file doesn't exist.",
+    description:
+      "Open a scene (.tscn / .scn) as the active edited scene. res:// only; NOT_FOUND if the file doesn't exist.",
     inputSchema: { file_path: z.string() },
     annotations: { openWorldHint: false },
   },
@@ -54,7 +57,8 @@ export const editorTools: ToolDef[] = [
   {
     name: "project_get_settings",
     method: "project.get_settings",
-    description: "List ProjectSettings keys + values. Optional prefix filter. Keys matching /password|token|secret|key/i are dropped (MVP filter).",
+    description:
+      "List ProjectSettings keys + values. Optional prefix filter. Keys matching /password|token|secret|key/i are dropped (MVP filter).",
     inputSchema: { prefix: z.string().optional() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -114,11 +118,7 @@ if (isEnabled("project_set_setting")) {
 // plugin-side shape ({ image_base64, mime_type, width, height, bytes,
 // path }); the difference is the input contract, which the bridge call
 // carries through unchanged.
-async function screenshotHandler(
-  bridge: Bridge,
-  method: string,
-  input: unknown,
-) {
+async function screenshotHandler(bridge: Bridge, method: string, input: unknown) {
   let result: {
     image_base64?: string;
     mime_type?: string;
@@ -140,7 +140,10 @@ async function screenshotHandler(
   return {
     content: [
       { type: "image" as const, data: result.image_base64, mimeType: result.mime_type ?? "image/png" },
-      { type: "text" as const, text: JSON.stringify({ width: result.width, height: result.height, bytes: result.bytes, path: result.path }) },
+      {
+        type: "text" as const,
+        text: JSON.stringify({ width: result.width, height: result.height, bytes: result.bytes, path: result.path }),
+      },
     ],
   };
 }

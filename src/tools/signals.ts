@@ -12,14 +12,16 @@ export const signalTools: ToolDef[] = [
   {
     name: "signal_list",
     method: "signal.list",
-    description: "List signals on a node in the edited scene. Returns [{ name, args: [{name, type}] }] from get_signal_list().",
+    description:
+      "List signals on a node in the edited scene. Returns [{ name, args: [{name, type}] }] from get_signal_list().",
     inputSchema: { node_path: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "signal_manage",
     method: "signal.manage",
-    description: "Connect or disconnect a signal in the edited scene. action='connect' is UndoRedo-wrapped and idempotent (status 'returned' on collision).",
+    description:
+      "Connect or disconnect a signal in the edited scene. action='connect' is UndoRedo-wrapped and idempotent (status 'returned' on collision).",
     inputSchema: {
       action: z.enum(["connect", "disconnect"]),
       source_path: z.string(),
@@ -32,7 +34,8 @@ export const signalTools: ToolDef[] = [
   {
     name: "signal_emit",
     method: "signal.emit",
-    description: "Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (live game, Mode B).",
+    description:
+      "Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (live game, Mode B).",
     inputSchema: {
       node_path: z.string(),
       signal_name: z.string(),
@@ -55,7 +58,12 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
           annotations: tool.annotations,
         },
         (input: unknown) => {
-          const parsed = input as { node_path: string; signal_name: string; args?: unknown[]; mode?: "editor" | "runtime" };
+          const parsed = input as {
+            node_path: string;
+            signal_name: string;
+            args?: unknown[];
+            mode?: "editor" | "runtime";
+          };
           const mode = parsed.mode ?? "editor";
           const params = { node_path: parsed.node_path, signal_name: parsed.signal_name, args: parsed.args ?? [] };
           return callAndWrap(bridge, tool.method, params, { runtime: mode === "runtime" });

@@ -19,11 +19,7 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
     return;
   }
 
-  const checkValid = (await bridge.call(
-    "script.check",
-    { file_path: validPath },
-    CALL_TIMEOUT,
-  )) as {
+  const checkValid = (await bridge.call("script.check", { file_path: validPath }, CALL_TIMEOUT)) as {
     success?: boolean;
     file_path?: string;
     valid?: boolean;
@@ -65,11 +61,7 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
   if (!writeBroken?.ok) {
     fail(`script.check: could not write broken probe: ${JSON.stringify(writeBroken)}`);
   } else {
-    const checkBroken = (await bridge.call(
-      "script.check",
-      { file_path: brokenPath },
-      CALL_TIMEOUT,
-    )) as {
+    const checkBroken = (await bridge.call("script.check", { file_path: brokenPath }, CALL_TIMEOUT)) as {
       success?: boolean;
       valid?: boolean;
       diagnostics?: { line: number; severity: string; message: string }[];
@@ -106,10 +98,6 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
   assertError(ctx, "script.check nonexistent file", notFound, "NOT_FOUND");
 
   // ─── Non-.gd file → INVALID_PARAMS ────────────────────────────────────
-  const nonGd = await bridge.call(
-    "script.check",
-    { file_path: "res://some_file.cs" },
-    CALL_TIMEOUT,
-  );
+  const nonGd = await bridge.call("script.check", { file_path: "res://some_file.cs" }, CALL_TIMEOUT);
   assertError(ctx, "script.check non-.gd file", nonGd, "INVALID_PARAMS");
 }

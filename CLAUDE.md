@@ -200,11 +200,25 @@ handler).
 | `GODOT_MCP_TOKEN_PATH`      | (resolved from project) | Absolute override for the session-token file |
 | `GODOT_MCP_PROJECT_NAME`    | (read from project.godot, else `[unnamed project]`) | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
 
+## Linting & formatting
+
+- **ESLint** — `eslint.config.js` (flat config, typescript-eslint recommended +
+  eslint-config-prettier). `npm run lint` checks `src/` and `test/`.
+- **Prettier** — `.prettierrc` (2-space, double quotes, semicolons, trailing
+  commas, 120-char printWidth). `npm run format` checks all files;
+  `npm run format:fix` auto-fixes.
+- **`.editorconfig`** — 2-space indent for `.ts`/`.js`/`.json`, UTF-8, LF.
+
+Run `npm run lint && npm run format` before committing. CI (iter 34) will
+enforce both.
+
 ## Workflow
 
 ```
 npm install          # once
 npm run build        # tsc -> dist/, postbuild adds shebang
+npm run lint         # ESLint check
+npm run format       # Prettier check (format:fix to auto-fix)
 npm run smoke        # dual-pass: gates-off then gates-on (editor must be up)
 npm run smoke:single # single-pass (inherits env vars from caller)
 npm link             # dogfood: global `godot-mcp-server` resolves to this dist/

@@ -27,7 +27,8 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   // Echo round-trip (verifies bridge is alive).
   const echoPayload = { t: Date.now(), nonce: "smoke-01" };
   const echoResult = await bridge.call("echo", echoPayload, CALL_TIMEOUT);
-  if (!deepEqual(echoResult, echoPayload)) fail(`echo: expected ${JSON.stringify(echoPayload)} got ${JSON.stringify(echoResult)}`);
+  if (!deepEqual(echoResult, echoPayload))
+    fail(`echo: expected ${JSON.stringify(echoPayload)} got ${JSON.stringify(echoResult)}`);
   else pass("echo round-trip");
 
   // Tool count — 50 base; feature gates add more when env vars are set.
@@ -41,14 +42,29 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   if (featureEnabled("input_map_write")) expectedToolCount += 2;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;
   const allTools = [
-    ...sceneTools, ...nodeTools, ...scriptTools, ...editorTools,
-    ...runtimeTools, ...signalTools, ...resourceTools, ...folderTools,
-    ...diffTools, ...playtestTools, ...inputMapTools, ...animationTools,
-    ...tilemapTools, ...assetTools, ...fileTools, ...saveTools,
+    ...sceneTools,
+    ...nodeTools,
+    ...scriptTools,
+    ...editorTools,
+    ...runtimeTools,
+    ...signalTools,
+    ...resourceTools,
+    ...folderTools,
+    ...diffTools,
+    ...playtestTools,
+    ...inputMapTools,
+    ...animationTools,
+    ...tilemapTools,
+    ...assetTools,
+    ...fileTools,
+    ...saveTools,
     ...classdbTools,
   ];
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
-  else pass(`tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, input_map_write=${featureEnabled("input_map_write")}, read_user_scope=${featureEnabled("read_user_scope")})`);
+  else
+    pass(
+      `tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, input_map_write=${featureEnabled("input_map_write")}, read_user_scope=${featureEnabled("read_user_scope")})`,
+    );
 
   // Feature gate catalogue checks.
   const gateChecks: [string, string, ToolDef[]][] = [
@@ -67,7 +83,11 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   }
 
   // Defence-in-depth: call a gated editor-side method directly.
-  const gateProbe = await bridge.call("node.call_method", { node_path: ".", method_name: "get_name" }, CALL_TIMEOUT) as { code?: string; how_to_enable?: string; risk?: string; success?: boolean; result?: unknown };
+  const gateProbe = (await bridge.call(
+    "node.call_method",
+    { node_path: ".", method_name: "get_name" },
+    CALL_TIMEOUT,
+  )) as { code?: string; how_to_enable?: string; risk?: string; success?: boolean; result?: unknown };
   let ncmGated: boolean;
   if (gateProbe?.code === "FEATURE_DISABLED") {
     if (!gateProbe.how_to_enable?.includes("mcp/unsafe/allow_node_call_method")) {

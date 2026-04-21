@@ -27,7 +27,12 @@ import { resourceTools } from "./tools/resource.js";
 export type GroupName = "runtime" | "signals" | "animation_authoring" | "input_map" | "asset_management" | "user_data";
 
 const GROUP_NAMES: readonly GroupName[] = [
-  "runtime", "signals", "animation_authoring", "input_map", "asset_management", "user_data",
+  "runtime",
+  "signals",
+  "animation_authoring",
+  "input_map",
+  "asset_management",
+  "user_data",
 ];
 
 interface GroupDef {
@@ -40,7 +45,13 @@ interface GroupDef {
 export const GROUPS: GroupDef[] = [
   {
     name: "runtime",
-    tools: ["runtime_screenshot", "runtime_get_node_state", "debugger_get_log", "input_simulate", "animation_player_control"],
+    tools: [
+      "runtime_screenshot",
+      "runtime_get_node_state",
+      "debugger_get_log",
+      "input_simulate",
+      "animation_player_control",
+    ],
   },
   {
     name: "signals",
@@ -69,18 +80,31 @@ export const GROUPS: GroupDef[] = [
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
-export const GROUP_TOOL_NAMES = new Set(GROUPS.flatMap(g => g.tools));
+export const GROUP_TOOL_NAMES = new Set(GROUPS.flatMap((g) => g.tools));
 
 // Build a master lookup of all ToolDefs by name
 const allDefs = new Map<string, ToolDef>();
-for (const tools of [signalTools, animationTools, inputMapTools, runtimeTools, assetTools, saveTools, sceneTools, fileTools, resourceTools]) {
+for (const tools of [
+  signalTools,
+  animationTools,
+  inputMapTools,
+  runtimeTools,
+  assetTools,
+  saveTools,
+  sceneTools,
+  fileTools,
+  resourceTools,
+]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
 
 // Tools that route through the runtime (Mode B) bridge
 const RUNTIME_TOOLS = new Set([
-  "runtime_screenshot", "runtime_get_node_state", "debugger_get_log",
-  "input_simulate", "animation_player_control",
+  "runtime_screenshot",
+  "runtime_get_node_state",
+  "debugger_get_log",
+  "input_simulate",
+  "animation_player_control",
 ]);
 
 // Tracks loaded groups for the session
@@ -112,7 +136,10 @@ function createHandler(bridge: Bridge, def: ToolDef) {
         return {
           content: [
             { type: "image" as const, data: obj.base64, mimeType: `image/${obj.format}` },
-            { type: "text" as const, text: JSON.stringify({ width: obj.width, height: obj.height, format: obj.format }) },
+            {
+              type: "text" as const,
+              text: JSON.stringify({ width: obj.width, height: obj.height, format: obj.format }),
+            },
           ],
         };
       } catch (err) {
@@ -149,22 +176,21 @@ function createHandler(bridge: Bridge, def: ToolDef) {
  * Register a single group's tools dynamically.
  * Returns the list of newly registered tool names.
  */
-function registerGroupTools(
-  server: McpServer,
-  bridge: Bridge,
-  group: GroupDef,
-  readOnly: boolean,
-): string[] {
+function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, readOnly: boolean): string[] {
   const registered: string[] = [];
   for (const toolName of group.tools) {
     if (readOnly && MUTATING_TOOLS.has(toolName)) continue;
     const def = allDefs.get(toolName);
     if (!def) continue;
-    server.registerTool(def.name, {
-      description: def.description,
-      inputSchema: def.inputSchema,
-      annotations: def.annotations,
-    }, createHandler(bridge, def));
+    server.registerTool(
+      def.name,
+      {
+        description: def.description,
+        inputSchema: def.inputSchema,
+        annotations: def.annotations,
+      },
+      createHandler(bridge, def),
+    );
     registered.push(toolName);
   }
   return registered;
@@ -179,18 +205,18 @@ const ENABLE_GROUP_DESC =
  * Register the enable_tool_group meta-tool and its handler.
  * Call this for standard/custom profiles only.
  */
-export function registerGroupSystem(
-  server: McpServer,
-  bridge: Bridge,
-  readOnly: boolean,
-): void {
+export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly: boolean): void {
   server.registerTool(
     "enable_tool_group",
     {
       description: ENABLE_GROUP_DESC,
       inputSchema: {
-        groups: z.array(z.enum(GROUP_NAMES as unknown as [string, ...string[]])).min(1)
-          .describe("Group names to load: runtime, signals, animation_authoring, input_map, asset_management, user_data"),
+        groups: z
+          .array(z.enum(GROUP_NAMES as unknown as [string, ...string[]]))
+          .min(1)
+          .describe(
+            "Group names to load: runtime, signals, animation_authoring, input_map, asset_management, user_data",
+          ),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -201,12 +227,12 @@ export function registerGroupSystem(
 
       for (const groupName of requested) {
         if (loadedGroups.has(groupName)) {
-          const group = GROUPS.find(g => g.name === groupName)!;
+          const group = GROUPS.find((g) => g.name === groupName)!;
           results[groupName] = { loaded: true, tools: group.tools };
           continue;
         }
 
-        const group = GROUPS.find(g => g.name === groupName);
+        const group = GROUPS.find((g) => g.name === groupName);
         if (!group) {
           results[groupName] = { loaded: false, error: `Unknown group: ${groupName}` };
           continue;
@@ -243,11 +269,7 @@ export function registerGroupSystem(
  * For the `full` profile: register ALL group tools at startup.
  * No enable_tool_group needed.
  */
-export function registerAllGroupTools(
-  server: McpServer,
-  bridge: Bridge,
-  readOnly: boolean,
-): void {
+export function registerAllGroupTools(server: McpServer, bridge: Bridge, readOnly: boolean): void {
   for (const group of GROUPS) {
     // Skip gated groups whose gate is closed (they get stubs instead)
     if (group.gate && !isEnabled(group.gate)) continue;

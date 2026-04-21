@@ -15,8 +15,7 @@ if (isEnabled("input_map_write")) {
     {
       name: "input_map_action",
       method: "input_map.action",
-      description:
-        "Add or remove an InputMap action. action='add' is idempotent with optional deadzone.",
+      description: "Add or remove an InputMap action. action='add' is idempotent with optional deadzone.",
       inputSchema: {
         action: z.enum(["add", "remove"]),
         action_name: z.string(),
@@ -27,8 +26,7 @@ if (isEnabled("input_map_write")) {
     {
       name: "input_map_event",
       method: "input_map.event",
-      description:
-        "Bind or unbind an input event to an action. action='bind' is idempotent.",
+      description: "Bind or unbind an input event to an action. action='bind' is idempotent.",
       inputSchema: {
         action: z.enum(["bind", "unbind"]),
         action_name: z.string(),

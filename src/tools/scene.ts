@@ -8,8 +8,7 @@ export const sceneTools: ToolDef[] = [
   {
     name: "scene_get_tree",
     method: "scene.get_tree",
-    description:
-      "Return the current edited scene's node tree as nested JSON { name, class, path, children }.",
+    description: "Return the current edited scene's node tree as nested JSON { name, class, path, children }.",
     inputSchema: {
       depth: z.number().optional().describe("Tree depth. Default 2. Use -1 for full tree."),
       include_properties: z.boolean().optional().describe("Embed property snapshot per node. Default false."),
@@ -31,8 +30,7 @@ export const sceneTools: ToolDef[] = [
   {
     name: "scene_delete_node",
     method: "scene.delete_node",
-    description:
-      "Delete the node at path (NodePath). Refuses to delete the edited scene root.",
+    description: "Delete the node at path (NodePath). Refuses to delete the edited scene root.",
     inputSchema: { node_path: z.string() },
     annotations: { destructiveHint: true, openWorldHint: false },
   },

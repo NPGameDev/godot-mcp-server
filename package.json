@@ -34,6 +34,9 @@
     "start": "node dist/index.js",
     "smoke": "tsx test/run-smoke.ts",
     "smoke:single": "tsx test/smoke.ts",
+    "lint": "eslint src/ test/",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -44,10 +47,15 @@
   ],
   "author": "NPGameDev",
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/node": "25.6.0",
     "@types/ws": "8.18.1",
+    "eslint": "10.2.1",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.8.3",
     "tsx": "4.21.0",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.59.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",

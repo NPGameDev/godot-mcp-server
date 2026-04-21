@@ -36,11 +36,21 @@ import * as classdb from "./tools/classdb.js";
 // import time when their env var is unset — that is correct: gated tools
 // get stubs via registerStubs instead).
 const ALL_MODULE_DEFS = [
-  animation.animationTools, asset.assetTools, diff.diffTools,
-  editor.editorTools, file.fileTools, folder.folderTools,
-  inputMap.inputMapTools, node.nodeTools, playtest.playtestTools,
-  resource.resourceTools, runtime.runtimeTools, scene.sceneTools,
-  script.scriptTools, signal.signalTools, save.saveTools,
+  animation.animationTools,
+  asset.assetTools,
+  diff.diffTools,
+  editor.editorTools,
+  file.fileTools,
+  folder.folderTools,
+  inputMap.inputMapTools,
+  node.nodeTools,
+  playtest.playtestTools,
+  resource.resourceTools,
+  runtime.runtimeTools,
+  scene.sceneTools,
+  script.scriptTools,
+  signal.signalTools,
+  save.saveTools,
   tilemap.tilemapTools,
   classdb.classdbTools,
 ];
@@ -82,14 +92,10 @@ if (explicitPort) {
   const entry = lookupProject(projectPath);
   if (entry) {
     editorPort = String(entry.port);
-    process.stderr.write(
-      `[godot-mcp] registry: ${projectPath} → port ${editorPort}\n`,
-    );
+    process.stderr.write(`[godot-mcp] registry: ${projectPath} → port ${editorPort}\n`);
   } else {
     editorPort = "6505";
-    process.stderr.write(
-      `[godot-mcp] registry: no entry for ${projectPath}; falling back to port ${editorPort}\n`,
-    );
+    process.stderr.write(`[godot-mcp] registry: no entry for ${projectPath}; falling back to port ${editorPort}\n`);
   }
 }
 
@@ -107,16 +113,14 @@ const server = new McpServer(
 // --- Hook pipeline ---
 const hookPipeline = createHookPipeline();
 const _origRegisterTool = server.registerTool.bind(server);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK callback typing
 (server as any).registerTool = (
   name: string,
   config: Parameters<typeof server.registerTool>[1],
-  handler: (input: any) => Promise<ToolTextResult>,
+  handler: (input: Record<string, unknown>) => Promise<ToolTextResult>,
 ) => {
-  _origRegisterTool(name, config, (input: any) =>
-    hookPipeline.execute(
-      { name, input: (input ?? {}) as Record<string, unknown> },
-      () => handler(input),
-    ),
+  _origRegisterTool(name, config, (input: Record<string, unknown>) =>
+    hookPipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input)),
   );
 };
 
@@ -187,9 +191,7 @@ async function discoverUserCommands(): Promise<void> {
       registered++;
     }
     if (registered > 0) {
-      process.stderr.write(
-        `[godot-mcp] registered ${registered} user command(s)\n`,
-      );
+      process.stderr.write(`[godot-mcp] registered ${registered} user command(s)\n`);
       server.sendToolListChanged();
     }
   } catch {

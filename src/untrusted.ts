@@ -21,11 +21,7 @@ function scrubEnvelopeTags(text: string): string {
   return text.replace(ENVELOPE_TAG_RE, "[scrubbed-envelope-tag]");
 }
 
-export function untrustedWrap(
-  kind: string,
-  source: string,
-  body: string,
-): string {
+export function untrustedWrap(kind: string, source: string, body: string): string {
   const nonce = generateNonce();
   const scrubbed = scrubEnvelopeTags(body);
   return `<untrusted-${nonce} kind="${kind}" source="${source}">\n${scrubbed}\n</untrusted-${nonce}>`;

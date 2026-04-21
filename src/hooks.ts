@@ -21,10 +21,7 @@ export class HookPipeline {
    * continues with the remaining chain so one misbehaving hook
    * cannot break all tool calls.
    */
-  async execute(
-    req: ToolRequest,
-    handler: () => Promise<ToolTextResult>,
-  ): Promise<ToolTextResult> {
+  async execute(req: ToolRequest, handler: () => Promise<ToolTextResult>): Promise<ToolTextResult> {
     let chain = handler;
     // Build chain from innermost (last hook) to outermost (first hook).
     for (let i = this.hooks.length - 1; i >= 0; i--) {
@@ -34,9 +31,7 @@ export class HookPipeline {
         try {
           return await hook(req, next);
         } catch (err) {
-          process.stderr.write(
-            `[godot-mcp] hook error: ${(err as Error).message}\n`,
-          );
+          process.stderr.write(`[godot-mcp] hook error: ${(err as Error).message}\n`);
           return next();
         }
       };
@@ -57,9 +52,7 @@ export function loggingHook(): Hook {
     const start = Date.now();
     const result = await next();
     const ms = Date.now() - start;
-    process.stderr.write(
-      `[godot-mcp] tool=${req.name} duration=${ms}ms isError=${!!result.isError}\n`,
-    );
+    process.stderr.write(`[godot-mcp] tool=${req.name} duration=${ms}ms isError=${!!result.isError}\n`);
     return result;
   };
 }
@@ -68,10 +61,7 @@ export function loggingHook(): Hook {
  * Rate-limit hook — rejects calls that exceed `maxPerWindow` within
  * `windowMs`. Disabled when `maxPerWindow` is 0 (default).
  */
-export function rateLimitHook(
-  maxPerWindow: number = 0,
-  windowMs: number = 60_000,
-): Hook | null {
+export function rateLimitHook(maxPerWindow: number = 0, windowMs: number = 60_000): Hook | null {
   if (maxPerWindow <= 0) return null;
   const timestamps: number[] = [];
   return async (_req, next) => {

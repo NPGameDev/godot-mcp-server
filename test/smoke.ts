@@ -10,10 +10,7 @@ import { createBridge } from "../src/bridge.js";
 import { registryPath } from "../src/registry.js";
 import { readFileSync } from "node:fs";
 
-import {
-  HOST, PORT, RUNTIME_PORT, PROBE_TIMEOUT_MS,
-  probePort, printUnreachable,
-} from "./helpers.js";
+import { HOST, PORT, RUNTIME_PORT, PROBE_TIMEOUT_MS, probePort, printUnreachable } from "./helpers.js";
 import type { TestCtx } from "./helpers.js";
 
 import { testCatalogue } from "./sections/01_catalogue.js";
@@ -103,7 +100,10 @@ async function main(): Promise<void> {
   let failed = false;
   const ctx: TestCtx = {
     bridge,
-    fail: (msg: string) => { console.error(`[smoke] FAIL ${msg}`); failed = true; },
+    fail: (msg: string) => {
+      console.error(`[smoke] FAIL ${msg}`);
+      failed = true;
+    },
     pass: (msg: string) => console.log(`[smoke] PASS ${msg}`),
     projectPath,
   };

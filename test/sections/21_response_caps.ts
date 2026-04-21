@@ -10,19 +10,31 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
   const largeContent = largeLine.repeat(300); // ~300 KB
   const largePath = "res://smoke_large_script.gd";
 
-  const writeResult = await bridge.call("script.write", {
-    file_path: largePath, content: largeContent,
-  }, CALL_TIMEOUT) as { ok?: boolean };
+  const writeResult = (await bridge.call(
+    "script.write",
+    {
+      file_path: largePath,
+      content: largeContent,
+    },
+    CALL_TIMEOUT,
+  )) as { ok?: boolean };
   if (!writeResult?.ok) {
     fail(`response cap: could not write large file: ${JSON.stringify(writeResult)}`);
     return;
   }
 
   // script_read should return FILE_TOO_LARGE for the oversized file.
-  const readResult = await bridge.call("script.read", {
-    file_path: largePath,
-  }, CALL_TIMEOUT) as {
-    success?: boolean; code?: string; total_bytes?: number; hint?: string;
+  const readResult = (await bridge.call(
+    "script.read",
+    {
+      file_path: largePath,
+    },
+    CALL_TIMEOUT,
+  )) as {
+    success?: boolean;
+    code?: string;
+    total_bytes?: number;
+    hint?: string;
   };
   if (readResult?.code !== "FILE_TOO_LARGE") {
     fail(`response cap: expected FILE_TOO_LARGE, got ${JSON.stringify(readResult)?.slice(0, 200)}`);
@@ -35,11 +47,20 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
   }
 
   // ── script_read_range happy path ──────────────────────────────────────
-  const rangeResult = await bridge.call("script.read_range", {
-    file_path: largePath, start_line: 1, end_line: 100,
-  }, CALL_TIMEOUT) as {
-    content?: string; start_line?: number; end_line?: number;
-    total_lines?: number; code?: string;
+  const rangeResult = (await bridge.call(
+    "script.read_range",
+    {
+      file_path: largePath,
+      start_line: 1,
+      end_line: 100,
+    },
+    CALL_TIMEOUT,
+  )) as {
+    content?: string;
+    start_line?: number;
+    end_line?: number;
+    total_lines?: number;
+    code?: string;
   };
   if (rangeResult?.code) {
     fail(`script_read_range: unexpected error: ${JSON.stringify(rangeResult)}`);

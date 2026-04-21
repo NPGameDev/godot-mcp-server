@@ -15,7 +15,8 @@ export const SCREENSHOT_TIMEOUT = 10000;
 export const IMPORT_TIMEOUT = 15000;
 
 // ─── Bridge type alias ──────────────────────────────────────────────────
-export type BridgeInstance = ReturnType<typeof createBridge> extends Promise<infer T> ? T : ReturnType<typeof createBridge>;
+export type BridgeInstance =
+  ReturnType<typeof createBridge> extends Promise<infer T> ? T : ReturnType<typeof createBridge>;
 
 // ─── Test context ────────────────────────────────────────────────────────
 // Passed to every test section. `fail` sets a flag that main() reads at exit.
@@ -48,12 +49,7 @@ export function assertGuard(
 }
 
 /** Assert an error envelope: {success:false, code, error:string}. */
-export function assertError(
-  ctx: TestCtx,
-  label: string,
-  result: unknown,
-  code: string,
-): void {
+export function assertError(ctx: TestCtx, label: string, result: unknown, code: string): void {
   const r = result as { success?: boolean; error?: string; code?: string };
   if (!r || r.success !== false || r.code !== code || typeof r.error !== "string") {
     ctx.fail(`${label}: expected {success:false, code:'${code}', error:string}, got ${JSON.stringify(result)}`);
@@ -71,7 +67,11 @@ export function unwrapUntrusted(value: unknown): unknown {
   if (typeof value !== "string") return value;
   const match = value.match(/^<untrusted(?:-[0-9a-f]+)?[^>]*>\n?([\s\S]*?)\n?<\/untrusted(?:-[0-9a-f]+)?>$/);
   if (!match) return value;
-  try { return JSON.parse(match[1]); } catch { return match[1]; }
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return match[1];
+  }
 }
 
 // ─── Standalone helpers ──────────────────────────────────────────────────

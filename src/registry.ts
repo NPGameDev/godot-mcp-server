@@ -35,19 +35,9 @@ export function normalizePath(p: string): string {
 export function registryPath(): string {
   switch (process.platform) {
     case "win32":
-      return join(
-        process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
-        "godot-mcp-toolkit",
-        "projects.json",
-      );
+      return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "godot-mcp-toolkit", "projects.json");
     case "darwin":
-      return join(
-        homedir(),
-        "Library",
-        "Application Support",
-        "godot-mcp-toolkit",
-        "projects.json",
-      );
+      return join(homedir(), "Library", "Application Support", "godot-mcp-toolkit", "projects.json");
     default:
       return join(
         process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share"),

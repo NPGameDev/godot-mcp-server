@@ -19,7 +19,10 @@ export type ToolDef = {
 };
 
 export class BridgeError extends Error {
-  constructor(public code: string, message: string) {
+  constructor(
+    public code: string,
+    message: string,
+  ) {
     super(message);
     this.name = "BridgeError";
   }
@@ -93,10 +96,7 @@ export type ToolRequest = {
  * Middleware function that wraps tool dispatch.
  * Call `next()` to continue the chain; return early to short-circuit.
  */
-export type Hook = (
-  req: ToolRequest,
-  next: () => Promise<ToolTextResult>,
-) => Promise<ToolTextResult>;
+export type Hook = (req: ToolRequest, next: () => Promise<ToolTextResult>) => Promise<ToolTextResult>;
 
 // Canonical MCP failure response. Plugin emits
 // {success: false, error, code} inside the JSON-RPC result payload;

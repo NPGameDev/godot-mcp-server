@@ -5,11 +5,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
   // ─── Native class: basic query ─────────────────────────────────────────
-  const node2d = (await bridge.call(
-    "classdb.get_info",
-    { class_name: "Node2D" },
-    CALL_TIMEOUT,
-  )) as {
+  const node2d = (await bridge.call("classdb.get_info", { class_name: "Node2D" }, CALL_TIMEOUT)) as {
     success?: boolean;
     class_name?: string;
     source?: string;
@@ -87,11 +83,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   }
 
   // ─── Unknown class → UNKNOWN_CLASS ────────────────────────────────────
-  const unknown = await bridge.call(
-    "classdb.get_info",
-    { class_name: "NoSuchClassEverXYZ123" },
-    CALL_TIMEOUT,
-  );
+  const unknown = await bridge.call("classdb.get_info", { class_name: "NoSuchClassEverXYZ123" }, CALL_TIMEOUT);
   assertError(ctx, "classdb.get_info unknown class", unknown, "UNKNOWN_CLASS");
 
   // ─── Global class round-trip ──────────────────────────────────────────
@@ -114,11 +106,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     // Small delay to allow script class list to update
     await new Promise((r) => setTimeout(r, 500));
 
-    const globalResult = (await bridge.call(
-      "classdb.get_info",
-      { class_name: testClassName },
-      CALL_TIMEOUT,
-    )) as {
+    const globalResult = (await bridge.call("classdb.get_info", { class_name: testClassName }, CALL_TIMEOUT)) as {
       success?: boolean;
       source?: string;
       script_path?: string;
@@ -130,13 +118,15 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     if (!globalResult?.success) {
       fail(`classdb.get_info global: expected success for ${testClassName}, got ${JSON.stringify(globalResult)}`);
     } else {
-      if (globalResult.source !== "global") fail(`classdb.get_info global: expected source=global, got ${globalResult.source}`);
+      if (globalResult.source !== "global")
+        fail(`classdb.get_info global: expected source=global, got ${globalResult.source}`);
       else pass(`classdb.get_info ${testClassName} -> source=global`);
 
       if (globalResult.script_path !== testScriptPath) fail(`classdb.get_info global: script_path mismatch`);
       else pass(`classdb.get_info ${testClassName} script_path correct`);
 
-      if (globalResult.parent !== "Node2D") fail(`classdb.get_info global: expected parent=Node2D, got ${globalResult.parent}`);
+      if (globalResult.parent !== "Node2D")
+        fail(`classdb.get_info global: expected parent=Node2D, got ${globalResult.parent}`);
       else pass(`classdb.get_info ${testClassName} parent=Node2D`);
 
       const hasProbeValue = globalResult.properties?.some((p) => p.name === "probe_value");
@@ -169,11 +159,11 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   }
 
   // ─── classdb.search: base_class filter ──────────────────────────────────
-  const searchPhysics = (await bridge.call(
-    "classdb.search",
-    { base_class: "PhysicsBody3D" },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; count?: number; classes?: { name: string }[] };
+  const searchPhysics = (await bridge.call("classdb.search", { base_class: "PhysicsBody3D" }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    count?: number;
+    classes?: { name: string }[];
+  };
 
   if (!searchPhysics?.success) {
     fail(`classdb.search PhysicsBody3D: expected success, got ${JSON.stringify(searchPhysics)}`);
@@ -181,16 +171,20 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     const names = searchPhysics.classes?.map((c) => c.name) ?? [];
     const hasRigid = names.includes("RigidBody3D");
     const hasChar = names.includes("CharacterBody3D");
-    if (!hasRigid || !hasChar) fail(`classdb.search PhysicsBody3D: missing RigidBody3D or CharacterBody3D (got ${names.join(", ")})`);
-    else pass(`classdb.search base_class=PhysicsBody3D -> ${searchPhysics.count} classes (includes RigidBody3D, CharacterBody3D)`);
+    if (!hasRigid || !hasChar)
+      fail(`classdb.search PhysicsBody3D: missing RigidBody3D or CharacterBody3D (got ${names.join(", ")})`);
+    else
+      pass(
+        `classdb.search base_class=PhysicsBody3D -> ${searchPhysics.count} classes (includes RigidBody3D, CharacterBody3D)`,
+      );
   }
 
   // ─── classdb.search: pattern filter ─────────────────────────────────────
-  const searchCamera = (await bridge.call(
-    "classdb.search",
-    { pattern: "Camera" },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; count?: number; classes?: { name: string }[] };
+  const searchCamera = (await bridge.call("classdb.search", { pattern: "Camera" }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    count?: number;
+    classes?: { name: string }[];
+  };
 
   if (!searchCamera?.success) {
     fail(`classdb.search Camera: expected success`);
@@ -218,10 +212,6 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   }
 
   // ─── classdb.search: unknown base_class → UNKNOWN_CLASS ────────────────
-  const searchUnknown = await bridge.call(
-    "classdb.search",
-    { base_class: "NoSuchClassEverXYZ999" },
-    CALL_TIMEOUT,
-  );
+  const searchUnknown = await bridge.call("classdb.search", { base_class: "NoSuchClassEverXYZ999" }, CALL_TIMEOUT);
   assertError(ctx, "classdb.search unknown base_class", searchUnknown, "UNKNOWN_CLASS");
 }

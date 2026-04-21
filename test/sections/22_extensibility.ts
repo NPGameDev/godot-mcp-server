@@ -28,14 +28,28 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
   // doesn't list any reserved-namespace commands.
   if (ucResult?.success && Array.isArray(ucResult.commands)) {
     const reserved = [
-      "scene.", "script.", "editor.", "node.", "runtime.", "server.",
-      "resource.", "folder.", "file.", "signal.", "playtest.", "project.",
-      "input_map.", "animation.", "tilemap.", "asset.", "save.", "meta.",
-      "game.", "diff.",
+      "scene.",
+      "script.",
+      "editor.",
+      "node.",
+      "runtime.",
+      "server.",
+      "resource.",
+      "folder.",
+      "file.",
+      "signal.",
+      "playtest.",
+      "project.",
+      "input_map.",
+      "animation.",
+      "tilemap.",
+      "asset.",
+      "save.",
+      "meta.",
+      "game.",
+      "diff.",
     ];
-    const violations = ucResult.commands.filter((c) =>
-      reserved.some((r) => c.method.startsWith(r)),
-    );
+    const violations = ucResult.commands.filter((c) => reserved.some((r) => c.method.startsWith(r)));
     if (violations.length > 0) {
       fail(`reserved namespace leak: ${violations.map((v) => v.method).join(", ")}`);
     } else {

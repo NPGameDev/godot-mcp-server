@@ -18,12 +18,14 @@ const STUBS: StubDef[] = [
   {
     name: "game_eval",
     gate: "game_eval",
-    description: "LOCKED — evaluate GDScript in running game. Enable: set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env.",
+    description:
+      "LOCKED — evaluate GDScript in running game. Enable: set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env.",
   },
   {
     name: "node_call_method",
     gate: "node_call_method",
-    description: "LOCKED — call arbitrary method on scene node. Enable: set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env.",
+    description:
+      "LOCKED — call arbitrary method on scene node. Enable: set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env.",
   },
   {
     name: "project_set_setting",
@@ -49,14 +51,16 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
         annotations: { openWorldHint: false },
       },
       async () => ({
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            success: false,
-            error: `Feature gated. Set ${envVar}=1 in .mcp.json env and restart.`,
-            code: "FEATURE_GATED",
-          }),
-        }],
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              success: false,
+              error: `Feature gated. Set ${envVar}=1 in .mcp.json env and restart.`,
+              code: "FEATURE_GATED",
+            }),
+          },
+        ],
         isError: true,
       }),
     );
@@ -64,4 +68,4 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
 }
 
 /** Names of tools that have locked stubs when their gate is closed. */
-export const GATED_TOOL_NAMES = STUBS.map(s => s.name);
+export const GATED_TOOL_NAMES = STUBS.map((s) => s.name);

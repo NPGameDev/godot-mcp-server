@@ -24,8 +24,7 @@ export const animationTools: ToolDef[] = [
   {
     name: "animation_get_keys",
     method: "animation.get_keys",
-    description:
-      "List keys on an AnimationPlayer track: { time, value, transition }. Read-only; no auto-track-create.",
+    description: "List keys on an AnimationPlayer track: { time, value, transition }. Read-only; no auto-track-create.",
     inputSchema: {
       player_path: z.string(),
       animation_name: z.string(),

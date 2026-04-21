@@ -13,7 +13,8 @@ export const diffTools: ToolDef[] = [
   {
     name: "scene_diff",
     method: "scene.diff",
-    description: "Compare a prior scene-tree snapshot against another snapshot (or current edited scene if 'after' omitted). Returns { changed, diff, added, removed }.",
+    description:
+      "Compare a prior scene-tree snapshot against another snapshot (or current edited scene if 'after' omitted). Returns { changed, diff, added, removed }.",
     inputSchema: { before: z.any(), after: z.any().optional() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
