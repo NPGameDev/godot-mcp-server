@@ -319,8 +319,13 @@ This ensures reproducible installs — two different `npm install` runs
 produce identical `node_modules/`. Dependency updates are deliberate PRs,
 not silent drift from caret ranges.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for dev environment setup, testing
+workflow, dependency policy, and PR guidelines.
+
 ## Pointers
 
-- Execution plan (all 26 iterations, cross-repo): `<plan-repo>/Plan/ExecutionPlan/00-index.md`
+- Execution plan (all iterations, cross-repo): `<plan-repo>/Plan/ExecutionPlan/00-index.md`
 - Companion plugin: `<toolkit-repo>/` — see its `CLAUDE.md` for tool usage.
 - Distribution procedure: `<toolkit-repo>/DISTRIBUTION.md`.
