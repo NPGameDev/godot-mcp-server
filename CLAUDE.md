@@ -70,7 +70,7 @@ enable specialized tools on demand, **stubs** expose locked gates.
 |--------------|-----------|---------------|
 | **standard** (default) | 34 core tools + `enable_tool_group` meta-tool + 3 locked stubs = 38 in `tools/list`. Groups loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
 | **minimal** | 13 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
-| **full**     | All 59 tools registered at startup (group tools eager-loaded, no meta-tool). | Everything passing its feature gate. |
+| **full** (Power User) | All 59 tools registered at startup (group tools eager-loaded, no meta-tool). Startup warning emitted. | Everything passing its feature gate. |
 | **custom**   | Comma-separated tool list via `GODOT_MCP_CUSTOM_TOOLS` env var. | Whatever you list. |
 
 `--lite` still works but maps to `minimal` with a deprecation warning.

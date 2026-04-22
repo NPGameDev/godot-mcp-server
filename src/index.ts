@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { createBridge } from "./bridge.js";
 import { lookupProject } from "./registry.js";
-import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS } from "./profiles.js";
+import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS, PROFILE_DISPLAY_NAMES } from "./profiles.js";
 import { registerGroupSystem, registerAllGroupTools, GROUP_TOOL_NAMES } from "./groups.js";
 import { registerStubs } from "./stubs.js";
 import { createHookPipeline } from "./hooks.js";
@@ -158,8 +158,14 @@ initRoots(projectPath);
 registerRoots(server);
 
 process.stderr.write(
-  `[godot-mcp] profile=${profile} readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length}\n`,
+  `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length}\n`,
 );
+if (profile === "full") {
+  process.stderr.write(
+    "[godot-mcp] WARNING: Power User profile active — all tools including unsafe operations are enabled.\n" +
+      "[godot-mcp] This includes tools that can modify project settings, execute code, and write outside res://.\n",
+  );
+}
 
 // --- User command discovery ---
 // After the server starts, discover user-defined commands from the toolkit

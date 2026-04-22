@@ -150,6 +150,14 @@ export function customToolList(): string[] {
  * Build the allowed-tool set for initial registration.
  * Returns null for the `full` profile (meaning "register everything").
  */
+/** Human-facing display labels. Internal identifiers (env var values) stay lowercase. */
+export const PROFILE_DISPLAY_NAMES: Record<ProfileName, string> = {
+  minimal: "Minimal",
+  standard: "Standard",
+  full: "Power User",
+  custom: "Custom",
+};
+
 export function resolveAllowedTools(profile: ProfileName, readOnly: boolean): Set<string> | null {
   let names: Set<string> | null;
   switch (profile) {
