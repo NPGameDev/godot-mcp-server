@@ -6,6 +6,10 @@ export interface Bridge {
   call(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
   callRuntime(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
   close(): Promise<void>;
+  /** Godot version string from the plugin auth handshake (e.g. "4.5.2"), or null if not yet connected / older plugin. */
+  getGodotVersion(): string | null;
+  /** Godot minor version number (e.g. 5 for "4.5.2"), or null if unknown. */
+  getGodotMinor(): number | null;
 }
 
 export type { ToolAnnotations };
@@ -16,6 +20,8 @@ export type ToolDef = {
   description: string;
   inputSchema: ZodRawShape;
   annotations?: ToolAnnotations;
+  /** Minimum Godot minor version required (e.g. 5 for 4.5+). Omit for 4.3+ (baseline). */
+  godotMinVersion?: number;
 };
 
 export class BridgeError extends Error {
@@ -75,6 +81,7 @@ export type ErrorCode =
   | "SAVE_WRITE_FAILED"
   | "SEND_FAILED"
   | "TIMEOUT"
+  | "UNSUPPORTED"
   | "USER_PATH_NOT_WHITELISTED"
   | "USER_SCOPE_DISABLED"
   | "WRITE_FAILED";

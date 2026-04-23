@@ -124,10 +124,11 @@ async function readToken(projectPath?: string): Promise<string> {
 
 /**
  * Send the auth handshake and wait for {"authed": true} or a close frame.
- * Resolves on success, rejects on failure or timeout (2s).
+ * Resolves with the Godot version string (e.g. "4.5.2") if the plugin
+ * includes it in the auth response, or null if absent (older plugin).
  */
-function authenticate(ws: WebSocket, token: string): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
+function authenticate(ws: WebSocket, token: string): Promise<string | null> {
+  return new Promise<string | null>((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
       reject(new BridgeError("AUTH_FAILED", "auth handshake timed out"));
@@ -141,10 +142,10 @@ function authenticate(ws: WebSocket, token: string): Promise<void> {
 
     function onMessage(data: unknown): void {
       try {
-        const msg = JSON.parse(String(data)) as { authed?: boolean };
+        const msg = JSON.parse(String(data)) as { authed?: boolean; godot_version?: string };
         if (msg.authed === true) {
           cleanup();
-          resolve();
+          resolve(msg.godot_version ?? null);
         }
       } catch {
         // Not JSON — ignore, keep waiting.
@@ -167,7 +168,7 @@ interface Channel {
   close(): Promise<void>;
 }
 
-function createChannel(url: string, projectPath?: string): Channel {
+function createChannel(url: string, projectPath?: string, onGodotVersion?: (version: string) => void): Channel {
   const pending = new Map<string, Pending>();
   const openWaiters = new Set<Waiter>();
   let ws: WebSocket | null = null;
@@ -243,9 +244,11 @@ function createChannel(url: string, projectPath?: string): Channel {
         // so rotated tokens after a plugin restart are picked up.
         readToken(projectPath)
           .then((token) => authenticate(socket, token))
-          .then(() => {
+          .then((godotVer) => {
             hasConnectedOnce = true;
-            process.stderr.write(`[bridge] ${url} authenticated\n`);
+            if (godotVer && onGodotVersion) onGodotVersion(godotVer);
+            const verNote = godotVer ? ` (Godot ${godotVer})` : "";
+            process.stderr.write(`[bridge] ${url} authenticated${verNote}\n`);
             resolveAllWaiters(socket);
             resolve(socket);
           })
@@ -381,7 +384,10 @@ export interface BridgeOptions {
 
 export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
   const projectPath = opts?.projectPath;
-  let editor = createChannel(editorUrl, projectPath);
+  let godotVersion: string | null = null;
+  let editor = createChannel(editorUrl, projectPath, (v) => {
+    godotVersion = v;
+  });
   let cachedEditorPort = Number(new URL(editorUrl).port);
 
   // Editor-port re-discovery. When the editor channel fails with
@@ -408,7 +414,9 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
     const oldPort = cachedEditorPort;
     cachedEditorPort = entry.port;
     await editor.close();
-    editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`, projectPath);
+    editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`, projectPath, (v) => {
+      godotVersion = v;
+    });
     process.stderr.write(`[bridge] editor port changed ${oldPort} → ${cachedEditorPort}\n`);
     return true;
   }
@@ -497,6 +505,14 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
     async close() {
       await editor.close();
       if (runtimeChannel) await runtimeChannel.close();
+    },
+    getGodotVersion() {
+      return godotVersion;
+    },
+    getGodotMinor() {
+      if (!godotVersion) return null;
+      const parts = godotVersion.split(".");
+      return parts.length >= 2 ? Number(parts[1]) : null;
     },
   };
 }

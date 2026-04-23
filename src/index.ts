@@ -12,7 +12,7 @@ import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
 import type { ToolTextResult } from "./types.js";
-import { callAndWrap } from "./types.js";
+import { callAndWrap, toolError } from "./types.js";
 
 import * as animation from "./tools/animation.js";
 import * as asset from "./tools/asset.js";
@@ -54,6 +54,16 @@ const ALL_MODULE_DEFS = [
   tilemap.tilemapTools,
   classdb.classdbTools,
 ];
+
+// --- Version map for runtime gating ---
+// Tools that declare godotMinVersion are checked at call-time against the
+// connected Godot version. Unknown (not-yet-connected) passes through.
+const versionMap = new Map<string, number>();
+for (const defs of ALL_MODULE_DEFS) {
+  for (const t of defs) {
+    if (t.godotMinVersion != null) versionMap.set(t.name, t.godotMinVersion);
+  }
+}
 
 // --- Profile resolution ---
 const profile = selectedProfile();
@@ -119,9 +129,19 @@ const _origRegisterTool = server.registerTool.bind(server);
   config: Parameters<typeof server.registerTool>[1],
   handler: (input: Record<string, unknown>) => Promise<ToolTextResult>,
 ) => {
-  _origRegisterTool(name, config, (input: Record<string, unknown>) =>
-    hookPipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input)),
-  );
+  _origRegisterTool(name, config, async (input: Record<string, unknown>) => {
+    // Version gate: reject before hooks fire if connected Godot is too old.
+    // Unknown version (bridge not yet connected) passes through — the plugin
+    // itself returns UNSUPPORTED as defence-in-depth.
+    const minVer = versionMap.get(name);
+    if (minVer != null) {
+      const connected = bridge.getGodotMinor();
+      if (connected != null && connected < minVer) {
+        return toolError("UNSUPPORTED", `${name} requires Godot 4.${minVer}+ (connected: 4.${connected})`);
+      }
+    }
+    return hookPipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input));
+  });
 };
 
 // --- Register core (non-group) tools ---

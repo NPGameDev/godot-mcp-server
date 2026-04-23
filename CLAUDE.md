@@ -200,6 +200,26 @@ handler).
 | `GODOT_MCP_TOKEN_PATH`      | (resolved from project) | Absolute override for the session-token file |
 | `GODOT_MCP_PROJECT_NAME`    | (read from project.godot, else `[unnamed project]`) | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
 
+## Version-aware tool catalog (iter 37)
+
+The plugin sends its Godot version in the WebSocket auth handshake
+(`{ "authed": true, "godot_version": "4.5.2" }`). The bridge stores it
+and exposes `Bridge.getGodotVersion()` / `Bridge.getGodotMinor()`.
+
+**Runtime gating:** `src/index.ts` builds a `versionMap` from all module
+`ToolDef.godotMinVersion` declarations. The `registerTool` wrapper checks
+`bridge.getGodotMinor()` against each tool's minimum before hooks fire.
+If the connected Godot is too old, the tool returns `UNSUPPORTED` immediately.
+Unknown version (bridge not yet connected) passes through — the plugin
+returns `UNSUPPORTED` as defence-in-depth.
+
+Currently only `scene_close` has `godotMinVersion: 5` (requires 4.5+).
+To version-gate a new tool, add `godotMinVersion: N` to its `ToolDef`.
+
+**`GODOT_MCP_HIDE_UNAVAILABLE`** env var (`src/profiles.ts`): reserved
+for future dynamic tool-list filtering. Currently the runtime gate is
+the enforcement mechanism.
+
 ## Linting & formatting
 
 - **ESLint** — `eslint.config.js` (flat config, typescript-eslint recommended +
@@ -305,6 +325,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `SAVE_WRITE_FAILED` | plugin (iter 19c) | `FileAccess.open(WRITE)` failed on a whitelisted `user://` file.             |
 | `SEND_FAILED`      | bridge           | WebSocket send callback errored.                                              |
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
+| `UNSUPPORTED`      | both (iter 37)   | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
 | `UNKNOWN_CLASS`    | plugin (iter 26)   | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |
 | `USER_PATH_NOT_WHITELISTED` | plugin (iter 19c) | `user://` path not in the plugin author's whitelist for the requested mode (read/write/delete). Message lists allowed entries. |
 | `USER_SCOPE_DISABLED` | plugin (iter 19c) | `read_user_scope` feature gate is off or `user_scope_whitelist.json` is missing/malformed. |
