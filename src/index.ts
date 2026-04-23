@@ -121,13 +121,13 @@ function parseCapEnv(envName: string, defaultVal: number, floor: number): number
   if (!raw) return defaultVal;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    process.stderr.write(`[godot-mcp] WARNING: ${envName}=${raw} is not a valid positive number; using default ${defaultVal}\n`);
+    process.stderr.write(
+      `[godot-mcp] WARNING: ${envName}=${raw} is not a valid positive number; using default ${defaultVal}\n`,
+    );
     return defaultVal;
   }
   if (parsed < floor) {
-    process.stderr.write(
-      `[godot-mcp] WARNING: ${envName}=${parsed} is below minimum ${floor}; clamping to ${floor}\n`,
-    );
+    process.stderr.write(`[godot-mcp] WARNING: ${envName}=${parsed} is below minimum ${floor}; clamping to ${floor}\n`);
     return floor;
   }
   return parsed;
