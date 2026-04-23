@@ -109,10 +109,39 @@ if (explicitPort) {
   }
 }
 
+// --- Response cap env vars ---
+// Defaults match the plugin-side ProjectSettings defaults.
+const SCRIPT_READ_LIMIT_DEFAULT = 262144; // 256 KB
+const WS_BUFFER_LIMIT_DEFAULT = 1048576; // 1 MB
+const SCRIPT_READ_LIMIT_FLOOR = 65536; // 64 KB
+const WS_BUFFER_LIMIT_FLOOR = 262144; // 256 KB
+
+function parseCapEnv(envName: string, defaultVal: number, floor: number): number {
+  const raw = process.env[envName];
+  if (!raw) return defaultVal;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    process.stderr.write(`[godot-mcp] WARNING: ${envName}=${raw} is not a valid positive number; using default ${defaultVal}\n`);
+    return defaultVal;
+  }
+  if (parsed < floor) {
+    process.stderr.write(
+      `[godot-mcp] WARNING: ${envName}=${parsed} is below minimum ${floor}; clamping to ${floor}\n`,
+    );
+    return floor;
+  }
+  return parsed;
+}
+
+const scriptReadLimit = parseCapEnv("GODOT_MCP_SCRIPT_READ_LIMIT", SCRIPT_READ_LIMIT_DEFAULT, SCRIPT_READ_LIMIT_FLOOR);
+const wsBufferLimit = parseCapEnv("GODOT_MCP_WS_BUFFER_LIMIT", WS_BUFFER_LIMIT_DEFAULT, WS_BUFFER_LIMIT_FLOOR);
+
 const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
   projectPath,
   explicitRuntimePort,
   explicitEditorPort: !!explicitPort,
+  scriptReadLimitBytes: scriptReadLimit,
+  wsBufferLimitBytes: wsBufferLimit,
 });
 
 const server = new McpServer(
@@ -137,7 +166,11 @@ const _origRegisterTool = server.registerTool.bind(server);
     if (minVer != null) {
       const connected = bridge.getGodotMinor();
       if (connected != null && connected < minVer) {
-        return toolError("UNSUPPORTED", `${name} requires Godot 4.${minVer}+ (connected: 4.${connected})`);
+        return toolError(
+          "UNSUPPORTED",
+          `${name} requires Godot 4.${minVer}+ (connected: 4.${connected})`,
+          "Check COMPATIBILITY.md or use classdb.get_info for alternatives.",
+        );
       }
     }
     return hookPipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input));
@@ -178,7 +211,7 @@ initRoots(projectPath);
 registerRoots(server);
 
 process.stderr.write(
-  `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length}\n`,
+  `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
 );
 if (profile === "full") {
   process.stderr.write(

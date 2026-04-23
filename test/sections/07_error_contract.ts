@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, assertError } from "../helpers.js";
+import { CALL_TIMEOUT, assertError, assertHint } from "../helpers.js";
 
 export async function testErrorContract(ctx: TestCtx): Promise<void> {
   const { bridge, pass } = ctx;
@@ -116,4 +116,48 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
     pass("idempotent repeat -> non-error success, status='returned', code absent");
   }
   await bridge.call("scene.delete_node", { node_path: idemFirst?.path ?? idemNodeName }, CALL_TIMEOUT);
+
+  // ── Recovery hint assertions (iter 38) ──────────────────────────────────
+  const hintNode = (await bridge.call("scene.delete_node", { node_path: "NoSuchHint_xyz" }, CALL_TIMEOUT)) as {
+    code?: string;
+    hint?: string;
+  };
+  if (hintNode?.code === "NOT_FOUND") {
+    assertHint(ctx, "hint: node NOT_FOUND", hintNode, "scene.get_tree");
+  } else {
+    ctx.fail(`hint: node NOT_FOUND: unexpected code ${hintNode?.code}`);
+  }
+
+  const hintFile = (await bridge.call(
+    "script.read",
+    { file_path: "res://no_such_file_hint_xyz.gd" },
+    CALL_TIMEOUT,
+  )) as { code?: string; hint?: string };
+  if (hintFile?.code === "NOT_FOUND") {
+    assertHint(ctx, "hint: file NOT_FOUND", hintFile, "asset.list");
+  } else {
+    ctx.fail(`hint: file NOT_FOUND: unexpected code ${hintFile?.code}`);
+  }
+
+  const hintDenied = (await bridge.call(
+    "script.write",
+    { file_path: "user://bad_hint.txt", content: "x" },
+    CALL_TIMEOUT,
+  )) as { code?: string; hint?: string };
+  if (hintDenied?.code === "PATH_DENIED") {
+    assertHint(ctx, "hint: PATH_DENIED default", hintDenied, "res://");
+  } else {
+    ctx.fail(`hint: PATH_DENIED: unexpected code ${hintDenied?.code}`);
+  }
+
+  const hintClass = (await bridge.call(
+    "scene.create_node",
+    { class_name: "NotAClassHint_xyz", parent_path: "." },
+    CALL_TIMEOUT,
+  )) as { code?: string; hint?: string };
+  if (hintClass?.code === "INVALID_CLASS") {
+    assertHint(ctx, "hint: INVALID_CLASS", hintClass, "classdb");
+  } else {
+    ctx.fail(`hint: INVALID_CLASS: unexpected code ${hintClass?.code}`);
+  }
 }

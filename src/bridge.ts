@@ -394,13 +394,33 @@ export interface BridgeOptions {
   /** When true, editor URL is static (GODOT_MCP_PORT set). Skips
    *  registry re-discovery on editor connection loss. */
   explicitEditorPort?: boolean;
+  /** Max bytes for script content responses (sent to plugin via meta.set_limits). */
+  scriptReadLimitBytes?: number;
+  /** Max WebSocket buffer size in bytes (sent to plugin via meta.set_limits). */
+  wsBufferLimitBytes?: number;
 }
 
 export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
   const projectPath = opts?.projectPath;
   let godotVersion: string | null = null;
+
+  // After auth, push server-side response caps to the plugin so it can
+  // enforce them (server env var > dock UI ProjectSettings > defaults).
+  function sendLimitsIfConfigured(channel: Channel): void {
+    const scriptKb = opts?.scriptReadLimitBytes ? Math.round(opts.scriptReadLimitBytes / 1024) : 0;
+    const wsKb = opts?.wsBufferLimitBytes ? Math.round(opts.wsBufferLimitBytes / 1024) : 0;
+    if (scriptKb > 0 || wsKb > 0) {
+      const params: Record<string, number> = {};
+      if (scriptKb > 0) params.script_read_cap_kb = scriptKb;
+      if (wsKb > 0) params.ws_buffer_kb = wsKb;
+      // Fire-and-forget — failure here is non-fatal.
+      channel.call("meta.set_limits", params, 5000).catch(() => {});
+    }
+  }
+
   let editor = createChannel(editorUrl, projectPath, (v) => {
     godotVersion = v;
+    sendLimitsIfConfigured(editor);
   });
   let cachedEditorPort = Number(new URL(editorUrl).port);
 

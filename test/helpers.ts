@@ -48,6 +48,18 @@ export function assertGuard(
   }
 }
 
+/** Assert that an error result carries a non-empty hint containing mustInclude. */
+export function assertHint(ctx: TestCtx, label: string, result: unknown, mustInclude?: string): void {
+  const r = result as { hint?: string };
+  if (typeof r?.hint !== "string" || r.hint.length === 0) {
+    ctx.fail(`${label}: expected non-empty hint, got ${JSON.stringify(r?.hint)}`);
+  } else if (mustInclude && !r.hint.includes(mustInclude)) {
+    ctx.fail(`${label}: hint missing "${mustInclude}" in "${r.hint}"`);
+  } else {
+    ctx.pass(`${label} -> hint present`);
+  }
+}
+
 /** Assert an error envelope: {success:false, code, error:string}. */
 export function assertError(ctx: TestCtx, label: string, result: unknown, code: string): void {
   const r = result as { success?: boolean; error?: string; code?: string };

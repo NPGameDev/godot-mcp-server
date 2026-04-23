@@ -80,4 +80,31 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
 
   // Cleanup: delete the large file.
   await bridge.call("script.delete", { file_path: largePath }, CALL_TIMEOUT);
+
+  // ── meta.set_limits (iter 38) ────────────────────────────────────────────
+  const limitsResult = (await bridge.call(
+    "meta.set_limits",
+    { script_read_cap_kb: 512, ws_buffer_kb: 2048 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; script_read_cap_kb?: number; ws_buffer_kb?: number };
+  if (!limitsResult?.success || limitsResult.script_read_cap_kb !== 512 || limitsResult.ws_buffer_kb !== 2048) {
+    fail(`meta.set_limits: expected success with 512/2048, got ${JSON.stringify(limitsResult)}`);
+  } else {
+    pass("meta.set_limits: accepted overrides 512KB/2048KB");
+  }
+
+  // Verify floor clamping — values below minimums should be clamped.
+  const floorResult = (await bridge.call(
+    "meta.set_limits",
+    { script_read_cap_kb: 1, ws_buffer_kb: 1 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; script_read_cap_kb?: number; ws_buffer_kb?: number };
+  if (!floorResult?.success || floorResult.script_read_cap_kb !== 64 || floorResult.ws_buffer_kb !== 256) {
+    fail(`meta.set_limits floor: expected 64/256, got ${JSON.stringify(floorResult)}`);
+  } else {
+    pass("meta.set_limits: clamped below-floor values to 64KB/256KB");
+  }
+
+  // Reset to defaults so later tests are unaffected.
+  await bridge.call("meta.set_limits", { script_read_cap_kb: 256, ws_buffer_kb: 1024 }, CALL_TIMEOUT);
 }

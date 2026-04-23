@@ -111,9 +111,11 @@ export type Hook = (req: ToolRequest, next: () => Promise<ToolTextResult>) => Pr
 // here. String `code` is accepted (in addition to the ErrorCode union)
 // because bridge errors (RPC_ERROR etc.) aren't statically typed at
 // every call site.
-export function toolError(code: ErrorCode | string, message: string): ToolTextResult {
+export function toolError(code: ErrorCode | string, message: string, hint?: string): ToolTextResult {
+  const payload: Record<string, unknown> = { success: false, error: message, code };
+  if (hint) payload.hint = hint;
   return {
-    content: [{ type: "text", text: JSON.stringify({ success: false, error: message, code }) }],
+    content: [{ type: "text", text: JSON.stringify(payload) }],
     isError: true,
   };
 }
@@ -149,12 +151,19 @@ export async function callAndWrap(
 // truthy and pass through unchanged.
 export function toolErrorFromPayload(result: unknown): ToolTextResult | null {
   if (!result || typeof result !== "object") return null;
-  const obj = result as { success?: unknown; code?: unknown; error?: unknown };
+  const obj = result as { success?: unknown; code?: unknown; error?: unknown; hint?: unknown };
   if (obj.success !== false) return null;
   const code = typeof obj.code === "string" ? obj.code : "INTERNAL";
   const error = typeof obj.error === "string" ? obj.error : "unknown error";
-  return toolError(code, error);
+  const hint = typeof obj.hint === "string" ? obj.hint : undefined;
+  return toolError(code, error, hint);
 }
+
+// Default hints for transport-level exception codes that always benefit
+// from the same recovery guidance.
+const EXCEPTION_HINTS: Record<string, string> = {
+  TIMEOUT: "The editor may be busy. Try editor.wait_for_idle before retrying.",
+};
 
 // Map a thrown BridgeError (or any Error) to a toolError response.
 // Preserves the bridge's transport-layer code (TIMEOUT, DISCONNECTED,
@@ -163,5 +172,5 @@ export function toolErrorFromPayload(result: unknown): ToolTextResult | null {
 export function toolErrorFromException(err: unknown): ToolTextResult {
   const code = err instanceof BridgeError ? err.code : "INTERNAL";
   const message = (err as Error)?.message ?? String(err);
-  return toolError(code, message);
+  return toolError(code, message, EXCEPTION_HINTS[code]);
 }
