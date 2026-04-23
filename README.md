@@ -307,6 +307,18 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 
 When Godot runs with `--headless --editor`, the plugin loads and 57 of 59 tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `editor_screenshot_node`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.6 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
 
+## Token efficiency
+
+Each profile consumes a fixed amount of context window for the MCP tool catalogue. Schema minification (enabled by default) reduces this by ~19%.
+
+| Profile | Catalogue cost |
+|---------|---------------|
+| Minimal | ~1,300 tokens |
+| Standard | ~3,600 tokens (+ ~200–600 per on-demand group) |
+| Power User | ~5,700 tokens |
+
+Run `npx tsx scripts/measure-tokens.ts` to regenerate measurements after adding or modifying tools. See [docs/token-efficiency.md](docs/token-efficiency.md) for the full per-tool breakdown, group costs, and methodology.
+
 ## Security
 
 The toolkit implements defense-in-depth security. See the [plugin README](https://github.com/NPGameDev/godot-mcp-toolkit#security) for full details.
