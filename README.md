@@ -303,6 +303,10 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 
 </details>
 
+## Headless mode
+
+When Godot runs with `--headless`, most file-based and metadata tools (scripts, resources, ClassDB, project settings) work normally. Screenshot and runtime tools require a display. See the [plugin README](https://github.com/NPGameDev/godot-mcp-toolkit#headless-mode-compatibility) for the full compatibility table.
+
 ## Security
 
 The toolkit implements defense-in-depth security. See the [plugin README](https://github.com/NPGameDev/godot-mcp-toolkit#security) for full details.
