@@ -1,7 +1,7 @@
 # Godot MCP Server
 
 [![CI](https://github.com/NPGameDev/godot-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/NPGameDev/godot-mcp-server/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@npgamedev/godot-mcp-server)](https://www.npmjs.com/package/@npgamedev/godot-mcp-server)
+![version](https://img.shields.io/badge/version-1.0.0-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 [MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 55+ tools for scene manipulation, script editing, resource management, playtesting, and more.
@@ -318,14 +318,13 @@ The toolkit implements defense-in-depth security. See the [plugin README](https:
 ## Architecture
 
 ```
-┌─────────────┐    stdio     ┌───────────────────────┐   WebSocket    ┌────────────────────┐
-│  MCP client │<────────────>│  godot-mcp-server     │<─────────────>│  godot-mcp-toolkit │
-│  (AI agent) │  JSON-RPC    │  (this package)       │ 127.0.0.1     │  (Godot plugin)    │
-└─────────────┘              └───────────────────────┘               └────────────────────┘
-                                       │                                       │
-                                       │  WebSocket (Mode B)                   │
-                                       └──── 127.0.0.1:6525 ─────────────────>│
-                                           (runtime tools during playtest)    (autoload)
+┌─────────────┐          ┌─────────────────────┐          ┌────────────────────┐
+│  MCP client │─ stdio ─>│  godot-mcp-server   │─ ws ────>│  godot-mcp-toolkit │
+│  (AI agent) │          │  (this package)     │  :6505   │  (Godot plugin)    │
+└─────────────┘          └─────────┬───────────┘          └─────────┬──────────┘
+                                   │                                │
+                                   └──── ws :6525 (Mode B) ────────>│
+                                         (playtest runtime)        (autoload)
 ```
 
 - **Mode A** (editor, default port 6505) — operates on the edited scene via `EditorInterface`.
