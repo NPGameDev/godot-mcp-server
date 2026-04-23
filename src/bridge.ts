@@ -107,7 +107,16 @@ async function resolveTokenPath(projectPath?: string): Promise<string> {
         tokenFile,
       );
     case "darwin":
-      return join(homedir(), "Library", "Application Support", "Godot", "app_userdata", projectName, tokenSubdir, tokenFile);
+      return join(
+        homedir(),
+        "Library",
+        "Application Support",
+        "Godot",
+        "app_userdata",
+        projectName,
+        tokenSubdir,
+        tokenFile,
+      );
     default:
       return join(homedir(), ".local", "share", "godot", "app_userdata", projectName, tokenSubdir, tokenFile);
   }
