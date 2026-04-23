@@ -315,6 +315,8 @@ The toolkit implements defense-in-depth security. See the [plugin README](https:
 - **Untrusted envelopes** — per-call nonce-tagged wrappers mitigate prompt injection
 - **Localhost only** — `127.0.0.1` bind; never `0.0.0.0`
 
+> **Disclaimer:** We take security seriously and design every layer with defense-in-depth, but no software is immune to misuse or unforeseen vulnerabilities. This project is provided under the [MIT License](LICENSE) with no warranty. You are responsible for evaluating whether it meets your security requirements before use.
+
 ## Architecture
 
 ```
