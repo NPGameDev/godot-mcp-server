@@ -243,6 +243,30 @@ Run `npm run lint && npm run format` before committing.
   Validates tag matches `package.json` version, builds, publishes to npm
   (`NPM_TOKEN` secret required), and creates a GitHub Release.
 
+## Accuracy eval suite (iter 40)
+
+Separate from smoke (smoke = "does it work", eval = "does it work well").
+Runs against a live Godot instance like smoke but tests two dimensions:
+
+- **Correctness** (scenarios 01–05): scripted workflows with known expected
+  outcomes — scene creation, ClassDB accuracy, script validation, error
+  recovery hints, read/write round-trips. Expected: 100% pass rate.
+- **Efficiency** (scenario 06): multi-step workflows measuring tool-call
+  count vs known-optimal sequences — player character creation (7 calls),
+  physics-body configuration (3 calls), script debugging (4 calls).
+
+```
+npm run eval         # runs all 6 scenarios, prints report with baseline metrics
+```
+
+The eval harness lives in `test/eval/`:
+- `eval-runner.ts` — discovers + runs scenarios, collects results
+- `eval-report.ts` — report generator (pass/fail, tool calls, efficiency %)
+- `scenarios/01-*.ts` through `scenarios/06-*.ts` — self-contained scenarios
+
+Eval does NOT replace smoke. Smoke validates registration + basic round-trips;
+eval validates real-world workflow quality. Both are needed.
+
 ## Workflow
 
 ```
@@ -250,6 +274,7 @@ npm install          # once
 npm run build        # tsc -> dist/, postbuild adds shebang
 npm run lint         # ESLint check
 npm run format       # Prettier check (format:fix to auto-fix)
+npm run eval         # accuracy eval (correctness + efficiency, editor must be up)
 npm run smoke        # dual-pass: gates-off then gates-on (editor must be up)
 npm run smoke:single # single-pass (inherits env vars from caller)
 npm run smoke:ci     # static catalogue validation only (no Godot required)

@@ -35,6 +35,7 @@
     "smoke": "tsx test/run-smoke.ts",
     "smoke:single": "tsx test/smoke.ts",
     "smoke:ci": "tsx test/smoke.ts --ci",
+    "eval": "tsx test/eval/eval-runner.ts",
     "lint": "eslint src/ test/",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",

@@ -319,6 +319,15 @@ Each profile consumes a fixed amount of context window for the MCP tool catalogu
 
 Run `npx tsx scripts/measure-tokens.ts` to regenerate measurements after adding or modifying tools. See [docs/token-efficiency.md](docs/token-efficiency.md) for the full per-tool breakdown, group costs, and methodology.
 
+## Accuracy eval
+
+An accuracy eval suite (`npm run eval`) tests two dimensions against a live Godot instance:
+
+- **Correctness** (5 scenarios, 58 assertions): scene creation workflows, ClassDB accuracy, script validation, error recovery hints, read/write round-trips. Baseline: 100% pass rate.
+- **Efficiency** (3 workflows, 18 assertions): player character creation (7 calls), physics-body configuration (3 calls), script debugging (4 calls). Baseline: 100% optimal — 14 tool calls across all workflows match known-optimal sequences.
+
+The eval suite is separate from the smoke test. Smoke validates "does it work" (255 assertions); eval validates "does it work well" (76 assertions). Run `npm run eval` to establish or verify the baseline.
+
 ## Security
 
 The toolkit implements defense-in-depth security. See the [plugin README](https://github.com/NPGameDev/godot-mcp-toolkit#security) for full details.
