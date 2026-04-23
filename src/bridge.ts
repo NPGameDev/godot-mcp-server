@@ -85,12 +85,16 @@ async function resolveTokenPath(projectPath?: string): Promise<string> {
 
   // Per-worktree: hash the canonical project path so two worktrees of the
   // same repo (same config/name → same user://) get distinct token files.
+  // The plugin writes the token to user://addons/godot_mcp_toolkit/mcp_token_<hash>
+  // (see auth.gd), so the subdir must match here.
   let tokenFile = "mcp_token";
   if (projectPath) {
     const canonical = projectPath.replace(/\\/g, "/").replace(/\/+$/, "");
     const hash = createHash("sha256").update(canonical).digest("hex").slice(0, 12);
     tokenFile = `mcp_token_${hash}`;
   }
+
+  const tokenSubdir = join("addons", "godot_mcp_toolkit");
 
   switch (process.platform) {
     case "win32":
@@ -99,12 +103,13 @@ async function resolveTokenPath(projectPath?: string): Promise<string> {
         "Godot",
         "app_userdata",
         projectName,
+        tokenSubdir,
         tokenFile,
       );
     case "darwin":
-      return join(homedir(), "Library", "Application Support", "Godot", "app_userdata", projectName, tokenFile);
+      return join(homedir(), "Library", "Application Support", "Godot", "app_userdata", projectName, tokenSubdir, tokenFile);
     default:
-      return join(homedir(), ".local", "share", "godot", "app_userdata", projectName, tokenFile);
+      return join(homedir(), ".local", "share", "godot", "app_userdata", projectName, tokenSubdir, tokenFile);
   }
 }
 

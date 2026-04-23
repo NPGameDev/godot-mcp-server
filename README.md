@@ -305,7 +305,7 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 
 ## Headless mode
 
-When Godot runs with `--headless`, most file-based and metadata tools (scripts, resources, ClassDB, project settings) work normally. Screenshot and runtime tools require a display. See the [plugin README](https://github.com/NPGameDev/godot-mcp-toolkit#headless-mode-compatibility) for the full compatibility table.
+When Godot runs with `--headless --editor`, the plugin loads and 50+ tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `editor_screenshot_node`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.6 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
 
 ## Security
 
