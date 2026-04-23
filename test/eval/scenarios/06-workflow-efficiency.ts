@@ -17,6 +17,8 @@ type WorkflowResult = {
   assertions: AssertionResult[];
   toolCalls: number;
   optimalCalls: number;
+  /** Groups that teardown/cleanup would need under the standard profile. */
+  groupsNeeded?: string[];
 };
 
 // ── Workflow 1: Create a player character ─────────────────────────────────
@@ -117,13 +119,19 @@ async function playerCharacterWorkflow(bridge: EvalBridge): Promise<WorkflowResu
     passed: check?.valid === true,
   });
 
-  // Teardown (not counted)
+  // Teardown (not counted — uses asset_management group tools)
   await bridge.call("scene.close", { file_path: scenePath }, CALL_MS);
   await bridge.call("scene.open", { file_path: "res://Main.tscn" }, CALL_MS);
   await bridge.call("scene.delete", { file_path: scenePath }, CALL_MS);
   await bridge.call("script.delete", { file_path: scriptPath }, CALL_MS);
 
-  return { name: "create-player-character", assertions, toolCalls, optimalCalls: OPTIMAL };
+  return {
+    name: "create-player-character",
+    assertions,
+    toolCalls,
+    optimalCalls: OPTIMAL,
+    groupsNeeded: ["asset_management"],
+  };
 }
 
 // ── Workflow 2: Find and configure a physics body ─────────────────────────
@@ -263,6 +271,8 @@ export const workflowEfficiency: EvalScenario = {
       await debugScriptWorkflow(bridge),
     ];
 
+    const allGroups = new Set<string>();
+
     for (const w of workflows) {
       // Add workflow-specific assertions
       for (const a of w.assertions) {
@@ -278,6 +288,7 @@ export const workflowEfficiency: EvalScenario = {
 
       totalCalls += w.toolCalls;
       totalOptimal += w.optimalCalls;
+      for (const g of w.groupsNeeded ?? []) allGroups.add(g);
     }
 
     return {
@@ -286,6 +297,7 @@ export const workflowEfficiency: EvalScenario = {
       assertions: allAssertions,
       toolCalls: totalCalls,
       optimalToolCalls: totalOptimal,
+      groupsNeeded: allGroups.size > 0 ? [...allGroups] : undefined,
       durationMs: Date.now() - start,
     };
   },

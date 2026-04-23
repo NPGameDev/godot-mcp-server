@@ -171,7 +171,7 @@ export const readwriteRoundtrip: EvalScenario = {
       detail: `resource_name=${loadedProps?.resource_name}`,
     });
 
-    // Cleanup resource
+    // Cleanup (resource.delete is in asset_management group)
     await call("resource.delete", { file_path: RESOURCE_PATH });
 
     return {
@@ -179,6 +179,7 @@ export const readwriteRoundtrip: EvalScenario = {
       dimension: "correctness",
       assertions,
       toolCalls,
+      groupsNeeded: ["asset_management"],
       durationMs: Date.now() - start,
     };
   },

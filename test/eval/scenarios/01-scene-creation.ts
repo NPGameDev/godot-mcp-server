@@ -160,8 +160,7 @@ export const sceneCreation: EvalScenario = {
       detail: String(getDesc?.value),
     });
 
-    // ── Teardown ─────────────────────────────────────────────────────────
-    // Close the eval scene tab, reopen Main.tscn, then delete the file
+    // ── Teardown (uses asset_management group tools) ────────────────────
     await call("scene.close", { file_path: SCENE_PATH });
     await call("scene.open", { file_path: "res://Main.tscn" });
     await call("scene.delete", { file_path: SCENE_PATH });
@@ -171,6 +170,7 @@ export const sceneCreation: EvalScenario = {
       dimension: "correctness",
       assertions,
       toolCalls,
+      groupsNeeded: ["asset_management"],
       durationMs: Date.now() - start,
     };
   },

@@ -15,6 +15,8 @@ export type ScenarioResult = {
   assertions: AssertionResult[];
   toolCalls: number;
   optimalToolCalls?: number;
+  /** Groups that would need enable_tool_group under the standard profile. */
+  groupsNeeded?: string[];
   durationMs: number;
 };
 
@@ -94,6 +96,22 @@ export function printReport(report: EvalReport): void {
     console.log(
       `  Efficiency: ${totalCalls} tool calls across ${effScenarios.length} workflows (${overallEff}% optimal)`,
     );
+  }
+
+  // Group-overhead note for standard-profile agents
+  const allGroups = new Set<string>();
+  for (const s of report.scenarios) {
+    for (const g of s.groupsNeeded ?? []) allGroups.add(g);
+  }
+  if (allGroups.size > 0) {
+    console.log("");
+    console.log("  Note: eval uses bridge.call() directly, bypassing the MCP profile layer.");
+    console.log("  Under the standard profile, these scenarios need enable_tool_group first:");
+    for (const s of report.scenarios) {
+      if (s.groupsNeeded && s.groupsNeeded.length > 0) {
+        console.log(`    ${s.name}: +1 call for ${s.groupsNeeded.join(", ")}`);
+      }
+    }
   }
 
   console.log(bar);
