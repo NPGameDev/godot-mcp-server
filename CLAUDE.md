@@ -75,6 +75,10 @@ enable specialized tools on demand, **stubs** expose locked gates.
 
 `--lite` still works but maps to `minimal` with a deprecation warning.
 
+**Token costs** (measured via `npx tsx scripts/measure-tokens.ts`):
+minimal ~1,300 tokens, standard ~3,600, Power User ~5,700. Schema
+minification saves ~19%. See `docs/token-efficiency.md` for full data.
+
 `GODOT_MCP_READ_ONLY=1` removes all tools in the `MUTATING_TOOLS` set from
 any profile. Single source of truth: `src/profiles.ts`.
 

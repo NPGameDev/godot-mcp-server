@@ -4,7 +4,7 @@
 ![version](https://img.shields.io/badge/version-1.0.0-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 55+ tools for scene manipulation, script editing, resource management, playtesting, and more.
+[MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 59 tools for scene manipulation, script editing, resource management, playtesting, and more.
 
 ## What it does
 
@@ -101,14 +101,14 @@ These enable individually gated capabilities. Most require opt-in on **both** th
 
 ## Profiles
 
-Control which tools your AI assistant sees.
+Control which tools your AI assistant sees. See [Token Efficiency](docs/token-efficiency.md) for per-profile token cost data.
 
-| Profile | Tools | Best for |
-|---------|-------|----------|
-| **minimal** | ~12 | Read-only exploration. Scene inspection, script reading, class lookups. |
-| **standard** | ~34 | Day-to-day development. Scene/script/resource editing plus on-demand group access. |
-| **Power User** | all 55 | Full access including feature-gated tools. Risk warning on activation. |
-| **custom** | user-defined | Cherry-pick tools via `GODOT_MCP_CUSTOM_TOOLS`. |
+| Profile | Tools | Catalogue tokens | Best for |
+|---------|-------|-----------------|----------|
+| **minimal** | 13 | ~1,300 | Read-only exploration. Scene inspection, script reading, class lookups. |
+| **standard** | 38 | ~3,600 | Day-to-day development. Scene/script/resource editing plus on-demand group access. |
+| **Power User** | 59 | ~5,700 | Full access including feature-gated tools. Risk warning on activation. |
+| **custom** | user-defined | varies | Cherry-pick tools via `GODOT_MCP_CUSTOM_TOOLS`. |
 
 ```bash
 # Via environment variable
@@ -305,7 +305,7 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 
 ## Headless mode
 
-When Godot runs with `--headless --editor`, the plugin loads and 50+ tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `editor_screenshot_node`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.6 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
+When Godot runs with `--headless --editor`, the plugin loads and 57 of 59 tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `editor_screenshot_node`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.6 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
 
 ## Security
 
