@@ -36,7 +36,7 @@ export const editorTools: ToolDef[] = [
     name: "editor_reload_scripts",
     method: "editor.reload_scripts",
     description:
-      "Rescan res:// and soft-reload already-loaded scripts so the editor picks up on-disk changes. Returns { ok: true }.",
+      "Rescan res:// and soft-reload scripts so the editor picks up on-disk changes. Required after external file writes in headless mode. Returns { ok }.",
     inputSchema: {},
     annotations: { openWorldHint: false },
   },

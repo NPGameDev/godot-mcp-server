@@ -150,6 +150,16 @@ export function toolErrorFromPayload(result: unknown): ToolTextResult | null {
 /** Default hints for transport-level exception codes. */
 const EXCEPTION_HINTS: Record<string, string> = {
   TIMEOUT: "The editor may be busy. Try editor.wait_for_idle before retrying.",
+  DISCONNECTED:
+    "Plugin WebSocket not connected. Ensure Godot is running with the plugin enabled. If running headless, launch with: godot --headless --editor --path <project>",
+  GAME_NOT_RUNNING:
+    "No running game detected. Use game.start first. Check editor_get_console for runtime startup errors.",
+  LOG_UNAVAILABLE:
+    "Log file could not be read. Check that file logging is enabled in ProjectSettings (application/config/use_file_logging).",
+  FEATURE_GATED:
+    "Requires full MCP client restart after env changes. Use profile 'full' (or 'standard' with enable_tool_group).",
+  FEATURE_DISABLED:
+    "This tool is disabled in the current profile. Switch to a higher profile or use enable_tool_group to load it dynamically.",
 };
 
 /**

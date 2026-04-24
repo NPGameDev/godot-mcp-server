@@ -38,7 +38,7 @@ export const sceneTools: ToolDef[] = [
     name: "scene_create",
     method: "scene.create",
     description:
-      "Create .tscn at file_path; root_type = engine class or custom class_name (default Node). Idempotent. Returns status 'created'|'returned'|'replaced'. if_exists: 'return'(default)|'fail'|'replace'.",
+      "Create .tscn at file_path. Root node name = filename stem, accessible at path '.'. root_type default Node. Idempotent: 'created'|'returned'|'replaced'. if_exists: 'return'|'fail'|'replace'.",
     inputSchema: {
       file_path: z.string(),
       root_type: z.string().optional(),

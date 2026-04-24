@@ -19,18 +19,19 @@ const STUBS: StubDef[] = [
     name: "game_eval",
     gate: "game_eval",
     description:
-      "LOCKED — evaluate GDScript in running game. Enable: set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env.",
+      "LOCKED — evaluate GDScript in running game. Enable: set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env AND use GODOT_MCP_PROFILE=full. Requires MCP client restart.",
   },
   {
     name: "node_call_method",
     gate: "node_call_method",
     description:
-      "LOCKED — call arbitrary method on scene node. Enable: set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env.",
+      "LOCKED — call arbitrary method on scene node. Enable: set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env. Requires MCP client restart after env changes.",
   },
   {
     name: "project_set_setting",
     gate: "project_set_setting",
-    description: "LOCKED — write ProjectSettings. Enable: set GODOT_MCP_ALLOW_PROJECT_SET_SETTING=1 in .mcp.json env.",
+    description:
+      "LOCKED — write ProjectSettings. Enable: set GODOT_MCP_ALLOW_PROJECT_SET_SETTING=1 in .mcp.json env. Requires MCP client restart after env changes.",
   },
 ];
 
@@ -58,6 +59,7 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
               success: false,
               error: `Feature gated. Set ${envVar}=1 in .mcp.json env and restart.`,
               code: "FEATURE_GATED",
+              hint: `Requires full MCP client restart after env changes. Use profile 'full' (or 'standard' with enable_tool_group).`,
             }),
           },
         ],

@@ -25,7 +25,7 @@ export const runtimeTools: ToolDef[] = [
     name: "runtime_get_node_state",
     method: "runtime.get_node_state",
     description:
-      "Inspect a live node at path in the running game: returns { name, class, path, properties } (inspector-visible fields only).",
+      "Inspect a live node in the running game. Returns { name, class, path, properties } — primarily @export vars and inspector-visible fields.",
     inputSchema: { node_path: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -72,7 +72,7 @@ if (isEnabled("game_eval")) {
     name: "game_eval",
     method: "game.eval",
     description:
-      "DANGER: evaluates GDScript via Expression in the running game's context. Disabled by default. Set GODOT_MCP_ALLOW_GAME_EVAL=1 to enable.",
+      "DANGER: runs arbitrary GDScript in game. Prefer input_simulate, runtime_get_node_state, or signal_emit for safer alternatives.",
     inputSchema: { code: z.string(), scope_path: z.string().optional() },
     annotations: { destructiveHint: true, openWorldHint: false },
   });
