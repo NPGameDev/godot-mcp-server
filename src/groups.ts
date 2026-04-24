@@ -24,6 +24,8 @@ import { sceneTools } from "./tools/scene.js";
 import { fileTools } from "./tools/file.js";
 import { resourceTools } from "./tools/resource.js";
 
+// ── Group definitions ────────────────────────────────────────────────
+
 export type GroupName = "runtime" | "signals" | "animation_authoring" | "input_map" | "asset_management" | "user_data";
 
 const GROUP_NAMES: readonly GroupName[] = [
@@ -82,7 +84,10 @@ export const GROUPS: GroupDef[] = [
 /** All tool names that belong to groups (for filtering during standard profile registration). */
 export const GROUP_TOOL_NAMES = new Set(GROUPS.flatMap((g) => g.tools));
 
-// Build a master lookup of all ToolDefs by name
+// ── Tool lookup ──────────────────────────────────────────────────────
+
+// Master lookup of all ToolDefs by name, built from modules that
+// contribute group tools.
 const allDefs = new Map<string, ToolDef>();
 for (const tools of [
   signalTools,
@@ -98,7 +103,7 @@ for (const tools of [
   for (const t of tools) allDefs.set(t.name, t);
 }
 
-// Tools that route through the runtime (Mode B) bridge
+// Tools that route through the runtime (Mode B) bridge.
 const RUNTIME_TOOLS = new Set([
   "runtime_screenshot",
   "runtime_get_node_state",
@@ -107,70 +112,88 @@ const RUNTIME_TOOLS = new Set([
   "animation_player_control",
 ]);
 
-// Tracks loaded groups for the session
+// Tracks loaded groups for the session.
 const loadedGroups = new Set<GroupName>();
+
+// ── Special-case handlers ────────────────────────────────────────────
+// Tools with non-standard response processing. Each returns a handler
+// function matching the registerTool callback signature.
+
+/** signal_emit has dual-mode routing (editor or runtime). */
+function handleSignalEmit(bridge: Bridge, def: ToolDef) {
+  return async (input: unknown) => {
+    const parsed = input as { node_path: string; signal_name: string; args?: unknown[]; mode?: string };
+    const mode = parsed.mode ?? "editor";
+    const params = { node_path: parsed.node_path, signal_name: parsed.signal_name, args: parsed.args ?? [] };
+    return callAndWrap(bridge, def.method, params, { runtime: mode === "runtime" });
+  };
+}
+
+/** runtime_screenshot returns multi-content (image + text metadata). */
+function handleRuntimeScreenshot(bridge: Bridge, def: ToolDef) {
+  return async (input: unknown) => {
+    try {
+      const result = await bridge.callRuntime(def.method, input);
+      const err = toolErrorFromPayload(result);
+      if (err) return err;
+      // Plugin response shape: { image_base64, mime_type, width, height, bytes }
+      const obj = result as { image_base64: string; mime_type: string; width: number; height: number; bytes: number };
+      return {
+        content: [
+          { type: "image" as const, data: obj.image_base64, mimeType: obj.mime_type ?? "image/png" },
+          {
+            type: "text" as const,
+            text: JSON.stringify({ width: obj.width, height: obj.height, bytes: obj.bytes }),
+          },
+        ],
+      };
+    } catch (err) {
+      return toolErrorFromException(err);
+    }
+  };
+}
+
+/** debugger_get_log prefixes a line-count summary before the payload. */
+function handleDebuggerLog(bridge: Bridge, def: ToolDef) {
+  return async (input: unknown) => {
+    try {
+      const result = await bridge.callRuntime(def.method, input);
+      const err = toolErrorFromPayload(result);
+      if (err) return err;
+      const obj = result as Record<string, unknown>;
+      const count = typeof obj.count === "number" ? obj.count : 0;
+      const total = typeof obj.total === "number" ? obj.total : count;
+      const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
+      const text = stableStringify({ _summary: summary, ...obj });
+      return { content: [{ type: "text" as const, text }] };
+    } catch (e) {
+      return toolErrorFromException(e);
+    }
+  };
+}
+
+// ── Handler dispatch ─────────────────────────────────────────────────
 
 /**
  * Create the handler for a given tool, respecting runtime routing
  * and special-case tools.
  */
 function createHandler(bridge: Bridge, def: ToolDef) {
-  // Special: signal_emit has dual-mode routing
-  if (def.name === "signal_emit") {
-    return async (input: unknown) => {
-      const parsed = input as { node_path: string; signal_name: string; args?: unknown[]; mode?: string };
-      const mode = parsed.mode ?? "editor";
-      const params = { node_path: parsed.node_path, signal_name: parsed.signal_name, args: parsed.args ?? [] };
-      return callAndWrap(bridge, def.method, params, { runtime: mode === "runtime" });
-    };
+  switch (def.name) {
+    case "signal_emit":
+      return handleSignalEmit(bridge, def);
+    case "runtime_screenshot":
+      return handleRuntimeScreenshot(bridge, def);
+    case "debugger_get_log":
+      return handleDebuggerLog(bridge, def);
+    default: {
+      const useRuntime = RUNTIME_TOOLS.has(def.name);
+      return (input: unknown) => callAndWrap(bridge, def.method, input, { runtime: useRuntime });
+    }
   }
-
-  // Special: runtime_screenshot returns multi-content (image + text)
-  if (def.name === "runtime_screenshot") {
-    return async (input: unknown) => {
-      try {
-        const result = await bridge.callRuntime(def.method, input);
-        const err = toolErrorFromPayload(result);
-        if (err) return err;
-        const obj = result as { base64: string; format: string; width: number; height: number };
-        return {
-          content: [
-            { type: "image" as const, data: obj.base64, mimeType: `image/${obj.format}` },
-            {
-              type: "text" as const,
-              text: JSON.stringify({ width: obj.width, height: obj.height, format: obj.format }),
-            },
-          ],
-        };
-      } catch (err) {
-        return toolErrorFromException(err);
-      }
-    };
-  }
-
-  // Summary-first: debugger_get_log prefixes a line-count summary
-  if (def.name === "debugger_get_log") {
-    return async (input: unknown) => {
-      try {
-        const result = await bridge.callRuntime(def.method, input);
-        const err = toolErrorFromPayload(result);
-        if (err) return err;
-        const obj = result as Record<string, unknown>;
-        const count = typeof obj.count === "number" ? obj.count : 0;
-        const total = typeof obj.total === "number" ? obj.total : count;
-        const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
-        const text = stableStringify({ _summary: summary, ...obj });
-        return { content: [{ type: "text" as const, text }] };
-      } catch (e) {
-        return toolErrorFromException(e);
-      }
-    };
-  }
-
-  // Standard: callAndWrap (with runtime flag if applicable)
-  const useRuntime = RUNTIME_TOOLS.has(def.name);
-  return (input: unknown) => callAndWrap(bridge, def.method, input, { runtime: useRuntime });
 }
+
+// ── Registration ─────────────────────────────────────────────────────
 
 /**
  * Register a single group's tools dynamically.

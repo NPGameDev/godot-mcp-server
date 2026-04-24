@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { callAndWrap } from "../types.js";
+import { registerTools } from "../types.js";
 
 export const folderTools: ToolDef[] = [
   {
@@ -26,19 +26,8 @@ export const folderTools: ToolDef[] = [
   },
 ];
 
+// TODO(security): path sanitisation. folder.create auto-creates
+// intermediates so FileGuard's escape-rejection matters especially here.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
-  for (const tool of folderTools) {
-    if (allowedTools && !allowedTools.has(tool.name)) continue;
-    // TODO(security): path sanitisation. folder.create auto-creates
-    // intermediates so FileGuard's escape-rejection matters especially here.
-    server.registerTool(
-      tool.name,
-      {
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-        annotations: tool.annotations,
-      },
-      (input: unknown) => callAndWrap(bridge, tool.method, input),
-    );
-  }
+  registerTools(server, bridge, folderTools, allowedTools);
 }

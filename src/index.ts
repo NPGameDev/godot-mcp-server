@@ -32,6 +32,8 @@ import * as save from "./tools/save.js";
 import * as tilemap from "./tools/tilemap.js";
 import * as classdb from "./tools/classdb.js";
 
+// ── Tool catalogue ───────────────────────────────────────────────────
+
 // All module tool-def arrays (gate-conditional arrays may be empty at
 // import time when their env var is unset — that is correct: gated tools
 // get stubs via registerStubs instead).
@@ -55,7 +57,8 @@ const ALL_MODULE_DEFS = [
   classdb.classdbTools,
 ];
 
-// --- Version map for runtime gating ---
+// ── Version gate ─────────────────────────────────────────────────────
+
 // Tools that declare godotMinVersion are checked at call-time against the
 // connected Godot version. Unknown (not-yet-connected) passes through.
 const versionMap = new Map<string, number>();
@@ -65,7 +68,24 @@ for (const defs of ALL_MODULE_DEFS) {
   }
 }
 
-// --- Profile resolution ---
+/**
+ * Check whether the connected Godot version satisfies a tool's minimum.
+ * Returns a toolError response if the check fails, or null to proceed.
+ */
+function checkVersionGate(toolName: string): ToolTextResult | null {
+  const minVer = versionMap.get(toolName);
+  if (minVer == null) return null;
+  const connected = bridge.getGodotMinor();
+  if (connected == null || connected >= minVer) return null;
+  return toolError(
+    "UNSUPPORTED",
+    `${toolName} requires Godot 4.${minVer}+ (connected: 4.${connected})`,
+    "Check COMPATIBILITY.md or use classdb.get_info for alternatives.",
+  );
+}
+
+// ── Profile resolution ───────────────────────────────────────────────
+
 const profile = selectedProfile();
 const readOnly = isReadOnly();
 
@@ -88,7 +108,8 @@ if (allowedTools === null) {
 const moduleAllowed = new Set(allowedTools);
 for (const name of GROUP_TOOL_NAMES) moduleAllowed.delete(name);
 
-// --- Bridge / server setup ---
+// ── Bridge setup ─────────────────────────────────────────────────────
+
 // Registry-based discovery. GODOT_MCP_PORT bypasses registry for
 // backwards compat. Otherwise resolve via the system-wide projects.json.
 const explicitPort = process.env.GODOT_MCP_PORT;
@@ -109,7 +130,8 @@ if (explicitPort) {
   }
 }
 
-// --- Response cap env vars ---
+// ── Response caps ────────────────────────────────────────────────────
+
 // Defaults match the plugin-side ProjectSettings defaults.
 const SCRIPT_READ_LIMIT_DEFAULT = 262144; // 256 KB
 const WS_BUFFER_LIMIT_DEFAULT = 1048576; // 1 MB
@@ -144,13 +166,17 @@ const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
   wsBufferLimitBytes: wsBufferLimit,
 });
 
+// ── Server + hook pipeline ───────────────────────────────────────────
+
 const server = new McpServer(
   { name: "godot-mcp-toolkit", version: "0.1.0" },
   { capabilities: { tools: { listChanged: true } } },
 );
 
-// --- Hook pipeline ---
 const hookPipeline = createHookPipeline();
+
+// Wrap server.registerTool to inject version gating and the hook
+// pipeline around every tool handler.
 const _origRegisterTool = server.registerTool.bind(server);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK callback typing
 (server as any).registerTool = (
@@ -159,25 +185,14 @@ const _origRegisterTool = server.registerTool.bind(server);
   handler: (input: Record<string, unknown>) => Promise<ToolTextResult>,
 ) => {
   _origRegisterTool(name, config, async (input: Record<string, unknown>) => {
-    // Version gate: reject before hooks fire if connected Godot is too old.
-    // Unknown version (bridge not yet connected) passes through — the plugin
-    // itself returns UNSUPPORTED as defence-in-depth.
-    const minVer = versionMap.get(name);
-    if (minVer != null) {
-      const connected = bridge.getGodotMinor();
-      if (connected != null && connected < minVer) {
-        return toolError(
-          "UNSUPPORTED",
-          `${name} requires Godot 4.${minVer}+ (connected: 4.${connected})`,
-          "Check COMPATIBILITY.md or use classdb.get_info for alternatives.",
-        );
-      }
-    }
+    const gateResult = checkVersionGate(name);
+    if (gateResult) return gateResult;
     return hookPipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input));
   });
 };
 
-// --- Register core (non-group) tools ---
+// ── Register core (non-group) tools ──────────────────────────────────
+
 scene.register(server, bridge, moduleAllowed);
 node.register(server, bridge, moduleAllowed);
 script.register(server, bridge, moduleAllowed);
@@ -196,7 +211,8 @@ file.register(server, bridge, moduleAllowed);
 save.register(server, bridge, moduleAllowed);
 classdb.register(server, bridge, moduleAllowed);
 
-// --- Group tools ---
+// ── Group tools ──────────────────────────────────────────────────────
+
 if (profile === "full") {
   registerAllGroupTools(server, bridge, readOnly);
 } else if (profile !== "minimal") {
@@ -204,6 +220,8 @@ if (profile === "full") {
 }
 
 registerStubs(server, profile);
+
+// ── Prompts, resources, roots ────────────────────────────────────────
 
 registerPrompts(server);
 registerResources(server, bridge);
@@ -220,7 +238,8 @@ if (profile === "full") {
   );
 }
 
-// --- User command discovery ---
+// ── User command discovery ───────────────────────────────────────────
+
 // After the server starts, discover user-defined commands from the toolkit
 // and register them as MCP tools. Non-blocking: if the editor is unreachable,
 // built-in tools still work and user commands will be missing.
@@ -257,6 +276,8 @@ async function discoverUserCommands(): Promise<void> {
     // Editor unreachable or meta.user_commands not available — not an error.
   }
 }
+
+// ── Lifecycle ────────────────────────────────────────────────────────
 
 async function shutdown(): Promise<void> {
   try {

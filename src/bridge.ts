@@ -6,8 +6,11 @@ import { homedir } from "node:os";
 import { Bridge, BridgeError } from "./types.js";
 import { discoverRuntime, lookupProject } from "./registry.js";
 
+// ── Constants ────────────────────────────────────────────────────────
+
 const JSONRPC_VERSION = "2.0";
 const DEFAULT_TIMEOUT_MS = 30_000;
+const AUTH_TIMEOUT_MS = 5_000;
 
 // Reconnect tuning. 2^6 = 64s clamped to 60s ceiling, so the attempt
 // progression is 1, 2, 4, 8, 16, 32, 60, 60, ... seconds. The per-call
@@ -19,6 +22,13 @@ const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 60_000;
 const RECONNECT_MAX_ATTEMPT = 6;
 const CALL_AWAIT_RECONNECT_MS = 10_000;
+
+// ── Internal types ───────────────────────────────────────────────────
+
+interface Channel {
+  call(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
+  close(): Promise<void>;
+}
 
 type Pending = {
   resolve: (value: unknown) => void;
@@ -39,7 +49,7 @@ type JsonRpcResponse = {
   error?: { code: number; message: string };
 };
 
-// -- Token resolution --------------------------------------------------------
+// ── Token resolution ─────────────────────────────────────────────────
 
 /**
  * Resolve the Godot project name.
@@ -146,7 +156,7 @@ function authenticate(ws: WebSocket, token: string): Promise<string | null> {
     const timer = setTimeout(() => {
       cleanup();
       reject(new BridgeError("AUTH_FAILED", "auth handshake timed out"));
-    }, 5000);
+    }, AUTH_TIMEOUT_MS);
 
     function cleanup(): void {
       clearTimeout(timer);
@@ -177,10 +187,7 @@ function authenticate(ws: WebSocket, token: string): Promise<string | null> {
   });
 }
 
-interface Channel {
-  call(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
-  close(): Promise<void>;
-}
+// ── Channel (WebSocket wrapper with reconnect) ───────────────────────
 
 function createChannel(url: string, projectPath?: string, onGodotVersion?: (version: string) => void): Channel {
   const pending = new Map<string, Pending>();
@@ -236,6 +243,35 @@ function createChannel(url: string, projectPath?: string, onGodotVersion?: (vers
     reconnectTimer.unref?.();
   }
 
+  /** Authenticate after the socket opens, then resolve the connect promise. */
+  async function performAuth(
+    socket: WebSocket,
+    resolve: (ws: WebSocket) => void,
+    reject: (err: BridgeError) => void,
+  ): Promise<void> {
+    const wasReconnect = hasConnectedOnce;
+    process.stderr.write(`[bridge] ${url} ${wasReconnect ? "reconnected" : "connected"}, authenticating…\n`);
+    try {
+      // Re-read token from disk on every connect (including reconnects)
+      // so rotated tokens after a plugin restart are picked up.
+      const token = await readToken(projectPath);
+      const godotVer = await authenticate(socket, token);
+      hasConnectedOnce = true;
+      if (godotVer && onGodotVersion) onGodotVersion(godotVer);
+      const verNote = godotVer ? ` (Godot ${godotVer})` : "";
+      process.stderr.write(`[bridge] ${url} authenticated${verNote}\n`);
+      resolveAllWaiters(socket);
+      resolve(socket);
+    } catch (err) {
+      ws = null;
+      socket.close();
+      const error = err instanceof BridgeError ? err : new BridgeError("AUTH_FAILED", (err as Error).message);
+      rejectAllWaiters(error.code, error.message);
+      reject(error);
+      if (!closed) scheduleReconnect();
+    }
+  }
+
   function connect(): Promise<WebSocket> {
     if (ws && ws.readyState === WebSocket.OPEN) return Promise.resolve(ws);
     if (connectPromise) return connectPromise;
@@ -248,32 +284,11 @@ function createChannel(url: string, projectPath?: string, onGodotVersion?: (vers
           clearTimeout(reconnectTimer);
           reconnectTimer = null;
         }
-        const wasReconnect = hasConnectedOnce;
         // Note: attempt is reset on successful message round-trip (below),
         // not on open — open alone isn't proof the peer is healthy. A
         // half-broken peer that accepts then immediately closes the socket
         // would otherwise reset backoff every cycle.
-        process.stderr.write(`[bridge] ${url} ${wasReconnect ? "reconnected" : "connected"}, authenticating…\n`);
-        // Re-read token from disk on every connect (including reconnects)
-        // so rotated tokens after a plugin restart are picked up.
-        readToken(projectPath)
-          .then((token) => authenticate(socket, token))
-          .then((godotVer) => {
-            hasConnectedOnce = true;
-            if (godotVer && onGodotVersion) onGodotVersion(godotVer);
-            const verNote = godotVer ? ` (Godot ${godotVer})` : "";
-            process.stderr.write(`[bridge] ${url} authenticated${verNote}\n`);
-            resolveAllWaiters(socket);
-            resolve(socket);
-          })
-          .catch((err) => {
-            ws = null;
-            socket.close();
-            const error = err instanceof BridgeError ? err : new BridgeError("AUTH_FAILED", (err as Error).message);
-            rejectAllWaiters(error.code, error.message);
-            reject(error);
-            if (!closed) scheduleReconnect();
-          });
+        void performAuth(socket, resolve, reject);
       });
       socket.once("error", (err) => {
         connectPromise = null;
@@ -384,6 +399,8 @@ function createChannel(url: string, projectPath?: string, onGodotVersion?: (vers
   };
 }
 
+// ── Public bridge factory ────────────────────────────────────────────
+
 /** Options for bridge creation. */
 export interface BridgeOptions {
   /** Absolute path to the Godot project. Used for registry-based port
@@ -424,21 +441,20 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
   });
   let cachedEditorPort = Number(new URL(editorUrl).port);
 
-  // Editor-port re-discovery. When the editor channel fails with
-  // CONNECT_FAILED / DISCONNECTED, re-read the registry. If the port
-  // changed (plugin restarted on a different port), close the old
-  // channel, create a fresh one, and retry the call once. Skipped when
-  // the editor port is explicitly set (GODOT_MCP_PORT) or no projectPath
-  // is available for registry lookup. TTL prevents thrashing the registry
-  // file when the editor is truly unreachable.
+  // ── Editor-port re-discovery ─────────────────────────────────────
+  // When the editor channel fails with CONNECT_FAILED / DISCONNECTED,
+  // re-read the registry. If the port changed (plugin restarted on a
+  // different port), close the old channel, create a fresh one, and
+  // retry the call once. Skipped when the editor port is explicitly set
+  // (GODOT_MCP_PORT) or no projectPath is available for registry lookup.
+  // TTL prevents thrashing the registry file when the editor is truly
+  // unreachable.
   const staticEditor = !!opts?.explicitEditorPort;
   const EDITOR_REDISCOVER_TTL_MS = 5_000;
   let lastRediscoverAt = 0;
 
   async function rediscoverEditor(): Promise<boolean> {
-    if (staticEditor) return false;
-    const projectPath = opts?.projectPath;
-    if (!projectPath) return false;
+    if (staticEditor || !projectPath) return false;
     const now = Date.now();
     if (now - lastRediscoverAt < EDITOR_REDISCOVER_TTL_MS) return false;
     lastRediscoverAt = now;
@@ -455,10 +471,11 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
     return true;
   }
 
-  // Runtime channel management. When an explicit port is set, create a
-  // static channel. Otherwise, callRuntime re-reads the registry on each
-  // invocation to pick up newly-started playtests. The channel is cached
-  // and recreated only when the port changes.
+  // ── Runtime channel management ───────────────────────────────────
+  // When an explicit port is set, create a static channel. Otherwise,
+  // callRuntime re-reads the registry on each invocation to pick up
+  // newly-started playtests. The channel is cached and recreated only
+  // when the port changes.
   let runtimeChannel: Channel | null = opts?.explicitRuntimePort
     ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`, projectPath)
     : null;
@@ -495,7 +512,6 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge {
       }
 
       // Registry-based discovery.
-      const projectPath = opts?.projectPath;
       if (!projectPath) {
         throw new BridgeError("GAME_NOT_RUNNING", "no runtime port configured and no project path for registry lookup");
       }

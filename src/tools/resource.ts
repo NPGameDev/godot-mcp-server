@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { callAndWrap } from "../types.js";
+import { registerTools } from "../types.js";
 
 export const resourceTools: ToolDef[] = [
   {
@@ -35,19 +35,8 @@ export const resourceTools: ToolDef[] = [
   },
 ];
 
+// TODO(security): wrap `properties` in an <untrusted kind="resource_props">
+// envelope if the underlying data came from disk.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
-  for (const tool of resourceTools) {
-    if (allowedTools && !allowedTools.has(tool.name)) continue;
-    // TODO(security): wrap `properties` in an <untrusted kind="resource_props">
-    // envelope if the underlying data came from disk.
-    server.registerTool(
-      tool.name,
-      {
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-        annotations: tool.annotations,
-      },
-      (input: unknown) => callAndWrap(bridge, tool.method, input),
-    );
-  }
+  registerTools(server, bridge, resourceTools, allowedTools);
 }

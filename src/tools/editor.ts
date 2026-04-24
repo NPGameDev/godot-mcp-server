@@ -6,6 +6,8 @@ import { callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../ty
 import { stableStringify } from "../schema_min.js";
 import { isEnabled } from "../feature_gate.js";
 
+// ── Tool definitions ─────────────────────────────────────────────────
+
 export const editorTools: ToolDef[] = [
   {
     name: "editor_get_errors",
@@ -115,10 +117,33 @@ if (isEnabled("project_set_setting")) {
   });
 }
 
-// Multi-content handler for editor screenshot tools. Both return the same
-// plugin-side shape ({ image_base64, mime_type, width, height, bytes,
-// path }); the difference is the input contract, which the bridge call
-// carries through unchanged.
+// ── Custom handlers ──────────────────────────────────────────────────
+
+/**
+ * Summary-first handler for editor_get_errors — prefixes an error count
+ * so the model sees the headline before the (potentially large) error text.
+ */
+async function errorSummaryHandler(bridge: Bridge, method: string, input: unknown) {
+  try {
+    const result = await bridge.call(method, input);
+    const err = toolErrorFromPayload(result);
+    if (err) return err;
+    const obj = result as Record<string, unknown>;
+    const count = typeof obj.count === "number" ? obj.count : 0;
+    const summary = `${count} error${count !== 1 ? "s" : ""}`;
+    const text = stableStringify({ _summary: summary, ...obj });
+    return { content: [{ type: "text" as const, text }] };
+  } catch (e) {
+    return toolErrorFromException(e);
+  }
+}
+
+/**
+ * Multi-content handler for editor screenshot tools. Both return the same
+ * plugin-side shape ({ image_base64, mime_type, width, height, bytes,
+ * path }); the difference is the input contract, which the bridge call
+ * carries through unchanged.
+ */
 async function screenshotHandler(bridge: Bridge, method: string, input: unknown) {
   let result: {
     image_base64?: string;
@@ -149,56 +174,18 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
   };
 }
 
+// ── Registration ─────────────────────────────────────────────────────
+
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of editorTools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
-    // Summary-first: prefix error count so the model sees the headline
-    // before the (potentially large) wrapped error text.
+    const config = { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations };
     if (tool.name === "editor_get_errors") {
-      server.registerTool(
-        tool.name,
-        {
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          annotations: tool.annotations,
-        },
-        async (input: unknown) => {
-          try {
-            const result = await bridge.call(tool.method, input);
-            const err = toolErrorFromPayload(result);
-            if (err) return err;
-            const obj = result as Record<string, unknown>;
-            const count = typeof obj.count === "number" ? obj.count : 0;
-            const summary = `${count} error${count !== 1 ? "s" : ""}`;
-            const text = stableStringify({ _summary: summary, ...obj });
-            return { content: [{ type: "text" as const, text }] };
-          } catch (e) {
-            return toolErrorFromException(e);
-          }
-        },
-      );
-      continue;
-    }
-    if (tool.name === "editor_screenshot" || tool.name === "editor_screenshot_node") {
-      server.registerTool(
-        tool.name,
-        {
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          annotations: tool.annotations,
-        },
-        (input: unknown) => screenshotHandler(bridge, tool.method, input),
-      );
+      server.registerTool(tool.name, config, (input: unknown) => errorSummaryHandler(bridge, tool.method, input));
+    } else if (tool.name === "editor_screenshot" || tool.name === "editor_screenshot_node") {
+      server.registerTool(tool.name, config, (input: unknown) => screenshotHandler(bridge, tool.method, input));
     } else {
-      server.registerTool(
-        tool.name,
-        {
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          annotations: tool.annotations,
-        },
-        (input: unknown) => callAndWrap(bridge, tool.method, input),
-      );
+      server.registerTool(tool.name, config, (input: unknown) => callAndWrap(bridge, tool.method, input));
     }
   }
 }

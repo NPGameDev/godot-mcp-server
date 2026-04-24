@@ -2,13 +2,15 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../types.js";
+import { callAndWrap } from "../types.js";
 import { isEnabled } from "../feature_gate.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:6525. Only works while the game is running in a debug build
 // (release exports never ship the autoload). Bridge.callRuntime maps the
 // connect failure to GAME_NOT_RUNNING for us.
+
+// ── Tool definitions ─────────────────────────────────────────────────
 
 export const runtimeTools: ToolDef[] = [
   {
@@ -76,63 +78,21 @@ if (isEnabled("game_eval")) {
   });
 }
 
+// ── Registration ─────────────────────────────────────────────────────
+
+// NOTE: All runtime-group tools (runtime_screenshot, runtime_get_node_state,
+// debugger_get_log, input_simulate, animation_player_control) are registered
+// by groups.ts with custom handlers (multi-content screenshots, summary-first
+// logs). This register() only runs for tools that pass through moduleAllowed
+// — i.e., tools NOT in GROUP_TOOL_NAMES. Currently that means only game_eval
+// when its gate is open.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of runtimeTools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
-    if (tool.name === "runtime_screenshot") {
-      server.registerTool(
-        tool.name,
-        {
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          annotations: tool.annotations,
-        },
-        async () => {
-          let result: {
-            image_base64?: string;
-            mime_type?: string;
-            width?: number;
-            height?: number;
-            bytes?: number;
-          };
-          try {
-            result = (await bridge.callRuntime(tool.method, {})) as typeof result;
-          } catch (err) {
-            return toolErrorFromException(err);
-          }
-          const payloadErr = toolErrorFromPayload(result);
-          if (payloadErr) return payloadErr;
-          if (!result?.image_base64) {
-            return toolErrorFromPayload({
-              success: false,
-              code: "INTERNAL",
-              error: "runtime screenshot returned no image bytes",
-            })!;
-          }
-          return {
-            content: [
-              { type: "image" as const, data: result.image_base64, mimeType: result.mime_type ?? "image/png" },
-              {
-                type: "text" as const,
-                text: JSON.stringify({ width: result.width, height: result.height, bytes: result.bytes }),
-              },
-            ],
-          };
-        },
-      );
-    } else {
-      // TODO(security): wrap debugger_get_log's `lines` array in an
-      // <untrusted kind="game_log" source="godot"> envelope before
-      // returning.
-      server.registerTool(
-        tool.name,
-        {
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          annotations: tool.annotations,
-        },
-        (input: unknown) => callAndWrap(bridge, tool.method, input, { runtime: true }),
-      );
-    }
+    server.registerTool(
+      tool.name,
+      { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
+      (input: unknown) => callAndWrap(bridge, tool.method, input, { runtime: true }),
+    );
   }
 }

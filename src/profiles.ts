@@ -6,6 +6,14 @@
 
 export type ProfileName = "minimal" | "standard" | "full" | "custom";
 
+/** Human-facing display labels. Internal identifiers (env var values) stay lowercase. */
+export const PROFILE_DISPLAY_NAMES: Record<ProfileName, string> = {
+  minimal: "Minimal",
+  standard: "Standard",
+  full: "Power User",
+  custom: "Custom",
+};
+
 /** 12 read-only tools for exploration and code review. */
 export const MINIMAL_TOOLS: readonly string[] = [
   "scene_get_tree",
@@ -155,14 +163,6 @@ export function customToolList(): string[] {
  * Build the allowed-tool set for initial registration.
  * Returns null for the `full` profile (meaning "register everything").
  */
-/** Human-facing display labels. Internal identifiers (env var values) stay lowercase. */
-export const PROFILE_DISPLAY_NAMES: Record<ProfileName, string> = {
-  minimal: "Minimal",
-  standard: "Standard",
-  full: "Power User",
-  custom: "Custom",
-};
-
 export function resolveAllowedTools(profile: ProfileName, readOnly: boolean): Set<string> | null {
   let names: Set<string> | null;
   switch (profile) {
@@ -178,8 +178,6 @@ export function resolveAllowedTools(profile: ProfileName, readOnly: boolean): Se
     case "custom":
       names = new Set(customToolList());
       break;
-    default:
-      names = new Set(STANDARD_TOOLS);
   }
   if (readOnly && names) {
     for (const name of MUTATING_TOOLS) names.delete(name);
