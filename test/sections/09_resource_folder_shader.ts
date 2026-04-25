@@ -83,7 +83,9 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   try {
     await bridge.call("resource.delete", { file_path: "res://no_such_dir_smoke/foo.tres" }, CALL_TIMEOUT);
     await bridge.call("folder.delete", { folder_path: "res://no_such_dir_smoke", recursive: true }, CALL_TIMEOUT);
-  } catch { /* best-effort pre-clean */ }
+  } catch {
+    /* best-effort pre-clean */
+  }
   const autoDir = (await bridge.call(
     "resource.write",
     { file_path: "res://no_such_dir_smoke/foo.tres", type: "Resource" },
@@ -98,7 +100,9 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   try {
     await bridge.call("resource.delete", { file_path: "res://no_such_dir_smoke/foo.tres" }, CALL_TIMEOUT);
     await bridge.call("folder.delete", { folder_path: "res://no_such_dir_smoke", recursive: true }, CALL_TIMEOUT);
-  } catch { /* best-effort cleanup */ }
+  } catch {
+    /* best-effort cleanup */
+  }
   assertGuard(
     ctx,
     "resource.write bogus class",

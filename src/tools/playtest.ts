@@ -48,7 +48,9 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
                   "enable_tool_group(['runtime', 'signals']) to access runtime tools.";
                 result.content[0].text = JSON.stringify(payload);
               }
-            } catch { /* parse failure — pass through unchanged */ }
+            } catch {
+              /* parse failure — pass through unchanged */
+            }
           }
           return result;
         },

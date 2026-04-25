@@ -104,7 +104,9 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   try {
     await bridge.call("scene.delete", { file_path: "res://nonexistent_smoke_dir/foo.tscn" }, CALL_TIMEOUT);
     await bridge.call("folder.delete", { folder_path: "res://nonexistent_smoke_dir", recursive: true }, CALL_TIMEOUT);
-  } catch { /* best-effort pre-clean */ }
+  } catch {
+    /* best-effort pre-clean */
+  }
   const autoDir = (await bridge.call(
     "scene.create",
     { file_path: "res://nonexistent_smoke_dir/foo.tscn", root_type: "Node" },
@@ -119,7 +121,9 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   try {
     await bridge.call("scene.delete", { file_path: "res://nonexistent_smoke_dir/foo.tscn" }, CALL_TIMEOUT);
     await bridge.call("folder.delete", { folder_path: "res://nonexistent_smoke_dir", recursive: true }, CALL_TIMEOUT);
-  } catch { /* best-effort cleanup */ }
+  } catch {
+    /* best-effort cleanup */
+  }
   assertGuard(
     ctx,
     "scene.create bogus class",

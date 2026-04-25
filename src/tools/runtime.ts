@@ -48,12 +48,16 @@ export const runtimeTools: ToolDef[] = [
       "Types: key|mouse_button|mouse_motion|action|click. click is a composite: press + 50ms delay + release. " +
       "Returns per-event results with index/total. summary (default true) returns last_event only; false returns full results array.",
     inputSchema: {
-      events: z.array(z.object({
-        event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click"]),
-        event_data: z.record(z.string(), z.unknown()).optional(),
-        delay_before_ms: z.number().int().nonnegative().optional(),
-        delay_after_ms: z.number().int().nonnegative().optional(),
-      })).min(1),
+      events: z
+        .array(
+          z.object({
+            event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click"]),
+            event_data: z.record(z.string(), z.unknown()).optional(),
+            delay_before_ms: z.number().int().nonnegative().optional(),
+            delay_after_ms: z.number().int().nonnegative().optional(),
+          }),
+        )
+        .min(1),
       summary: z.boolean().optional(),
     },
     annotations: { openWorldHint: false },
