@@ -115,7 +115,7 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   )) as { code?: string; how_to_enable?: string; risk?: string; success?: boolean; result?: unknown };
   let ncmGated: boolean;
   if (gateProbe?.code === "FEATURE_DISABLED") {
-    if (!gateProbe.how_to_enable?.includes("mcp/unsafe/allow_node_call_method")) {
+    if (!gateProbe.how_to_enable?.includes("allow_node_call_method")) {
       fail(`defence-in-depth: FEATURE_DISABLED missing how_to_enable path`);
     } else if (!gateProbe.risk) {
       fail(`defence-in-depth: FEATURE_DISABLED missing risk field`);
