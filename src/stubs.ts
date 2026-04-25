@@ -19,19 +19,19 @@ const STUBS: StubDef[] = [
     name: "game_eval",
     gate: "game_eval",
     description:
-      "LOCKED — evaluate GDScript in running game. Enable: set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env. Requires full MCP agent restart (reconnect is not enough).",
+      "LOCKED — evaluate GDScript in running game. Enable via the Feature Gates panel in the Godot editor, or set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env.",
   },
   {
     name: "node_call_method",
     gate: "node_call_method",
     description:
-      "LOCKED — call arbitrary method on scene node. Enable: set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env. Requires full MCP agent restart (reconnect is not enough).",
+      "LOCKED — call arbitrary method on scene node. Enable via the Feature Gates panel in the Godot editor, or set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env.",
   },
   {
     name: "project_set_setting",
     gate: "project_set_setting",
     description:
-      "LOCKED — write ProjectSettings. Enable: set GODOT_MCP_ALLOW_PROJECT_SET_SETTING=1 in .mcp.json env. Requires full MCP agent restart (reconnect is not enough).",
+      "LOCKED — write ProjectSettings. Enable via the Feature Gates panel in the Godot editor, or set GODOT_MCP_ALLOW_PROJECT_SET_SETTING=1 in .mcp.json env.",
   },
 ];
 
@@ -57,9 +57,9 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
             type: "text" as const,
             text: JSON.stringify({
               success: false,
-              error: `Feature gated. Set ${envVar}=1 in .mcp.json env and restart.`,
+              error: `Feature gated. Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
               code: "FEATURE_GATED",
-              hint: `Requires full MCP agent restart after env changes (reconnect is not enough). Set the env var in .mcp.json, then restart your agent.`,
+              hint: `Toggle the feature gate in the Godot editor dock or set the env var in .mcp.json. Changes are applied live.`,
             }),
           },
         ],

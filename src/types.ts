@@ -157,7 +157,7 @@ const EXCEPTION_HINTS: Record<string, string> = {
   LOG_UNAVAILABLE:
     "Log file could not be read. Check that file logging is enabled in ProjectSettings (application/config/use_file_logging).",
   FEATURE_GATED:
-    "Requires full MCP agent restart after env changes (reconnect is not enough). Set the env var in .mcp.json, then restart your agent.",
+    "Toggle the feature gate in the Godot editor dock or set the env var in .mcp.json. Changes are applied live.",
   FEATURE_DISABLED:
     "This tool is disabled in the current profile. Switch to a higher profile or use enable_tool_group to load it dynamically.",
 };

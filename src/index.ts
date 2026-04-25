@@ -5,8 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createBridge } from "./bridge.js";
 import { lookupProject } from "./registry.js";
 import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS, PROFILE_DISPLAY_NAMES } from "./profiles.js";
-import { registerGroupSystem, registerAllGroupTools, GROUP_TOOL_NAMES } from "./groups.js";
+import { registerGroupSystem, registerAllGroupTools, GROUP_TOOL_NAMES, resetLoadedGroups } from "./groups.js";
 import { registerStubs } from "./stubs.js";
+import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
 import { createHookPipeline } from "./hooks.js";
 import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
@@ -86,27 +87,33 @@ function checkVersionGate(toolName: string): ToolTextResult | null {
 
 // ── Profile resolution ───────────────────────────────────────────────
 
-const profile = selectedProfile();
-const readOnly = isReadOnly();
+let profile = selectedProfile();
+let readOnly = isReadOnly();
 
-// Build the allowed-tool set. resolveAllowedTools returns null for the
-// full profile (= register everything). We always need an explicit set
-// so we can subtract group tools before passing to module registers.
-let allowedTools = resolveAllowedTools(profile, readOnly);
-if (allowedTools === null) {
-  allowedTools = new Set<string>();
-  for (const defs of ALL_MODULE_DEFS) {
-    for (const t of defs) allowedTools.add(t.name);
+/** Resolve profile → expanded allowed-tool set (never null). */
+function buildAllowedTools(): Set<string> {
+  let allowed = resolveAllowedTools(profile, readOnly);
+  if (allowed === null) {
+    allowed = new Set<string>();
+    for (const defs of ALL_MODULE_DEFS) {
+      for (const t of defs) allowed.add(t.name);
+    }
+    if (readOnly) {
+      for (const name of MUTATING_TOOLS) allowed.delete(name);
+    }
   }
-  if (readOnly) {
-    for (const name of MUTATING_TOOLS) allowedTools.delete(name);
-  }
+  return allowed;
 }
 
-// Module register() handles non-group tools only; group tools are
-// registered by groups.ts (either eagerly or via enable_tool_group).
-const moduleAllowed = new Set(allowedTools);
-for (const name of GROUP_TOOL_NAMES) moduleAllowed.delete(name);
+/** Subtract group-managed tools → set used by module register(). */
+function buildModuleAllowed(allowed: Set<string>): Set<string> {
+  const mod = new Set(allowed);
+  for (const name of GROUP_TOOL_NAMES) mod.delete(name);
+  return mod;
+}
+
+let allowedTools = buildAllowedTools();
+let moduleAllowed = buildModuleAllowed(allowedTools);
 
 // ── Bridge setup ─────────────────────────────────────────────────────
 
@@ -175,8 +182,12 @@ const server = new McpServer(
 
 const hookPipeline = createHookPipeline();
 
+// Track RegisteredTool refs so config reload can remove + re-register.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK internal type
+const toolRefs = new Map<string, any>();
+
 // Wrap server.registerTool to inject version gating and the hook
-// pipeline around every tool handler.
+// pipeline around every tool handler, and capture the ref.
 const _origRegisterTool = server.registerTool.bind(server);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK callback typing
 (server as any).registerTool = (
@@ -184,42 +195,62 @@ const _origRegisterTool = server.registerTool.bind(server);
   config: Parameters<typeof server.registerTool>[1],
   handler: (input: Record<string, unknown>) => Promise<ToolTextResult>,
 ) => {
-  _origRegisterTool(name, config, async (input: Record<string, unknown>) => {
+  const ref = _origRegisterTool(name, config, async (input: Record<string, unknown>) => {
     const gateResult = checkVersionGate(name);
     if (gateResult) return gateResult;
     return hookPipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input));
   });
+  toolRefs.set(name, ref);
+  return ref;
 };
 
-// ── Register core (non-group) tools ──────────────────────────────────
+// ── Tool registration (shared by startup + reload) ──────────────────
 
-scene.register(server, bridge, moduleAllowed);
-node.register(server, bridge, moduleAllowed);
-script.register(server, bridge, moduleAllowed);
-editor.register(server, bridge, moduleAllowed);
-resource.register(server, bridge, moduleAllowed);
-folder.register(server, bridge, moduleAllowed);
-diff.register(server, bridge, moduleAllowed);
-playtest.register(server, bridge, moduleAllowed);
-tilemap.register(server, bridge, moduleAllowed);
-asset.register(server, bridge, moduleAllowed);
-runtime.register(server, bridge, moduleAllowed);
-signal.register(server, bridge, moduleAllowed);
-animation.register(server, bridge, moduleAllowed);
-inputMap.register(server, bridge, moduleAllowed);
-file.register(server, bridge, moduleAllowed);
-save.register(server, bridge, moduleAllowed);
-classdb.register(server, bridge, moduleAllowed);
-
-// ── Group tools ──────────────────────────────────────────────────────
-
-if (profile === "power_user") {
-  registerAllGroupTools(server, bridge, readOnly);
-} else if (profile !== "minimal") {
-  registerGroupSystem(server, bridge, readOnly);
+function registerModules(ma: Set<string>): void {
+  scene.register(server, bridge, ma);
+  node.register(server, bridge, ma);
+  script.register(server, bridge, ma);
+  editor.register(server, bridge, ma);
+  resource.register(server, bridge, ma);
+  folder.register(server, bridge, ma);
+  diff.register(server, bridge, ma);
+  playtest.register(server, bridge, ma);
+  tilemap.register(server, bridge, ma);
+  asset.register(server, bridge, ma);
+  runtime.register(server, bridge, ma);
+  signal.register(server, bridge, ma);
+  animation.register(server, bridge, ma);
+  inputMap.register(server, bridge, ma);
+  file.register(server, bridge, ma);
+  save.register(server, bridge, ma);
+  classdb.register(server, bridge, ma);
 }
 
-registerStubs(server, profile);
+function registerGroups(): void {
+  if (profile === "power_user") {
+    registerAllGroupTools(server, bridge, readOnly);
+  } else if (profile !== "minimal") {
+    registerGroupSystem(server, bridge, readOnly);
+  }
+  registerStubs(server, profile);
+}
+
+function logProfile(): void {
+  process.stderr.write(
+    `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
+  );
+  if (profile === "power_user") {
+    process.stderr.write(
+      "[godot-mcp] WARNING: Power User profile active — all tools including unsafe operations are enabled.\n" +
+        "[godot-mcp] This includes tools that can modify project settings, execute code, and write outside res://.\n",
+    );
+  }
+}
+
+// ── Initial registration ────────────────────────────────────────────
+
+registerModules(moduleAllowed);
+registerGroups();
 
 // ── Prompts, resources, roots ────────────────────────────────────────
 
@@ -228,15 +259,59 @@ registerResources(server, bridge);
 initRoots(projectPath);
 registerRoots(server);
 
-process.stderr.write(
-  `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
-);
-if (profile === "power_user") {
-  process.stderr.write(
-    "[godot-mcp] WARNING: Power User profile active — all tools including unsafe operations are enabled.\n" +
-      "[godot-mcp] This includes tools that can modify project settings, execute code, and write outside res://.\n",
-  );
+logProfile();
+
+// ── Live config reload ──────────────────────────────────────────────
+
+function removeAllTools(): void {
+  for (const [, ref] of toolRefs) {
+    try { ref.remove(); } catch { /* already removed */ }
+  }
+  toolRefs.clear();
+  resetLoadedGroups();
 }
+
+function handleConfigReload(params?: Record<string, unknown>): void {
+  const pluginProfile = params?.profile as string | undefined;
+  const newEnv = readMcpJsonEnv(projectPath);
+  if (!newEnv) {
+    process.stderr.write("[godot-mcp] config_reloaded: could not read .mcp.json env — skipping reload\n");
+    return;
+  }
+
+  const oldProfile = profile;
+  applyEnvUpdate(newEnv);
+  profile = selectedProfile();
+  readOnly = isReadOnly();
+  allowedTools = buildAllowedTools();
+  moduleAllowed = buildModuleAllowed(allowedTools);
+
+  removeAllTools();
+  registerModules(moduleAllowed);
+  registerGroups();
+
+  process.stderr.write(
+    `[godot-mcp] config reloaded: ${oldProfile} → ${profile}` +
+      (pluginProfile ? ` (plugin reports: ${pluginProfile})` : "") +
+      ` — ${toolRefs.size} tools registered\n`,
+  );
+  if (profile === "power_user") {
+    process.stderr.write(
+      "[godot-mcp] WARNING: Power User profile active — all tools including unsafe operations are enabled.\n",
+    );
+  }
+
+  server.sendToolListChanged();
+
+  // Re-discover user commands (async, non-blocking).
+  discoverUserCommands().catch(() => {});
+}
+
+bridge.onNotification((type, params) => {
+  if (type === "config_reloaded") {
+    handleConfigReload(params);
+  }
+});
 
 // ── User command discovery ───────────────────────────────────────────
 

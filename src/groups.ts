@@ -120,6 +120,11 @@ export function isGroupLoaded(name: GroupName): boolean {
   return loadedGroups.has(name);
 }
 
+/** Clear loaded-group tracking (used by config reload). */
+export function resetLoadedGroups(): void {
+  loadedGroups.clear();
+}
+
 // ── Special-case handlers ────────────────────────────────────────────
 // Tools with non-standard response processing. Each returns a handler
 // function matching the registerTool callback signature.
