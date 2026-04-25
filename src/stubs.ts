@@ -19,26 +19,26 @@ const STUBS: StubDef[] = [
     name: "game_eval",
     gate: "game_eval",
     description:
-      "LOCKED — evaluate GDScript in running game. Enable: set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env AND use GODOT_MCP_PROFILE=full. Requires MCP client restart.",
+      "LOCKED — evaluate GDScript in running game. Enable: set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env. Requires full MCP agent restart (reconnect is not enough).",
   },
   {
     name: "node_call_method",
     gate: "node_call_method",
     description:
-      "LOCKED — call arbitrary method on scene node. Enable: set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env. Requires MCP client restart after env changes.",
+      "LOCKED — call arbitrary method on scene node. Enable: set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env. Requires full MCP agent restart (reconnect is not enough).",
   },
   {
     name: "project_set_setting",
     gate: "project_set_setting",
     description:
-      "LOCKED — write ProjectSettings. Enable: set GODOT_MCP_ALLOW_PROJECT_SET_SETTING=1 in .mcp.json env. Requires MCP client restart after env changes.",
+      "LOCKED — write ProjectSettings. Enable: set GODOT_MCP_ALLOW_PROJECT_SET_SETTING=1 in .mcp.json env. Requires full MCP agent restart (reconnect is not enough).",
   },
 ];
 
 /**
  * Register locked stubs for feature-gated tools whose env var is not set.
  * - minimal profile: no stubs (pure read-only)
- * - standard / custom / full: stubs for closed gates, real tools for open gates
+ * - standard / power_user: stubs for closed gates, real tools for open gates
  */
 export function registerStubs(server: McpServer, profile: ProfileName): void {
   if (profile === "minimal") return;
@@ -59,7 +59,7 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
               success: false,
               error: `Feature gated. Set ${envVar}=1 in .mcp.json env and restart.`,
               code: "FEATURE_GATED",
-              hint: `Requires full MCP client restart after env changes. Use profile 'full' (or 'standard' with enable_tool_group).`,
+              hint: `Requires full MCP agent restart after env changes (reconnect is not enough). Set the env var in .mcp.json, then restart your agent.`,
             }),
           },
         ],

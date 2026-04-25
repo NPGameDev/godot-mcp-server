@@ -4,14 +4,13 @@
  * mode (GODOT_MCP_READ_ONLY=1) removes mutating tools from any profile.
  */
 
-export type ProfileName = "minimal" | "standard" | "full" | "custom";
+export type ProfileName = "minimal" | "standard" | "power_user";
 
 /** Human-facing display labels. Internal identifiers (env var values) stay lowercase. */
 export const PROFILE_DISPLAY_NAMES: Record<ProfileName, string> = {
   minimal: "Minimal",
   standard: "Standard",
-  full: "Power User",
-  custom: "Custom",
+  power_user: "Power User",
 };
 
 /** 12 read-only tools for exploration and code review. */
@@ -76,6 +75,11 @@ export const STANDARD_TOOLS: readonly string[] = [
   "classdb_search",
   // Script diagnostics (1)
   "script_check",
+  // Gated tools — included so they register on Standard when gate is open
+  // (prevents the vanishing-tools bug where neither stub nor real tool appears).
+  "game_eval",
+  "node_call_method",
+  "project_set_setting",
 ];
 
 /** Tools that modify state. Subtracted from catalogue when GODOT_MCP_READ_ONLY=1. */
@@ -134,9 +138,9 @@ export function selectedProfile(): ProfileName {
     return "minimal";
   }
   const env = process.env.GODOT_MCP_PROFILE?.toLowerCase();
-  if (env && ["minimal", "standard", "full", "custom"].includes(env)) {
-    return env as ProfileName;
-  }
+  // "full" is a backwards-compat alias for "power_user" (existing .mcp.json files).
+  if (env === "full" || env === "power_user") return "power_user";
+  if (env === "minimal") return "minimal";
   return "standard";
 }
 
@@ -150,18 +154,9 @@ export function hideUnavailable(): boolean {
   return process.env.GODOT_MCP_HIDE_UNAVAILABLE === "1" || process.env.GODOT_MCP_HIDE_UNAVAILABLE === "true";
 }
 
-/** Parse custom tool list from env. */
-export function customToolList(): string[] {
-  const env = process.env.GODOT_MCP_CUSTOM_TOOLS ?? "";
-  return env
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 /**
  * Build the allowed-tool set for initial registration.
- * Returns null for the `full` profile (meaning "register everything").
+ * Returns null for the `power_user` profile (meaning "register everything").
  */
 export function resolveAllowedTools(profile: ProfileName, readOnly: boolean): Set<string> | null {
   let names: Set<string> | null;
@@ -172,11 +167,8 @@ export function resolveAllowedTools(profile: ProfileName, readOnly: boolean): Se
     case "standard":
       names = new Set(STANDARD_TOOLS);
       break;
-    case "full":
+    case "power_user":
       names = null; // allow all
-      break;
-    case "custom":
-      names = new Set(customToolList());
       break;
   }
   if (readOnly && names) {

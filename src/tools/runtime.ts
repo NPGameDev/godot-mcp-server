@@ -38,13 +38,21 @@ export const runtimeTools: ToolDef[] = [
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
+    // I2 waiver: input_simulate description intentionally exceeds the 200-char
+    // tool-description limit. The events[] batch API has enough per-type
+    // nuance that a longer description materially reduces LLM mis-calls.
     name: "input_simulate",
     method: "input.simulate",
     description:
-      "Inject an input event into the running game (Mode B). event_type: key|mouse_button|mouse_motion|action; event_data shape varies. Returns { ok }.",
+      "Inject input into the running game. events[]: {event_type, event_data, delay_ms?}. " +
+      "Types: key|mouse_button|mouse_motion|action|click. click is a composite: press + 50ms delay + release. " +
+      "Each event result is returned in order. delay_ms between events defaults to 0.",
     inputSchema: {
-      event_type: z.enum(["key", "mouse_button", "mouse_motion", "action"]),
-      event_data: z.unknown().optional(),
+      events: z.array(z.object({
+        event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click"]),
+        event_data: z.record(z.string(), z.unknown()).optional(),
+        delay_ms: z.number().int().nonnegative().optional(),
+      })).min(1),
     },
     annotations: { openWorldHint: false },
   },

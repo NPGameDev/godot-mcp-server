@@ -213,7 +213,7 @@ classdb.register(server, bridge, moduleAllowed);
 
 // ── Group tools ──────────────────────────────────────────────────────
 
-if (profile === "full") {
+if (profile === "power_user") {
   registerAllGroupTools(server, bridge, readOnly);
 } else if (profile !== "minimal") {
   registerGroupSystem(server, bridge, readOnly);
@@ -231,7 +231,7 @@ registerRoots(server);
 process.stderr.write(
   `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
 );
-if (profile === "full") {
+if (profile === "power_user") {
   process.stderr.write(
     "[godot-mcp] WARNING: Power User profile active — all tools including unsafe operations are enabled.\n" +
       "[godot-mcp] This includes tools that can modify project settings, execute code, and write outside res://.\n",

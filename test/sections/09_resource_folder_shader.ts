@@ -78,17 +78,27 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     "INVALID_PATH",
     "script.write",
   );
-  assertGuard(
-    ctx,
-    "resource.write missing parent dir",
-    await bridge.call(
-      "resource.write",
-      { file_path: "res://no_such_dir_smoke/foo.tres", type: "Resource" },
-      CALL_TIMEOUT,
-    ),
-    "PARENT_NOT_FOUND",
-    "folder.create",
-  );
+  // Auto-create parent dirs: should succeed with dirs_created:true.
+  // Pre-clean in case a prior pass left stale data.
+  try {
+    await bridge.call("resource.delete", { file_path: "res://no_such_dir_smoke/foo.tres" }, CALL_TIMEOUT);
+    await bridge.call("folder.delete", { folder_path: "res://no_such_dir_smoke", recursive: true }, CALL_TIMEOUT);
+  } catch { /* best-effort pre-clean */ }
+  const autoDir = (await bridge.call(
+    "resource.write",
+    { file_path: "res://no_such_dir_smoke/foo.tres", type: "Resource" },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; dirs_created?: boolean; status?: string };
+  if (autoDir?.success !== true || autoDir.dirs_created !== true || autoDir.status !== "created") {
+    ctx.fail(`resource.write auto-create dirs: expected success+dirs_created, got ${JSON.stringify(autoDir)}`);
+  } else {
+    ctx.pass("resource.write auto-create dirs -> success + dirs_created");
+  }
+  // Cleanup auto-created file + directory.
+  try {
+    await bridge.call("resource.delete", { file_path: "res://no_such_dir_smoke/foo.tres" }, CALL_TIMEOUT);
+    await bridge.call("folder.delete", { folder_path: "res://no_such_dir_smoke", recursive: true }, CALL_TIMEOUT);
+  } catch { /* best-effort cleanup */ }
   assertGuard(
     ctx,
     "resource.write bogus class",

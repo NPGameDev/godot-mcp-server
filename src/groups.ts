@@ -1,8 +1,8 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * enable_tool_group. 6 groups, 22 tools total. Standard/custom profiles
- * register enable_tool_group as the meta-tool; full profile registers
- * all group tools at startup.
+ * enable_tool_group. 6 groups, 22 tools total. Standard profile
+ * registers enable_tool_group as the meta-tool; power_user profile
+ * registers all group tools at startup.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -115,6 +115,11 @@ const RUNTIME_TOOLS = new Set([
 // Tracks loaded groups for the session.
 const loadedGroups = new Set<GroupName>();
 
+/** Check whether a group has been loaded this session. */
+export function isGroupLoaded(name: GroupName): boolean {
+  return loadedGroups.has(name);
+}
+
 // ── Special-case handlers ────────────────────────────────────────────
 // Tools with non-standard response processing. Each returns a handler
 // function matching the registerTool callback signature.
@@ -219,14 +224,22 @@ function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, 
   return registered;
 }
 
+// I2 waiver: enable_tool_group description intentionally exceeds the 200-char
+// tool-description limit. As the gateway to 22 hidden tools, discoverability
+// is more important than description brevity for this meta-tool.
 const ENABLE_GROUP_DESC =
-  "Load additional tool groups for specialized workflows. " +
-  "Available: runtime, signals, animation_authoring, input_map (gated), asset_management, user_data (gated). " +
-  "Groups persist for session. Call once with all needed groups.";
+  "Load additional tool groups for specialized workflows. Groups persist for session. Call once with all needed groups. " +
+  "Available groups: " +
+  "runtime (runtime_screenshot, runtime_get_node_state, debugger_get_log, input_simulate, animation_player_control), " +
+  "signals (signal_list, signal_manage, signal_emit), " +
+  "animation_authoring (animation_keyframe, animation_get_keys), " +
+  "input_map (input_map_action, input_map_event — gated: GODOT_MCP_ALLOW_INPUT_MAP_WRITE=1), " +
+  "asset_management (asset_get_dependencies, asset_import, resource_delete, file_delete, scene_delete, scene_close), " +
+  "user_data (save_read, save_write, save_delete, save_list — gated: GODOT_MCP_ALLOW_USER_SCOPE=1).";
 
 /**
  * Register the enable_tool_group meta-tool and its handler.
- * Call this for standard/custom profiles only.
+ * Call this for the standard profile only.
  */
 export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly: boolean): void {
   server.registerTool(
@@ -289,7 +302,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 }
 
 /**
- * For the `full` profile: register ALL group tools at startup.
+ * For the `power_user` profile: register ALL group tools at startup.
  * No enable_tool_group needed.
  */
 export function registerAllGroupTools(server: McpServer, bridge: Bridge, readOnly: boolean): void {
