@@ -44,15 +44,17 @@ export const runtimeTools: ToolDef[] = [
     name: "input_simulate",
     method: "input.simulate",
     description:
-      "Inject input into the running game. events[]: {event_type, event_data, delay_ms?}. " +
+      "Inject input into the running game. events[] (required): {event_type, event_data?, delay_before_ms?, delay_after_ms?}. " +
       "Types: key|mouse_button|mouse_motion|action|click. click is a composite: press + 50ms delay + release. " +
-      "Each event result is returned in order. delay_ms between events defaults to 0.",
+      "Returns per-event results with index/total. summary (default true) returns last_event only; false returns full results array.",
     inputSchema: {
       events: z.array(z.object({
         event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click"]),
         event_data: z.record(z.string(), z.unknown()).optional(),
-        delay_ms: z.number().int().nonnegative().optional(),
+        delay_before_ms: z.number().int().nonnegative().optional(),
+        delay_after_ms: z.number().int().nonnegative().optional(),
       })).min(1),
+      summary: z.boolean().optional(),
     },
     annotations: { openWorldHint: false },
   },
