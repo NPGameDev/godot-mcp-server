@@ -265,7 +265,11 @@ logProfile();
 
 function removeAllTools(): void {
   for (const [, ref] of toolRefs) {
-    try { ref.remove(); } catch { /* already removed */ }
+    try {
+      ref.remove();
+    } catch {
+      /* already removed */
+    }
   }
   toolRefs.clear();
   resetLoadedGroups();

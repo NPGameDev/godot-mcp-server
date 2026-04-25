@@ -197,7 +197,12 @@ function authenticate(ws: WebSocket, token: string): Promise<string | null> {
 
 // ── Channel (WebSocket wrapper with reconnect) ───────────────────────
 
-function createChannel(url: string, projectPath?: string, onGodotVersion?: (version: string) => void, onNotification?: () => NotificationHandler | null): Channel {
+function createChannel(
+  url: string,
+  projectPath?: string,
+  onGodotVersion?: (version: string) => void,
+  onNotification?: () => NotificationHandler | null,
+): Channel {
   const pending = new Map<string, Pending>();
   const openWaiters = new Set<Waiter>();
   let ws: WebSocket | null = null;
@@ -430,7 +435,10 @@ export interface BridgeOptions {
   wsBufferLimitBytes?: number;
 }
 
-export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge & { onNotification(handler: NotificationHandler): void } {
+export function createBridge(
+  editorUrl: string,
+  opts?: BridgeOptions,
+): Bridge & { onNotification(handler: NotificationHandler): void } {
   const projectPath = opts?.projectPath;
   let godotVersion: string | null = null;
   let notificationHandler: NotificationHandler | null = null;
@@ -450,10 +458,15 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge & 
   }
 
   const getNotificationHandler = () => notificationHandler;
-  let editor = createChannel(editorUrl, projectPath, (v) => {
-    godotVersion = v;
-    sendLimitsIfConfigured(editor);
-  }, getNotificationHandler);
+  let editor = createChannel(
+    editorUrl,
+    projectPath,
+    (v) => {
+      godotVersion = v;
+      sendLimitsIfConfigured(editor);
+    },
+    getNotificationHandler,
+  );
   let cachedEditorPort = Number(new URL(editorUrl).port);
 
   // ── Editor-port re-discovery ─────────────────────────────────────
@@ -479,9 +492,14 @@ export function createBridge(editorUrl: string, opts?: BridgeOptions): Bridge & 
     const oldPort = cachedEditorPort;
     cachedEditorPort = entry.port;
     await editor.close();
-    editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`, projectPath, (v) => {
-      godotVersion = v;
-    }, getNotificationHandler);
+    editor = createChannel(
+      `ws://127.0.0.1:${cachedEditorPort}`,
+      projectPath,
+      (v) => {
+        godotVersion = v;
+      },
+      getNotificationHandler,
+    );
     process.stderr.write(`[bridge] editor port changed ${oldPort} → ${cachedEditorPort}\n`);
     return true;
   }
