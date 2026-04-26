@@ -186,10 +186,6 @@ const server = new McpServer(
   { name: "godot-mcp-toolkit", version: "0.1.0" },
   {
     capabilities: { tools: { listChanged: true } },
-    // Coalesce tools/list_changed notifications within the same event-loop
-    // tick.  Without this, handleConfigReload fires one notification per
-    // tool removal + one per tool registration (~77 total instead of 1).
-    debouncedNotificationMethods: ["notifications/tools/list_changed"],
   },
 );
 
@@ -437,8 +433,7 @@ bridge.onNotification((type, params) => {
       // On the very first auth of a new bridge process, tools were JUST
       // registered at startup from the same env vars.  A full
       // handleConfigReload would call registerTool() for every tool, and
-      // the MCP SDK's internal debounced tools/list_changed notification
-      // (which we cannot suppress) would reach Claude Code within the
+      // the tools/list_changed notification would reach Claude Code within the
       // first second — causing it to kill and restart the bridge.
       // Instead, just sync env vars so subsequent operations see the
       // plugin's gate state, and skip tool re-registration entirely.
