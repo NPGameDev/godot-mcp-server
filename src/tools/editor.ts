@@ -83,7 +83,7 @@ export const editorTools: ToolDef[] = [
     name: "editor_get_console",
     method: "editor.get_console",
     description:
-      "Tail editor Output panel. source='buffer' (default) reads the real-time in-memory ring buffer capturing all output; source='file' reads the full session log file. level_filter: info|warning|error. since_id for incremental polls.",
+      "Tail editor Output panel. source='buffer'(default) reads in-memory ring buffer; source='file' reads full session log. level_filter + since_id for polling.",
     inputSchema: {
       limit: z.number().optional(),
       level_filter: z.array(z.enum(["info", "warning", "error"])).optional(),

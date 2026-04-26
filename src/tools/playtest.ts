@@ -10,7 +10,7 @@ export const playtestTools: ToolDef[] = [
     name: "game_start",
     method: "game.start",
     description:
-      "Start playtest via EditorInterface. scene_path:'main'|'current'(default)|res://path. Polls Mode-B port 6525 when wait_for_runtime:true(default). ALREADY_PLAYING if one is live — use runtime_poll:true to re-probe the connection without restarting. On failure, runtime_failure reports the stuck stage (registry_timeout|token_read_failed|ws_connect_timeout|auth_timeout|ping_timeout) with a recovery hint.",
+      "Start playtest. scene_path:'main'|'current'(default)|res://path. Polls runtime when wait_for_runtime:true(default). ALREADY_PLAYING if live — use runtime_poll:true to re-probe.",
     inputSchema: {
       scene_path: z.string().optional(),
       wait_for_runtime: z.boolean().optional(),

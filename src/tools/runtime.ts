@@ -33,7 +33,7 @@ export const runtimeTools: ToolDef[] = [
     name: "debugger_get_log",
     method: "debugger.get_log",
     description:
-      "Return recent output from the running game. source='buffer' (default) reads the real-time in-memory ring buffer; source='file' reads the full log file (user://logs/godot.log). Optional limit (default 200).",
+      "Return recent output from the running game. source='buffer'(default) reads ring buffer; source='file' reads user://logs/godot.log. limit default 200.",
     inputSchema: {
       limit: z.number().int().positive().optional(),
       source: z.enum(["buffer", "file"]).optional(),
