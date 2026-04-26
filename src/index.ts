@@ -177,7 +177,13 @@ const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
 
 const server = new McpServer(
   { name: "godot-mcp-toolkit", version: "0.1.0" },
-  { capabilities: { tools: { listChanged: true } } },
+  {
+    capabilities: { tools: { listChanged: true } },
+    // Coalesce tools/list_changed notifications within the same event-loop
+    // tick.  Without this, handleConfigReload fires one notification per
+    // tool removal + one per tool registration (~77 total instead of 1).
+    debouncedNotificationMethods: ["notifications/tools/list_changed"],
+  },
 );
 
 const hookPipeline = createHookPipeline();
