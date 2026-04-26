@@ -281,7 +281,7 @@ function removeAllTools(): void {
   resetLoadedGroups();
 }
 
-function handleConfigReload(params?: Record<string, unknown>): void {
+function handleConfigReload(params?: Record<string, unknown>, notify = true): void {
   const pluginProfile = params?.profile as string | undefined;
   const pluginGates = params?.gates as Record<string, boolean> | undefined;
 
@@ -324,8 +324,12 @@ function handleConfigReload(params?: Record<string, unknown>): void {
     );
   }
 
-  process.stderr.write("[godot-mcp] sending notifications/tools/list_changed\n");
-  server.sendToolListChanged();
+  if (notify) {
+    process.stderr.write("[godot-mcp] sending notifications/tools/list_changed\n");
+    server.sendToolListChanged();
+  } else {
+    process.stderr.write("[godot-mcp] initial auth sync — skipping tools/list_changed to avoid connection bounce\n");
+  }
 
   // Re-discover user commands (async, non-blocking).
   discoverUserCommands().catch(() => {});
@@ -352,13 +356,21 @@ function applyGateState(gates: Record<string, boolean>, pluginProfile?: string):
 // Debounce config_reloaded to prevent rapid gate toggles from causing
 // overlapping remove+rebuild cycles that leave the tool list empty.
 let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
+// The first auth-delivered config_reloaded (reconnect=false) is the initial
+// gate sync.  Suppress tools/list_changed for it — Claude Code may restart
+// the MCP server when it receives the notification within the first second.
+let initialAuthSyncDone = false;
 
 bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
+    // Auth-sourced notifications include `reconnect`; plugin-sent ones don't.
+    const suppressNotify = !initialAuthSyncDone && params?.reconnect === false;
+    if (params?.reconnect !== undefined) initialAuthSyncDone = true;
+
     if (configReloadTimer) clearTimeout(configReloadTimer);
     configReloadTimer = setTimeout(() => {
       configReloadTimer = null;
-      handleConfigReload(params);
+      handleConfigReload(params, !suppressNotify);
     }, 300);
   }
 });
