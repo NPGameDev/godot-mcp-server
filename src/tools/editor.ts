@@ -102,13 +102,10 @@ export const editorTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-];
-
-// project_set_setting is feature-gated (dual-gate: env AND PS). Plugin-side
-// FeatureGate performs the full check as defence-in-depth; this controls
-// MCP catalogue visibility only.
-if (isEnabled("project_set_setting")) {
-  editorTools.push({
+  // project_set_setting is feature-gated (dual-gate: env AND PS). Plugin-side
+  // FeatureGate performs the full check as defence-in-depth; the gate here
+  // controls MCP catalogue visibility only.
+  {
     name: "project_set_setting",
     method: "project.set_setting",
     description:
@@ -118,8 +115,9 @@ if (isEnabled("project_set_setting")) {
       value: z.unknown(),
     },
     annotations: { openWorldHint: false },
-  });
-}
+    gate: "project_set_setting",
+  },
+];
 
 // ── Custom handlers ──────────────────────────────────────────────────
 
@@ -183,6 +181,7 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of editorTools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
+    if (tool.gate && !isEnabled(tool.gate)) continue;
     const config = { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations };
     if (tool.name === "editor_get_errors") {
       server.registerTool(tool.name, config, (input: unknown) => errorSummaryHandler(bridge, tool.method, input));

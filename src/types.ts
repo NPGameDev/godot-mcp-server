@@ -2,6 +2,7 @@ import type { ZodRawShape } from "zod";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { stableStringify } from "./schema_min.js";
+import { isEnabled } from "./feature_gate.js";
 
 // ── Bridge interface ─────────────────────────────────────────────────
 
@@ -92,6 +93,8 @@ export type ToolDef = {
   annotations?: ToolAnnotations;
   /** Minimum Godot minor version required (e.g. 5 for 4.5+). Omit for 4.3+ (baseline). */
   godotMinVersion?: number;
+  /** Feature gate name. When set, the tool is only registered when isEnabled(gate) is true; otherwise a LOCKED stub is shown. */
+  gate?: string;
 };
 
 export type ToolTextResult = {
@@ -224,6 +227,7 @@ export function registerTools(
 ): void {
   for (const tool of tools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
+    if (tool.gate && !isEnabled(tool.gate)) continue;
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },

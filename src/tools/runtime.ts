@@ -78,22 +78,19 @@ export const runtimeTools: ToolDef[] = [
     },
     annotations: { openWorldHint: false },
   },
-];
-
-// game_eval is RCE-equivalent and intentionally absent from the catalogue
-// unless the user opts in via env var. The plugin-side FeatureGate
-// (feature_gate.gd) performs the full dual-gate check as defence-in-depth;
-// the gate here only controls MCP-catalogue exposure to the client.
-if (isEnabled("game_eval")) {
-  runtimeTools.push({
+  // game_eval is RCE-equivalent — gated via feature_gate. Plugin-side
+  // FeatureGate (feature_gate.gd) performs the full dual-gate check as
+  // defence-in-depth; the gate here only controls MCP-catalogue exposure.
+  {
     name: "game_eval",
     method: "game.eval",
     description:
       "DANGER: runs arbitrary GDScript in game. Prefer input_simulate, runtime_get_node_state, or signal_emit for safer alternatives.",
     inputSchema: { code: z.string(), scope_path: z.string().optional() },
     annotations: { destructiveHint: true, openWorldHint: false },
-  });
-}
+    gate: "game_eval",
+  },
+];
 
 // ── Registration ─────────────────────────────────────────────────────
 
@@ -101,11 +98,12 @@ if (isEnabled("game_eval")) {
 // debugger_get_log, input_simulate, animation_player_control) are registered
 // by groups.ts with custom handlers (multi-content screenshots, summary-first
 // logs). This register() only runs for tools that pass through moduleAllowed
-// — i.e., tools NOT in GROUP_TOOL_NAMES. Currently that means only game_eval
-// when its gate is open.
+// — i.e., tools NOT in GROUP_TOOL_NAMES. Gated tools (game_eval) are
+// skipped here when their gate is closed; registerStubs covers them.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   for (const tool of runtimeTools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
+    if (tool.gate && !isEnabled(tool.gate)) continue;
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },

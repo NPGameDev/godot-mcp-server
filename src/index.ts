@@ -42,9 +42,9 @@ import * as classdb from "./tools/classdb.js";
 
 // ── Tool catalogue ───────────────────────────────────────────────────
 
-// All module tool-def arrays (gate-conditional arrays may be empty at
-// import time when their env var is unset — that is correct: gated tools
-// get stubs via registerStubs instead).
+// All module tool-def arrays. Gated tools are always present in their
+// arrays (with a `gate` field); the gate check happens at registration
+// time so that config_reloaded can re-evaluate without frozen arrays.
 const ALL_MODULE_DEFS = [
   animation.animationTools,
   asset.assetTools,

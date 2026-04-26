@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools } from "../types.js";
-import { isEnabled } from "../feature_gate.js";
 
 export const nodeTools: ToolDef[] = [
   {
@@ -48,13 +47,10 @@ export const nodeTools: ToolDef[] = [
     },
     annotations: { openWorldHint: false },
   },
-];
-
-// node_call_method is feature-gated (single-gate: env OR PS). Plugin-side
-// FeatureGate performs the full check as defence-in-depth; this controls
-// MCP catalogue visibility only.
-if (isEnabled("node_call_method")) {
-  nodeTools.push({
+  // node_call_method is feature-gated (single-gate: env OR PS). Plugin-side
+  // FeatureGate performs the full check as defence-in-depth; the gate here
+  // controls MCP catalogue visibility only.
+  {
     name: "node_call_method",
     method: "node.call_method",
     description:
@@ -65,8 +61,9 @@ if (isEnabled("node_call_method")) {
       args: z.array(z.unknown()).optional(),
     },
     annotations: { openWorldHint: false },
-  });
-}
+    gate: "node_call_method",
+  },
+];
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   registerTools(server, bridge, nodeTools, allowedTools);
