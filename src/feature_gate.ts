@@ -1,11 +1,10 @@
 /**
  * Server-side feature gate — env-var-only.
  *
- * The TS bridge cannot read Godot ProjectSettings, so catalogue filtering
- * is env-var-only. The plugin-side FeatureGate (feature_gate.gd) performs
- * the full dual/single gate check as defence-in-depth.
- *
- * Future: could query the plugin for enabled features dynamically.
+ * .mcp.json env vars are the sole source of truth for gate state.
+ * The TS bridge reads env vars; the plugin-side FeatureGate
+ * (feature_gate.gd) performs the full check (deny → profile → env var)
+ * as defence-in-depth.
  */
 
 const FEATURE_ENV_VARS: Record<string, string> = {

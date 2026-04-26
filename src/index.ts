@@ -294,6 +294,11 @@ function handleConfigReload(params?: Record<string, unknown>): void {
   registerModules(moduleAllowed);
   registerGroups();
 
+  const gates = params?.gates as Record<string, boolean> | undefined;
+  if (gates) {
+    process.stderr.write(`[godot-mcp] gate states from plugin: ${JSON.stringify(gates)}\n`);
+  }
+
   process.stderr.write(
     `[godot-mcp] config reloaded: ${oldProfile} → ${profile}` +
       (pluginProfile ? ` (plugin reports: ${pluginProfile})` : "") +
@@ -305,6 +310,7 @@ function handleConfigReload(params?: Record<string, unknown>): void {
     );
   }
 
+  process.stderr.write("[godot-mcp] sending notifications/tools/list_changed\n");
   server.sendToolListChanged();
 
   // Re-discover user commands (async, non-blocking).

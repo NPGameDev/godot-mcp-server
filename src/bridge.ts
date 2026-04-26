@@ -273,6 +273,11 @@ function createChannel(
       if (godotVer && onGodotVersion) onGodotVersion(godotVer);
       const verNote = godotVer ? ` (Godot ${godotVer})` : "";
       process.stderr.write(`[bridge] ${url} authenticated${verNote}\n`);
+      // On reconnect, notify so the server can re-read .mcp.json and
+      // send tools/list_changed (transport recovery doesn't re-query).
+      if (wasReconnect) {
+        onNotification?.()?.("config_reloaded", { reconnect: true });
+      }
       resolveAllWaiters(socket);
       resolve(socket);
     } catch (err) {
@@ -323,6 +328,7 @@ function createChannel(
         }
         // Plugin notification (no JSON-RPC id, has notification field).
         if (message.notification && message.id == null) {
+          process.stderr.write(`[godot-mcp] plugin notification: ${message.notification}\n`);
           onNotification?.()?.(message.notification, message.params);
           return;
         }
