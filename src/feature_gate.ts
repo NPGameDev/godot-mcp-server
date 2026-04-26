@@ -1,10 +1,11 @@
 /**
- * Server-side feature gate — env-var-only.
+ * Server-side feature gate — process.env check.
  *
- * .mcp.json env vars are the sole source of truth for gate state.
- * The TS bridge reads env vars; the plugin-side FeatureGate
- * (feature_gate.gd) performs the full check (deny → profile → env var)
- * as defence-in-depth.
+ * Gate state is set from plugin-delivered auth/notification payloads
+ * (primary) or .mcp.json env vars (fallback for old plugin versions
+ * or manual edits).  isEnabled() checks process.env regardless of
+ * source.  The plugin-side FeatureGate (feature_gate.gd) performs the
+ * full check (deny → profile → sidecar) as defence-in-depth.
  */
 
 const FEATURE_ENV_VARS: Record<string, string> = {
