@@ -56,6 +56,7 @@ export type ErrorCode =
   | "INVALID_PARAMS"
   | "INVALID_PATH"
   | "LOAD_FAILED"
+  | "LOG_BUSY"
   | "LOG_UNAVAILABLE"
   | "NO_RUNTIME_URL"
   | "NO_SCENE"
@@ -154,8 +155,10 @@ const EXCEPTION_HINTS: Record<string, string> = {
     "Plugin WebSocket not connected. Ensure Godot is running with the plugin enabled. If running headless, launch with: godot --headless --editor --path <project>",
   GAME_NOT_RUNNING:
     "No running game detected. Use game.start first. Check editor_get_console for runtime startup errors.",
+  LOG_BUSY:
+    "Transient file lock during log flush — retry in 1-2 seconds, or use source='buffer' (default) which reads from an in-memory ring buffer with no file I/O.",
   LOG_UNAVAILABLE:
-    "Log file could not be read. Check that file logging is enabled in ProjectSettings (application/config/use_file_logging).",
+    "Log file not available. Enable file logging in ProjectSettings → Debug → File Logging → Enable File Logging, then restart the editor. Or use source='buffer' (default) which captures all output in real-time.",
   FEATURE_GATED:
     "Toggle the feature gate in the Godot editor dock or set the env var in .mcp.json. Changes are applied live.",
   FEATURE_DISABLED:
