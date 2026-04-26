@@ -13,8 +13,11 @@ export const editorTools: ToolDef[] = [
     name: "editor_get_errors",
     method: "editor.get_errors",
     description:
-      "Editor-time error tail (wraps editor.get_console with level='error'). Use editor.get_console for warnings/info/print output.",
-    inputSchema: { limit: z.number().optional() },
+      "Editor-time error tail (wraps editor.get_console with level='error'). source='buffer' (default) reads the real-time in-memory ring buffer; source='file' reads the full session log file.",
+    inputSchema: {
+      limit: z.number().optional(),
+      source: z.enum(["buffer", "file"]).optional(),
+    },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
@@ -80,11 +83,12 @@ export const editorTools: ToolDef[] = [
     name: "editor_get_console",
     method: "editor.get_console",
     description:
-      "Tail editor Output panel (user://logs/). level_filter: info|warning|error. since_id for incremental polls.",
+      "Tail editor Output panel. source='buffer' (default) reads the real-time in-memory ring buffer capturing all output; source='file' reads the full session log file. level_filter: info|warning|error. since_id for incremental polls.",
     inputSchema: {
       limit: z.number().optional(),
       level_filter: z.array(z.enum(["info", "warning", "error"])).optional(),
       since_id: z.number().optional(),
+      source: z.enum(["buffer", "file"]).optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
