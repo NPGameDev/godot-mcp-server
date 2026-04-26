@@ -5,9 +5,16 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createBridge } from "./bridge.js";
 import { lookupProject } from "./registry.js";
 import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS, PROFILE_DISPLAY_NAMES } from "./profiles.js";
-import { registerGroupSystem, registerAllGroupTools, GROUP_TOOL_NAMES, resetLoadedGroups } from "./groups.js";
+import {
+  registerGroupSystem,
+  registerAllGroupTools,
+  registerGroupStubs,
+  GROUP_TOOL_NAMES,
+  resetLoadedGroups,
+} from "./groups.js";
 import { registerStubs } from "./stubs.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
+import { setToolRef, removeAllToolRefs, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
 import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
@@ -188,12 +195,9 @@ const server = new McpServer(
 
 const hookPipeline = createHookPipeline();
 
-// Track RegisteredTool refs so config reload can remove + re-register.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK internal type
-const toolRefs = new Map<string, any>();
-
 // Wrap server.registerTool to inject version gating and the hook
-// pipeline around every tool handler, and capture the ref.
+// pipeline around every tool handler, and capture the ref in the
+// shared tool_refs registry (used by config reload + group stub swap).
 const _origRegisterTool = server.registerTool.bind(server);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK callback typing
 (server as any).registerTool = (
@@ -206,7 +210,7 @@ const _origRegisterTool = server.registerTool.bind(server);
     if (gateResult) return gateResult;
     return hookPipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input));
   });
-  toolRefs.set(name, ref);
+  setToolRef(name, ref);
   return ref;
 };
 
@@ -239,6 +243,75 @@ function registerGroups(): void {
     registerGroupSystem(server, bridge, readOnly);
   }
   registerStubs(server, profile);
+  registerGroupStubs(server, profile, readOnly);
+  // Fill remaining tools with LOCKED stubs so the deferred-tools
+  // catalogue is complete at startup regardless of profile/gate/group.
+  registerCatalogueStubs();
+}
+
+/**
+ * Extract a one-liner from a tool description (up to first period).
+ * Used for auto-generating LOCKED stub descriptions from module defs.
+ */
+function firstSentence(desc: string): string {
+  const dot = desc.indexOf(".");
+  if (dot > 0 && dot < 120) return desc.substring(0, dot);
+  return desc.substring(0, 80).trimEnd();
+}
+
+/** Shared handler for profile-locked stubs. */
+function profileLockedHandler() {
+  return async () => ({
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify({
+          success: false,
+          error: `Not available in ${PROFILE_DISPLAY_NAMES[profile]} profile.`,
+          code: "PROFILE_LOCKED",
+          hint: "Change profile via GODOT_MCP_PROFILE in .mcp.json env or the Godot editor dock.",
+        }),
+      },
+    ],
+    isError: true,
+  });
+}
+
+/**
+ * Fill remaining unregistered tools with LOCKED stubs.
+ * - Minimal: stubs for all standard/power_user module tools
+ * - All profiles: enable_tool_group stub if not already real
+ */
+function registerCatalogueStubs(): void {
+  // Module-tool stubs for minimal profile
+  if (profile === "minimal") {
+    for (const defs of ALL_MODULE_DEFS) {
+      for (const tool of defs) {
+        if (hasToolRef(tool.name)) continue;
+        if (GROUP_TOOL_NAMES.has(tool.name)) continue;
+        server.registerTool(
+          tool.name,
+          {
+            description: `LOCKED — ${firstSentence(tool.description)}. Standard/Power User profile.`,
+            annotations: { openWorldHint: false },
+          },
+          profileLockedHandler(),
+        );
+      }
+    }
+  }
+
+  // enable_tool_group stub for profiles that don't register the real meta-tool
+  if (!hasToolRef("enable_tool_group")) {
+    server.registerTool(
+      "enable_tool_group",
+      {
+        description: "LOCKED — load tool groups on demand. Standard profile.",
+        annotations: { openWorldHint: false },
+      },
+      profileLockedHandler(),
+    );
+  }
 }
 
 function logProfile(): void {
@@ -270,14 +343,7 @@ logProfile();
 // ── Live config reload ──────────────────────────────────────────────
 
 function removeAllTools(): void {
-  for (const [, ref] of toolRefs) {
-    try {
-      ref.remove();
-    } catch {
-      /* already removed */
-    }
-  }
-  toolRefs.clear();
+  removeAllToolRefs();
   resetLoadedGroups();
 }
 
@@ -316,7 +382,7 @@ function handleConfigReload(params?: Record<string, unknown>, notify = true): vo
   process.stderr.write(
     `[godot-mcp] config reloaded: ${oldProfile} → ${profile}` +
       (pluginProfile ? ` (plugin reports: ${pluginProfile})` : "") +
-      ` — ${toolRefs.size} tools registered\n`,
+      ` — ${toolRefCount()} tools registered\n`,
   );
   if (profile === "power_user") {
     process.stderr.write(
@@ -364,13 +430,31 @@ let initialAuthSyncDone = false;
 bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
     // Auth-sourced notifications include `reconnect`; plugin-sent ones don't.
-    const suppressNotify = !initialAuthSyncDone && params?.reconnect === false;
+    const isInitialAuth = !initialAuthSyncDone && params?.reconnect === false;
     if (params?.reconnect !== undefined) initialAuthSyncDone = true;
+
+    if (isInitialAuth) {
+      // On the very first auth of a new bridge process, tools were JUST
+      // registered at startup from the same env vars.  A full
+      // handleConfigReload would call registerTool() for every tool, and
+      // the MCP SDK's internal debounced tools/list_changed notification
+      // (which we cannot suppress) would reach Claude Code within the
+      // first second — causing it to kill and restart the bridge.
+      // Instead, just sync env vars so subsequent operations see the
+      // plugin's gate state, and skip tool re-registration entirely.
+      const pluginGates = params?.gates as Record<string, boolean> | undefined;
+      const pluginProfile = params?.profile as string | undefined;
+      if (pluginGates) applyGateState(pluginGates, pluginProfile);
+      process.stderr.write(
+        "[godot-mcp] initial auth sync — env applied, skipping tool reload to avoid connection bounce\n",
+      );
+      return;
+    }
 
     if (configReloadTimer) clearTimeout(configReloadTimer);
     configReloadTimer = setTimeout(() => {
       configReloadTimer = null;
-      handleConfigReload(params, !suppressNotify);
+      handleConfigReload(params);
     }, 300);
   }
 });

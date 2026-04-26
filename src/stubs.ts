@@ -1,8 +1,9 @@
 /**
- * Locked stubs for feature-gated tools. When the env var is not set,
- * a lightweight stub appears in tools/list with a "LOCKED —" description
- * prefix so the LLM can discover the capability and tell the user how
- * to enable it.
+ * Locked stubs for feature-gated tools. When the gate is closed (or the
+ * profile doesn't include the tool), a lightweight stub appears in
+ * tools/list with a "LOCKED —" description prefix so the LLM can
+ * discover the capability. Detailed unlock instructions live in the
+ * error response (hint field), not the description.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ProfileName } from "./profiles.js";
@@ -11,44 +12,68 @@ import { isEnabled, envVarFor } from "./feature_gate.js";
 interface StubDef {
   name: string;
   gate: string;
-  description: string;
+  oneLiner: string;
 }
 
 const STUBS: StubDef[] = [
   {
     name: "game_eval",
     gate: "game_eval",
-    description:
-      "LOCKED — evaluate GDScript in running game. Enable via the Feature Gates panel in the Godot editor, or set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env.",
+    oneLiner: "evaluate GDScript in running game",
   },
   {
     name: "node_call_method",
     gate: "node_call_method",
-    description:
-      "LOCKED — call arbitrary method on scene node. Enable via the Feature Gates panel in the Godot editor, or set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env.",
+    oneLiner: "call arbitrary method on scene node",
   },
   {
     name: "project_set_setting",
     gate: "project_set_setting",
-    description:
-      "LOCKED — write ProjectSettings. Enable via the Feature Gates panel in the Godot editor, or set GODOT_MCP_ALLOW_PROJECT_SET_SETTING=1 in .mcp.json env.",
+    oneLiner: "write ProjectSettings",
   },
 ];
 
 /**
- * Register locked stubs for feature-gated tools whose env var is not set.
- * - minimal profile: no stubs (pure read-only)
- * - standard / power_user: stubs for closed gates, real tools for open gates
+ * Register locked stubs for feature-gated tools.
+ * - minimal: always stubs (profile is the primary blocker)
+ * - standard / power_user: stubs for closed gates only
  */
 export function registerStubs(server: McpServer, profile: ProfileName): void {
-  if (profile === "minimal") return;
   for (const stub of STUBS) {
-    if (isEnabled(stub.gate)) continue; // Real tool registered by its module
     const envVar = envVarFor(stub.gate) ?? stub.gate;
+
+    if (profile === "minimal") {
+      // Minimal doesn't include gated tools — always stub regardless of gate state
+      server.registerTool(
+        stub.name,
+        {
+          description: `LOCKED — ${stub.oneLiner}. Standard/Power User profile.`,
+          annotations: { openWorldHint: false },
+        },
+        async () => ({
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                success: false,
+                error: "Not available in Minimal profile.",
+                code: "PROFILE_LOCKED",
+                hint: `Set GODOT_MCP_PROFILE=standard in .mcp.json env. Also requires ${envVar}=1.`,
+              }),
+            },
+          ],
+          isError: true,
+        }),
+      );
+      continue;
+    }
+
+    if (isEnabled(stub.gate)) continue; // Real tool registered by its module
+
     server.registerTool(
       stub.name,
       {
-        description: stub.description,
+        description: `LOCKED — ${stub.oneLiner}. Gate: ${envVar}.`,
         annotations: { openWorldHint: false },
       },
       async () => ({
@@ -57,9 +82,9 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
             type: "text" as const,
             text: JSON.stringify({
               success: false,
-              error: `Feature gated. Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
+              error: `Feature gated — ${envVar} is not enabled.`,
               code: "FEATURE_GATED",
-              hint: `Toggle the feature gate in the Godot editor dock or set the env var in .mcp.json. Changes are applied live.`,
+              hint: `Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
             }),
           },
         ],
