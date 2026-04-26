@@ -172,23 +172,60 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   );
 
   // ── editor.get_console ──
-  const consoleBaseResult = (await bridge.call("editor.get_console", { limit: 50 }, CALL_TIMEOUT)) as {
+  // Default source is now "buffer" (in-memory LogBuffer).
+  const consoleBufferResult = (await bridge.call("editor.get_console", { limit: 50 }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    entries?: unknown;
+    count?: number;
+    next_id?: number;
+    truncated?: boolean;
+    source?: string;
+    code?: string;
+  };
+  const consoleBufferEntries = unwrapUntrusted(consoleBufferResult?.entries);
+  if (
+    !consoleBufferResult?.success ||
+    !Array.isArray(consoleBufferEntries) ||
+    consoleBufferResult.source !== "buffer"
+  ) {
+    fail(
+      `editor.get_console source=buffer: unexpected shape ${JSON.stringify({ success: consoleBufferResult?.success, entries: Array.isArray(consoleBufferEntries) ? consoleBufferEntries.length : typeof consoleBufferEntries, source: consoleBufferResult?.source, code: consoleBufferResult?.code })}`,
+    );
+  } else {
+    pass(
+      `editor.get_console source=buffer -> count=${consoleBufferResult.count} next_id=${consoleBufferResult.next_id}`,
+    );
+  }
+
+  // Explicit source="file" — falls back to log file reader.
+  const consoleFileResult = (await bridge.call("editor.get_console", { limit: 50, source: "file" }, CALL_TIMEOUT)) as {
     success?: boolean;
     entries?: unknown;
     count?: number;
     log_file?: string;
-    next_id?: number;
     code?: string;
   };
-  // entries may be wrapped in an <untrusted> security envelope.
-  const consoleEntries = unwrapUntrusted(consoleBaseResult?.entries);
-  if (!consoleBaseResult?.success || !Array.isArray(consoleEntries) || typeof consoleBaseResult.log_file !== "string") {
+  const consoleFileEntries = unwrapUntrusted(consoleFileResult?.entries);
+  if (
+    !consoleFileResult?.success ||
+    !Array.isArray(consoleFileEntries) ||
+    typeof consoleFileResult.log_file !== "string"
+  ) {
     fail(
-      `editor.get_console base: unexpected shape ${JSON.stringify({ success: consoleBaseResult?.success, entries: Array.isArray(consoleEntries) ? consoleEntries.length : typeof consoleEntries, log_file: consoleBaseResult?.log_file, code: (consoleBaseResult as { code?: string })?.code })}`,
+      `editor.get_console source=file: unexpected shape ${JSON.stringify({ success: consoleFileResult?.success, entries: Array.isArray(consoleFileEntries) ? consoleFileEntries.length : typeof consoleFileEntries, log_file: consoleFileResult?.log_file, code: consoleFileResult?.code })}`,
     );
   } else {
-    pass(`editor.get_console base -> count=${consoleBaseResult.count} log_file=${consoleBaseResult.log_file}`);
+    pass(`editor.get_console source=file -> count=${consoleFileResult.count} log_file=${consoleFileResult.log_file}`);
   }
+
+  // Invalid source rejected.
+  assertGuard(
+    ctx,
+    "editor.get_console invalid source",
+    await bridge.call("editor.get_console", { source: "bogus" }, CALL_TIMEOUT),
+    "INVALID_PARAMS",
+    "source must be",
+  );
 
   // Emit a known warning via @tool script.
   const consoleProbe = "res://smoke_console_probe.gd";
@@ -242,6 +279,15 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     await bridge.call("editor.get_console", { limit: 10000 }, CALL_TIMEOUT),
     "INVALID_PARAMS",
     "[1, 1000]",
+  );
+
+  // Invalid source rejected for get_errors too.
+  assertGuard(
+    ctx,
+    "editor.get_errors invalid source",
+    await bridge.call("editor.get_errors", { source: "bogus" }, CALL_TIMEOUT),
+    "INVALID_PARAMS",
+    "source must be",
   );
 
   // ── editor.get_errors upgrade verification ──
