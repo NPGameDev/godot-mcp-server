@@ -349,9 +349,17 @@ function applyGateState(gates: Record<string, boolean>, pluginProfile?: string):
   }
 }
 
+// Debounce config_reloaded to prevent rapid gate toggles from causing
+// overlapping remove+rebuild cycles that leave the tool list empty.
+let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
+
 bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
-    handleConfigReload(params);
+    if (configReloadTimer) clearTimeout(configReloadTimer);
+    configReloadTimer = setTimeout(() => {
+      configReloadTimer = null;
+      handleConfigReload(params);
+    }, 300);
   }
 });
 
