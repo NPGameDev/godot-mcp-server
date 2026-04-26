@@ -15,7 +15,9 @@ import type { ProfileName } from "./profiles.js";
 import { MUTATING_TOOLS } from "./profiles.js";
 import { removeToolByName } from "./tool_refs.js";
 
-// Import tool defs from all modules that contribute group tools
+// Import tool defs from all modules that contribute group tools.
+// editorTools is included because scene_close lives in editor.ts
+// but belongs to the asset_management group.
 import { signalTools } from "./tools/signals.js";
 import { animationTools } from "./tools/animation.js";
 import { inputMapTools } from "./tools/input_map.js";
@@ -25,6 +27,7 @@ import { saveTools } from "./tools/save.js";
 import { sceneTools } from "./tools/scene.js";
 import { fileTools } from "./tools/file.js";
 import { resourceTools } from "./tools/resource.js";
+import { editorTools } from "./tools/editor.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -101,6 +104,7 @@ for (const tools of [
   sceneTools,
   fileTools,
   resourceTools,
+  editorTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
@@ -265,7 +269,7 @@ export function registerGroupStubs(server: McpServer, profile: ProfileName, read
         const gateBlocked = group.gate != null && !isEnabled(group.gate);
         if (gateBlocked) {
           const envVar = group.gateEnvVar ?? envVarFor(group.gate!) ?? group.gate!;
-          description = `LOCKED — ${oneLiner}. Gate: ${envVar}, group: ${group.name}.`;
+          description = `LOCKED — ${oneLiner}. Gate: ${envVar}, Group: ${group.name}.`;
           errorMsg = `Feature gated — ${envVar} is not enabled.`;
           code = "FEATURE_GATED";
           hint = `Set ${envVar}=1 in .mcp.json env, then call enable_tool_group('${group.name}').`;
