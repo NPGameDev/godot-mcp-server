@@ -283,14 +283,23 @@ function removeAllTools(): void {
 
 function handleConfigReload(params?: Record<string, unknown>): void {
   const pluginProfile = params?.profile as string | undefined;
-  const newEnv = readMcpJsonEnv(projectPath);
-  if (!newEnv) {
-    process.stderr.write("[godot-mcp] config_reloaded: could not read .mcp.json env — skipping reload\n");
-    return;
+  const pluginGates = params?.gates as Record<string, boolean> | undefined;
+
+  if (pluginGates) {
+    // Gates delivered directly from plugin auth/notification — apply to
+    // process.env without re-reading .mcp.json (which may be stale).
+    applyGateState(pluginGates, pluginProfile);
+  } else {
+    // Fallback: re-read .mcp.json (old plugin version or manual edit).
+    const newEnv = readMcpJsonEnv(projectPath);
+    if (!newEnv) {
+      process.stderr.write("[godot-mcp] config_reloaded: could not read .mcp.json env — skipping reload\n");
+      return;
+    }
+    applyEnvUpdate(newEnv);
   }
 
   const oldProfile = profile;
-  applyEnvUpdate(newEnv);
   profile = selectedProfile();
   readOnly = isReadOnly();
   allowedTools = buildAllowedTools();
@@ -300,9 +309,8 @@ function handleConfigReload(params?: Record<string, unknown>): void {
   registerModules(moduleAllowed);
   registerGroups();
 
-  const gates = params?.gates as Record<string, boolean> | undefined;
-  if (gates) {
-    process.stderr.write(`[godot-mcp] gate states from plugin: ${JSON.stringify(gates)}\n`);
+  if (pluginGates) {
+    process.stderr.write(`[godot-mcp] gate states from plugin: ${JSON.stringify(pluginGates)}\n`);
   }
 
   process.stderr.write(
@@ -321,6 +329,24 @@ function handleConfigReload(params?: Record<string, unknown>): void {
 
   // Re-discover user commands (async, non-blocking).
   discoverUserCommands().catch(() => {});
+}
+
+/**
+ * Apply gate state delivered by the plugin (auth response or notification).
+ * Maps boolean gates to process.env GODOT_MCP_* vars so the existing
+ * isEnabled() / selectedProfile() machinery works unchanged.
+ */
+function applyGateState(gates: Record<string, boolean>, pluginProfile?: string): void {
+  for (const [envVar, enabled] of Object.entries(gates)) {
+    if (enabled) {
+      process.env[envVar] = "1";
+    } else {
+      delete process.env[envVar];
+    }
+  }
+  if (pluginProfile) {
+    process.env.GODOT_MCP_PROFILE = pluginProfile;
+  }
 }
 
 bridge.onNotification((type, params) => {

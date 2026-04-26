@@ -154,13 +154,19 @@ async function readToken(projectPath?: string): Promise<string> {
   }
 }
 
+/** Parsed auth response from the Godot plugin. */
+export interface AuthResponse {
+  godotVersion: string | null;
+  profile?: string;
+  gates?: Record<string, boolean>;
+}
+
 /**
  * Send the auth handshake and wait for {"authed": true} or a close frame.
- * Resolves with the Godot version string (e.g. "4.5.2") if the plugin
- * includes it in the auth response, or null if absent (older plugin).
+ * Resolves with the full auth response including optional gate state.
  */
-function authenticate(ws: WebSocket, token: string): Promise<string | null> {
-  return new Promise<string | null>((resolve, reject) => {
+function authenticate(ws: WebSocket, token: string): Promise<AuthResponse> {
+  return new Promise<AuthResponse>((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
       reject(new BridgeError("AUTH_FAILED", "auth handshake timed out"));
@@ -174,10 +180,19 @@ function authenticate(ws: WebSocket, token: string): Promise<string | null> {
 
     function onMessage(data: unknown): void {
       try {
-        const msg = JSON.parse(String(data)) as { authed?: boolean; godot_version?: string };
+        const msg = JSON.parse(String(data)) as {
+          authed?: boolean;
+          godot_version?: string;
+          profile?: string;
+          gates?: Record<string, boolean>;
+        };
         if (msg.authed === true) {
           cleanup();
-          resolve(msg.godot_version ?? null);
+          resolve({
+            godotVersion: msg.godot_version ?? null,
+            profile: msg.profile,
+            gates: msg.gates,
+          });
         }
       } catch {
         // Not JSON — ignore, keep waiting.
@@ -268,15 +283,21 @@ function createChannel(
       // Re-read token from disk on every connect (including reconnects)
       // so rotated tokens after a plugin restart are picked up.
       const token = await readToken(projectPath);
-      const godotVer = await authenticate(socket, token);
+      const authResp = await authenticate(socket, token);
       hasConnectedOnce = true;
-      if (godotVer && onGodotVersion) onGodotVersion(godotVer);
-      const verNote = godotVer ? ` (Godot ${godotVer})` : "";
+      if (authResp.godotVersion && onGodotVersion) onGodotVersion(authResp.godotVersion);
+      const verNote = authResp.godotVersion ? ` (Godot ${authResp.godotVersion})` : "";
       process.stderr.write(`[bridge] ${url} authenticated${verNote}\n`);
-      // On reconnect, notify so the server can re-read .mcp.json and
-      // send tools/list_changed (transport recovery doesn't re-query).
-      if (wasReconnect) {
-        onNotification?.()?.("config_reloaded", { reconnect: true });
+      // Always notify with auth-delivered gate state so the server can
+      // update its tool registration. On reconnect this replaces the
+      // previous re-read-.mcp.json flow; on first connect it applies
+      // the plugin's current gates (which may differ from env vars).
+      if (wasReconnect || authResp.gates) {
+        onNotification?.()?.("config_reloaded", {
+          reconnect: wasReconnect,
+          ...(authResp.profile != null && { profile: authResp.profile }),
+          ...(authResp.gates != null && { gates: authResp.gates }),
+        });
       }
       resolveAllWaiters(socket);
       resolve(socket);
