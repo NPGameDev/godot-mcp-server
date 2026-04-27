@@ -80,17 +80,17 @@ async function playerCharacterWorkflow(bridge: EvalBridge): Promise<WorkflowResu
     node_path: "Player",
     property: "editor_description",
     value: "Player character",
-  })) as { ok?: boolean };
+  })) as { success?: boolean };
 
-  assertions.push({ label: "set description", passed: setSpeed?.ok === true });
+  assertions.push({ label: "set description", passed: setSpeed?.success === true });
 
   const setFloor = (await call("node.set_property", {
     node_path: "Player",
     property: "floor_max_angle",
     value: 0.7853981, // 45 degrees
-  })) as { ok?: boolean };
+  })) as { success?: boolean };
 
-  assertions.push({ label: "set floor_max_angle", passed: setFloor?.ok === true });
+  assertions.push({ label: "set floor_max_angle", passed: setFloor?.success === true });
 
   // Step 6: Write script
   const script = (await call("script.write", {
@@ -107,9 +107,9 @@ async function playerCharacterWorkflow(bridge: EvalBridge): Promise<WorkflowResu
       "\tmove_and_slide()",
       "",
     ].join("\n"),
-  })) as { ok?: boolean };
+  })) as { success?: boolean };
 
-  assertions.push({ label: "write player script", passed: script?.ok === true });
+  assertions.push({ label: "write player script", passed: script?.success === true });
 
   // Step 7: Validate script
   const check = (await call("script.check", { file_path: scriptPath })) as { valid?: boolean };
@@ -181,11 +181,11 @@ async function findAndConfigureWorkflow(bridge: EvalBridge): Promise<WorkflowRes
     node_path: "EvalPhysicsBody",
     property: "mass",
     value: 5.0,
-  })) as { ok?: boolean };
+  })) as { success?: boolean };
 
   assertions.push({
     label: "set mass property in one call",
-    passed: setProp?.ok === true,
+    passed: setProp?.success === true,
   });
 
   // Teardown
@@ -212,9 +212,9 @@ async function debugScriptWorkflow(bridge: EvalBridge): Promise<WorkflowResult> 
   const writeBroken = (await call("script.write", {
     file_path: scriptPath,
     content: ["extends Node", "", "func broken(", "\tvar x = ", ""].join("\n"),
-  })) as { ok?: boolean };
+  })) as { success?: boolean };
 
-  assertions.push({ label: "write broken script", passed: writeBroken?.ok === true });
+  assertions.push({ label: "write broken script", passed: writeBroken?.success === true });
 
   // Step 2: Check → get diagnostics
   const checkBroken = (await call("script.check", { file_path: scriptPath })) as {
@@ -235,9 +235,9 @@ async function debugScriptWorkflow(bridge: EvalBridge): Promise<WorkflowResult> 
   const writeFix = (await call("script.write", {
     file_path: scriptPath,
     content: ["extends Node", "", "func fixed() -> void:", '\tvar x = "hello"', "\tprint(x)", ""].join("\n"),
-  })) as { ok?: boolean };
+  })) as { success?: boolean };
 
-  assertions.push({ label: "write fixed script", passed: writeFix?.ok === true });
+  assertions.push({ label: "write fixed script", passed: writeFix?.success === true });
 
   // Step 4: Re-check → should pass
   const checkFixed = (await call("script.check", { file_path: scriptPath })) as { valid?: boolean };

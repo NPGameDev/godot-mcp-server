@@ -67,8 +67,8 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       "input.simulate",
       { event_type: "action", event_data: { action: "ui_accept", pressed: true } },
       CALL_TIMEOUT,
-    )) as { ok?: boolean; code?: string };
-    if (!inputSimulate?.ok) fail(`input.simulate ui_accept: ${JSON.stringify(inputSimulate)}`);
+    )) as { success?: boolean; code?: string };
+    if (!inputSimulate?.success) fail(`input.simulate ui_accept: ${JSON.stringify(inputSimulate)}`);
     else pass("input.simulate action=ui_accept ok");
 
     const animPlayerMiss = (await bridge.callRuntime(

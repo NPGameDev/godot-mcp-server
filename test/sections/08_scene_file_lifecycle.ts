@@ -197,8 +197,8 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
     "script.write",
     { file_path: scriptDelPath, content: "extends Node\n" },
     CALL_TIMEOUT,
-  )) as { ok?: boolean };
-  if (!scriptWriteResult?.ok) fail(`script.write throwaway.gd: ${JSON.stringify(scriptWriteResult)}`);
+  )) as { success?: boolean };
+  if (!scriptWriteResult?.success) fail(`script.write throwaway.gd: ${JSON.stringify(scriptWriteResult)}`);
   const scriptDeleted = (await bridge.call("script.delete", { file_path: scriptDelPath }, CALL_TIMEOUT)) as {
     success?: boolean;
     path?: string;

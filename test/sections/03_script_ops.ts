@@ -10,8 +10,8 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
     "script.write",
     { file_path: scriptPath, content: scriptBody },
     CALL_TIMEOUT,
-  )) as { ok?: boolean; undoable?: boolean; code?: string };
-  if (!writeResult?.ok) fail(`script.write: ${JSON.stringify(writeResult)}`);
+  )) as { success?: boolean; undoable?: boolean; code?: string };
+  if (!writeResult?.success) fail(`script.write: ${JSON.stringify(writeResult)}`);
   if (writeResult?.undoable !== true)
     fail(`script.write missing undoable flag (iter-09 UndoRedo wrap): ${JSON.stringify(writeResult)}`);
   const readResult = (await bridge.call("script.read", { file_path: scriptPath }, CALL_TIMEOUT)) as {
@@ -24,10 +24,10 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
   else pass("script.write (undoable) + script.read round-trip");
 
   const reloadResult = (await bridge.call("editor.reload_scripts", null, CALL_TIMEOUT)) as {
-    ok?: boolean;
+    success?: boolean;
     code?: string;
   };
-  if (!reloadResult?.ok) fail(`editor.reload_scripts: ${JSON.stringify(reloadResult)}`);
+  if (!reloadResult?.success) fail(`editor.reload_scripts: ${JSON.stringify(reloadResult)}`);
   else pass("editor.reload_scripts ok");
 
   const bogusRead = (await bridge.call(

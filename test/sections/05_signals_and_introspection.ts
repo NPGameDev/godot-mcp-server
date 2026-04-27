@@ -56,8 +56,8 @@ export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
     "signal.emit",
     { node_path: signalProbePath, signal_name: "child_order_changed", args: [] },
     CALL_TIMEOUT,
-  )) as { ok?: boolean; code?: string };
-  if (!emitResult?.ok) fail(`signal.emit: ${JSON.stringify(emitResult)}`);
+  )) as { success?: boolean; code?: string };
+  if (!emitResult?.success) fail(`signal.emit: ${JSON.stringify(emitResult)}`);
   else pass("signal.emit child_order_changed");
 
   const disconnectFirst = (await bridge.call(

@@ -84,22 +84,22 @@ export const sceneCreation: EvalScenario = {
       node_path: "MainCamera",
       property: "fov",
       value: 90,
-    })) as { ok?: boolean };
+    })) as { success?: boolean };
 
     assertions.push({
       label: "set Camera3D.fov = 90",
-      passed: setCamFov?.ok === true,
+      passed: setCamFov?.success === true,
     });
 
     const setBodyDesc = (await call("node.set_property", {
       node_path: "Player",
       property: "editor_description",
       value: "eval-player-marker",
-    })) as { ok?: boolean };
+    })) as { success?: boolean };
 
     assertions.push({
       label: "set CharacterBody3D.editor_description",
-      passed: setBodyDesc?.ok === true,
+      passed: setBodyDesc?.success === true,
     });
 
     // ── Read back and verify ─────────────────────────────────────────────

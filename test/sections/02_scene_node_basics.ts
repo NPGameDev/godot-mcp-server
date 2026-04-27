@@ -54,8 +54,8 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
     "node.set_property",
     { node_path: nodePath, property: "editor_description", value: marker },
     CALL_TIMEOUT,
-  )) as { ok?: boolean; code?: string; error?: string };
-  if (!setResult?.ok) fail(`node.set_property: ${JSON.stringify(setResult)}`);
+  )) as { success?: boolean; code?: string; error?: string };
+  if (!setResult?.success) fail(`node.set_property: ${JSON.stringify(setResult)}`);
   const getResult = (await bridge.call(
     "node.get_property",
     { node_path: nodePath, property: "editor_description" },
@@ -66,9 +66,9 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
 
   // Cleanup.
   const deleteResult = (await bridge.call("scene.delete_node", { node_path: nodePath }, CALL_TIMEOUT)) as {
-    ok?: boolean;
+    success?: boolean;
     code?: string;
   };
-  if (!deleteResult?.ok) fail(`scene.delete_node: ${JSON.stringify(deleteResult)}`);
+  if (!deleteResult?.success) fail(`scene.delete_node: ${JSON.stringify(deleteResult)}`);
   else pass("scene.delete_node cleanup");
 }

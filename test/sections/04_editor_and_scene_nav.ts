@@ -47,11 +47,11 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
 
   // scene.open — re-open the currently-edited scene.
   const openResult = (await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT)) as {
-    ok?: boolean;
+    success?: boolean;
     path?: string;
     code?: string;
   };
-  if (!openResult?.ok || openResult.path !== MAIN_SCENE) fail(`scene.open: ${JSON.stringify(openResult)}`);
+  if (!openResult?.success || openResult.path !== MAIN_SCENE) fail(`scene.open: ${JSON.stringify(openResult)}`);
   else pass(`scene.open ${openResult.path}`);
 
   const openNotFound = (await bridge.call(

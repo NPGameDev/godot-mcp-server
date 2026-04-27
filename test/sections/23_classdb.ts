@@ -96,9 +96,9 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     "script.write",
     { file_path: testScriptPath, content: scriptContent },
     CALL_TIMEOUT,
-  )) as { ok?: boolean };
+  )) as { success?: boolean };
 
-  if (!writeResult?.ok) {
+  if (!writeResult?.success) {
     fail(`classdb.get_info global: could not write probe script: ${JSON.stringify(writeResult)}`);
   } else {
     // Reload scripts so Godot picks up the new class_name

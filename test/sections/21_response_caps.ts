@@ -17,8 +17,8 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
       content: largeContent,
     },
     CALL_TIMEOUT,
-  )) as { ok?: boolean };
-  if (!writeResult?.ok) {
+  )) as { success?: boolean };
+  if (!writeResult?.success) {
     fail(`response cap: could not write large file: ${JSON.stringify(writeResult)}`);
     return;
   }

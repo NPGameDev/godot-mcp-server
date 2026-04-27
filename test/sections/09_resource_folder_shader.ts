@@ -336,15 +336,15 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     "script.write",
     { file_path: shaderPath, content: "shader_type canvas_item;\n" },
     CALL_TIMEOUT,
-  )) as { ok?: boolean; code?: string };
-  if (!shaderWriteResult?.ok) fail(`script.write .gdshader: ${JSON.stringify(shaderWriteResult)}`);
+  )) as { success?: boolean; code?: string };
+  if (!shaderWriteResult?.success) fail(`script.write .gdshader: ${JSON.stringify(shaderWriteResult)}`);
   else pass(`script.write .gdshader ok`);
   const shaderIncWriteResult = (await bridge.call(
     "script.write",
     { file_path: shaderIncPath, content: "// smoke include\n" },
     CALL_TIMEOUT,
-  )) as { ok?: boolean; code?: string };
-  if (!shaderIncWriteResult?.ok) fail(`script.write .gdshaderinc: ${JSON.stringify(shaderIncWriteResult)}`);
+  )) as { success?: boolean; code?: string };
+  if (!shaderIncWriteResult?.success) fail(`script.write .gdshaderinc: ${JSON.stringify(shaderIncWriteResult)}`);
   else pass(`script.write .gdshaderinc ok`);
   assertGuard(
     ctx,

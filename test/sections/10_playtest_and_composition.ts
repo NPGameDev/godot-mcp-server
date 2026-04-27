@@ -144,10 +144,11 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
 
   // Ownership: save → reload → verify child persists.
   const saveAfterInstantiate = (await bridge.call("editor.save_scene", {}, CALL_TIMEOUT)) as {
-    ok?: boolean;
+    success?: boolean;
     code?: string;
   };
-  if (!saveAfterInstantiate?.ok) fail(`editor.save_scene after instantiate: ${JSON.stringify(saveAfterInstantiate)}`);
+  if (!saveAfterInstantiate?.success)
+    fail(`editor.save_scene after instantiate: ${JSON.stringify(saveAfterInstantiate)}`);
   await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
   const rawReloaded = (await bridge.call("scene.get_tree", null, CALL_TIMEOUT)) as {
     tree?: string;
@@ -294,8 +295,9 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
     "node.set_property",
     { node_path: coercionSpritePath, property: "texture", value: { type: "Resource", path: smokeTexPath } },
     CALL_TIMEOUT,
-  )) as { ok?: boolean; code?: string };
-  if (!textureBindResult?.ok) fail(`node.set_property texture via Resource dict: ${JSON.stringify(textureBindResult)}`);
+  )) as { success?: boolean; code?: string };
+  if (!textureBindResult?.success)
+    fail(`node.set_property texture via Resource dict: ${JSON.stringify(textureBindResult)}`);
   else pass(`node.set_property texture <- {type:Resource,path:${smokeTexPath}}`);
 
   const textureReadResult = (await bridge.call(
@@ -329,8 +331,8 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
     "node.set_property",
     { node_path: coercionSpritePath, property: "modulate", value: { type: "Color", r: 1.0, g: 0.5, b: 0.0 } },
     CALL_TIMEOUT,
-  )) as { ok?: boolean; code?: string };
-  if (!colorSetResult?.ok) fail(`node.set_property modulate <- Color dict: ${JSON.stringify(colorSetResult)}`);
+  )) as { success?: boolean; code?: string };
+  if (!colorSetResult?.success) fail(`node.set_property modulate <- Color dict: ${JSON.stringify(colorSetResult)}`);
   const colorReadResult = (await bridge.call(
     "node.get_property",
     { node_path: coercionSpritePath, property: "modulate" },

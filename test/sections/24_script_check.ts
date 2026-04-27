@@ -12,9 +12,9 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
     "script.write",
     { file_path: validPath, content: validContent },
     CALL_TIMEOUT,
-  )) as { ok?: boolean };
+  )) as { success?: boolean };
 
-  if (!writeValid?.ok) {
+  if (!writeValid?.success) {
     fail(`script.check: could not write valid probe: ${JSON.stringify(writeValid)}`);
     return;
   }
@@ -56,9 +56,9 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
     "script.write",
     { file_path: brokenPath, content: brokenContent },
     CALL_TIMEOUT,
-  )) as { ok?: boolean };
+  )) as { success?: boolean };
 
-  if (!writeBroken?.ok) {
+  if (!writeBroken?.success) {
     fail(`script.check: could not write broken probe: ${JSON.stringify(writeBroken)}`);
   } else {
     const checkBroken = (await bridge.call("script.check", { file_path: brokenPath }, CALL_TIMEOUT)) as {

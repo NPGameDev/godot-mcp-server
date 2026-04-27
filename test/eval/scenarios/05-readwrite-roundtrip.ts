@@ -44,11 +44,11 @@ export const readwriteRoundtrip: EvalScenario = {
     const writeResult = (await call("script.write", {
       file_path: SCRIPT_PATH,
       content: scriptContent,
-    })) as { ok?: boolean };
+    })) as { success?: boolean };
 
     assertions.push({
       label: "script.write succeeds",
-      passed: writeResult?.ok === true,
+      passed: writeResult?.success === true,
     });
 
     const readResult = (await call("script.read", {
