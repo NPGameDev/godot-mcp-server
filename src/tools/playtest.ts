@@ -10,7 +10,7 @@ export const playtestTools: ToolDef[] = [
     name: "game_start",
     method: "game.start",
     description:
-      "Start playtest. scene_path:'main'|'current'(default)|res://path. Polls runtime when wait_for_runtime:true(default). ALREADY_PLAYING if live — use runtime_poll:true to re-probe.",
+      "Start playtest. scene_path:'main'|'current'(default)|res://path. Bridge auto-discovers runtime — no blocking poll. ALREADY_PLAYING if live; runtime_poll:true to re-probe.",
     inputSchema: {
       scene_path: z.string().optional(),
       wait_for_runtime: z.boolean().optional(),

@@ -21,25 +21,31 @@ import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, deepEqual } from "../helpers.js";
 
-/** Collect all ToolDef arrays into a single flat list. */
+/**
+ * Collect all ToolDef arrays into a single flat list, filtering by gate
+ * state to mirror registration-time behavior. Module-level gated tools
+ * (with a `gate` field) are filtered individually; group-level gated
+ * tools (input_map, save) are included/excluded as a block.
+ */
 function getAllToolDefs(): ToolDef[] {
+  const gateFilter = (t: ToolDef) => !t.gate || featureEnabled(t.gate);
   return [
     ...sceneTools,
-    ...nodeTools,
+    ...nodeTools.filter(gateFilter),
     ...scriptTools,
-    ...editorTools,
-    ...runtimeTools,
+    ...editorTools.filter(gateFilter),
+    ...runtimeTools.filter(gateFilter),
     ...signalTools,
     ...resourceTools,
     ...folderTools,
     ...diffTools,
     ...playtestTools,
-    ...inputMapTools,
+    ...(featureEnabled("input_map_write") ? inputMapTools : []),
     ...animationTools,
     ...tilemapTools,
     ...assetTools,
     ...fileTools,
-    ...saveTools,
+    ...(featureEnabled("read_user_scope") ? saveTools : []),
     ...classdbTools,
   ];
 }
@@ -69,16 +75,17 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
       `tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, input_map_write=${featureEnabled("input_map_write")}, read_user_scope=${featureEnabled("read_user_scope")})`,
     );
 
-  // Feature gate catalogue checks.
-  const gateChecks: [string, string, ToolDef[]][] = [
-    ["game_eval", "game_eval", runtimeTools],
-    ["node_call_method", "node_call_method", nodeTools],
-    ["project_set_setting", "project_set_setting", editorTools],
-    ["input_map_write", "input_map_action", inputMapTools],
-    ["read_user_scope", "save_read", saveTools],
+  // Feature gate catalogue checks — verify gated tools are present/absent
+  // based on gate state. Uses filtered allTools (mirrors registration logic).
+  const gateChecks: [string, string][] = [
+    ["game_eval", "game_eval"],
+    ["node_call_method", "node_call_method"],
+    ["project_set_setting", "project_set_setting"],
+    ["input_map_write", "input_map_action"],
+    ["read_user_scope", "save_read"],
   ];
-  for (const [feature, toolName, toolArray] of gateChecks) {
-    const present = toolArray.some((t: ToolDef) => t.name === toolName);
+  for (const [feature, toolName] of gateChecks) {
+    const present = allTools.some((t: ToolDef) => t.name === toolName);
     const enabled = featureEnabled(feature);
     if (enabled && !present) fail(`${toolName} expected in catalogue when ${feature} enabled`);
     else if (!enabled && present) fail(`${toolName} expected ABSENT from catalogue when ${feature} disabled`);

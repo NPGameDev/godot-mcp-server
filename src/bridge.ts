@@ -4,7 +4,15 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { Bridge, BridgeError } from "./types.js";
-import { discoverRuntime, lookupProject } from "./registry.js";
+import {
+  discoverRuntime,
+  lookupProject,
+  normalizePath,
+  watchRegistry,
+  unwatchRegistry,
+  isWatcherActive,
+  getCachedRuntimePort,
+} from "./registry.js";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -542,6 +550,33 @@ export function createBridge(
     : null;
   let cachedRuntimePort: number | null = opts?.explicitRuntimePort ? Number(opts.explicitRuntimePort) : null;
 
+  // ── Registry watcher for instant runtime discovery ─────────────
+  // fs.watch on projects.json auto-connects to new runtime ports and
+  // tears down stale channels. Replaces per-RPC file reads in
+  // callRuntime with in-memory lookups (Path A). Falls back to
+  // per-RPC reads when fs.watch is unavailable (Path B).
+  if (projectPath && !opts?.explicitRuntimePort) {
+    const normalizedProject = normalizePath(projectPath);
+    watchRegistry({
+      onDiscovered: (discoveredPath, port) => {
+        if (discoveredPath !== normalizedProject) return;
+        process.stderr.write(`[bridge] runtime discovered on port ${port}\n`);
+        if (runtimeChannel) void runtimeChannel.close();
+        runtimeChannel = createChannel(`ws://127.0.0.1:${port}`, projectPath);
+        cachedRuntimePort = port;
+      },
+      onRemoved: (removedPath) => {
+        if (removedPath !== normalizedProject) return;
+        process.stderr.write(`[bridge] runtime removed\n`);
+        if (runtimeChannel) {
+          void runtimeChannel.close();
+          runtimeChannel = null;
+          cachedRuntimePort = null;
+        }
+      },
+    });
+  }
+
   return {
     async call(method, params, timeoutMs) {
       try {
@@ -577,7 +612,9 @@ export function createBridge(
         throw new BridgeError("GAME_NOT_RUNNING", "no runtime port configured and no project path for registry lookup");
       }
 
-      const currentPort = discoverRuntime(projectPath);
+      // Path A (watcher active): zero-I/O cache lookup.
+      // Path B (watcher inactive / fallback): per-RPC file read.
+      const currentPort = isWatcherActive() ? getCachedRuntimePort(projectPath) : discoverRuntime(projectPath);
       if (currentPort === null) {
         // No playtest running — close stale channel and reject immediately.
         if (runtimeChannel) {
@@ -614,6 +651,7 @@ export function createBridge(
       }
     },
     async close() {
+      unwatchRegistry();
       await editor.close();
       if (runtimeChannel) await runtimeChannel.close();
     },
