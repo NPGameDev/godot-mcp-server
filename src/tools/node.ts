@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../types.js";
+import { registerTools } from "../tool_helpers.js";
 
 export const nodeTools: ToolDef[] = [
   {

@@ -5,11 +5,14 @@
  * (config reload).
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK internal type
-const toolRefs = new Map<string, any>();
+interface ToolRef {
+  remove(): void;
+}
+
+const toolRefs = new Map<string, ToolRef>();
 
 export function setToolRef(name: string, ref: unknown): void {
-  toolRefs.set(name, ref);
+  toolRefs.set(name, ref as ToolRef);
 }
 
 export function removeToolByName(name: string): boolean {

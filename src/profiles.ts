@@ -149,11 +149,6 @@ export function isReadOnly(): boolean {
   return process.env.GODOT_MCP_READ_ONLY === "1";
 }
 
-/** When true, tools whose godotMinVersion exceeds the connected Godot version are hidden from tools/list. Default: false (show with notes). */
-export function hideUnavailable(): boolean {
-  return process.env.GODOT_MCP_HIDE_UNAVAILABLE === "1" || process.env.GODOT_MCP_HIDE_UNAVAILABLE === "true";
-}
-
 /**
  * Build the allowed-tool set for initial registration.
  * Returns null for the `power_user` profile (meaning "register everything").

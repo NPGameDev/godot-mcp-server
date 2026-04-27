@@ -8,7 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "./types.js";
-import { callAndWrap, toolErrorFromPayload, toolErrorFromException } from "./types.js";
+import { callAndWrap, toolErrorFromPayload, toolErrorFromException } from "./tool_helpers.js";
 import { stableStringify } from "./schema_min.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
 import type { ProfileName } from "./profiles.js";

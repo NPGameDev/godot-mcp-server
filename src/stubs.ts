@@ -8,6 +8,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ProfileName } from "./profiles.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
+import { toolError } from "./tool_helpers.js";
 
 interface StubDef {
   name: string;
@@ -50,20 +51,12 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
           description: `LOCKED — ${stub.oneLiner}. Standard/Power User profile.`,
           annotations: { openWorldHint: false },
         },
-        async () => ({
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({
-                success: false,
-                error: "Not available in Minimal profile.",
-                code: "PROFILE_LOCKED",
-                hint: `Set GODOT_MCP_PROFILE=standard in .mcp.json env. Also requires ${envVar}=1.`,
-              }),
-            },
-          ],
-          isError: true,
-        }),
+        async () =>
+          toolError(
+            "PROFILE_LOCKED",
+            "Not available in Minimal profile.",
+            `Set GODOT_MCP_PROFILE=standard in .mcp.json env. Also requires ${envVar}=1.`,
+          ),
       );
       continue;
     }
@@ -76,20 +69,12 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
         description: `LOCKED — ${stub.oneLiner}. Gate: ${envVar}.`,
         annotations: { openWorldHint: false },
       },
-      async () => ({
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({
-              success: false,
-              error: `Feature gated — ${envVar} is not enabled.`,
-              code: "FEATURE_GATED",
-              hint: `Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
-            }),
-          },
-        ],
-        isError: true,
-      }),
+      async () =>
+        toolError(
+          "FEATURE_GATED",
+          `Feature gated — ${envVar} is not enabled.`,
+          `Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
+        ),
     );
   }
 }

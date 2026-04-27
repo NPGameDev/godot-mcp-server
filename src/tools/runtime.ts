@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { callAndWrap } from "../types.js";
+import { callAndWrap } from "../tool_helpers.js";
 import { isEnabled } from "../feature_gate.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on

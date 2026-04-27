@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { callAndWrap } from "../types.js";
+import { callAndWrap } from "../tool_helpers.js";
 import { isGroupLoaded } from "../groups.js";
 
 export const playtestTools: ToolDef[] = [

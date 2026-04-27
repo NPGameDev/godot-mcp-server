@@ -14,13 +14,13 @@ import {
 } from "./groups.js";
 import { registerStubs } from "./stubs.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
-import { setToolRef, removeAllToolRefs, toolRefCount, hasToolRef } from "./tool_refs.js";
+import { removeAllToolRefs, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
 import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
 import type { ToolTextResult } from "./types.js";
-import { callAndWrap, toolError } from "./types.js";
+import { callAndWrap, toolError, registerToolWrapped, setGlobalHookPipeline } from "./tool_helpers.js";
 
 import * as animation from "./tools/animation.js";
 import * as asset from "./tools/asset.js";
@@ -64,33 +64,6 @@ const ALL_MODULE_DEFS = [
   tilemap.tilemapTools,
   classdb.classdbTools,
 ];
-
-// ── Version gate ─────────────────────────────────────────────────────
-
-// Tools that declare godotMinVersion are checked at call-time against the
-// connected Godot version. Unknown (not-yet-connected) passes through.
-const versionMap = new Map<string, number>();
-for (const defs of ALL_MODULE_DEFS) {
-  for (const t of defs) {
-    if (t.godotMinVersion != null) versionMap.set(t.name, t.godotMinVersion);
-  }
-}
-
-/**
- * Check whether the connected Godot version satisfies a tool's minimum.
- * Returns a toolError response if the check fails, or null to proceed.
- */
-function checkVersionGate(toolName: string): ToolTextResult | null {
-  const minVer = versionMap.get(toolName);
-  if (minVer == null) return null;
-  const connected = bridge.getGodotMinor();
-  if (connected == null || connected >= minVer) return null;
-  return toolError(
-    "UNSUPPORTED",
-    `${toolName} requires Godot 4.${minVer}+ (connected: 4.${connected})`,
-    "Check COMPATIBILITY.md or use classdb.get_info for alternatives.",
-  );
-}
 
 // ── Profile resolution ───────────────────────────────────────────────
 
@@ -190,25 +163,7 @@ const server = new McpServer(
 );
 
 const hookPipeline = createHookPipeline();
-
-// Wrap server.registerTool to inject version gating and the hook
-// pipeline around every tool handler, and capture the ref in the
-// shared tool_refs registry (used by config reload + group stub swap).
-const _origRegisterTool = server.registerTool.bind(server);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK callback typing
-(server as any).registerTool = (
-  name: string,
-  config: Parameters<typeof server.registerTool>[1],
-  handler: (input: Record<string, unknown>) => Promise<ToolTextResult>,
-) => {
-  const ref = _origRegisterTool(name, config, async (input: Record<string, unknown>) => {
-    const gateResult = checkVersionGate(name);
-    if (gateResult) return gateResult;
-    return hookPipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input));
-  });
-  setToolRef(name, ref);
-  return ref;
-};
+setGlobalHookPipeline(hookPipeline);
 
 // ── Tool registration (shared by startup + reload) ──────────────────
 
@@ -257,20 +212,12 @@ function firstSentence(desc: string): string {
 
 /** Shared handler for profile-locked stubs. */
 function profileLockedHandler() {
-  return async () => ({
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify({
-          success: false,
-          error: `Not available in ${PROFILE_DISPLAY_NAMES[profile]} profile.`,
-          code: "PROFILE_LOCKED",
-          hint: "Change profile via GODOT_MCP_PROFILE in .mcp.json env or the Godot editor dock.",
-        }),
-      },
-    ],
-    isError: true,
-  });
+  return async () =>
+    toolError(
+      "PROFILE_LOCKED",
+      `Not available in ${PROFILE_DISPLAY_NAMES[profile]} profile.`,
+      "Change profile via GODOT_MCP_PROFILE in .mcp.json env or the Godot editor dock.",
+    );
 }
 
 /**
@@ -285,7 +232,9 @@ function registerCatalogueStubs(): void {
       for (const tool of defs) {
         if (hasToolRef(tool.name)) continue;
         if (GROUP_TOOL_NAMES.has(tool.name)) continue;
-        server.registerTool(
+        registerToolWrapped(
+          server,
+          bridge,
           tool.name,
           {
             description: `LOCKED — ${firstSentence(tool.description)}. Standard/Power User profile.`,
@@ -299,7 +248,9 @@ function registerCatalogueStubs(): void {
 
   // enable_tool_group stub for profiles that don't register the real meta-tool
   if (!hasToolRef("enable_tool_group")) {
-    server.registerTool(
+    registerToolWrapped(
+      server,
+      bridge,
       "enable_tool_group",
       {
         description: "LOCKED — load tool groups on demand. Standard profile.",
@@ -469,7 +420,9 @@ async function discoverUserCommands(): Promise<void> {
     let registered = 0;
     for (const cmd of result.commands) {
       const toolName = cmd.method.replace(/\./g, "_");
-      server.registerTool(
+      registerToolWrapped(
+        server,
+        bridge,
         toolName,
         {
           description: `User command: ${cmd.method}`,
@@ -480,7 +433,7 @@ async function discoverUserCommands(): Promise<void> {
             openWorldHint: false,
           },
         },
-        (input: unknown) => callAndWrap(bridge, cmd.method, input),
+        (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<ToolTextResult>,
       );
       registered++;
     }
