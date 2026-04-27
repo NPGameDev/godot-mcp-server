@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
 
 export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -107,7 +107,7 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
 
   // project.get_settings with prefix.
   const settingsResult = (await bridge.call("project.get_settings", { prefix: "application/" }, CALL_TIMEOUT)) as {
-    settings?: Record<string, unknown>;
+    settings?: unknown;
     count?: number;
     filtered_secret_count?: number;
     code?: string;
@@ -117,8 +117,9 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
   } else if (settingsResult.count < 1) {
     fail(`project.get_settings prefix application/: expected >=1 key, got ${settingsResult.count}`);
   } else {
+    const settings = (unwrapUntrusted(settingsResult.settings) ?? {}) as Record<string, unknown>;
     const secretRe = /password|token|secret|key/i;
-    const leaks = Object.keys(settingsResult.settings).filter((k) => secretRe.test(k));
+    const leaks = Object.keys(settings).filter((k) => secretRe.test(k));
     if (leaks.length > 0) fail(`project.get_settings leaked secret-like keys: ${leaks.join(", ")}`);
     else pass(`project.get_settings prefix=application/ -> ${settingsResult.count} keys, 0 leaks`);
   }

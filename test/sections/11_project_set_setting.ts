@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
 
 export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   const { bridge, pass } = ctx;
@@ -25,28 +25,34 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   }
 
   // Happy path: write + read back.
-  const preGet = (await bridge.call("project.get_settings", { prefix: "application/config" }, CALL_TIMEOUT)) as {
-    settings?: Record<string, unknown>;
+  const preGetRaw = (await bridge.call("project.get_settings", { prefix: "application/config" }, CALL_TIMEOUT)) as {
+    settings?: unknown;
   };
-  const previousValue = preGet?.settings?.[settingKey] ?? null;
+  const preSettings = (unwrapUntrusted(preGetRaw?.settings) ?? {}) as Record<string, unknown>;
+  const previousValue = preSettings[settingKey] ?? null;
 
   if (setSettingResult?.success !== true) ctx.fail(`project.set_setting: ${JSON.stringify(setSettingResult)}`);
   else pass(`project.set_setting ${settingKey} -> success (was_set_before=${setSettingResult.was_set_before})`);
 
-  const postGet = (await bridge.call("project.get_settings", { prefix: "application/config" }, CALL_TIMEOUT)) as {
-    settings?: Record<string, unknown>;
+  const postGetRaw = (await bridge.call("project.get_settings", { prefix: "application/config" }, CALL_TIMEOUT)) as {
+    settings?: unknown;
   };
-  if (postGet?.settings?.[settingKey] !== "smoke-15d-marker")
-    ctx.fail(`project.set_setting round-trip: read-back ${JSON.stringify(postGet?.settings?.[settingKey])}`);
+  const postSettings = (unwrapUntrusted(postGetRaw?.settings) ?? {}) as Record<string, unknown>;
+  if (postSettings[settingKey] !== "smoke-15d-marker")
+    ctx.fail(`project.set_setting round-trip: read-back ${JSON.stringify(postSettings[settingKey])}`);
   else pass(`project.set_setting -> read-back via project.get_settings matches`);
 
   // Guard rejections.
   assertGuard(
     ctx,
-    "project.set_setting mcp/unsafe/*",
-    await bridge.call("project.set_setting", { key: "mcp/unsafe/allow_game_eval", value: true }, CALL_TIMEOUT),
+    "project.set_setting mcp_toolkit/*",
+    await bridge.call(
+      "project.set_setting",
+      { key: "mcp_toolkit/feature_gates/allow_game_eval", value: true },
+      CALL_TIMEOUT,
+    ),
     "INVALID_PATH",
-    "FeatureGate",
+    "toolkit",
   );
   assertGuard(
     ctx,
