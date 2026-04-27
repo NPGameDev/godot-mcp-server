@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap } from "../tool_helpers.js";
 import { isGroupLoaded } from "../groups.js";
+import { setToolRef } from "../tool_refs.js";
 
 export const playtestTools: ToolDef[] = [
   {
@@ -33,9 +34,10 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
   for (const tool of playtestTools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
 
+    let ref;
     if (tool.name === "game_start") {
       // Custom handler: append runtime group hint when group not loaded.
-      server.registerTool(
+      ref = server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
         async (input: unknown) => {
@@ -58,11 +60,12 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
         },
       );
     } else {
-      server.registerTool(
+      ref = server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
         (input: unknown) => callAndWrap(bridge, tool.method, input),
       );
     }
+    setToolRef(tool.name, ref);
   }
 }

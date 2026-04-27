@@ -9,6 +9,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ProfileName } from "./profiles.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
 import { toolError } from "./tool_helpers.js";
+import { setToolRef } from "./tool_refs.js";
 
 interface StubDef {
   name: string;
@@ -45,7 +46,7 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
 
     if (profile === "minimal") {
       // Minimal doesn't include gated tools — always stub regardless of gate state
-      server.registerTool(
+      const ref = server.registerTool(
         stub.name,
         {
           description: `LOCKED — ${stub.oneLiner}. Standard/Power User profile.`,
@@ -58,12 +59,13 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
             `Set GODOT_MCP_PROFILE=standard in .mcp.json env. Also requires ${envVar}=1.`,
           ),
       );
+      setToolRef(stub.name, ref);
       continue;
     }
 
     if (isEnabled(stub.gate)) continue; // Real tool registered by its module
 
-    server.registerTool(
+    const ref = server.registerTool(
       stub.name,
       {
         description: `LOCKED — ${stub.oneLiner}. Gate: ${envVar}.`,
@@ -76,6 +78,7 @@ export function registerStubs(server: McpServer, profile: ProfileName): void {
           `Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
         ),
     );
+    setToolRef(stub.name, ref);
   }
 }
 

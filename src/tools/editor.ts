@@ -5,6 +5,7 @@ import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../tool_helpers.js";
 import { stableStringify } from "../schema_min.js";
 import { isEnabled } from "../feature_gate.js";
+import { setToolRef } from "../tool_refs.js";
 
 // ── Tool definitions ─────────────────────────────────────────────────
 
@@ -183,12 +184,14 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
     if (allowedTools && !allowedTools.has(tool.name)) continue;
     if (tool.gate && !isEnabled(tool.gate)) continue;
     const config = { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations };
+    let ref;
     if (tool.name === "editor_get_errors") {
-      server.registerTool(tool.name, config, (input: unknown) => errorSummaryHandler(bridge, tool.method, input));
+      ref = server.registerTool(tool.name, config, (input: unknown) => errorSummaryHandler(bridge, tool.method, input));
     } else if (tool.name === "editor_screenshot" || tool.name === "editor_screenshot_node") {
-      server.registerTool(tool.name, config, (input: unknown) => screenshotHandler(bridge, tool.method, input));
+      ref = server.registerTool(tool.name, config, (input: unknown) => screenshotHandler(bridge, tool.method, input));
     } else {
-      server.registerTool(tool.name, config, (input: unknown) => callAndWrap(bridge, tool.method, input));
+      ref = server.registerTool(tool.name, config, (input: unknown) => callAndWrap(bridge, tool.method, input));
     }
+    setToolRef(tool.name, ref);
   }
 }

@@ -8,12 +8,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "./types.js";
-import { callAndWrap, toolErrorFromPayload, toolErrorFromException } from "./tool_helpers.js";
+import { callAndWrap, toolErrorFromPayload, toolErrorFromException, registerToolWrapped } from "./tool_helpers.js";
 import { stableStringify } from "./schema_min.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
 import type { ProfileName } from "./profiles.js";
 import { MUTATING_TOOLS } from "./profiles.js";
-import { removeToolByName } from "./tool_refs.js";
+import { removeToolByName, setToolRef } from "./tool_refs.js";
 
 // Import tool defs from all modules that contribute group tools.
 // editorTools is included because scene_close lives in editor.ts
@@ -281,7 +281,7 @@ export function registerGroupStubs(server: McpServer, profile: ProfileName, read
         }
       }
 
-      server.registerTool(toolName, { description, annotations: { openWorldHint: false } }, async () => ({
+      const ref = server.registerTool(toolName, { description, annotations: { openWorldHint: false } }, async () => ({
         content: [
           {
             type: "text" as const,
@@ -290,6 +290,7 @@ export function registerGroupStubs(server: McpServer, profile: ProfileName, read
         ],
         isError: true,
       }));
+      setToolRef(toolName, ref);
     }
   }
 }
@@ -308,14 +309,17 @@ function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, 
     const def = allDefs.get(toolName);
     if (!def) continue;
     removeToolByName(toolName); // Remove stub if present
-    server.registerTool(
+    registerToolWrapped(
+      server,
+      bridge,
       def.name,
       {
         description: def.description,
         inputSchema: def.inputSchema,
         annotations: def.annotations,
       },
-      createHandler(bridge, def),
+      createHandler(bridge, def) as (input: Record<string, unknown>) => Promise<import("./types.js").ToolTextResult>,
+      { godotMinVersion: def.godotMinVersion },
     );
     registered.push(toolName);
   }
@@ -353,7 +357,9 @@ function buildEnableGroupDesc(): string {
  * Call this for the standard profile only.
  */
 export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly: boolean): void {
-  server.registerTool(
+  registerToolWrapped(
+    server,
+    bridge,
     "enable_tool_group",
     {
       description: buildEnableGroupDesc(),
@@ -367,7 +373,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    async (input: unknown) => {
+    async (input: Record<string, unknown>) => {
       const { groups: requested } = input as { groups: GroupName[] };
       const results: Record<string, { loaded: boolean; tools?: string[]; error?: string }> = {};
       let anyLoaded = false;

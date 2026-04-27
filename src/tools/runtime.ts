@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../types.js";
 import { callAndWrap } from "../tool_helpers.js";
 import { isEnabled } from "../feature_gate.js";
+import { setToolRef } from "../tool_refs.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:6525. Only works while the game is running in a debug build
@@ -104,10 +105,11 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
   for (const tool of runtimeTools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
     if (tool.gate && !isEnabled(tool.gate)) continue;
-    server.registerTool(
+    const ref = server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
       (input: unknown) => callAndWrap(bridge, tool.method, input, { runtime: true }),
     );
+    setToolRef(tool.name, ref);
   }
 }
