@@ -10,11 +10,12 @@ export const playtestTools: ToolDef[] = [
     name: "game_start",
     method: "game.start",
     description:
-      "Start playtest. scene_path:'main'|'current'(default)|res://path. Bridge auto-discovers runtime — no blocking poll. ALREADY_PLAYING if live; runtime_poll:true to re-probe.",
+      "Start playtest. scene_path:'main'|'current'(default)|res://path. if_running:'return' for idempotent mode (default 'fail'). runtime_poll:true re-probes runtime (overrides if_running).",
     inputSchema: {
       scene_path: z.string().optional(),
       wait_for_runtime: z.boolean().optional(),
       runtime_poll: z.boolean().optional(),
+      if_running: z.enum(["return", "fail"]).optional(),
     },
     annotations: { openWorldHint: false },
   },
