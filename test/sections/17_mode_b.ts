@@ -1,4 +1,4 @@
-import { BridgeError } from "../../src/types.js";
+import { BridgeError } from "../../src/errors.js";
 import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 
 import type { TestCtx } from "../helpers.js";

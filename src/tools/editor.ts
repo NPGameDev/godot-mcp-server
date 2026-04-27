@@ -1,11 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef } from "../types.js";
-import { callAndWrap, toolErrorFromException, toolErrorFromPayload } from "../tool_helpers.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
+import { toolErrorFromException, toolErrorFromPayload, registerTools } from "../tool_helpers.js";
 import { stableStringify } from "../schema_min.js";
-import { isEnabled } from "../feature_gate.js";
-import { setToolRef } from "../tool_refs.js";
 
 // ── Tool definitions ─────────────────────────────────────────────────
 
@@ -180,18 +178,17 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
 // ── Registration ─────────────────────────────────────────────────────
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
-  for (const tool of editorTools) {
-    if (allowedTools && !allowedTools.has(tool.name)) continue;
-    if (tool.gate && !isEnabled(tool.gate)) continue;
-    const config = { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations };
-    let ref;
-    if (tool.name === "editor_get_errors") {
-      ref = server.registerTool(tool.name, config, (input: unknown) => errorSummaryHandler(bridge, tool.method, input));
-    } else if (tool.name === "editor_screenshot" || tool.name === "editor_screenshot_node") {
-      ref = server.registerTool(tool.name, config, (input: unknown) => screenshotHandler(bridge, tool.method, input));
-    } else {
-      ref = server.registerTool(tool.name, config, (input: unknown) => callAndWrap(bridge, tool.method, input));
-    }
-    setToolRef(tool.name, ref);
-  }
+  const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
+  handlers.set("editor_get_errors", (input) => errorSummaryHandler(bridge, "editor.get_errors", input));
+  // Screenshot handlers return image+text multi-content; cast to ToolTextResult
+  // since the MCP SDK accepts any content type at runtime.
+  handlers.set(
+    "editor_screenshot",
+    (input) => screenshotHandler(bridge, "editor.screenshot", input) as Promise<ToolTextResult>,
+  );
+  handlers.set(
+    "editor_screenshot_node",
+    (input) => screenshotHandler(bridge, "editor.screenshot_node", input) as Promise<ToolTextResult>,
+  );
+  registerTools(server, bridge, editorTools, allowedTools ? allowedTools : null, { handlers });
 }

@@ -1,10 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef } from "../types.js";
-import { callAndWrap } from "../tool_helpers.js";
-import { isEnabled } from "../feature_gate.js";
-import { setToolRef } from "../tool_refs.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
+import { callAndWrap, registerTools } from "../tool_helpers.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:6525. Only works while the game is running in a debug build
@@ -102,14 +100,9 @@ export const runtimeTools: ToolDef[] = [
 // — i.e., tools NOT in GROUP_TOOL_NAMES. Gated tools (game_eval) are
 // skipped here when their gate is closed; registerStubs covers them.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+  const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
   for (const tool of runtimeTools) {
-    if (allowedTools && !allowedTools.has(tool.name)) continue;
-    if (tool.gate && !isEnabled(tool.gate)) continue;
-    const ref = server.registerTool(
-      tool.name,
-      { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
-      (input: unknown) => callAndWrap(bridge, tool.method, input, { runtime: true }),
-    );
-    setToolRef(tool.name, ref);
+    handlers.set(tool.name, (input) => callAndWrap(bridge, tool.method, input, { runtime: true }));
   }
+  registerTools(server, bridge, runtimeTools, allowedTools ? allowedTools : null, { handlers });
 }

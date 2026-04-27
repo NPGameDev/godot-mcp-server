@@ -18,15 +18,7 @@ export interface Bridge {
   getGodotMinor(): number | null;
 }
 
-export class BridgeError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "BridgeError";
-  }
-}
+// BridgeError lives in errors.ts (runtime class, not a pure type).
 
 // ── Error codes ──────────────────────────────────────────────────────
 

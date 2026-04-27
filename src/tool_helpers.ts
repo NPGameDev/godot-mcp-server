@@ -8,7 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { stableStringify } from "./schema_min.js";
 import { isEnabled } from "./feature_gate.js";
 import type { Bridge, ErrorCode, ToolDef, ToolTextResult, ToolRequest } from "./types.js";
-import { BridgeError } from "./types.js";
+import { BridgeError } from "./errors.js";
 import { setToolRef } from "./tool_refs.js";
 
 // ── Error utilities ─────────────────────────────────────────────────

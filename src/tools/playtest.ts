@@ -1,10 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef } from "../types.js";
-import { callAndWrap } from "../tool_helpers.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
+import { callAndWrap, registerTools } from "../tool_helpers.js";
 import { isGroupLoaded } from "../groups.js";
-import { setToolRef } from "../tool_refs.js";
 
 export const playtestTools: ToolDef[] = [
   {
@@ -31,41 +30,24 @@ export const playtestTools: ToolDef[] = [
 ];
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
-  for (const tool of playtestTools) {
-    if (allowedTools && !allowedTools.has(tool.name)) continue;
-
-    let ref;
-    if (tool.name === "game_start") {
-      // Custom handler: append runtime group hint when group not loaded.
-      ref = server.registerTool(
-        tool.name,
-        { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
-        async (input: unknown) => {
-          const result = await callAndWrap(bridge, tool.method, input);
-          // Inject hint if game started successfully and runtime group not loaded.
-          if (!isGroupLoaded("runtime") && result.content?.[0]?.type === "text") {
-            try {
-              const payload = JSON.parse(result.content[0].text);
-              if (payload.success && !result.isError) {
-                payload.group_hint =
-                  "Game started. To interact with the running game, call " +
-                  "enable_tool_group(['runtime', 'signals']) to access runtime tools.";
-                result.content[0].text = JSON.stringify(payload);
-              }
-            } catch {
-              /* parse failure — pass through unchanged */
-            }
-          }
-          return result;
-        },
-      );
-    } else {
-      ref = server.registerTool(
-        tool.name,
-        { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
-        (input: unknown) => callAndWrap(bridge, tool.method, input),
-      );
+  const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
+  handlers.set("game_start", async (input) => {
+    const result = await callAndWrap(bridge, "game.start", input);
+    // Inject hint if game started successfully and runtime group not loaded.
+    if (!isGroupLoaded("runtime") && result.content?.[0]?.type === "text") {
+      try {
+        const payload = JSON.parse(result.content[0].text);
+        if (payload.success && !result.isError) {
+          payload.group_hint =
+            "Game started. To interact with the running game, call " +
+            "enable_tool_group(['runtime', 'signals']) to access runtime tools.";
+          result.content[0].text = JSON.stringify(payload);
+        }
+      } catch {
+        /* parse failure — pass through unchanged */
+      }
     }
-    setToolRef(tool.name, ref);
-  }
+    return result;
+  });
+  registerTools(server, bridge, playtestTools, allowedTools ? allowedTools : null, { handlers });
 }

@@ -3,7 +3,8 @@ import { randomUUID, createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { Bridge, BridgeError } from "./types.js";
+import { Bridge } from "./types.js";
+import { BridgeError } from "./errors.js";
 import {
   discoverRuntime,
   lookupProject,

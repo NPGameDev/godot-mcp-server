@@ -19,8 +19,10 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   `Bridge`, registers tools per profile, connects `StdioServerTransport`.
 - `src/bridge.ts` — WebSocket client (lazy-connect, pending-map keyed by uuid,
   per-call timeout). Exposes `Bridge.call(method, params, timeoutMs)` and `close()`.
-- `src/types.ts` — `Bridge` interface, `BridgeError`, `ToolDef`, `callAndWrap`
-  (uses `stableStringify` for deterministic output), `toolError*` helpers.
+- `src/types.ts` — `Bridge` interface, `ToolDef`, pure type/interface exports.
+- `src/errors.ts` — `BridgeError` runtime error class.
+- `src/tool_helpers.ts` — `callAndWrap` (uses `stableStringify` for deterministic
+  output), `toolError*` helpers, `registerToolWrapped`/`registerTools`.
 - `src/profiles.ts` — profile resolution (`selectedProfile`, `resolveAllowedTools`,
   `isReadOnly`). Defines `MINIMAL_TOOLS`, `STANDARD_TOOLS`, `MUTATING_TOOLS`.
 - `src/groups.ts` — lazy-load group system. `registerGroupSystem` (standard/custom)
