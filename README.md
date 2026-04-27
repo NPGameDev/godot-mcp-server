@@ -90,9 +90,7 @@ These enable individually gated capabilities. Most require opt-in on **both** th
 | Variable | Gate | Enables |
 |----------|------|---------|
 | `GODOT_MCP_ALLOW_GAME_EVAL` | dual | `game_eval` — arbitrary GDScript via Expression |
-| `GODOT_MCP_ALLOW_OS_EXECUTE` | dual | `os_execute` — host-OS shell commands |
 | `GODOT_MCP_ALLOW_USER_SCOPE` | dual | `save_*` tools — read/write whitelisted `user://` paths |
-| `GODOT_MCP_ALLOW_OUTBOUND_HTTP` | dual | Outbound HTTP requests |
 | `GODOT_MCP_ALLOW_NODE_CALL_METHOD` | single | `node_call_method` — call methods on editor nodes |
 | `GODOT_MCP_ALLOW_PROJECT_SET_SETTING` | dual | `project_set_setting` — write ProjectSettings keys |
 | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE` | single | `input_map_*` tools — modify InputMap actions |

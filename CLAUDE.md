@@ -116,9 +116,7 @@ defence-in-depth.
 | Feature               | Gate type | Env var                                  | Tools affected |
 |-----------------------|-----------|------------------------------------------|----------------|
 | `game_eval`           | dual      | `GODOT_MCP_ALLOW_GAME_EVAL`             | `game_eval` (runtime) |
-| `os_execute`          | dual      | `GODOT_MCP_ALLOW_OS_EXECUTE`            | (future) |
 | `project_set_setting` | dual      | `GODOT_MCP_ALLOW_PROJECT_SET_SETTING`   | `project_set_setting` |
-| `outbound_http`       | dual      | `GODOT_MCP_ALLOW_OUTBOUND_HTTP`         | (future) |
 | `node_call_method`    | single    | `GODOT_MCP_ALLOW_NODE_CALL_METHOD`      | `node_call_method` |
 | `input_map_write`     | single    | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE`       | `input_map_action`, `input_map_event` |
 | `read_user_scope`     | dual      | `GODOT_MCP_ALLOW_USER_SCOPE`            | `save_read`, `save_write`, `save_delete`, `save_list` |
