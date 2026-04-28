@@ -27,9 +27,14 @@ interface Registry {
 
 // -- Path helpers ------------------------------------------------------------
 
-/** Canonical path form: forward slashes, no trailing slash. */
+/** Canonical path form: forward slashes, no trailing slash, lowercase on Windows. */
 export function normalizePath(p: string): string {
-  return p.replace(/\\/g, "/").replace(/\/+$/, "");
+  let n = p.replace(/\\/g, "/").replace(/\/+$/, "");
+  // Windows and macOS default filesystems are case-insensitive; lowercase
+  // avoids mismatches between Godot's globalize_path and Node.js
+  // process.cwd() which may differ in casing.
+  if (process.platform === "win32" || process.platform === "darwin") n = n.toLowerCase();
+  return n;
 }
 
 /** OS-specific registry file path — must match registry_client.gd. */

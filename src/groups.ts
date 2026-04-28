@@ -168,6 +168,17 @@ function handleRuntimeScreenshot(bridge: Bridge, def: ToolDef) {
   };
 }
 
+/** input_simulate normalizes a single event object to an array. */
+function handleInputSimulate(bridge: Bridge, def: ToolDef) {
+  return async (input: unknown) => {
+    const parsed = input as Record<string, unknown>;
+    if (parsed.events && !Array.isArray(parsed.events)) {
+      parsed.events = [parsed.events];
+    }
+    return callAndWrap(bridge, def.method, parsed, { runtime: true });
+  };
+}
+
 /** debugger_get_log prefixes a line-count summary before the payload. */
 function handleDebuggerLog(bridge: Bridge, def: ToolDef) {
   return async (input: unknown) => {
@@ -199,6 +210,8 @@ function createHandler(bridge: Bridge, def: ToolDef) {
       return handleSignalEmit(bridge, def);
     case "runtime_screenshot":
       return handleRuntimeScreenshot(bridge, def);
+    case "input_simulate":
+      return handleInputSimulate(bridge, def);
     case "debugger_get_log":
       return handleDebuggerLog(bridge, def);
     default: {

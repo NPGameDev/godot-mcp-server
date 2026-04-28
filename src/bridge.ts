@@ -117,7 +117,9 @@ async function resolveTokenPath(projectPath?: string): Promise<string> {
   // (see project_paths.gd + auth.gd), so the subdir must match here.
   let instanceDir = "addons/godot_mcp_toolkit";
   if (projectPath) {
-    const canonical = projectPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    let canonical = projectPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    // Windows/macOS: lowercase to match GDScript project_paths.gd hash.
+    if (process.platform === "win32" || process.platform === "darwin") canonical = canonical.toLowerCase();
     const hash = createHash("sha256").update(canonical).digest("hex").slice(0, 12);
     instanceDir = join("addons", "godot_mcp_toolkit", `project_instance_${hash}`);
   }

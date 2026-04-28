@@ -101,20 +101,16 @@ export const editorTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  // project_set_setting is feature-gated (dual-gate: env AND PS). Plugin-side
-  // FeatureGate performs the full check as defence-in-depth; the gate here
-  // controls MCP catalogue visibility only.
   {
     name: "project_set_setting",
     method: "project.set_setting",
     description:
-      "Write a ProjectSettings key and persist via ProjectSettings.save. Refuses mcp/unsafe/* and editor/* prefixes. Returns previous_value. Update (no status).",
+      "Write a ProjectSettings key and persist via ProjectSettings.save. Refuses mcp_toolkit/*, mcp/*, and editor/* prefixes. Returns previous_value. Update (no status).",
     inputSchema: {
       key: z.string(),
       value: z.unknown(),
     },
     annotations: { openWorldHint: false },
-    gate: "project_set_setting",
   },
 ];
 

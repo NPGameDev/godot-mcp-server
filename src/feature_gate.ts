@@ -12,7 +12,7 @@ const FEATURE_ENV_VARS: Record<string, string> = {
   game_eval: "GODOT_MCP_ALLOW_GAME_EVAL",
   read_user_scope: "GODOT_MCP_ALLOW_USER_SCOPE",
   node_call_method: "GODOT_MCP_ALLOW_NODE_CALL_METHOD",
-  project_set_setting: "GODOT_MCP_ALLOW_PROJECT_SET_SETTING",
+
   input_map_write: "GODOT_MCP_ALLOW_INPUT_MAP_WRITE",
 };
 
