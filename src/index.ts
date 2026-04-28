@@ -5,22 +5,16 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createBridge } from "./bridge.js";
 import { lookupProject } from "./registry.js";
 import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS, PROFILE_DISPLAY_NAMES } from "./profiles.js";
-import {
-  registerGroupSystem,
-  registerAllGroupTools,
-  registerGroupStubs,
-  GROUP_TOOL_NAMES,
-  resetLoadedGroups,
-} from "./groups.js";
-import { registerStubs } from "./stubs.js";
+import { registerGroupSystem, registerAllGroupTools, GROUP_TOOL_NAMES, resetLoadedGroups } from "./groups.js";
+import { enableAllGates } from "./feature_gate.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
-import { removeAllToolRefs, toolRefCount, hasToolRef } from "./tool_refs.js";
+import { removeAllToolRefs, toolRefCount } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
 import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
 import type { ToolTextResult } from "./types.js";
-import { callAndWrap, toolError, registerToolWrapped, setGlobalHookPipeline } from "./tool_helpers.js";
+import { callAndWrap, registerToolWrapped, setGlobalHookPipeline } from "./tool_helpers.js";
 
 import * as animation from "./tools/animation.js";
 import * as asset from "./tools/asset.js";
@@ -69,6 +63,10 @@ const ALL_MODULE_DEFS = [
 
 let profile = selectedProfile();
 let readOnly = isReadOnly();
+
+// Power User ignores all gate flags — all gates always ON.
+// Symmetric with Minimal (all gates always OFF via profile filtering).
+if (profile === "power_user") enableAllGates();
 
 /** Resolve profile → expanded allowed-tool set (never null). */
 function buildAllowedTools(): Set<string> {
@@ -193,77 +191,11 @@ function registerGroups(): void {
   } else if (profile !== "minimal") {
     registerGroupSystem(server, bridge, readOnly);
   }
-  registerStubs(server, profile);
-  registerGroupStubs(server, profile, readOnly);
-  // Fill remaining tools with LOCKED stubs so the deferred-tools
-  // catalogue is complete at startup regardless of profile/gate/group.
-  registerCatalogueStubs();
-}
-
-/**
- * Extract a one-liner from a tool description (up to first period).
- * Used for auto-generating LOCKED stub descriptions from module defs.
- */
-function firstSentence(desc: string): string {
-  const dot = desc.indexOf(".");
-  if (dot > 0 && dot < 120) return desc.substring(0, dot);
-  return desc.substring(0, 80).trimEnd();
-}
-
-/** Shared handler for profile-locked stubs. */
-function profileLockedHandler() {
-  return async () =>
-    toolError(
-      "PROFILE_LOCKED",
-      `Not available in ${PROFILE_DISPLAY_NAMES[profile]} profile.`,
-      "Change profile via GODOT_MCP_PROFILE in .mcp.json env or the Godot editor dock.",
-    );
-}
-
-/**
- * Fill remaining unregistered tools with LOCKED stubs.
- * - Minimal: stubs for all standard/power_user module tools
- * - All profiles: enable_tool_group stub if not already real
- */
-function registerCatalogueStubs(): void {
-  // Module-tool stubs for minimal profile
-  if (profile === "minimal") {
-    for (const defs of ALL_MODULE_DEFS) {
-      for (const tool of defs) {
-        if (hasToolRef(tool.name)) continue;
-        if (GROUP_TOOL_NAMES.has(tool.name)) continue;
-        registerToolWrapped(
-          server,
-          bridge,
-          tool.name,
-          {
-            description: `LOCKED — ${firstSentence(tool.description)}. Standard/Power User profile.`,
-            annotations: { openWorldHint: false },
-          },
-          profileLockedHandler(),
-        );
-      }
-    }
-  }
-
-  // enable_tool_group stub for profiles that don't register the real meta-tool
-  if (!hasToolRef("enable_tool_group")) {
-    registerToolWrapped(
-      server,
-      bridge,
-      "enable_tool_group",
-      {
-        description: "LOCKED — load tool groups on demand. Standard profile.",
-        annotations: { openWorldHint: false },
-      },
-      profileLockedHandler(),
-    );
-  }
 }
 
 function logProfile(): void {
   process.stderr.write(
-    `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${moduleAllowed.size}+groups hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
+    `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
   );
   if (profile === "power_user") {
     process.stderr.write(
@@ -315,6 +247,7 @@ function handleConfigReload(params?: Record<string, unknown>, notify = true): vo
   const oldProfile = profile;
   profile = selectedProfile();
   readOnly = isReadOnly();
+  if (profile === "power_user") enableAllGates();
   allowedTools = buildAllowedTools();
   moduleAllowed = buildModuleAllowed(allowedTools);
 

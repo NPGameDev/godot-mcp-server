@@ -6,7 +6,7 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { stableStringify } from "./schema_min.js";
-import { isEnabled } from "./feature_gate.js";
+import { isEnabled, envVarFor } from "./feature_gate.js";
 import type { Bridge, ErrorCode, ToolDef, ToolTextResult, ToolRequest } from "./types.js";
 import { BridgeError } from "./errors.js";
 import { setToolRef } from "./tool_refs.js";
@@ -219,14 +219,36 @@ export function registerTools(
 ): void {
   for (const tool of tools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
-    if (tool.gate && !isEnabled(tool.gate)) continue;
+
+    let description = tool.description;
     const customHandler = opts.handlers?.get(tool.name);
-    const handler = customHandler ?? ((input: unknown) => callAndWrap(bridge, tool.method, input));
+    let handler = (customHandler ?? ((input: unknown) => callAndWrap(bridge, tool.method, input))) as (
+      input: unknown,
+    ) => Promise<ToolTextResult>;
+
+    // Gated tools: register with full schema, check gate at call time.
+    // Static gate note in description avoids ToolSearch cache staleness.
+    if (tool.gate) {
+      const envVar = envVarFor(tool.gate) ?? tool.gate;
+      description = `${tool.description} [gate: ${envVar}]`;
+      const baseHandler = handler;
+      handler = async (input: unknown) => {
+        if (!isEnabled(tool.gate!)) {
+          return toolError(
+            "FEATURE_GATED",
+            `Feature gated — ${envVar} is not enabled.`,
+            `Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
+          );
+        }
+        return baseHandler(input);
+      };
+    }
+
     registerToolWrapped(
       server,
       bridge,
       tool.name,
-      { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
+      { description, inputSchema: tool.inputSchema, annotations: tool.annotations },
       handler as (input: Record<string, unknown>) => Promise<ToolTextResult>,
       {
         godotMinVersion: tool.godotMinVersion,

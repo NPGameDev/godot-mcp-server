@@ -32,3 +32,11 @@ export function envVarFor(feature: string): string | undefined {
 export function allFeatures(): string[] {
   return Object.keys(FEATURE_ENV_VARS);
 }
+
+/** Force all gates enabled. Used at startup and reload for power_user
+ *  profile — power_user ignores gate flags (all always ON). */
+export function enableAllGates(): void {
+  for (const envVar of Object.values(FEATURE_ENV_VARS)) {
+    process.env[envVar] = "1";
+  }
+}
