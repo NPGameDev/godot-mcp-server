@@ -48,12 +48,14 @@ export const runtimeTools: ToolDef[] = [
     description:
       "Inject input into the running game. events: single {event_type, event_data?, delay_before_ms?, delay_after_ms?} for one action, " +
       "or an array for a sequence of actions (prefer a single call with multiple events over separate calls). " +
-      "Types: key|mouse_button|mouse_motion|action|click. click is a composite: warp_mouse + press + 50ms delay + release via push_input (GUI-safe). " +
-      "Mouse events route through push_input for CanvasLayer/GUI support. Returns per-event results with diagnostics (viewport_has_focus, tree_paused).",
+      "Types: key|mouse_button|mouse_motion|action|click|click_node. click is a composite: auto-focus + warp_mouse + press + 50ms delay + release via push_input (GUI-safe). " +
+      "click_node takes {node_path} — calls grab_focus + emits pressed on BaseButtons (no coordinate guessing). " +
+      "Mouse position: {x, y} flat or {position:{x,y}} nested. " +
+      "Mouse events auto-focus the game window and route through push_input for CanvasLayer/GUI support. Returns per-event diagnostics.",
     inputSchema: {
       events: z.union([
         z.object({
-          event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click"]),
+          event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click", "click_node"]),
           event_data: z.record(z.string(), z.unknown()).optional(),
           delay_before_ms: z.number().int().nonnegative().optional(),
           delay_after_ms: z.number().int().nonnegative().optional(),
@@ -61,7 +63,7 @@ export const runtimeTools: ToolDef[] = [
         z
           .array(
             z.object({
-              event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click"]),
+              event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click", "click_node"]),
               event_data: z.record(z.string(), z.unknown()).optional(),
               delay_before_ms: z.number().int().nonnegative().optional(),
               delay_after_ms: z.number().int().nonnegative().optional(),
