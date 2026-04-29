@@ -40,7 +40,7 @@ function getAllToolDefs(): ToolDef[] {
     ...folderTools,
     ...diffTools,
     ...playtestTools,
-    ...(featureEnabled("input_map_write") ? inputMapTools : []),
+    ...inputMapTools,
     ...animationTools,
     ...tilemapTools,
     ...assetTools,
@@ -58,21 +58,20 @@ function getAllToolDefs(): ToolDef[] {
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 50 base; feature gates add more when env vars are set.
-  // game_eval (+1), node_call_method (+1), project_set_setting (+1),
-  // input_map_write (+2) are gated. read_user_scope (+4) adds
-  // save_read/write/delete/list. All off = 50; all on = 59.
-  let expectedToolCount = 50;
+  // Tool count — 52 base; feature gates add more when env vars are set.
+  // game_eval (+1), node_call_method (+1), project_set_setting (+1)
+  // are gated. read_user_scope (+4) adds save_read/write/delete/list.
+  // input_map tools are always included (ungated). All off = 52; all on = 59.
+  let expectedToolCount = 52;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("project_set_setting")) expectedToolCount += 1;
-  if (featureEnabled("input_map_write")) expectedToolCount += 2;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;
   const allTools = getAllToolDefs();
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else
     pass(
-      `tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, input_map_write=${featureEnabled("input_map_write")}, read_user_scope=${featureEnabled("read_user_scope")})`,
+      `tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, read_user_scope=${featureEnabled("read_user_scope")})`,
     );
 
   // Feature gate catalogue checks — verify gated tools are present/absent
@@ -81,7 +80,6 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     ["game_eval", "game_eval"],
     ["node_call_method", "node_call_method"],
     ["project_set_setting", "project_set_setting"],
-    ["input_map_write", "input_map_action"],
     ["read_user_scope", "save_read"],
   ];
   for (const [feature, toolName] of gateChecks) {

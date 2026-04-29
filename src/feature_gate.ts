@@ -12,8 +12,6 @@ const FEATURE_ENV_VARS: Record<string, string> = {
   game_eval: "GODOT_MCP_ALLOW_GAME_EVAL",
   read_user_scope: "GODOT_MCP_ALLOW_USER_SCOPE",
   node_call_method: "GODOT_MCP_ALLOW_NODE_CALL_METHOD",
-
-  input_map_write: "GODOT_MCP_ALLOW_INPUT_MAP_WRITE",
 };
 
 /** Check if a feature is enabled on the TS side (env-var only). */

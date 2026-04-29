@@ -71,8 +71,6 @@ export const GROUPS: GroupDef[] = [
   {
     name: "input_map",
     tools: ["input_map_action", "input_map_event"],
-    gate: "input_map_write",
-    gateEnvVar: "GODOT_MCP_ALLOW_INPUT_MAP_WRITE",
   },
   {
     name: "asset_management",

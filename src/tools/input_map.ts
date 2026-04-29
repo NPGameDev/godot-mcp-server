@@ -4,11 +4,9 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools } from "../tool_helpers.js";
 
-// Both input_map mutators share a single gate (input_map_write).
-// Plugin-side FeatureGate performs the full check as defence-in-depth;
-// the gate here controls MCP catalogue visibility only.
-// Defs are always in the array so groups.ts allDefs is populated after
-// config_reloaded; the group-level gate check prevents registration when closed.
+// input_map tools write to ProjectSettings (input/* keys). Ungated since
+// project_set_setting can already write the same keys without a gate —
+// these structured tools are safer than raw key-value writes.
 export const inputMapTools: ToolDef[] = [
   {
     name: "input_map_action",
