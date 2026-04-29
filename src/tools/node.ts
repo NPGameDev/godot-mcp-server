@@ -24,15 +24,20 @@ export const nodeTools: ToolDef[] = [
     name: "node_get_property_list",
     method: "node.get_property_list",
     description:
-      "Introspect inspector-visible properties of a node. Returns [{ name, type, hint, hint_string }] filtered by PROPERTY_USAGE_EDITOR.",
+      "Introspect node properties. mask: common (default), all, groups, script. 'script' returns all script variables with public/private label; use visibility param to filter.",
     inputSchema: {
       node_path: z.string(),
       mask: z
-        .enum(["common", "all", "groups"])
+        .enum(["common", "all", "groups", "script"])
         .optional()
         .describe(
-          "Property filter. 'common' (default) returns 8-12 most-edited. 'all' returns full list. 'groups' returns names+usage only.",
+          "Property filter. 'common' (default) returns 8-12 most-edited. 'all' returns full list. 'groups' returns names+usage only. 'script' returns script variables with visibility label.",
         ),
+      visibility: z
+        .enum(["public", "private", "all"])
+        .optional()
+        .default("all")
+        .describe("Filter for mask='script'. 'public' = no _ prefix, 'private' = _ prefix, 'all' = both."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -54,7 +59,7 @@ export const nodeTools: ToolDef[] = [
     name: "node_call_method",
     method: "node.call_method",
     description:
-      "Call node's method with args (editor-side only). has_method-gated. Args + result support Resource refs via {type:'Resource',path:...}.",
+      "Call node's method with args (editor-side only). Requires GODOT_MCP_ALLOW_NODE_CALL_METHOD. Alternative: use script_write to add logic in _ready(), then editor_reload_scripts.",
     inputSchema: {
       node_path: z.string(),
       method_name: z.string(),

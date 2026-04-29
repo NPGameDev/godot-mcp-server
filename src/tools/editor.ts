@@ -30,7 +30,7 @@ export const editorTools: ToolDef[] = [
     name: "editor_screenshot",
     method: "editor.screenshot",
     description:
-      "Capture a screenshot of the editor viewport. Returns image content inline. Optional save_path (res:// .png) also persists it to disk.",
+      "Capture the editor viewport (NOT the running game). Use runtime_screenshot to capture the game window while it's running. Optional save_path (res:// .png) persists to disk.",
     inputSchema: { save_path: z.string().optional() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

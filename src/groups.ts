@@ -54,6 +54,7 @@ export const GROUPS: GroupDef[] = [
     tools: [
       "runtime_screenshot",
       "runtime_get_node_state",
+      "runtime_get_script_vars",
       "debugger_get_log",
       "input_simulate",
       "animation_player_control",
@@ -112,6 +113,7 @@ for (const tools of [
 const RUNTIME_TOOLS = new Set([
   "runtime_screenshot",
   "runtime_get_node_state",
+  "runtime_get_script_vars",
   "debugger_get_log",
   "input_simulate",
   "animation_player_control",

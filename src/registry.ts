@@ -56,13 +56,24 @@ export function registryPath(): string {
 // -- Registry I/O ------------------------------------------------------------
 
 function readRegistry(): Registry {
-  try {
-    const data = JSON.parse(readFileSync(registryPath(), "utf-8")) as Registry;
-    if (data && typeof data.by_path === "object") return data;
-    return { by_path: {} };
-  } catch {
-    return { by_path: {} };
+  // Retry up to 3 times on parse failure — handles the brief window
+  // during two-phase atomic write where the file may be partially written.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const raw = readFileSync(registryPath(), "utf-8");
+      const data = JSON.parse(raw) as Registry;
+      if (data && typeof data.by_path === "object") return data;
+    } catch {
+      if (attempt < 2) {
+        const delay = 100 * (attempt + 1);
+        const start = Date.now();
+        while (Date.now() - start < delay) {
+          /* busy wait — rare path, tiny delay */
+        }
+      }
+    }
   }
+  return { by_path: {} };
 }
 
 /**
@@ -83,7 +94,9 @@ export function lookupProject(projectPath: string): RegistryEntry | null {
 export function discoverRuntime(projectPath: string): number | null {
   const entry = lookupProject(projectPath);
   if (!entry) return null;
-  return entry.runtime_port ?? null;
+  const port = entry.runtime_port;
+  if (port == null || !Number.isInteger(port) || port < 1024 || port > 65535) return null;
+  return port;
 }
 
 // -- Registry watcher ----------------------------------------------------------

@@ -16,7 +16,7 @@ export const runtimeTools: ToolDef[] = [
     name: "runtime_screenshot",
     method: "runtime.screenshot",
     description:
-      "Capture a frame from the running game's main viewport (Mode B, debug build). Returns inline PNG image content.",
+      "Capture the running game window. Requires an active playtest (game_start). Use editor_screenshot for the editor viewport. Returns inline PNG.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -85,6 +85,17 @@ export const runtimeTools: ToolDef[] = [
       time: z.number().optional(),
     },
     annotations: { openWorldHint: false },
+  },
+  {
+    name: "runtime_get_script_vars",
+    method: "runtime.get_script_vars",
+    description:
+      "Get script variables (names, values, public/private) for a live game node. Complements runtime_get_node_state (engine props only). visibility param filters.",
+    inputSchema: {
+      node_path: z.string(),
+      visibility: z.enum(["public", "private", "all"]).optional().default("all"),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   // game_eval is RCE-equivalent — gated via feature_gate. Plugin-side
   // FeatureGate (feature_gate.gd) performs the full dual-gate check as
