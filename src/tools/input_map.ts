@@ -22,7 +22,10 @@ export const inputMapTools: ToolDef[] = [
   {
     name: "input_map_event",
     method: "input_map.event",
-    description: "Bind or unbind an input event to an action. action='bind' is idempotent.",
+    description:
+      "Bind or unbind an input event to an action. action='bind' is idempotent. " +
+      "event.type: 'key'|'mouse_button'|'joypad_button'|'joypad_motion' (short names, NOT class names). " +
+      "Key example: {type:'key', keycode:'Space'}. Mouse: {type:'mouse_button', button_index:1}.",
     inputSchema: {
       action: z.enum(["bind", "unbind"]),
       action_name: z.string(),
