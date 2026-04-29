@@ -16,7 +16,7 @@ export const nodeTools: ToolDef[] = [
     name: "node_set_property",
     method: "node.set_property",
     description:
-      "Set a property on the node at node_path. Engine types pass as { type, ... } dicts (e.g. {type:'Vector2',x:0,y:0}).",
+      "Set a property on a node. Engine types: {type:'Vector2',x,y}. Inline sub-resources: {type:'NewResource',class:'CircleShape2D',properties:{radius:50}}.",
     inputSchema: { node_path: z.string(), property: z.string(), value: z.unknown() },
     annotations: { openWorldHint: false },
   },

@@ -58,20 +58,20 @@ function getAllToolDefs(): ToolDef[] {
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 52 base; feature gates add more when env vars are set.
-  // game_eval (+1), node_call_method (+1), project_set_setting (+1)
-  // are gated. read_user_scope (+4) adds save_read/write/delete/list.
-  // input_map tools are always included (ungated). All off = 52; all on = 59.
-  let expectedToolCount = 52;
+  // Tool count — 53 base; feature gates add more when env vars are set.
+  // game_eval (+1), node_call_method (+1) are gated.
+  // read_user_scope (+4) adds save_read/write/delete/list.
+  // input_map and project_set_setting are always included (ungated).
+  // All off = 53; all on = 59.
+  let expectedToolCount = 53;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
-  if (featureEnabled("project_set_setting")) expectedToolCount += 1;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;
   const allTools = getAllToolDefs();
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else
     pass(
-      `tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, project_set_setting=${featureEnabled("project_set_setting")}, read_user_scope=${featureEnabled("read_user_scope")})`,
+      `tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, read_user_scope=${featureEnabled("read_user_scope")})`,
     );
 
   // Feature gate catalogue checks — verify gated tools are present/absent
@@ -79,7 +79,6 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   const gateChecks: [string, string][] = [
     ["game_eval", "game_eval"],
     ["node_call_method", "node_call_method"],
-    ["project_set_setting", "project_set_setting"],
     ["read_user_scope", "save_read"],
   ];
   for (const [feature, toolName] of gateChecks) {

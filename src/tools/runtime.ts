@@ -48,8 +48,8 @@ export const runtimeTools: ToolDef[] = [
     description:
       "Inject input into the running game. events: single {event_type, event_data?, delay_before_ms?, delay_after_ms?} for one action, " +
       "or an array for a sequence of actions (prefer a single call with multiple events over separate calls). " +
-      "Types: key|mouse_button|mouse_motion|action|click. click is a composite: press + 50ms delay + release. " +
-      "Returns per-event results with index/total. summary (default true) returns last_event only; false returns full results array.",
+      "Types: key|mouse_button|mouse_motion|action|click. click is a composite: warp_mouse + press + 50ms delay + release via push_input (GUI-safe). " +
+      "Mouse events route through push_input for CanvasLayer/GUI support. Returns per-event results with diagnostics (viewport_has_focus, tree_paused).",
     inputSchema: {
       events: z.union([
         z.object({
