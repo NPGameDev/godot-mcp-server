@@ -9,7 +9,12 @@ export const nodeTools: ToolDef[] = [
     name: "node_get_property",
     method: "node.get_property",
     description: "Read a property from the node at path. Returns { value } (engine types are dict-wrapped).",
-    inputSchema: { node_path: z.string(), property: z.string() },
+    inputSchema: {
+      node_path: z.string(),
+      property: z
+        .string()
+        .describe("Property name. Use ':' to chain into sub-resources (e.g. 'material:shader_parameter/value')."),
+    },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
@@ -17,7 +22,15 @@ export const nodeTools: ToolDef[] = [
     method: "node.set_property",
     description:
       "Set a property on a node. Engine types: {type:'Vector2',x,y}. Inline sub-resources: {type:'NewResource',class:'CircleShape2D',properties:{radius:50}}.",
-    inputSchema: { node_path: z.string(), property: z.string(), value: z.unknown() },
+    inputSchema: {
+      node_path: z.string(),
+      property: z
+        .string()
+        .describe(
+          "Property name. Compound '/' paths supported. Use ':' for sub-resource chaining (e.g. 'material:shader_parameter/value').",
+        ),
+      value: z.unknown(),
+    },
     annotations: { openWorldHint: false },
   },
   {
