@@ -107,7 +107,7 @@ export const editorTools: ToolDef[] = [
     description:
       "Write a ProjectSettings key and persist via ProjectSettings.save. Refuses mcp_toolkit/*, mcp/*, and editor/* prefixes. Returns previous_value. Update (no status).",
     inputSchema: {
-      key: z.string(),
+      setting: z.string().describe("ProjectSettings key (e.g. 'application/config/name')"),
       value: z.unknown(),
     },
     annotations: { openWorldHint: false },
