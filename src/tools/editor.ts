@@ -158,7 +158,12 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
   const payloadErr = toolErrorFromPayload(result);
   if (payloadErr) return payloadErr;
   if (!result?.image_base64) {
-    return toolErrorFromPayload({ success: false, code: "INTERNAL", error: "screenshot returned no image bytes" })!;
+    return toolErrorFromPayload({
+      success: false,
+      code: "EMPTY_CONTENT",
+      error:
+        "screenshot returned no image bytes — node may lack visual content. Use editor_screenshot for full viewport.",
+    })!;
   }
   return {
     content: [
