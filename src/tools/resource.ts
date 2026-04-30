@@ -20,7 +20,12 @@ export const resourceTools: ToolDef[] = [
       "Write/create a .tres/.res resource. If file exists, updates properties. If not, 'type' (class name) is required to create it.",
     inputSchema: {
       file_path: z.string(),
-      properties: z.record(z.string(), z.unknown()).optional(),
+      properties: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          "Property values. Sub-resources in dicts: use {type:'NewResource', class:'ClassName', properties:{...}}.",
+        ),
       type: z.string().optional().describe("Resource class name. Required when creating a new resource."),
     },
     annotations: { idempotentHint: true, openWorldHint: false },

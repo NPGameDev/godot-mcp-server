@@ -9,7 +9,7 @@ export const animationTools: ToolDef[] = [
     name: "animation_keyframe",
     method: "animation.keyframe",
     description:
-      "Add or remove a keyframe on an AnimationPlayer track. action='add' auto-creates value track; UndoRedo-wrapped; idempotent on exact-time duplicate.",
+      "Add/remove a keyframe on an existing animation's track. animation must already exist; action='add' auto-creates the track only. UndoRedo-wrapped; idempotent on exact-time dup.",
     inputSchema: {
       action: z.enum(["add", "remove"]),
       player_path: z.string(),

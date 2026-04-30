@@ -13,7 +13,9 @@ export const tilemapTools: ToolDef[] = [
     inputSchema: {
       tilemap_path: z.string(),
       layer: z.number().optional(),
-      cells: z.array(z.record(z.string(), z.unknown())),
+      cells: z
+        .array(z.record(z.string(), z.unknown()))
+        .describe("Array of {x, y, source_id, atlas_x, atlas_y, alternative_tile?}. source_id:-1 clears."),
     },
     annotations: { openWorldHint: false },
   },

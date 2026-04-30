@@ -25,7 +25,7 @@ export const saveTools: ToolDef[] = [
     name: "save_write",
     method: "save.write",
     description:
-      "Write to whitelisted user:// file (creates parent dirs). Not idempotent; no if_exists. Gated by GODOT_MCP_ALLOW_USER_SCOPE + mcp/unsafe/allow_user_scope + whitelist.",
+      "Write to whitelisted user:// file (default whitelist: saves/ prefix). Gated by GODOT_MCP_ALLOW_USER_SCOPE + whitelist. Not idempotent. Creates parent dirs.",
     inputSchema: {
       path: z.string(),
       content: z.string(),
