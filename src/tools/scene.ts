@@ -24,6 +24,10 @@ export const sceneTools: ToolDef[] = [
       class_name: z.string(),
       parent_path: z.string(),
       node_name: z.string().optional(),
+      layout_mode: z
+        .number()
+        .optional()
+        .describe("Layout mode for Control nodes: 0=free, 1=anchors. Auto-sets 1 when parent is Container."),
     },
     annotations: { idempotentHint: true, openWorldHint: false },
   },
