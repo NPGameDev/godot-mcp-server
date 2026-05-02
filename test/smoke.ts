@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Smoke test orchestrator — imports and runs 24 self-contained test
+// Smoke test orchestrator — imports and runs 25 self-contained test
 // sections sequentially. Each section lives in test/sections/.
 //
 // Port-check first: if the editor plugin isn't reachable, print
@@ -46,6 +46,7 @@ import { testResponseCaps } from "./sections/21_response_caps.js";
 import { testExtensibility } from "./sections/22_extensibility.js";
 import { testClassdb } from "./sections/23_classdb.js";
 import { testScriptCheck } from "./sections/24_script_check.js";
+import { testCsharpCompat } from "./sections/25_csharp_compat.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -173,6 +174,7 @@ async function runFullMode(): Promise<void> {
     await testExtensibility(ctx);
     await testClassdb(ctx);
     await testScriptCheck(ctx);
+    await testCsharpCompat(ctx);
     await testReconnect(ctx);
   } catch (err) {
     failFn(`unexpected error: ${(err as Error).message}`);

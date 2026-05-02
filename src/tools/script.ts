@@ -8,7 +8,7 @@ export const scriptTools: ToolDef[] = [
   {
     name: "script_read",
     method: "script.read",
-    description: "Read a GDScript file (res:// only). Returns the file content as text.",
+    description: "Read a script file (res:// only). Returns the file content as text.",
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

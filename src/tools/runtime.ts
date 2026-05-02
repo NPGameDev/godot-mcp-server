@@ -108,7 +108,7 @@ export const runtimeTools: ToolDef[] = [
     description:
       "DANGER: evaluates a GDScript expression in the running game. Expression-only — no var/return/if/for statements. " +
       "Use method calls (node.method()), property reads (node.property), or arithmetic. " +
-      "Prefer input_simulate, runtime_get_node_state, or click_node for safer alternatives.",
+      "Prefer input_simulate, runtime_get_node_state, or click_node. If C# project, managed methods are callable at runtime.",
     inputSchema: { code: z.string(), scope_path: z.string().optional() },
     annotations: { destructiveHint: true, openWorldHint: false },
     gate: "game_eval",
