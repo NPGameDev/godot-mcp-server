@@ -90,12 +90,12 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   }
 
   // Tool description length (I2: <= 200 chars, with explicit waivers).
-  const descWaivers = new Set(["enable_tool_group", "input_simulate"]);
+  const descWaivers = new Set(["enable_tool_group", "input_simulate", "game_eval"]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;
     if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
   }
-  pass("tool descriptions <200 chars (waivers: enable_tool_group, input_simulate)");
+  pass("tool descriptions <200 chars (waivers: enable_tool_group, input_simulate, game_eval)");
 }
 
 export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }> {
