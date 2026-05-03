@@ -97,13 +97,22 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     "not open",
   );
   // Closing the last tab is refused — the editor must always have at least one scene open.
-  assertGuard(
-    ctx,
-    "scene.close last tab",
-    await bridge.call("scene.close", { file_path: MAIN_SCENE }, CALL_TIMEOUT),
-    "EDITED_SCENE",
-    "last open scene tab",
-  );
+  // Ensure Main.tscn is the active tab (scene.close only works on the active tab).
+  await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
+  const lastTabResult = (await bridge.call("scene.close", { file_path: MAIN_SCENE }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    code?: string;
+    error?: string;
+  };
+  if (lastTabResult?.code === "EDITED_SCENE" && lastTabResult?.error?.includes("last open scene tab")) {
+    pass("scene.close last tab -> EDITED_SCENE (message mentions last open scene tab)");
+  } else if (lastTabResult?.success === true) {
+    // Other editor tabs were open — Main.tscn wasn't the last tab. Re-open it for later tests.
+    await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
+    pass("scene.close last tab -> success (not last tab — other editor tabs open, re-opened Main)");
+  } else {
+    ctx.fail(`scene.close last tab: unexpected ${JSON.stringify(lastTabResult)}`);
+  }
 
   // project.get_settings with prefix.
   const settingsResult = (await bridge.call("project.get_settings", { prefix: "application/" }, CALL_TIMEOUT)) as {

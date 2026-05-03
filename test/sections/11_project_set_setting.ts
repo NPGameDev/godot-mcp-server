@@ -7,7 +7,7 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   const settingKey = "application/config/mcp_smoke_15d";
   const setSettingResult = (await bridge.call(
     "project.set_setting",
-    { key: settingKey, value: "smoke-15d-marker" },
+    { setting: settingKey, value: "smoke-15d-marker" },
     CALL_TIMEOUT,
   )) as {
     success?: boolean;
@@ -48,7 +48,7 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
     "project.set_setting mcp_toolkit/*",
     await bridge.call(
       "project.set_setting",
-      { key: "mcp_toolkit/feature_gates/allow_game_eval", value: true },
+      { setting: "mcp_toolkit/feature_gates/allow_game_eval", value: true },
       CALL_TIMEOUT,
     ),
     "INVALID_PATH",
@@ -57,14 +57,14 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   assertGuard(
     ctx,
     "project.set_setting editor/*",
-    await bridge.call("project.set_setting", { key: "editor/something", value: "x" }, CALL_TIMEOUT),
+    await bridge.call("project.set_setting", { setting: "editor/something", value: "x" }, CALL_TIMEOUT),
     "INVALID_PATH",
     "editor-session state",
   );
   assertGuard(
     ctx,
     "project.set_setting empty key",
-    await bridge.call("project.set_setting", { key: "", value: 1 }, CALL_TIMEOUT),
+    await bridge.call("project.set_setting", { setting: "", value: 1 }, CALL_TIMEOUT),
     "INVALID_PARAMS",
     "non-empty",
   );
@@ -72,13 +72,13 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   // Restore previous value.
   if (previousValue === null) {
     try {
-      await bridge.call("project.set_setting", { key: settingKey, value: "" }, CALL_TIMEOUT);
+      await bridge.call("project.set_setting", { setting: settingKey, value: "" }, CALL_TIMEOUT);
     } catch {
       /* noop */
     }
   } else {
     try {
-      await bridge.call("project.set_setting", { key: settingKey, value: previousValue }, CALL_TIMEOUT);
+      await bridge.call("project.set_setting", { setting: settingKey, value: previousValue }, CALL_TIMEOUT);
     } catch {
       /* noop */
     }

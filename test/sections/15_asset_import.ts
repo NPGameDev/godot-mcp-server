@@ -122,12 +122,18 @@ export async function testAssetImport(ctx: TestCtx): Promise<void> {
     "INVALID_PARAMS",
     "source_path",
   );
+  // res:// source paths are supported (converted to absolute via globalize_path).
+  // Verify with a non-existent file to confirm the conversion works.
   assertGuard(
     ctx,
-    "asset.import res:// source_path",
-    await bridge.call("asset.import", { source_path: "res://icon.svg", dest_path: "res://foo.svg" }, CALL_TIMEOUT),
-    "INVALID_PATH",
-    "Godot scheme",
+    "asset.import res:// source_path (non-existent)",
+    await bridge.call(
+      "asset.import",
+      { source_path: "res://does_not_exist.svg", dest_path: "res://foo.svg" },
+      CALL_TIMEOUT,
+    ),
+    "NOT_FOUND",
+    "source file not found",
   );
   assertGuard(
     ctx,
