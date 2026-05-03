@@ -13,8 +13,11 @@ export const signalTools: ToolDef[] = [
     name: "signal_list",
     method: "signal.list",
     description:
-      "List signals on a node in the edited scene. Returns [{ name, args: [{name, type}] }] from get_signal_list().",
-    inputSchema: { node_path: z.string() },
+      "List signals on a node in the edited scene. With include_connections=true, each signal includes its connected targets ({target_path, method_name, flags}).",
+    inputSchema: {
+      node_path: z.string(),
+      include_connections: z.boolean().optional(),
+    },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
