@@ -277,8 +277,8 @@ function handleConfigReload(params?: Record<string, unknown>, notify = true): vo
     process.stderr.write("[godot-mcp] initial auth sync — skipping tools/list_changed to avoid connection bounce\n");
   }
 
-  // Re-discover user commands (async, non-blocking).
-  discoverUserCommands().catch(() => {});
+  // Re-discover extensions (async, non-blocking).
+  discoverExtensions().catch(() => {});
 }
 
 /**
@@ -338,16 +338,22 @@ bridge.onNotification((type, params) => {
   }
 });
 
-// ── User command discovery ───────────────────────────────────────────
+// ── Extension discovery ──────────────────────────────────────────────
 
-// After the server starts, discover user-defined commands from the toolkit
+// After the server starts, discover third-party extensions from the toolkit
 // and register them as MCP tools. Non-blocking: if the editor is unreachable,
-// built-in tools still work and user commands will be missing.
-async function discoverUserCommands(): Promise<void> {
+// built-in tools still work and extensions will be missing.
+async function discoverExtensions(): Promise<void> {
   try {
-    const result = (await bridge.call("meta.user_commands", {}, 5000)) as {
+    const result = (await bridge.call("extensions.list", {}, 5000)) as {
       success?: boolean;
-      commands?: { method: string }[];
+      commands?: {
+        method: string;
+        description?: string;
+        input_schema?: Record<string, unknown>;
+        annotations?: Record<string, boolean>;
+        group?: { name: string; description?: string };
+      }[];
     };
     if (!result?.success || !Array.isArray(result.commands)) return;
     let registered = 0;
@@ -358,12 +364,13 @@ async function discoverUserCommands(): Promise<void> {
         bridge,
         toolName,
         {
-          description: `User command: ${cmd.method}`,
-          inputSchema: {},
+          description: cmd.description || `Extension: ${cmd.method}`,
+          inputSchema: cmd.input_schema ?? {},
           annotations: {
-            readOnlyHint: false,
-            destructiveHint: false,
-            openWorldHint: false,
+            readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
+            destructiveHint: cmd.annotations?.destructiveHint ?? false,
+            idempotentHint: cmd.annotations?.idempotentHint ?? false,
+            openWorldHint: cmd.annotations?.openWorldHint ?? false,
           },
         },
         (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<ToolTextResult>,
@@ -371,11 +378,11 @@ async function discoverUserCommands(): Promise<void> {
       registered++;
     }
     if (registered > 0) {
-      process.stderr.write(`[godot-mcp] registered ${registered} user command(s)\n`);
+      process.stderr.write(`[godot-mcp] registered ${registered} extension(s)\n`);
       server.sendToolListChanged();
     }
   } catch {
-    // Editor unreachable or meta.user_commands not available — not an error.
+    // Editor unreachable or extensions.list not available — not an error.
   }
 }
 
@@ -394,7 +401,7 @@ process.on("SIGTERM", shutdown);
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-discoverUserCommands().catch(() => {
-  // Swallowed — discoverUserCommands already handles errors internally.
+discoverExtensions().catch(() => {
+  // Swallowed — discoverExtensions already handles errors internally.
   // This catch prevents Node's unhandledRejection for edge-case async throws.
 });

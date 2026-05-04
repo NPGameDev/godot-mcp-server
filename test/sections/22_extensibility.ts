@@ -4,29 +4,32 @@ import { CALL_TIMEOUT } from "../helpers.js";
 export async function testExtensibility(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
-  // ── meta.user_commands endpoint ──────────────────────────────────────
-  // The meta.user_commands command should always be registered (the
-  // user_commands_loader always registers it). With no user .gd files in
-  // the user_commands/ folder, it returns an empty list.
-  const ucResult = (await bridge.call("meta.user_commands", {}, CALL_TIMEOUT)) as {
+  // ── extensions.list endpoint ────────────────────────────────────────
+  // The extensions.list command should always be registered (the
+  // extension_loader always registers it). With no third-party extensions
+  // discovered, it returns an empty list.
+  const extResult = (await bridge.call("extensions.list", {}, CALL_TIMEOUT)) as {
     success?: boolean;
-    commands?: { method: string }[];
+    commands?: {
+      method: string;
+      description?: string;
+      input_schema?: Record<string, unknown>;
+      annotations?: Record<string, boolean>;
+      group?: { name: string; description?: string };
+    }[];
   };
-  if (!ucResult?.success) {
-    fail(`meta.user_commands: expected success, got ${JSON.stringify(ucResult)}`);
-  } else if (!Array.isArray(ucResult.commands)) {
-    fail(`meta.user_commands: expected commands array, got ${JSON.stringify(ucResult)}`);
+  if (!extResult?.success) {
+    fail(`extensions.list: expected success, got ${JSON.stringify(extResult)}`);
+  } else if (!Array.isArray(extResult.commands)) {
+    fail(`extensions.list: expected commands array, got ${JSON.stringify(extResult)}`);
   } else {
-    pass(`meta.user_commands -> ${ucResult.commands.length} user command(s)`);
+    pass(`extensions.list -> ${extResult.commands.length} extension(s)`);
   }
 
   // ── Reserved namespace rejection ─────────────────────────────────────
-  // Attempt to register a command under a reserved namespace via the
-  // bridge should not succeed (the loader rejects reserved prefixes at
-  // load time). We can't easily test this via smoke without a sample .gd
-  // in the user_commands folder, so we verify that the meta endpoint
-  // doesn't list any reserved-namespace commands.
-  if (ucResult?.success && Array.isArray(ucResult.commands)) {
+  // Verify that the extensions endpoint doesn't list any commands under
+  // reserved namespaces (the loader rejects these at load time).
+  if (extResult?.success && Array.isArray(extResult.commands)) {
     const reserved = [
       "scene.",
       "script.",
@@ -48,12 +51,13 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
       "meta.",
       "game.",
       "diff.",
+      "extensions.",
     ];
-    const violations = ucResult.commands.filter((c) => reserved.some((r) => c.method.startsWith(r)));
+    const violations = extResult.commands.filter((c) => reserved.some((r) => c.method.startsWith(r)));
     if (violations.length > 0) {
       fail(`reserved namespace leak: ${violations.map((v) => v.method).join(", ")}`);
     } else {
-      pass("no reserved-namespace user commands leaked");
+      pass("no reserved-namespace extensions leaked");
     }
   }
 }
