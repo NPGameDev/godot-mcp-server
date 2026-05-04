@@ -38,8 +38,10 @@ export const editorTools: ToolDef[] = [
     name: "editor_reload_scripts",
     method: "editor.reload_scripts",
     description:
-      "Flush all filesystem changes to the editor (scripts, scenes, resources, imports). Call once after a batch of file operations. Required after external writes in headless mode.",
-    inputSchema: {},
+      "Flush filesystem changes to the editor. With file_paths, targets specific files (O(1) per file). Without, does a full project rescan. Call after batch external edits.",
+    inputSchema: {
+      file_paths: z.array(z.string()).optional().describe("res:// paths to update; omit for full scan"),
+    },
     annotations: { openWorldHint: false },
   },
   {
