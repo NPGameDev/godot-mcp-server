@@ -5,7 +5,16 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createBridge } from "./bridge.js";
 import { lookupProject } from "./registry.js";
 import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS, PROFILE_DISPLAY_NAMES } from "./profiles.js";
-import { registerGroupSystem, registerAllGroupTools, GROUP_TOOL_NAMES, resetLoadedGroups } from "./groups.js";
+import {
+  registerGroupSystem,
+  registerAllGroupTools,
+  GROUP_TOOL_NAMES,
+  resetLoadedGroups,
+  addExtensionGroup,
+  hasExtensionGroups,
+  registerAllExtensionGroupTools,
+} from "./groups.js";
+import type { ExtensionCmd } from "./groups.js";
 import { enableAllGates } from "./feature_gate.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
 import { removeAllToolRefs, toolRefCount } from "./tool_refs.js";
@@ -14,7 +23,7 @@ import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
 import type { ToolTextResult } from "./types.js";
-import { callAndWrap, registerToolWrapped, setGlobalHookPipeline } from "./tool_helpers.js";
+import { callAndWrap, registerToolWrapped, batchToolRegistration, setGlobalHookPipeline } from "./tool_helpers.js";
 
 import * as animation from "./tools/animation.js";
 import * as asset from "./tools/asset.js";
@@ -189,6 +198,11 @@ function registerGroups(): void {
   if (profile === "power_user") {
     registerAllGroupTools(server, bridge, readOnly);
   } else if (profile !== "minimal") {
+    // Register enable_tool_group with built-in groups BEFORE transport
+    // connects, so it's in the initial tools/list response — no extra
+    // notification needed for the common case (no extensions).
+    // If extensions are later discovered, registerGroupSystem is called
+    // again (idempotent) which updates the description.
     registerGroupSystem(server, bridge, readOnly);
   }
 }
@@ -226,7 +240,7 @@ function removeAllTools(): void {
   resetLoadedGroups();
 }
 
-function handleConfigReload(params?: Record<string, unknown>, notify = true): void {
+function handleConfigReload(params?: Record<string, unknown>): void {
   const pluginProfile = params?.profile as string | undefined;
   const pluginGates = params?.gates as Record<string, boolean> | undefined;
 
@@ -270,14 +284,8 @@ function handleConfigReload(params?: Record<string, unknown>, notify = true): vo
     );
   }
 
-  if (notify) {
-    process.stderr.write("[godot-mcp] sending notifications/tools/list_changed\n");
-    server.sendToolListChanged();
-  } else {
-    process.stderr.write("[godot-mcp] initial auth sync — skipping tools/list_changed to avoid connection bounce\n");
-  }
-
-  // Re-discover extensions (async, non-blocking).
+  // Re-discover extensions + register enable_tool_group (the MCP SDK
+  // auto-emits tool list notifications on each registerTool call).
   discoverExtensions().catch(() => {});
 }
 
@@ -341,9 +349,13 @@ bridge.onNotification((type, params) => {
 // ── Extension discovery ──────────────────────────────────────────────
 
 // After the server starts, discover third-party extensions from the toolkit
-// and register them as MCP tools. Non-blocking: if the editor is unreachable,
-// built-in tools still work and extensions will be missing.
+// and register them as MCP tools. Also registers enable_tool_group for
+// standard profile — deferred to here so the LLM only ever sees the
+// complete description (built-in + extension groups), avoiding stale schemas.
 async function discoverExtensions(): Promise<void> {
+  let registered = 0;
+  let deferredCount = 0;
+
   try {
     const result = (await bridge.call("extensions.list", {}, 5000)) as {
       success?: boolean;
@@ -355,34 +367,85 @@ async function discoverExtensions(): Promise<void> {
         group?: { name: string; description?: string };
       }[];
     };
-    if (!result?.success || !Array.isArray(result.commands)) return;
-    let registered = 0;
-    for (const cmd of result.commands) {
-      const toolName = cmd.method.replace(/\./g, "_");
-      registerToolWrapped(
-        server,
-        bridge,
-        toolName,
-        {
-          description: cmd.description || `Extension: ${cmd.method}`,
-          inputSchema: cmd.input_schema ?? {},
-          annotations: {
+
+    if (result?.success && Array.isArray(result.commands)) {
+      // Partition commands: ungrouped → immediate, grouped → deferred.
+      // Collect ungrouped for batched registration (1 notification).
+      const ungrouped: typeof result.commands = [];
+      for (const cmd of result.commands) {
+        if (cmd.group?.name) {
+          const toolName = cmd.method.replace(/\./g, "_");
+          const annotations = {
             readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
             destructiveHint: cmd.annotations?.destructiveHint ?? false,
             idempotentHint: cmd.annotations?.idempotentHint ?? false,
             openWorldHint: cmd.annotations?.openWorldHint ?? false,
-          },
-        },
-        (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<ToolTextResult>,
-      );
-      registered++;
-    }
-    if (registered > 0) {
-      process.stderr.write(`[godot-mcp] registered ${registered} extension(s)\n`);
-      server.sendToolListChanged();
+          };
+          const extCmd: ExtensionCmd = {
+            method: cmd.method,
+            toolName,
+            description: cmd.description || `Extension: ${cmd.method}`,
+            inputSchema: cmd.input_schema ?? {},
+            annotations,
+          };
+          addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd]);
+          deferredCount++;
+        } else {
+          ungrouped.push(cmd);
+        }
+      }
+
+      // Register ungrouped tools (batched → 1 notification max).
+      if (ungrouped.length > 0) {
+        batchToolRegistration(server, () => {
+          for (const cmd of ungrouped) {
+            const toolName = cmd.method.replace(/\./g, "_");
+            const annotations = {
+              readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
+              destructiveHint: cmd.annotations?.destructiveHint ?? false,
+              idempotentHint: cmd.annotations?.idempotentHint ?? false,
+              openWorldHint: cmd.annotations?.openWorldHint ?? false,
+            };
+            registerToolWrapped(
+              server,
+              bridge,
+              toolName,
+              {
+                description: cmd.description || `Extension: ${cmd.method}`,
+                inputSchema: cmd.input_schema ?? {},
+                annotations,
+              },
+              (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<ToolTextResult>,
+            );
+            registered++;
+          }
+        });
+      }
+
+      // Power user: register extension group tools immediately (1 notification via internal batch).
+      if (hasExtensionGroups() && profile === "power_user") {
+        registerAllExtensionGroupTools(server, bridge);
+        registered += deferredCount;
+      }
     }
   } catch {
     // Editor unreachable or extensions.list not available — not an error.
+    // Fall through to register enable_tool_group with built-in groups only.
+  }
+
+  // Standard profile: update enable_tool_group description to include
+  // extension groups. Uses in-place update (1 notification).
+  // For the common case (no extensions), enable_tool_group was already
+  // registered at startup — no notification needed.
+  if (deferredCount > 0 && profile !== "minimal" && profile !== "power_user") {
+    registerGroupSystem(server, bridge, readOnly);
+  }
+
+  if (registered > 0 || deferredCount > 0) {
+    const parts: string[] = [];
+    if (registered > 0) parts.push(`${registered} registered`);
+    if (deferredCount > 0 && profile !== "power_user") parts.push(`${deferredCount} deferred in groups`);
+    process.stderr.write(`[godot-mcp] extensions: ${parts.join(" + ")}\n`);
   }
 }
 

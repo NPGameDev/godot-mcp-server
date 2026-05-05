@@ -5,6 +5,7 @@
  * need the Bridge type no longer pull in registration/error logic.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import { stableStringify } from "./schema_min.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
 import type { Bridge, ErrorCode, ToolDef, ToolTextResult, ToolRequest } from "./types.js";
@@ -155,6 +156,81 @@ export function getVersionMap(): Map<string, number> {
   return _versionMap;
 }
 
+// ── JSON Schema → Zod conversion ────────────────────────────────────
+
+/**
+ * Detect whether an inputSchema is raw JSON Schema (from extension
+ * commands) rather than a Zod shape. Heuristic: top-level "type" or
+ * "properties" key with string/object value.
+ */
+function isRawJsonSchema(schema: unknown): schema is Record<string, unknown> {
+  if (!schema || typeof schema !== "object") return false;
+  const obj = schema as Record<string, unknown>;
+  return typeof obj.type === "string" || (typeof obj.properties === "object" && obj.properties !== null);
+}
+
+/**
+ * Convert a raw JSON Schema object to a Zod shape compatible with the
+ * MCP SDK's registerTool. Handles the common types extension authors use.
+ */
+function jsonSchemaToZodShape(schema: Record<string, unknown>): Record<string, z.ZodTypeAny> {
+  const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
+  if (!properties) return {};
+
+  const required = new Set((schema.required as string[]) ?? []);
+  const shape: Record<string, z.ZodTypeAny> = {};
+
+  for (const [key, prop] of Object.entries(properties)) {
+    let zodType: z.ZodTypeAny;
+    switch (prop.type) {
+      case "string":
+        if (Array.isArray(prop.enum) && prop.enum.length > 0) {
+          zodType = z.enum(prop.enum as [string, ...string[]]);
+        } else {
+          zodType = z.string();
+        }
+        break;
+      case "number":
+      case "integer":
+        zodType = z.number();
+        break;
+      case "boolean":
+        zodType = z.boolean();
+        break;
+      case "array":
+        zodType = z.array(z.any());
+        break;
+      default:
+        zodType = z.any();
+        break;
+    }
+    if (typeof prop.description === "string") {
+      zodType = zodType.describe(prop.description);
+    }
+    if (!required.has(key)) {
+      zodType = zodType.optional();
+    }
+    shape[key] = zodType;
+  }
+  return shape;
+}
+
+/**
+ * Suppress per-tool sendToolListChanged() notifications during a batch
+ * operation, then emit a single notification at the end. Use this when
+ * registering multiple tools in a tight loop.
+ */
+export function batchToolRegistration(server: McpServer, fn: () => void): void {
+  const orig = server.sendToolListChanged.bind(server);
+  server.sendToolListChanged = () => {};
+  try {
+    fn();
+  } finally {
+    server.sendToolListChanged = orig;
+    server.sendToolListChanged();
+  }
+}
+
 /**
  * Register a tool with version-gating, hook pipeline wrapping, and
  * tool-ref tracking. All tool registrations should use this instead of
@@ -169,6 +245,10 @@ export function registerToolWrapped(
   handler: (input: Record<string, unknown>) => Promise<ToolTextResult>,
   opts: { godotMinVersion?: number; hookPipeline?: HookPipeline } = {},
 ): void {
+  // Convert raw JSON Schema (from extensions) to Zod shape for SDK compat.
+  if (config.inputSchema && isRawJsonSchema(config.inputSchema)) {
+    config = { ...config, inputSchema: jsonSchemaToZodShape(config.inputSchema) };
+  }
   if (opts.godotMinVersion != null) {
     _versionMap.set(name, opts.godotMinVersion);
   }

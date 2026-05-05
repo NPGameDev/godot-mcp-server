@@ -7,12 +7,21 @@
 
 interface ToolRef {
   remove(): void;
+  update?(updates: Record<string, unknown>): void;
 }
 
 const toolRefs = new Map<string, ToolRef>();
 
 export function setToolRef(name: string, ref: unknown): void {
   toolRefs.set(name, ref as ToolRef);
+}
+
+/** Update a registered tool's properties in-place (one notification). */
+export function updateToolRef(name: string, updates: Record<string, unknown>): boolean {
+  const ref = toolRefs.get(name);
+  if (!ref?.update) return false;
+  ref.update(updates);
+  return true;
 }
 
 export function removeToolByName(name: string): boolean {

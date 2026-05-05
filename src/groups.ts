@@ -8,11 +8,17 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "./types.js";
-import { callAndWrap, toolErrorFromPayload, toolErrorFromException, registerToolWrapped } from "./tool_helpers.js";
+import {
+  callAndWrap,
+  toolErrorFromPayload,
+  toolErrorFromException,
+  registerToolWrapped,
+  batchToolRegistration,
+} from "./tool_helpers.js";
 import { stableStringify } from "./schema_min.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
 import { MUTATING_TOOLS } from "./profiles.js";
-import { removeToolByName } from "./tool_refs.js";
+import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
 
 // Import tool defs from all modules that contribute group tools.
 // editorTools is included because scene_close lives in editor.ts
@@ -118,16 +124,57 @@ const RUNTIME_TOOLS = new Set([
 ]);
 
 // Tracks loaded groups for the session.
-const loadedGroups = new Set<GroupName>();
+const loadedGroups = new Set<string>();
 
 /** Check whether a group has been loaded this session. */
-export function isGroupLoaded(name: GroupName): boolean {
+export function isGroupLoaded(name: string): boolean {
   return loadedGroups.has(name);
 }
 
 /** Clear loaded-group tracking (used by config reload). */
 export function resetLoadedGroups(): void {
   loadedGroups.clear();
+  extensionGroups.clear();
+  loadedExtensionGroups.clear();
+}
+
+// ── Extension groups (dynamic, from third-party extensions) ─────────
+
+export interface ExtensionCmd {
+  method: string;
+  toolName: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  annotations: Record<string, boolean>;
+}
+
+interface ExtensionGroupDef {
+  name: string;
+  description: string;
+  commands: ExtensionCmd[];
+}
+
+const extensionGroups = new Map<string, ExtensionGroupDef>();
+const loadedExtensionGroups = new Set<string>();
+
+/** Register a deferred extension group (called from discoverExtensions). */
+export function addExtensionGroup(name: string, description: string, commands: ExtensionCmd[]): void {
+  const existing = extensionGroups.get(name);
+  if (existing) {
+    existing.commands.push(...commands);
+  } else {
+    extensionGroups.set(name, { name, description, commands });
+  }
+}
+
+/** Whether any extension groups exist (used to decide if refresh needed). */
+export function hasExtensionGroups(): boolean {
+  return extensionGroups.size > 0;
+}
+
+/** Get all extension group names (for schema description). */
+export function getExtensionGroupNames(): string[] {
+  return [...extensionGroups.keys()];
 }
 
 // ── Special-case handlers ────────────────────────────────────────────
@@ -253,7 +300,7 @@ function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, 
 }
 
 // I2 waiver: enable_tool_group description intentionally exceeds the 200-char
-// tool-description limit. As the gateway to 22 hidden tools, discoverability
+// tool-description limit. As the gateway to 22+ hidden tools, discoverability
 // is more important than description brevity for this meta-tool.
 function buildEnableGroupDesc(): string {
   const parts: string[] = [];
@@ -270,19 +317,47 @@ function buildEnableGroupDesc(): string {
     entry += ")";
     parts.push(entry);
   }
-  return (
+
+  // Extension groups: description first (primary discoverability hint for LLM).
+  const extParts: string[] = [];
+  for (const [name, ext] of extensionGroups) {
+    const loaded = loadedExtensionGroups.has(name);
+    const tools = ext.commands.map((c) => c.toolName).join(", ");
+    const desc = ext.description || name;
+    extParts.push(`${name} [${loaded ? "LOADED" : "available"}] "${desc}" → ${tools}`);
+  }
+
+  let description =
     "Load additional tool groups for specialized workflows. Groups persist for session. Call once with all needed groups. " +
-    "Groups: " +
-    parts.join(", ") +
-    "."
-  );
+    "Built-in: " +
+    parts.join("; ");
+  if (extParts.length > 0) {
+    description += ". Extensions: " + extParts.join("; ");
+  }
+  description += ".";
+  return description;
+}
+
+/** Build the describe text for the groups input schema. */
+function buildGroupsDescribe(): string {
+  const builtIn = GROUP_NAMES.join(", ");
+  const extNames = getExtensionGroupNames();
+  if (extNames.length === 0) return `Group names to load: ${builtIn}`;
+  return `Group names to load: ${builtIn}, ${extNames.join(", ")}`;
 }
 
 /**
  * Register the enable_tool_group meta-tool and its handler.
- * Call this for the standard profile only.
+ * Call this for the standard profile only. Idempotent — if the tool
+ * already exists, updates its description in-place (one notification);
+ * otherwise registers fresh (also one notification).
  */
 export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly: boolean): void {
+  // If already registered, update description in-place (avoids remove+register = 2 notifications).
+  if (hasToolRef("enable_tool_group")) {
+    updateToolRef("enable_tool_group", { description: buildEnableGroupDesc() });
+    return;
+  }
   registerToolWrapped(
     server,
     bridge,
@@ -290,58 +365,100 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
     {
       description: buildEnableGroupDesc(),
       inputSchema: {
-        groups: z
-          .array(z.enum(GROUP_NAMES as unknown as [string, ...string[]]))
-          .min(1)
-          .describe(
-            "Group names to load: runtime, signals, animation_authoring, input_map, asset_management, user_data",
-          ),
+        groups: z.array(z.string()).min(1).describe(buildGroupsDescribe()),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async (input: Record<string, unknown>) => {
-      const { groups: requested } = input as { groups: GroupName[] };
+      const { groups: requested } = input as { groups: string[] };
       const results: Record<string, { loaded: boolean; tools?: string[]; error?: string }> = {};
-      let anyLoaded = false;
 
-      for (const groupName of requested) {
-        if (loadedGroups.has(groupName)) {
-          const group = GROUPS.find((g) => g.name === groupName)!;
-          results[groupName] = { loaded: true, tools: group.tools };
-          continue;
-        }
+      // Batch all tool registrations into a single notification.
+      batchToolRegistration(server, () => {
+        for (const groupName of requested) {
+          // Already loaded (built-in or extension)?
+          if (loadedGroups.has(groupName) || loadedExtensionGroups.has(groupName)) {
+            const group = GROUPS.find((g) => g.name === groupName);
+            const extGroup = extensionGroups.get(groupName);
+            const tools = group?.tools ?? extGroup?.commands.map((c) => c.toolName) ?? [];
+            results[groupName] = { loaded: true, tools };
+            continue;
+          }
 
-        const group = GROUPS.find((g) => g.name === groupName);
-        if (!group) {
+          // Check built-in groups first.
+          const group = GROUPS.find((g) => g.name === groupName);
+          if (group) {
+            if (group.gate && !isEnabled(group.gate)) {
+              const envVar = group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate;
+              results[groupName] = {
+                loaded: false,
+                error: `Group '${groupName}' requires ${envVar}=1 in .mcp.json env.`,
+              };
+              continue;
+            }
+            const registered = registerGroupTools(server, bridge, group, readOnly);
+            loadedGroups.add(groupName);
+            results[groupName] = { loaded: true, tools: registered };
+            continue;
+          }
+
+          // Check extension groups.
+          const extGroup = extensionGroups.get(groupName);
+          if (extGroup) {
+            const registered = registerExtGroupTools(server, bridge, extGroup);
+            loadedExtensionGroups.add(groupName);
+            results[groupName] = { loaded: true, tools: registered };
+            continue;
+          }
+
           results[groupName] = { loaded: false, error: `Unknown group: ${groupName}` };
-          continue;
         }
-
-        // Check gate requirement
-        if (group.gate && !isEnabled(group.gate)) {
-          const envVar = group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate;
-          results[groupName] = {
-            loaded: false,
-            error: `Group '${groupName}' requires ${envVar}=1 in .mcp.json env.`,
-          };
-          continue;
-        }
-
-        const registered = registerGroupTools(server, bridge, group, readOnly);
-        loadedGroups.add(groupName);
-        results[groupName] = { loaded: true, tools: registered };
-        anyLoaded = true;
-      }
-
-      if (anyLoaded) {
-        server.sendToolListChanged();
-      }
+      });
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ success: true, groups: results }) }],
       };
     },
   );
+}
+
+/** Register an extension group's tools (called from enable_tool_group handler). */
+function registerExtGroupTools(server: McpServer, bridge: Bridge, group: ExtensionGroupDef): string[] {
+  const registered: string[] = [];
+  for (const cmd of group.commands) {
+    registerToolWrapped(
+      server,
+      bridge,
+      cmd.toolName,
+      {
+        description: cmd.description,
+        inputSchema: cmd.inputSchema,
+        annotations: {
+          readOnlyHint: cmd.annotations.readOnlyHint ?? false,
+          destructiveHint: cmd.annotations.destructiveHint ?? false,
+          idempotentHint: cmd.annotations.idempotentHint ?? false,
+          openWorldHint: cmd.annotations.openWorldHint ?? false,
+        },
+      },
+      (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<import("./types.js").ToolTextResult>,
+    );
+    registered.push(cmd.toolName);
+  }
+  return registered;
+}
+
+/**
+ * For power_user profile: register all extension group tools immediately.
+ * Batches notifications so only 1 tools/list_changed fires regardless of tool count.
+ */
+export function registerAllExtensionGroupTools(server: McpServer, bridge: Bridge): void {
+  batchToolRegistration(server, () => {
+    for (const [name, group] of extensionGroups) {
+      if (loadedExtensionGroups.has(name)) continue;
+      registerExtGroupTools(server, bridge, group);
+      loadedExtensionGroups.add(name);
+    }
+  });
 }
 
 /**
@@ -355,4 +472,6 @@ export function registerAllGroupTools(server: McpServer, bridge: Bridge, readOnl
     registerGroupTools(server, bridge, group, readOnly);
     loadedGroups.add(group.name);
   }
+  // Extension groups are registered via registerAllExtensionGroupTools()
+  // after discoverExtensions() completes (they aren't known at startup).
 }
