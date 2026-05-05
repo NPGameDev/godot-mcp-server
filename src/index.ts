@@ -395,8 +395,11 @@ async function discoverExtensions(): Promise<void> {
         }
       }
 
-      // Register ungrouped tools (batched → 1 notification max).
-      if (ungrouped.length > 0) {
+      // Batch all extension tool registrations into a single notification.
+      // For power_user: ungrouped + grouped all in one batch.
+      // For standard: only ungrouped (grouped stay deferred).
+      const needsEagerGroups = hasExtensionGroups() && profile === "power_user";
+      if (ungrouped.length > 0 || needsEagerGroups) {
         batchToolRegistration(server, () => {
           for (const cmd of ungrouped) {
             const toolName = cmd.method.replace(/\./g, "_");
@@ -419,13 +422,11 @@ async function discoverExtensions(): Promise<void> {
             );
             registered++;
           }
+          if (needsEagerGroups) {
+            registerAllExtensionGroupTools(server, bridge);
+            registered += deferredCount;
+          }
         });
-      }
-
-      // Power user: register extension group tools immediately (1 notification via internal batch).
-      if (hasExtensionGroups() && profile === "power_user") {
-        registerAllExtensionGroupTools(server, bridge);
-        registered += deferredCount;
       }
     }
   } catch {
