@@ -160,13 +160,21 @@ export function getVersionMap(): Map<string, number> {
 
 /**
  * Detect whether an inputSchema is raw JSON Schema (from extension
- * commands) rather than a Zod shape. Heuristic: top-level "type" or
- * "properties" key with string/object value.
+ * commands) rather than a Zod shape. Heuristic: top-level "type" key
+ * with plain string value, OR "properties" key that is a plain object
+ * (not a Zod schema). Zod schemas have a `_zod` property; plain JSON
+ * Schema `properties` objects do not.
  */
 function isRawJsonSchema(schema: unknown): schema is Record<string, unknown> {
   if (!schema || typeof schema !== "object") return false;
   const obj = schema as Record<string, unknown>;
-  return typeof obj.type === "string" || (typeof obj.properties === "object" && obj.properties !== null);
+  if (typeof obj.type === "string") return true;
+  if (typeof obj.properties === "object" && obj.properties !== null) {
+    // A Zod schema (used as a field named "properties") has _zod; a
+    // JSON Schema properties object is a plain dict of field descriptors.
+    return !(obj.properties as Record<string, unknown>)._zod;
+  }
+  return false;
 }
 
 /**
