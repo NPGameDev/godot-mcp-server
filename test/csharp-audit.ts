@@ -116,7 +116,7 @@ async function main(): Promise<void> {
   // ──────────────────────────────────────────────────────────────────────
   section("2. node.get_property — read C# [Export] fields");
   // ──────────────────────────────────────────────────────────────────────
-  for (const [prop, expected] of [
+  for (const [prop, _expected] of [
     ["Speed", 200],
     ["MaxHealth", 100],
     ["PlayerName", "Player"],
@@ -508,7 +508,7 @@ async function main(): Promise<void> {
   // ──────────────────────────────────────────────────────────────────────
   section("18. game_eval — C# method call at runtime");
   // ──────────────────────────────────────────────────────────────────────
-  let runtimeTestPassed = false;
+  let _runtimeTestPassed = false;
   try {
     // Start the game
     const startR = (await bridge.call("game.start", {}, 15000)) as { success?: boolean };
@@ -528,7 +528,7 @@ async function main(): Promise<void> {
         if (evalR.success !== false) {
           const val = evalR.result ?? evalR.value;
           pass(`game_eval C# method call: GetCurrentHealth() = ${JSON.stringify(val)}`);
-          runtimeTestPassed = true;
+          _runtimeTestPassed = true;
         } else {
           fail(`game_eval C# method call failed: ${JSON.stringify(evalR).slice(0, 300)}`);
         }
