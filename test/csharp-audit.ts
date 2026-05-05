@@ -130,7 +130,9 @@ async function main(): Promise<void> {
         if (r.value == expected) {
           pass(`node.get_property Player.${prop} = ${JSON.stringify(r.value)}`);
         } else {
-          fail(`node.get_property Player.${prop}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(r.value)}`);
+          fail(
+            `node.get_property Player.${prop}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(r.value)}`,
+          );
         }
       } else {
         fail(`node.get_property Player.${prop}: ${JSON.stringify(r)}`);

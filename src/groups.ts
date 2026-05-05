@@ -157,14 +157,54 @@ interface ExtensionGroupDef {
 const extensionGroups = new Map<string, ExtensionGroupDef>();
 const loadedExtensionGroups = new Set<string>();
 
-/** Register a deferred extension group (called from discoverExtensions). */
+/** Register a deferred extension group (called from discoverExtensions). Deduplicates by method name. */
 export function addExtensionGroup(name: string, description: string, commands: ExtensionCmd[]): void {
   const existing = extensionGroups.get(name);
   if (existing) {
-    existing.commands.push(...commands);
+    for (const cmd of commands) {
+      if (!existing.commands.some((c) => c.method === cmd.method)) {
+        existing.commands.push(cmd);
+      }
+    }
   } else {
     extensionGroups.set(name, { name, description, commands });
   }
+}
+
+/** Remove a single command from an extension group by method name. Returns true if found. */
+export function removeExtensionCommand(method: string): boolean {
+  for (const [name, group] of extensionGroups) {
+    const idx = group.commands.findIndex((c) => c.method === method);
+    if (idx >= 0) {
+      const toolName = group.commands[idx].toolName;
+      group.commands.splice(idx, 1);
+      removeToolByName(toolName);
+      // If no commands remain, remove the entire group.
+      if (group.commands.length === 0) {
+        extensionGroups.delete(name);
+        loadedExtensionGroups.delete(name);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Remove an entire extension group by name. Unregisters all its tools. */
+export function removeExtensionGroup(name: string): boolean {
+  const group = extensionGroups.get(name);
+  if (!group) return false;
+  for (const cmd of group.commands) {
+    removeToolByName(cmd.toolName);
+  }
+  extensionGroups.delete(name);
+  loadedExtensionGroups.delete(name);
+  return true;
+}
+
+/** Remove an ungrouped extension tool by its method-derived tool name. */
+export function removeUngroupedExtensionTool(toolName: string): boolean {
+  return removeToolByName(toolName);
 }
 
 /** Whether any extension groups exist (used to decide if refresh needed). */

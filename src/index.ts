@@ -13,11 +13,13 @@ import {
   addExtensionGroup,
   hasExtensionGroups,
   registerAllExtensionGroupTools,
+  removeExtensionCommand,
+  removeUngroupedExtensionTool,
 } from "./groups.js";
 import type { ExtensionCmd } from "./groups.js";
 import { enableAllGates } from "./feature_gate.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
-import { removeAllToolRefs, toolRefCount } from "./tool_refs.js";
+import { removeAllToolRefs, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
 import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
@@ -343,6 +345,8 @@ bridge.onNotification((type, params) => {
       configReloadTimer = null;
       handleConfigReload(params);
     }, 300);
+  } else if (type === "extensions.changed") {
+    handleExtensionsChanged(params);
   }
 });
 
@@ -357,7 +361,10 @@ async function discoverExtensions(): Promise<void> {
   let deferredCount = 0;
 
   try {
-    const result = (await bridge.call("extensions.list", {}, 5000)) as {
+    // Call extensions.refresh to force a filesystem scan — picks up
+    // externally-created files even when the editor is unfocused.
+    // Falls back to extensions.list for older plugins without hot-reload.
+    type ExtResult = {
       success?: boolean;
       commands?: {
         method: string;
@@ -367,14 +374,21 @@ async function discoverExtensions(): Promise<void> {
         group?: { name: string; description?: string };
       }[];
     };
+    let result: ExtResult;
+    try {
+      result = (await bridge.call("extensions.refresh", {}, 5000)) as ExtResult;
+    } catch {
+      result = (await bridge.call("extensions.list", {}, 5000)) as ExtResult;
+    }
 
     if (result?.success && Array.isArray(result.commands)) {
       // Partition commands: ungrouped → immediate, grouped → deferred.
       // Collect ungrouped for batched registration (1 notification).
       const ungrouped: typeof result.commands = [];
       for (const cmd of result.commands) {
+        const toolName = cmd.method.replace(/\./g, "_");
+        knownExtensionTools.add(toolName);
         if (cmd.group?.name) {
-          const toolName = cmd.method.replace(/\./g, "_");
           const annotations = {
             readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
             destructiveHint: cmd.annotations?.destructiveHint ?? false,
@@ -447,6 +461,118 @@ async function discoverExtensions(): Promise<void> {
     if (registered > 0) parts.push(`${registered} registered`);
     if (deferredCount > 0 && profile !== "power_user") parts.push(`${deferredCount} deferred in groups`);
     process.stderr.write(`[godot-mcp] extensions: ${parts.join(" + ")}\n`);
+  }
+}
+
+// ── Live extension reconciliation ───────────────────────────────────
+
+// Tracks currently known extension tool names (method-derived) for diff.
+const knownExtensionTools = new Set<string>();
+
+/**
+ * Handle "extensions.changed" push notification from the toolkit plugin.
+ * Reconciles the tool list: adds new tools, removes old ones, emits exactly
+ * one tools/list_changed notification if anything changed.
+ */
+function handleExtensionsChanged(params?: Record<string, unknown>): void {
+  const commands = params?.commands as
+    | {
+        method: string;
+        description?: string;
+        input_schema?: Record<string, unknown>;
+        annotations?: Record<string, boolean>;
+        group?: { name: string; description?: string };
+      }[]
+    | undefined;
+  const removedMethods = (params?.removed as string[]) ?? [];
+
+  if (!Array.isArray(commands)) {
+    process.stderr.write("[godot-mcp] extensions.changed: invalid payload (no commands array)\n");
+    return;
+  }
+
+  let added = 0;
+  let removed = 0;
+
+  batchToolRegistration(server, () => {
+    // 1. Remove tools for methods listed in 'removed'.
+    for (const method of removedMethods) {
+      const toolName = method.replace(/\./g, "_");
+      if (knownExtensionTools.has(toolName)) {
+        // Try grouped removal first, then ungrouped.
+        if (!removeExtensionCommand(method)) {
+          removeUngroupedExtensionTool(toolName);
+        }
+        knownExtensionTools.delete(toolName);
+        removed++;
+      }
+    }
+
+    // 2. Register new tools from the current command set.
+    const ungrouped: typeof commands = [];
+    for (const cmd of commands) {
+      const toolName = cmd.method.replace(/\./g, "_");
+      if (knownExtensionTools.has(toolName)) continue; // Already registered.
+
+      if (cmd.group?.name) {
+        const annotations = {
+          readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
+          destructiveHint: cmd.annotations?.destructiveHint ?? false,
+          idempotentHint: cmd.annotations?.idempotentHint ?? false,
+          openWorldHint: cmd.annotations?.openWorldHint ?? false,
+        };
+        const extCmd: ExtensionCmd = {
+          method: cmd.method,
+          toolName,
+          description: cmd.description || `Extension: ${cmd.method}`,
+          inputSchema: cmd.input_schema ?? {},
+          annotations,
+        };
+        addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd]);
+        // Power_user: register immediately.
+        if (profile === "power_user") {
+          registerAllExtensionGroupTools(server, bridge);
+        }
+        knownExtensionTools.add(toolName);
+        added++;
+      } else {
+        ungrouped.push(cmd);
+      }
+    }
+
+    // Register ungrouped tools immediately (all profiles).
+    for (const cmd of ungrouped) {
+      const toolName = cmd.method.replace(/\./g, "_");
+      if (hasToolRef(toolName)) continue; // Dedup guard.
+      const annotations = {
+        readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
+        destructiveHint: cmd.annotations?.destructiveHint ?? false,
+        idempotentHint: cmd.annotations?.idempotentHint ?? false,
+        openWorldHint: cmd.annotations?.openWorldHint ?? false,
+      };
+      registerToolWrapped(
+        server,
+        bridge,
+        toolName,
+        {
+          description: cmd.description || `Extension: ${cmd.method}`,
+          inputSchema: cmd.input_schema ?? {},
+          annotations,
+        },
+        (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<ToolTextResult>,
+      );
+      knownExtensionTools.add(toolName);
+      added++;
+    }
+  });
+
+  // Update enable_tool_group description if extension groups changed.
+  if ((added > 0 || removed > 0) && profile !== "minimal" && profile !== "power_user") {
+    registerGroupSystem(server, bridge, readOnly);
+  }
+
+  if (added > 0 || removed > 0) {
+    process.stderr.write(`[godot-mcp] extensions.changed: +${added} -${removed} tools\n`);
   }
 }
 
