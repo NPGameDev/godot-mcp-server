@@ -462,6 +462,24 @@ async function discoverExtensions(): Promise<void> {
     if (deferredCount > 0 && profile !== "power_user") parts.push(`${deferredCount} deferred in groups`);
     process.stderr.write(`[godot-mcp] extensions: ${parts.join(" + ")}\n`);
   }
+
+  // Always register extensions_refresh — lets the LLM trigger a filesystem
+  // rescan after creating/modifying extension files externally.
+  if (!hasToolRef("extensions_refresh")) {
+    registerToolWrapped(
+      server,
+      bridge,
+      "extensions_refresh",
+      {
+        description:
+          "Force a filesystem rescan and re-discover extension scripts. " +
+          "Call after creating, modifying, or deleting extension files from outside the Godot editor. " +
+          "Returns the updated list of extension commands.",
+        annotations: { readOnlyHint: true, idempotentHint: true },
+      },
+      (input: unknown) => callAndWrap(bridge, "extensions.refresh", input) as Promise<ToolTextResult>,
+    );
+  }
 }
 
 // ── Live extension reconciliation ───────────────────────────────────
