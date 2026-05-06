@@ -404,6 +404,7 @@ function buildEnableGroupDesc(): string {
 
   let description =
     "Load additional tool groups for specialized workflows. Groups persist for session. Call once with all needed groups. " +
+    "Requires client support for tools/list_changed notifications. " +
     "Built-in: " +
     parts.join("; ");
   if (extParts.length > 0) {

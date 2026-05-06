@@ -326,6 +326,16 @@ An accuracy eval suite (`npm run eval`) tests two dimensions against a live Godo
 
 The eval suite is separate from the smoke test. Smoke validates "does it work" (255 assertions); eval validates "does it work well" (76 assertions). Run `npm run eval` to establish or verify the baseline.
 
+## Known limitations
+
+### `claude -p` does not support dynamic tool loading
+
+**Affected:** Standard profile's `enable_tool_group` lazy-loading (Claude Code 2.1.104, confirmed 2026-05-06).
+
+`claude -p` (pipe mode) does not process `tools/list_changed` MCP notifications. The server sends the notification after `enable_tool_group` registers new tools, but the pipe-mode client does not re-fetch the tool list. Dynamically loaded tools are unreachable.
+
+**Workaround:** Set `GODOT_MCP_PROFILE=full` in `.mcp.json` for `claude -p` workflows. This eagerly loads all tools at startup. Interactive `claude` sessions handle dynamic loading correctly.
+
 ## Security
 
 The toolkit implements defense-in-depth security. See the [plugin README](https://github.com/NPGameDev/godot-mcp-toolkit#security) for full details.
