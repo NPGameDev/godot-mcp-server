@@ -8,8 +8,13 @@ export const scriptTools: ToolDef[] = [
   {
     name: "script_read",
     method: "script.read",
-    description: "Read a script file (res:// only). Returns the file content as text.",
-    inputSchema: { file_path: z.string() },
+    description:
+      "Read a script file (res:// only). Returns the file content as text. Pass start_line / end_line for partial reads (1-indexed, inclusive).",
+    inputSchema: {
+      file_path: z.string(),
+      start_line: z.number().optional().describe("First line to read (1-indexed, inclusive)"),
+      end_line: z.number().optional().describe("Last line to read (1-indexed, inclusive)"),
+    },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
@@ -19,14 +24,6 @@ export const scriptTools: ToolDef[] = [
       "Write .gd/.cs/.gdshader/.gdshaderinc at file_path (res:// only, creates or overwrites). Not idempotent. Use script.delete to remove; resource.create for .tres; scene.create for .tscn.",
     inputSchema: { file_path: z.string(), content: z.string() },
     annotations: { openWorldHint: false },
-  },
-  {
-    name: "script_read_range",
-    method: "script.read_range",
-    description:
-      "Read lines [start_line, end_line] (1-indexed, inclusive) from a script file (res:// only). Use when script_read returns FILE_TOO_LARGE.",
-    inputSchema: { file_path: z.string(), start_line: z.number(), end_line: z.number() },
-    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "script_delete",

@@ -19,7 +19,6 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "node_get_property",
   "node_get_property_list",
   "script_read",
-  "script_read_range",
   "editor_get_errors",
   "editor_screenshot",
   "editor_get_console",
@@ -30,46 +29,34 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "script_check",
 ];
 
-/** 34 standard tools (enable_tool_group is added programmatically). */
+/** 26 standard tools (enable_tool_group + extensions_refresh added programmatically). */
 export const STANDARD_TOOLS: readonly string[] = [
-  // Scene (7)
+  // Scene (5)
   "scene_get_tree",
   "scene_create_node",
   "scene_delete_node",
   "scene_create",
-  "scene_instantiate",
   "scene_open",
-  "scene_diff",
   // Node (4)
   "node_get_property",
   "node_set_property",
   "node_get_property_list",
   "node_set_script",
-  // Script (4)
+  // Script (2)
   "script_read",
   "script_write",
-  "script_read_range",
-  "script_delete",
-  // Editor (8)
+  // Editor (5)
   "editor_get_errors",
   "editor_save_scene",
   "editor_screenshot",
-  "editor_screenshot_node",
-  "editor_reload_scripts",
   "editor_get_console",
-  "editor_wait_for_idle",
   "project_get_settings",
   // Playtest (2)
   "game_start",
   "game_stop",
-  // Assets (5)
-  "resource_load",
-  "resource_write",
+  // Assets (2)
   "folder_create",
-  "folder_delete",
   "asset_list",
-  // Content (1)
-  "tilemap_set_cells",
   // ClassDB (2)
   "classdb_get_info",
   "classdb_search",

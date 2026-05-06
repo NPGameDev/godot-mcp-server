@@ -30,8 +30,15 @@ export const editorTools: ToolDef[] = [
     name: "editor_screenshot",
     method: "editor.screenshot",
     description:
-      "Capture the editor viewport (NOT the running game). Use runtime_screenshot to capture the game window while it's running. Optional save_path (res:// .png) persists to disk.",
-    inputSchema: { save_path: z.string().optional() },
+      "Capture the editor viewport (NOT the running game). Use runtime_screenshot to capture the game window while it's running. Optional save_path (res:// .png) persists to disk. Pass node_path to focus + capture a specific node (atomic focus-restore).",
+    inputSchema: {
+      save_path: z.string().optional(),
+      node_path: z.string().optional().describe("Focus + capture a specific node instead of the full viewport"),
+      size: z
+        .object({ width: z.number(), height: z.number() })
+        .optional()
+        .describe("Output size when capturing a specific node (default 1280x720)"),
+    },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
@@ -67,17 +74,6 @@ export const editorTools: ToolDef[] = [
     description:
       "List ProjectSettings keys + values. Optional prefix filter. Keys matching /password|token|secret|key/i are dropped (MVP filter).",
     inputSchema: { prefix: z.string().optional() },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-  },
-  {
-    name: "editor_screenshot_node",
-    method: "editor.screenshot_node",
-    description:
-      "Focus + capture a specific node in the editor viewport. Atomic focus-restore (prior selection preserved). Inline base64 PNG.",
-    inputSchema: {
-      node_path: z.string(),
-      size: z.object({ width: z.number(), height: z.number() }).optional(),
-    },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
@@ -183,15 +179,11 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
   handlers.set("editor_get_errors", (input) => errorSummaryHandler(bridge, "editor.get_errors", input));
-  // Screenshot handlers return image+text multi-content; cast to ToolTextResult
+  // Screenshot handler returns image+text multi-content; cast to ToolTextResult
   // since the MCP SDK accepts any content type at runtime.
   handlers.set(
     "editor_screenshot",
     (input) => screenshotHandler(bridge, "editor.screenshot", input) as Promise<ToolTextResult>,
-  );
-  handlers.set(
-    "editor_screenshot_node",
-    (input) => screenshotHandler(bridge, "editor.screenshot_node", input) as Promise<ToolTextResult>,
   );
   registerTools(server, bridge, editorTools, allowedTools ? allowedTools : null, { handlers });
 }

@@ -1,6 +1,6 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * enable_tool_group. 6 groups, 22 tools total. Standard profile
+ * enable_tool_group. 8 groups, 32 tools total. Standard profile
  * registers enable_tool_group as the meta-tool; power_user profile
  * registers all group tools at startup.
  */
@@ -21,8 +21,6 @@ import { MUTATING_TOOLS } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
 
 // Import tool defs from all modules that contribute group tools.
-// editorTools is included because scene_close lives in editor.ts
-// but belongs to the asset_management group.
 import { signalTools } from "./tools/signals.js";
 import { animationTools } from "./tools/animation.js";
 import { inputMapTools } from "./tools/input_map.js";
@@ -33,10 +31,22 @@ import { sceneTools } from "./tools/scene.js";
 import { fileTools } from "./tools/file.js";
 import { resourceTools } from "./tools/resource.js";
 import { editorTools } from "./tools/editor.js";
+import { scriptTools } from "./tools/script.js";
+import { folderTools } from "./tools/folder.js";
+import { diffTools } from "./tools/diff.js";
+import { tilemapTools } from "./tools/tilemap.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
-export type GroupName = "runtime" | "signals" | "animation_authoring" | "input_map" | "asset_management" | "user_data";
+export type GroupName =
+  | "runtime"
+  | "signals"
+  | "animation_authoring"
+  | "input_map"
+  | "asset_management"
+  | "user_data"
+  | "scene_advanced"
+  | "editor_advanced";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime",
@@ -45,6 +55,8 @@ const GROUP_NAMES: readonly GroupName[] = [
   "input_map",
   "asset_management",
   "user_data",
+  "scene_advanced",
+  "editor_advanced",
 ];
 
 interface GroupDef {
@@ -80,13 +92,32 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "asset_management",
-    tools: ["asset_get_dependencies", "asset_import", "resource_delete", "file_delete", "scene_delete", "scene_close"],
+    tools: [
+      "asset_get_dependencies",
+      "asset_import",
+      "resource_delete",
+      "file_delete",
+      "scene_delete",
+      "scene_close",
+      "resource_load",
+      "resource_write",
+      "script_delete",
+      "folder_delete",
+    ],
   },
   {
     name: "user_data",
     tools: ["save_read", "save_write", "save_delete", "save_list"],
     gate: "read_user_scope",
     gateEnvVar: "GODOT_MCP_ALLOW_USER_SCOPE",
+  },
+  {
+    name: "scene_advanced",
+    tools: ["scene_diff", "scene_instantiate", "tilemap_set_cells"],
+  },
+  {
+    name: "editor_advanced",
+    tools: ["editor_reload_scripts", "editor_wait_for_idle"],
   },
 ];
 
@@ -109,6 +140,10 @@ for (const tools of [
   fileTools,
   resourceTools,
   editorTools,
+  scriptTools,
+  folderTools,
+  diffTools,
+  tilemapTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }

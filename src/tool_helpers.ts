@@ -110,7 +110,7 @@ export async function callAndWrap(
 
 /**
  * Build a multi-content screenshot response from a bridge result.
- * Shared by editor_screenshot, editor_screenshot_node, and runtime_screenshot.
+ * Shared by editor_screenshot and runtime_screenshot.
  */
 export function buildScreenshotResponse(result: unknown): ToolTextResult {
   const r = result as {
