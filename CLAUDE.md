@@ -70,9 +70,9 @@ enable specialized tools on demand, **stubs** expose locked gates.
 
 | Profile      | Behaviour | Default tools |
 |--------------|-----------|---------------|
-| **standard** (default) | 26 tools (23 core + 3 gated stubs) + `enable_tool_group` + `extensions_refresh` = 28 in `tools/list`. 8 groups (32 tools) loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
+| **standard** (default) | 27 tools (24 core + 3 gated stubs) + `enable_tool_group` + `extensions_refresh` = 29 in `tools/list`. 8 groups (32 tools) loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
 | **minimal** | 12 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
-| **full** (Power User) | All 58 tools registered at startup (group tools eager-loaded, no meta-tool). Startup warning emitted. | Everything passing its feature gate. |
+| **full** (Power User) | All 59 tools registered at startup (group tools eager-loaded, no meta-tool). Startup warning emitted. | Everything passing its feature gate. |
 | **custom**   | Comma-separated tool list via `GODOT_MCP_CUSTOM_TOOLS` env var. | Whatever you list. |
 
 `--lite` still works but maps to `minimal` with a deprecation warning.
@@ -124,9 +124,9 @@ defence-in-depth.
 Gate logic lives in `src/feature_gate.ts`. Each tool module's exported array
 conditionally pushes gated tools based on `isEnabled(feature)`.
 
-Default tool count (standard profile): 26 (23 core + 3 gated stubs) + meta-tool + extensions_refresh = 28 in
+Default tool count (standard profile): 27 (24 core + 3 gated stubs) + meta-tool + extensions_refresh = 29 in
 `tools/list`. 8 groups hold 32 additional tools loaded on demand.
-Full profile with all gates: 58 tools.
+Full profile with all gates: 59 tools.
 
 ### Dual-pass smoke runner (`npm run smoke`)
 

@@ -50,8 +50,11 @@ export const runtimeTools: ToolDef[] = [
       "Inject input into the running game. events: single {event_type, event_data?, delay_before_ms?, delay_after_ms?} for one action, " +
       "or an array for a sequence of actions (prefer a single call with multiple events over separate calls). " +
       "Types: key|mouse_button|mouse_motion|action|click|click_node. click is a composite: auto-focus + warp_mouse + press + 50ms delay + release via push_input (GUI-safe). " +
-      "click_node takes {node_path} — calls grab_focus + emits pressed on BaseButtons (no coordinate guessing). " +
-      "Mouse position: {x, y} flat or {position:{x,y}} nested. " +
+      "click_node takes {node_path} — calls grab_focus + emits pressed on BaseButtons (no coordinate guessing).\n\n" +
+      "Mouse coordinate modes:\n" +
+      "- position: {x, y} — raw viewport/screen coordinates (default). Use for UI elements (buttons, menus).\n" +
+      "- world_position: {x, y} — game-world coordinates, auto-translated via canvas transform (accounts for camera offset and zoom). " +
+      "Use for clicking at specific in-game locations.\n\n" +
       "Mouse events auto-focus the game window and route through push_input for CanvasLayer/GUI support. Returns per-event diagnostics.",
     inputSchema: {
       events: z.union([
@@ -100,16 +103,46 @@ export const runtimeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
+  // I2 waiver: runtime_set_property description exceeds 200-char limit.
+  // Inline examples eliminate the #1 agent confusion (F21/F33): reaching
+  // for game_eval .set() when a purpose-built tool exists.
+  {
+    name: "runtime_set_property",
+    method: "runtime.set_property",
+    description:
+      "Set a property on a node in the running game. " +
+      "Requires a running game (use game_start first). " +
+      "For editor-time scene editing, use node_set_property instead.\n\n" +
+      "Examples:\n" +
+      '  node_path: "/root/Main/Player", property: "speed", value: 400\n' +
+      '  node_path: "/root/Main/Enemy", property: "health", value: 0\n' +
+      '  node_path: "/root/Main/HUD/ScoreLabel", property: "text", value: "Score: 999"',
+    inputSchema: {
+      node_path: z.string().describe("Absolute path to the node in the running scene tree"),
+      property: z.string().describe("Property name (supports compound paths like 'position:x')"),
+      value: z
+        .union([z.string(), z.number(), z.boolean(), z.array(z.any()), z.record(z.string(), z.any())])
+        .describe("Value to set — type is coerced to match the property's existing type"),
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  },
   // game_eval is RCE-equivalent — gated via feature_gate. Plugin-side
   // FeatureGate (feature_gate.gd) performs the full dual-gate check as
   // defence-in-depth; the gate here only controls MCP-catalogue exposure.
+  // I2 waiver: expression-only examples are the fix for F23/F32 — agents
+  // repeatedly tried `score = 100` (assignment) and hit parse errors.
   {
     name: "game_eval",
     method: "game.eval",
     description:
-      "DANGER: evaluates a GDScript expression in the running game. Expression-only — no var/return/if/for statements. " +
-      "Use method calls (node.method()), property reads (node.property), or arithmetic. " +
-      "Prefer input_simulate, runtime_get_node_state, or click_node. If C# project, managed methods are callable at runtime.",
+      "DANGER: evaluates a GDScript expression in the running game. Expression-only — " +
+      "no var/return/if/for statements, no = assignment.\n\n" +
+      "To set properties: get_node('/root/Main/Player').set('speed', 400)\n" +
+      "To call methods: get_node('/root/Main/Player').call('take_damage', 25)\n" +
+      "To read values: get_node('/root/Main/Player').position\n\n" +
+      "Prefer runtime_set_property for single property changes (safer, no expression syntax). " +
+      "Use game_eval for complex multi-step operations or method calls with specific arguments. " +
+      "If C# project, managed methods are callable at runtime.",
     inputSchema: { code: z.string(), scope_path: z.string().optional() },
     annotations: { destructiveHint: true, openWorldHint: false },
     gate: "game_eval",

@@ -58,11 +58,11 @@ function getAllToolDefs(): ToolDef[] {
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 51 base (53 in arrays minus 2 gated: game_eval, node_call_method).
+  // Tool count — 52 base (54 in arrays minus 2 gated: game_eval, node_call_method).
   // getAllToolDefs applies gateFilter, so the base already excludes gated tools.
   // read_user_scope (+4) adds save_read/write/delete/list via conditional spread.
-  // All off = 51; all on = 57.
-  let expectedToolCount = 51;
+  // All off = 52; all on = 58.
+  let expectedToolCount = 52;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;
@@ -89,12 +89,21 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   }
 
   // Tool description length (I2: <= 200 chars, with explicit waivers).
-  const descWaivers = new Set(["enable_tool_group", "input_simulate", "game_eval", "editor_screenshot"]);
+  const descWaivers = new Set([
+    "enable_tool_group",
+    "input_simulate",
+    "game_eval",
+    "editor_screenshot",
+    "runtime_set_property",
+    "node_set_property",
+    "scene_create_node",
+    "scene_instantiate",
+  ]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;
     if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
   }
-  pass("tool descriptions <200 chars (waivers: enable_tool_group, input_simulate, game_eval, editor_screenshot)");
+  pass(`tool descriptions <200 chars (${descWaivers.size} waivers)`);
 }
 
 export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }> {

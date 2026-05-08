@@ -27,7 +27,7 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "script_check",
 ];
 
-/** 28 standard tools (enable_tool_group + extensions_refresh added programmatically → 30 total). */
+/** 29 standard tools (enable_tool_group + extensions_refresh added programmatically → 31 total). */
 export const STANDARD_TOOLS: readonly string[] = [
   // Scene (5)
   "scene_get_tree",
@@ -48,12 +48,13 @@ export const STANDARD_TOOLS: readonly string[] = [
   "editor_save_scene",
   "editor_get_console",
   "project_get_settings",
-  // Playtest (6) — runtime tools promoted from lazy runtime group
+  // Playtest (7) — runtime tools promoted from lazy runtime group
   "game_start",
   "game_stop",
   "runtime_screenshot",
   "input_simulate",
   "runtime_get_script_vars",
+  "runtime_set_property",
   "debugger_get_log",
   // Assets (2)
   "folder_create",
@@ -116,6 +117,7 @@ export const MUTATING_TOOLS = new Set([
   "save_delete",
   // Runtime
   "input_simulate",
+  "runtime_set_property",
   "animation_player_control",
 ]);
 

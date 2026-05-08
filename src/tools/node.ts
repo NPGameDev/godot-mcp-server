@@ -17,11 +17,18 @@ export const nodeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
+  // I2 waiver: node_set_property description exceeds 200-char limit.
+  // Editor-time vs runtime distinction (F21/F33) and anchors-preset
+  // pitfall (F24) both materially reduce mis-calls.
   {
     name: "node_set_property",
     method: "node.set_property",
     description:
-      "Set a property on a node. Engine types: {type:'Vector2',x,y}. Inline sub-resources: {type:'NewResource',class:'CircleShape2D',properties:{radius:50}}.",
+      "Set a property on a node in the EDITOR scene tree (saved to .tscn files). " +
+      "Does NOT affect the running game — for runtime property changes during playtesting, use runtime_set_property.\n\n" +
+      "Engine types: {type:'Vector2',x,y}. Inline sub-resources: {type:'NewResource',class:'CircleShape2D',properties:{radius:50}}.\n\n" +
+      "Anchor presets: setting anchors_preset alone may not auto-apply underlying values. " +
+      "For reliable layout, set anchor_left/top/right/bottom and offset_left/top/right/bottom explicitly.",
     inputSchema: {
       node_path: z.string(),
       property: z

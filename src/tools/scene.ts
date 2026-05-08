@@ -15,11 +15,14 @@ export const sceneTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
+  // I2 waiver: param examples in scene_create_node and scene_instantiate
+  // fix parameter naming confusion (F2/F15/F20).
   {
     name: "scene_create_node",
     method: "scene.create_node",
     description:
-      "Create a node of class_name under parent. Supports engine + user-defined class_name classes. Idempotent: 'returned' on collision, 'created' on fresh.",
+      "Create a node of class_name under parent. Supports engine + user-defined class_name classes. Idempotent: 'returned' on collision, 'created' on fresh.\n\n" +
+      'Example: class_name: "CharacterBody2D", parent_path: "/root/Main", node_name: "Player"',
     inputSchema: {
       class_name: z.string(),
       parent_path: z.string(),
@@ -62,7 +65,8 @@ export const sceneTools: ToolDef[] = [
     name: "scene_instantiate",
     method: "scene.instantiate",
     description:
-      "Instantiate PackedScene at packed_path under parent_path. Silent-return on name collision (status: returned). UndoRedo-wrapped; owner set for save.",
+      "Instantiate PackedScene at packed_path under parent_path. Silent-return on name collision (status: returned). UndoRedo-wrapped; owner set for save.\n\n" +
+      'Example: packed_path: "res://scenes/player.tscn", parent_path: "/root/Main", as_name: "Player"',
     inputSchema: {
       parent_path: z.string(),
       packed_path: z.string(),

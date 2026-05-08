@@ -4,7 +4,7 @@
 ![version](https://img.shields.io/badge/version-1.0.0-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 59 tools for scene manipulation, script editing, resource management, playtesting, and more.
+[MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 60 tools for scene manipulation, script editing, resource management, playtesting, and more.
 
 ## What it does
 
@@ -104,8 +104,8 @@ Control which tools your AI assistant sees. See [Token Efficiency](docs/token-ef
 | Profile | Tools | Catalogue tokens | Best for |
 |---------|-------|-----------------|----------|
 | **minimal** | 13 | ~1,300 | Read-only exploration. Scene inspection, script reading, class lookups. |
-| **standard** | 38 | ~3,600 | Day-to-day development. Scene/script/resource editing plus on-demand group access. |
-| **Power User** | 59 | ~5,700 | Full access including feature-gated tools. Risk warning on activation. |
+| **standard** | 39 | ~3,700 | Day-to-day development. Scene/script/resource editing plus on-demand group access. |
+| **Power User** | 60 | ~5,800 | Full access including feature-gated tools. Risk warning on activation. |
 | **custom** | user-defined | varies | Cherry-pick tools via `GODOT_MCP_CUSTOM_TOOLS`. |
 
 ```bash
