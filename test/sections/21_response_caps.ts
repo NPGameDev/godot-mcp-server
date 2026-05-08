@@ -40,15 +40,17 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
     fail(`response cap: expected FILE_TOO_LARGE, got ${JSON.stringify(readResult)?.slice(0, 200)}`);
   } else if (typeof readResult.total_bytes !== "number" || readResult.total_bytes < 262144) {
     fail(`response cap: FILE_TOO_LARGE missing/invalid total_bytes: ${readResult.total_bytes}`);
-  } else if (!readResult.hint?.includes("script_read_range")) {
+  } else if (!readResult.hint?.includes("start_line")) {
     fail(`response cap: FILE_TOO_LARGE missing hint: ${readResult.hint}`);
   } else {
     pass(`response cap: script_read 300KB -> FILE_TOO_LARGE (${readResult.total_bytes} bytes)`);
   }
 
-  // ── script_read_range happy path ──────────────────────────────────────
+  // ── script.read with start_line/end_line (range read) ─────────────────
+  // Range reading is done via script.read with start_line/end_line params
+  // (not a separate script.read_range method).
   const rangeResult = (await bridge.call(
-    "script.read_range",
+    "script.read",
     {
       file_path: largePath,
       start_line: 1,
@@ -63,18 +65,18 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
     code?: string;
   };
   if (rangeResult?.code) {
-    fail(`script_read_range: unexpected error: ${JSON.stringify(rangeResult)}`);
+    fail(`script_read range: unexpected error: ${JSON.stringify(rangeResult)}`);
   } else if (typeof rangeResult?.content !== "string" || !rangeResult.content.includes("<untrusted")) {
-    fail(`script_read_range: missing/unwrapped content: ${JSON.stringify(rangeResult)?.slice(0, 200)}`);
+    fail(`script_read range: missing/unwrapped content: ${JSON.stringify(rangeResult)?.slice(0, 200)}`);
   } else if (rangeResult.start_line !== 1 || rangeResult.end_line !== 100) {
-    fail(`script_read_range: wrong line range: ${rangeResult.start_line}-${rangeResult.end_line}`);
+    fail(`script_read range: wrong line range: ${rangeResult.start_line}-${rangeResult.end_line}`);
   } else {
     const inner = unwrapUntrusted(rangeResult.content) as string;
     const lineCount = inner.split("\n").length;
     if (lineCount !== 100) {
-      fail(`script_read_range: expected 100 lines, got ${lineCount}`);
+      fail(`script_read range: expected 100 lines, got ${lineCount}`);
     } else {
-      pass(`script_read_range: 1-100 of ${rangeResult.total_lines} lines`);
+      pass(`script_read range: 1-100 of ${rangeResult.total_lines} lines`);
     }
   }
 

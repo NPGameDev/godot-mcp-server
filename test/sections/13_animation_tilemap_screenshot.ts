@@ -123,7 +123,9 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     /* noop */
   }
 
-  // ── editor.screenshot_node ──
+  // ── editor.screenshot with node_path (node-focused capture) ──
+  // editor.screenshot_node was merged into editor.screenshot via the
+  // optional node_path parameter. The bridge method is editor.screenshot.
   const screenshotNodeTarget = (await bridge.call(
     "scene.create_node",
     { class_name: "ColorRect", parent_path: ".", node_name: "MCPSmokeRect" },
@@ -144,32 +146,32 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
   // Wait for the editor to process the new node before capturing.
   await new Promise((r) => setTimeout(r, 500));
   const nodeScreenshotResult = (await bridge.call(
-    "editor.screenshot_node",
+    "editor.screenshot",
     { node_path: screenshotNodePath },
     SCREENSHOT_TIMEOUT,
   )) as { image_base64?: string; width?: number; height?: number; code?: string };
   if (nodeScreenshotResult?.image_base64 && nodeScreenshotResult.image_base64.length >= 100) {
     pass(
-      `editor.screenshot_node ${screenshotNodePath} -> ${nodeScreenshotResult.width}x${nodeScreenshotResult.height} base64=${nodeScreenshotResult.image_base64.length}`,
+      `editor.screenshot node_path=${screenshotNodePath} -> ${nodeScreenshotResult.width}x${nodeScreenshotResult.height} base64=${nodeScreenshotResult.image_base64.length}`,
     );
   } else {
     // Node capture can return null if the editor viewport hasn't rendered
     // the freshly created node yet. Accept as a soft skip rather than fail.
-    pass(`editor.screenshot_node ${screenshotNodePath} -> null (timing-dependent; viewport capture skipped)`);
+    pass(`editor.screenshot node_path=${screenshotNodePath} -> null (timing-dependent; viewport capture skipped)`);
   }
 
   assertGuard(
     ctx,
-    "editor.screenshot_node missing",
-    await bridge.call("editor.screenshot_node", { node_path: "/root/NoSuch_15d_xyz" }, CALL_TIMEOUT),
+    "editor.screenshot node_path missing",
+    await bridge.call("editor.screenshot", { node_path: "/root/NoSuch_15d_xyz" }, CALL_TIMEOUT),
     "NOT_FOUND",
     "node",
   );
   assertGuard(
     ctx,
-    "editor.screenshot_node tiny size",
+    "editor.screenshot node_path tiny size",
     await bridge.call(
-      "editor.screenshot_node",
+      "editor.screenshot",
       { node_path: screenshotNodePath, size: { width: 32, height: 32 } },
       CALL_TIMEOUT,
     ),

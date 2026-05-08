@@ -241,7 +241,9 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     "absolute",
   );
 
-  // folder.delete — PATH_IN_USE refusal + clean teardown via scene.close.
+  // folder.delete — auto-switch when edited scene is inside the folder.
+  // The plugin auto-switches to another open scene and proceeds with deletion
+  // (returns success with switched_to + hint). No PATH_IN_USE refusal.
   const pathInUseDir = "res://smoke_path_in_use";
   const pathInUseProbe = `${pathInUseDir}/probe.tscn`;
   try {
@@ -259,19 +261,17 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     "folder.delete",
     { folder_path: pathInUseDir, recursive: true },
     CALL_TIMEOUT,
-  )) as { code?: string; error?: string };
-  if (folderInUse?.code !== "PATH_IN_USE" || !folderInUse.error?.includes(pathInUseProbe)) {
+  )) as { success?: boolean; switched_to?: string; hint?: string; code?: string; error?: string };
+  if (folderInUse?.success && folderInUse.switched_to) {
+    pass(`folder.delete on folder containing edited scene -> auto-switched to ${folderInUse.switched_to}`);
+  } else {
     fail(
-      `folder.delete on folder containing edited scene: expected PATH_IN_USE naming ${pathInUseProbe}, got ${JSON.stringify(folderInUse)}`,
+      `folder.delete on folder containing edited scene: expected success with switched_to, got ${JSON.stringify(folderInUse)}`,
     );
-  } else pass(`folder.delete refuses folder containing edited scene -> PATH_IN_USE`);
-  const pathInUseClose = (await bridge.call("scene.close", { file_path: pathInUseProbe }, CALL_TIMEOUT)) as {
-    success?: boolean;
-  };
-  if (!pathInUseClose?.success) fail(`PATH_IN_USE probe scene.close: ${JSON.stringify(pathInUseClose)}`);
-  await bridge.call("scene.delete", { file_path: pathInUseProbe }, CALL_TIMEOUT);
-  await bridge.call("folder.delete", { folder_path: pathInUseDir, recursive: true }, CALL_TIMEOUT);
-  pass("PATH_IN_USE probe: clean teardown via scene.close + delete");
+  }
+  // Folder + scene already deleted; re-open main scene to restore state.
+  await bridge.call("scene.open", { file_path: "res://Main.tscn" }, CALL_TIMEOUT);
+  pass("PATH_IN_USE probe: clean teardown via scene.open after auto-switch");
 
   // folder.delete guards.
   assertGuard(
