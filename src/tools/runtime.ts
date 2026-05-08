@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { callAndWrap, registerTools } from "../tool_helpers.js";
+import { callAndWrap, registerTools, toolErrorFromPayload, toolErrorFromException } from "../tool_helpers.js";
+import { stableStringify } from "../schema_min.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:6525. Only works while the game is running in a debug build
@@ -115,18 +116,82 @@ export const runtimeTools: ToolDef[] = [
   },
 ];
 
+// ── Custom handlers ─────────────────────────────────────────────────
+// Promoted tools (runtime_screenshot, input_simulate, runtime_get_script_vars,
+// debugger_get_log) have custom response processing. The remaining 2 tools
+// (runtime_get_node_state, animation_player_control) stay in the
+// runtime_advanced group and are registered by groups.ts.
+
+/** runtime_screenshot returns multi-content (image + text metadata). */
+function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown) {
+  return (async () => {
+    try {
+      const result = await bridge.callRuntime(method, input);
+      const err = toolErrorFromPayload(result);
+      if (err) return err;
+      const obj = result as { image_base64: string; mime_type: string; width: number; height: number; bytes: number };
+      return {
+        content: [
+          { type: "image" as const, data: obj.image_base64, mimeType: obj.mime_type ?? "image/png" },
+          {
+            type: "text" as const,
+            text: JSON.stringify({ width: obj.width, height: obj.height, bytes: obj.bytes }),
+          },
+        ],
+      };
+    } catch (err) {
+      return toolErrorFromException(err);
+    }
+  })();
+}
+
+/** input_simulate normalizes a single event object to an array. */
+function inputSimulateHandler(bridge: Bridge, method: string, input: unknown) {
+  const parsed = input as Record<string, unknown>;
+  if (parsed.events && !Array.isArray(parsed.events)) {
+    parsed.events = [parsed.events];
+  }
+  return callAndWrap(bridge, method, parsed, { runtime: true });
+}
+
+/** debugger_get_log prefixes a line-count summary before the payload. */
+function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
+  return (async () => {
+    try {
+      const result = await bridge.callRuntime(method, input);
+      const err = toolErrorFromPayload(result);
+      if (err) return err;
+      const obj = result as Record<string, unknown>;
+      const count = typeof obj.count === "number" ? obj.count : 0;
+      const total = typeof obj.total === "number" ? obj.total : count;
+      const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
+      const text = stableStringify({ _summary: summary, ...obj });
+      return { content: [{ type: "text" as const, text }] };
+    } catch (e) {
+      return toolErrorFromException(e);
+    }
+  })();
+}
+
 // ── Registration ─────────────────────────────────────────────────────
 
-// NOTE: All runtime-group tools (runtime_screenshot, runtime_get_node_state,
-// debugger_get_log, input_simulate, animation_player_control) are registered
-// by groups.ts with custom handlers (multi-content screenshots, summary-first
-// logs). This register() only runs for tools that pass through moduleAllowed
-// — i.e., tools NOT in GROUP_TOOL_NAMES. Gated tools (game_eval) are
-// skipped here when their gate is closed; registerStubs covers them.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
+  // Custom handlers for promoted tools
+  handlers.set(
+    "runtime_screenshot",
+    (input) => runtimeScreenshotHandler(bridge, "runtime.screenshot", input) as Promise<ToolTextResult>,
+  );
+  handlers.set("input_simulate", (input) => inputSimulateHandler(bridge, "input.simulate", input));
+  handlers.set(
+    "debugger_get_log",
+    (input) => debuggerLogHandler(bridge, "debugger.get_log", input) as Promise<ToolTextResult>,
+  );
+  // Default runtime handler for remaining tools
   for (const tool of runtimeTools) {
-    handlers.set(tool.name, (input) => callAndWrap(bridge, tool.method, input, { runtime: true }));
+    if (!handlers.has(tool.name)) {
+      handlers.set(tool.name, (input) => callAndWrap(bridge, tool.method, input, { runtime: true }));
+    }
   }
   registerTools(server, bridge, runtimeTools, allowedTools ? allowedTools : null, { handlers });
 }

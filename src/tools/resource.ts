@@ -34,7 +34,7 @@ export const resourceTools: ToolDef[] = [
     name: "resource_delete",
     method: "resource.delete",
     description:
-      "Delete the .tres/.res and its .uid companion at file_path. No active-use guard (Godot refs survive file deletion; detect orphans via editor_get_errors).",
+      "Delete the .tres/.res and its .uid companion at file_path. No active-use guard (Godot refs survive file deletion; detect orphans via editor_get_console).",
     inputSchema: { file_path: z.string() },
     annotations: { destructiveHint: true, openWorldHint: false },
   },

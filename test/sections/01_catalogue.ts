@@ -58,12 +58,13 @@ function getAllToolDefs(): ToolDef[] {
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 54 base; feature gates add more when env vars are set.
+  // Tool count — 53 base; feature gates add more when env vars are set.
   // game_eval (+1), node_call_method (+1) are gated.
   // read_user_scope (+4) adds save_read/write/delete/list.
   // input_map and project_set_setting are always included (ungated).
-  // All off = 54; all on = 60.
-  let expectedToolCount = 54;
+  // All off = 53; all on = 59.
+  // (was 54/60 before editor_get_errors was merged into editor_get_console)
+  let expectedToolCount = 53;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;

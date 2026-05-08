@@ -13,14 +13,12 @@ export const PROFILE_DISPLAY_NAMES: Record<ProfileName, string> = {
   power_user: "Power User",
 };
 
-/** 12 read-only tools for exploration and code review. */
+/** 10 read-only tools for exploration and code review. */
 export const MINIMAL_TOOLS: readonly string[] = [
   "scene_get_tree",
   "node_get_property",
   "node_get_property_list",
   "script_read",
-  "editor_get_errors",
-  "editor_screenshot",
   "editor_get_console",
   "project_get_settings",
   "asset_list",
@@ -29,7 +27,7 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "script_check",
 ];
 
-/** 26 standard tools (enable_tool_group + extensions_refresh added programmatically). */
+/** 28 standard tools (enable_tool_group + extensions_refresh added programmatically → 30 total). */
 export const STANDARD_TOOLS: readonly string[] = [
   // Scene (5)
   "scene_get_tree",
@@ -45,15 +43,18 @@ export const STANDARD_TOOLS: readonly string[] = [
   // Script (2)
   "script_read",
   "script_write",
-  // Editor (5)
-  "editor_get_errors",
+  // Editor (3) — editor_screenshot demoted to editor_advanced group;
+  // editor_get_errors removed (use editor_get_console with level_filter)
   "editor_save_scene",
-  "editor_screenshot",
   "editor_get_console",
   "project_get_settings",
-  // Playtest (2)
+  // Playtest (6) — runtime tools promoted from lazy runtime group
   "game_start",
   "game_stop",
+  "runtime_screenshot",
+  "input_simulate",
+  "runtime_get_script_vars",
+  "debugger_get_log",
   // Assets (2)
   "folder_create",
   "asset_list",

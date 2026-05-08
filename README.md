@@ -175,14 +175,11 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 </details>
 
 <details>
-<summary><strong>Editor tools</strong> (9)</summary>
+<summary><strong>Editor tools</strong> (7)</summary>
 
 | Tool | Description |
 |------|-------------|
-| `editor_get_errors` | Tail editor-time errors |
 | `editor_save_scene` | Save (or save-as) the current scene |
-| `editor_screenshot` | Capture a screenshot of the editor viewport |
-| `editor_screenshot_node` | Focus and capture a specific node |
 | `editor_reload_scripts` | Rescan `res://` and reload scripts |
 | `editor_get_console` | Tail the editor Output panel |
 | `editor_wait_for_idle` | Wait for EditorFileSystem scan to complete |
@@ -235,12 +232,13 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 </details>
 
 <details>
-<summary><strong>Runtime tools</strong> (6)</summary>
+<summary><strong>Runtime tools</strong> (7)</summary>
 
 | Tool | Description |
 |------|-------------|
 | `runtime_screenshot` | Capture a frame from the running game |
 | `runtime_get_node_state` | Inspect a live node in the running game |
+| `runtime_get_script_vars` | Get script variables for a live game node |
 | `debugger_get_log` | Read recent game log lines |
 | `input_simulate` | Inject input events into the running game |
 | `animation_player_control` | Drive an AnimationPlayer at runtime |
@@ -303,7 +301,7 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 
 ## Headless mode
 
-When Godot runs with `--headless --editor`, the plugin loads and 57 of 59 tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `editor_screenshot_node`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.6 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
+When Godot runs with `--headless --editor`, the plugin loads and 51 of 53 tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `runtime_screenshot`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.6 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
 
 ## Token efficiency
 

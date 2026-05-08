@@ -15,7 +15,6 @@ import {
   registerToolWrapped,
   batchToolRegistration,
 } from "./tool_helpers.js";
-import { stableStringify } from "./schema_min.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
 import { MUTATING_TOOLS } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
@@ -39,7 +38,7 @@ import { tilemapTools } from "./tools/tilemap.js";
 // ── Group definitions ────────────────────────────────────────────────
 
 export type GroupName =
-  | "runtime"
+  | "runtime_advanced"
   | "signals"
   | "animation_authoring"
   | "input_map"
@@ -49,7 +48,7 @@ export type GroupName =
   | "editor_advanced";
 
 const GROUP_NAMES: readonly GroupName[] = [
-  "runtime",
+  "runtime_advanced",
   "signals",
   "animation_authoring",
   "input_map",
@@ -68,15 +67,8 @@ interface GroupDef {
 
 export const GROUPS: GroupDef[] = [
   {
-    name: "runtime",
-    tools: [
-      "runtime_screenshot",
-      "runtime_get_node_state",
-      "runtime_get_script_vars",
-      "debugger_get_log",
-      "input_simulate",
-      "animation_player_control",
-    ],
+    name: "runtime_advanced",
+    tools: ["runtime_get_node_state", "animation_player_control"],
   },
   {
     name: "signals",
@@ -117,7 +109,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "editor_advanced",
-    tools: ["editor_reload_scripts", "editor_wait_for_idle"],
+    tools: ["editor_screenshot", "editor_reload_scripts", "editor_wait_for_idle"],
   },
 ];
 
@@ -148,15 +140,11 @@ for (const tools of [
   for (const t of tools) allDefs.set(t.name, t);
 }
 
-// Tools that route through the runtime (Mode B) bridge.
-const RUNTIME_TOOLS = new Set([
-  "runtime_screenshot",
-  "runtime_get_node_state",
-  "runtime_get_script_vars",
-  "debugger_get_log",
-  "input_simulate",
-  "animation_player_control",
-]);
+// Tools that route through the runtime (Mode B) bridge — only the 2
+// remaining runtime_advanced group tools. The 4 promoted tools
+// (runtime_screenshot, input_simulate, runtime_get_script_vars,
+// debugger_get_log) are now standard and handled by runtime.ts.
+const RUNTIME_TOOLS = new Set(["runtime_get_node_state", "animation_player_control"]);
 
 // Tracks loaded groups for the session.
 const loadedGroups = new Set<string>();
@@ -266,56 +254,45 @@ function handleSignalEmit(bridge: Bridge, def: ToolDef) {
   };
 }
 
-/** runtime_screenshot returns multi-content (image + text metadata). */
-function handleRuntimeScreenshot(bridge: Bridge, def: ToolDef) {
+/** editor_screenshot returns multi-content (image + text metadata). */
+function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
   return async (input: unknown) => {
     try {
-      const result = await bridge.callRuntime(def.method, input);
+      const result = await bridge.call(def.method, input ?? {});
       const err = toolErrorFromPayload(result);
       if (err) return err;
-      // Plugin response shape: { image_base64, mime_type, width, height, bytes }
-      const obj = result as { image_base64: string; mime_type: string; width: number; height: number; bytes: number };
+      const obj = result as {
+        image_base64?: string;
+        mime_type?: string;
+        width?: number;
+        height?: number;
+        bytes?: number;
+        path?: string;
+      };
+      if (!obj?.image_base64) {
+        return toolErrorFromPayload({
+          success: false,
+          code: "EMPTY_CONTENT",
+          error:
+            "screenshot returned no image bytes — node may lack visual content. Use editor_screenshot for full viewport.",
+        })!;
+      }
       return {
         content: [
           { type: "image" as const, data: obj.image_base64, mimeType: obj.mime_type ?? "image/png" },
           {
             type: "text" as const,
-            text: JSON.stringify({ width: obj.width, height: obj.height, bytes: obj.bytes }),
+            text: JSON.stringify({
+              width: obj.width,
+              height: obj.height,
+              bytes: obj.bytes,
+              path: obj.path,
+            }),
           },
         ],
       };
     } catch (err) {
       return toolErrorFromException(err);
-    }
-  };
-}
-
-/** input_simulate normalizes a single event object to an array. */
-function handleInputSimulate(bridge: Bridge, def: ToolDef) {
-  return async (input: unknown) => {
-    const parsed = input as Record<string, unknown>;
-    if (parsed.events && !Array.isArray(parsed.events)) {
-      parsed.events = [parsed.events];
-    }
-    return callAndWrap(bridge, def.method, parsed, { runtime: true });
-  };
-}
-
-/** debugger_get_log prefixes a line-count summary before the payload. */
-function handleDebuggerLog(bridge: Bridge, def: ToolDef) {
-  return async (input: unknown) => {
-    try {
-      const result = await bridge.callRuntime(def.method, input);
-      const err = toolErrorFromPayload(result);
-      if (err) return err;
-      const obj = result as Record<string, unknown>;
-      const count = typeof obj.count === "number" ? obj.count : 0;
-      const total = typeof obj.total === "number" ? obj.total : count;
-      const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
-      const text = stableStringify({ _summary: summary, ...obj });
-      return { content: [{ type: "text" as const, text }] };
-    } catch (e) {
-      return toolErrorFromException(e);
     }
   };
 }
@@ -330,12 +307,8 @@ function createHandler(bridge: Bridge, def: ToolDef) {
   switch (def.name) {
     case "signal_emit":
       return handleSignalEmit(bridge, def);
-    case "runtime_screenshot":
-      return handleRuntimeScreenshot(bridge, def);
-    case "input_simulate":
-      return handleInputSimulate(bridge, def);
-    case "debugger_get_log":
-      return handleDebuggerLog(bridge, def);
+    case "editor_screenshot":
+      return handleEditorScreenshot(bridge, def);
     default: {
       const useRuntime = RUNTIME_TOOLS.has(def.name);
       return (input: unknown) => callAndWrap(bridge, def.method, input, { runtime: useRuntime });

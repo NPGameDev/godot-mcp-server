@@ -9,17 +9,6 @@ import { stableStringify } from "../schema_min.js";
 
 export const editorTools: ToolDef[] = [
   {
-    name: "editor_get_errors",
-    method: "editor.get_errors",
-    description:
-      "Editor-time error tail (wraps editor.get_console with level='error'). source='buffer' (default) reads the real-time in-memory ring buffer; source='file' reads the full session log file.",
-    inputSchema: {
-      limit: z.number().optional(),
-      source: z.enum(["buffer", "file"]).optional(),
-    },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-  },
-  {
     name: "editor_save_scene",
     method: "editor.save_scene",
     description: "Save the current edited scene. Optional file_path triggers save-as.",
@@ -83,7 +72,10 @@ export const editorTools: ToolDef[] = [
       "Tail editor Output panel. source='buffer'(default) reads in-memory ring buffer; source='file' reads full session log. level_filter + since_id for polling.",
     inputSchema: {
       limit: z.number().optional(),
-      level_filter: z.array(z.enum(["info", "warning", "error"])).optional(),
+      level_filter: z
+        .union([z.enum(["info", "warning", "error"]), z.array(z.enum(["info", "warning", "error"]))])
+        .optional()
+        .describe("Single level or array of levels to filter by"),
       since_id: z.number().optional(),
       source: z.enum(["buffer", "file"]).optional(),
     },
@@ -115,17 +107,23 @@ export const editorTools: ToolDef[] = [
 // ── Custom handlers ──────────────────────────────────────────────────
 
 /**
- * Summary-first handler for editor_get_errors — prefixes an error count
- * so the model sees the headline before the (potentially large) error text.
+ * Summary-first handler for editor_get_console — prefixes a line count
+ * so the model sees the headline before the (potentially large) output.
  */
-async function errorSummaryHandler(bridge: Bridge, method: string, input: unknown) {
+async function consoleSummaryHandler(bridge: Bridge, method: string, input: unknown) {
   try {
-    const result = await bridge.call(method, input);
+    // Normalize level_filter: wrap single string in an array for the plugin.
+    const parsed = input as Record<string, unknown>;
+    if (typeof parsed?.level_filter === "string") {
+      parsed.level_filter = [parsed.level_filter];
+    }
+    const result = await bridge.call(method, parsed);
     const err = toolErrorFromPayload(result);
     if (err) return err;
     const obj = result as Record<string, unknown>;
     const count = typeof obj.count === "number" ? obj.count : 0;
-    const summary = `${count} error${count !== 1 ? "s" : ""}`;
+    const total = typeof obj.total === "number" ? obj.total : count;
+    const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
     const text = stableStringify({ _summary: summary, ...obj });
     return { content: [{ type: "text" as const, text }] };
   } catch (e) {
@@ -178,7 +176,7 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
-  handlers.set("editor_get_errors", (input) => errorSummaryHandler(bridge, "editor.get_errors", input));
+  handlers.set("editor_get_console", (input) => consoleSummaryHandler(bridge, "editor.get_console", input));
   // Screenshot handler returns image+text multi-content; cast to ToolTextResult
   // since the MCP SDK accepts any content type at runtime.
   handlers.set(

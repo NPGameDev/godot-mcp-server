@@ -300,7 +300,7 @@ for end users with no further edits. See iter 13b + iter 20 in the plan repo.
    full-only (only visible in the `full` profile). Gated tools go in their
    module's conditional push block.
 4. If the tool returns non-text content (images, binary), handle it explicitly
-   in the module's `register()` function — see `editor.ts` `editor_screenshot`
+   in the module's `register()` function — see `runtime.ts` `runtime_screenshot`
    for the image path. Group tools with custom handlers go in `createHandler`
    in `src/groups.ts`.
 5. Add a smoke-test round-trip assertion under the existing ones in
@@ -337,7 +337,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `INVALID_PARAMS`   | plugin           | JSON-RPC params shape error (missing required field, wrong type).             |
 | `INVALID_PATH`     | plugin           | Semantic refusal — edited-root on `scene_delete_node`, wrong prefix/extension on `scene_*` / `script_*` / `resource_*` / `folder_*`. Script tools now require `.gd`/`.cs`/`.gdshader`/`.gdshaderinc`. |
 | `LOAD_FAILED`      | plugin           | `ResourceLoader.load` returned null.                                          |
-| `LOG_UNAVAILABLE`  | plugin (iter 15e)| `editor_get_console` / `editor_get_errors` couldn't find a readable log under `user://logs/`. Check `application/config/use_file_logging`. |
+| `LOG_UNAVAILABLE`  | plugin (iter 15e)| `editor_get_console` couldn't find a readable log under `user://logs/`. Check `application/config/use_file_logging`. |
 | `NO_RUNTIME_URL`   | bridge           | `callRuntime` invoked when `createBridge` got no runtime URL.                 |
 | `NO_SCENE`         | plugin           | `EditorInterface.get_edited_scene_root()` returned null.                      |
 | `NOT_A_RESOURCE`   | plugin (iter 15b)| `resource_save` / `resource_delete` target loaded but isn't a Resource subclass. |
