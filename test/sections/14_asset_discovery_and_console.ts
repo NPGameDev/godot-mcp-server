@@ -281,6 +281,115 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     "[1, 1000]",
   );
 
+  // ── text_filter ──
+  const filterHit = "res://smoke_txtflt_hit.gd";
+  const filterMiss = "res://smoke_txtflt_miss.gd";
+
+  // 1. Seed known errors with unique filenames
+  try {
+    await bridge.call("script.write", { file_path: filterHit, content: "extends BogusHitClass" }, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
+  try {
+    await bridge.call("script.write", { file_path: filterMiss, content: "extends BogusMissClass" }, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
+  try {
+    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
+  await new Promise((r) => setTimeout(r, 1000));
+
+  // 2. Plain-text keyword match — only "hit" entries returned
+  const tfKeyword = (await bridge.call(
+    "editor.get_console",
+    { text_filter: "txtflt_hit", limit: 100 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; entries?: unknown; count?: number };
+  const kwEntries = unwrapUntrusted(tfKeyword?.entries) as { message: string }[] | null;
+  if (
+    tfKeyword?.success &&
+    kwEntries &&
+    kwEntries.length > 0 &&
+    kwEntries.every((e) => /txtflt_hit/i.test(e.message)) &&
+    !kwEntries.some((e) => /txtflt_miss/i.test(e.message))
+  )
+    pass(`text_filter plain -> count=${tfKeyword.count}`);
+  else fail(`text_filter plain: ${JSON.stringify({ success: tfKeyword?.success, count: tfKeyword?.count })}`);
+
+  // 3. Regex alternation with is_regex=true — both markers
+  const tfRegex = (await bridge.call(
+    "editor.get_console",
+    { text_filter: "txtflt_(hit|miss)", is_regex: true, limit: 100 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; entries?: unknown; count?: number };
+  const rxEntries = unwrapUntrusted(tfRegex?.entries) as { message: string }[] | null;
+  const hasHit = rxEntries?.some((e) => /txtflt_hit/i.test(e.message));
+  const hasMiss = rxEntries?.some((e) => /txtflt_miss/i.test(e.message));
+  if (tfRegex?.success && hasHit && hasMiss) pass(`text_filter is_regex=true alternation -> count=${tfRegex.count}`);
+  else fail(`text_filter regex: hit=${hasHit} miss=${hasMiss}`);
+
+  // 4. is_regex=true with invalid pattern — INVALID_PARAMS + hint
+  assertGuard(
+    ctx,
+    "text_filter invalid regex",
+    await bridge.call("editor.get_console", { text_filter: "(unclosed", is_regex: true }, CALL_TIMEOUT),
+    "INVALID_PARAMS",
+    ["regex", "is_regex"],
+  );
+
+  // 5. Plain-text metacharacters treated literally (NOT as regex)
+  const tfLiteral = (await bridge.call(
+    "editor.get_console",
+    { text_filter: "Bogus(Hit)Class", limit: 100 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; count?: number };
+  if (tfLiteral?.success && tfLiteral.count === 0) pass("text_filter plain with parens -> safe, no match (literal)");
+  else fail(`text_filter literal parens: count=${tfLiteral?.count}`);
+
+  // 6. text_filter + level_filter composition
+  const tfLevel = (await bridge.call(
+    "editor.get_console",
+    { text_filter: "txtflt_hit", level_filter: ["error"], limit: 100 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; count?: number; entries?: unknown };
+  const lvlEntries = unwrapUntrusted(tfLevel?.entries) as { message: string; level: string }[] | null;
+  if (tfLevel?.success && lvlEntries && lvlEntries.every((e) => /txtflt_hit/i.test(e.message) && e.level === "error"))
+    pass(`text_filter + level_filter -> count=${tfLevel.count}`);
+  else fail(`text_filter + level_filter: ${JSON.stringify({ success: tfLevel?.success, count: tfLevel?.count })}`);
+
+  // 7. No match — empty result
+  const tfNone = (await bridge.call(
+    "editor.get_console",
+    { text_filter: "ZZZZZ_NO_MATCH_41k6", limit: 100 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; count?: number };
+  if (tfNone?.success && tfNone.count === 0) pass("text_filter no match -> count=0");
+  else fail(`text_filter no match: count=${tfNone?.count}`);
+
+  // 8. editor.get_errors text_filter
+  const tfErrors = (await bridge.call("editor.get_errors", { text_filter: "txtflt_hit" }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    count?: number;
+  };
+  if (tfErrors?.success) pass(`editor.get_errors text_filter -> count=${tfErrors.count}`);
+  else fail(`editor.get_errors text_filter: ${JSON.stringify(tfErrors)}`);
+
+  // Cleanup text_filter probe files
+  try {
+    await bridge.call("script.delete", { file_path: filterHit }, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
+  try {
+    await bridge.call("script.delete", { file_path: filterMiss }, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
+
   // Invalid source rejected for get_errors too.
   assertGuard(
     ctx,

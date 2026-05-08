@@ -69,7 +69,7 @@ export const editorTools: ToolDef[] = [
     name: "editor_get_console",
     method: "editor.get_console",
     description:
-      "Tail editor Output panel. source='buffer'(default) reads in-memory ring buffer; source='file' reads full session log. level_filter + since_id for polling.",
+      "Tail editor Output panel. source='buffer' reads ring buffer; 'file' reads session log. level_filter + since_id for polling. text_filter: plain text by default; is_regex=true to interpret as regex.",
     inputSchema: {
       limit: z.number().optional(),
       level_filter: z
@@ -78,6 +78,14 @@ export const editorTools: ToolDef[] = [
         .describe("Single level or array of levels to filter by"),
       since_id: z.number().optional(),
       source: z.enum(["buffer", "file"]).optional(),
+      text_filter: z
+        .string()
+        .optional()
+        .describe("Substring to match against message text (case-insensitive). Set is_regex=true for regex patterns."),
+      is_regex: z
+        .boolean()
+        .optional()
+        .describe("Treat text_filter as a regex pattern instead of a plain substring (default false)."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

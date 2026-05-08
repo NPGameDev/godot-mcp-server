@@ -33,10 +33,18 @@ export const runtimeTools: ToolDef[] = [
     name: "debugger_get_log",
     method: "debugger.get_log",
     description:
-      "Return recent output from the running game. source='buffer'(default) reads ring buffer; source='file' reads user://logs/godot.log. limit default 200.",
+      "Get recent output from running game. source='buffer' reads ring buffer; 'file' reads user://logs/godot.log. limit default 200. text_filter: plain text by default; is_regex=true to interpret as regex.",
     inputSchema: {
       limit: z.number().int().positive().optional(),
       source: z.enum(["buffer", "file"]).optional(),
+      text_filter: z
+        .string()
+        .optional()
+        .describe("Substring to match against log message text (case-insensitive). Set is_regex=true for regex."),
+      is_regex: z
+        .boolean()
+        .optional()
+        .describe("Treat text_filter as a regex pattern instead of a plain substring (default false)."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
