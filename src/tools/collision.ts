@@ -1,0 +1,28 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+
+import type { Bridge, ToolDef } from "../types.js";
+import { registerTools } from "../tool_helpers.js";
+
+export const collisionTools: ToolDef[] = [
+  {
+    name: "collision_from_texture",
+    method: "node.collision_from_sprite",
+    description:
+      "Auto-generate CollisionPolygon2D from a Sprite2D's texture alpha. Uses BitMap to trace opaque regions. For platformer terrain, character hitboxes, irregular shapes.",
+    inputSchema: {
+      sprite_path: z.string().describe("Path to a Sprite2D/TextureRect node with a texture"),
+      target_parent: z.string().optional().describe("Parent for the new CollisionPolygon2D (default: sprite's parent)"),
+      target_name: z.string().optional().describe("Name for the CollisionPolygon2D (default: {sprite}_collision)"),
+      simplification: z
+        .number()
+        .optional()
+        .describe("Polygon simplification epsilon 0.0-10.0 (default 2.0, higher=fewer points)"),
+    },
+    annotations: { openWorldHint: false },
+  },
+];
+
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+  registerTools(server, bridge, collisionTools, allowedTools);
+}

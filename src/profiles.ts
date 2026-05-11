@@ -119,6 +119,7 @@ export const MUTATING_TOOLS = new Set([
   "theme_edit",
   // Path editing
   "path2d_edit_curve",
+  "collision_from_texture",
   // User data
   "save_write",
   "save_delete",

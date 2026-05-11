@@ -38,6 +38,7 @@ import { themeTools } from "./tools/theme.js";
 import { nodeManagementTools } from "./tools/node_management.js";
 import { layerNameTools } from "./tools/layer_names.js";
 import { pathTools } from "./tools/path.js";
+import { collisionTools } from "./tools/collision.js";
 import { threeDTools } from "./tools/three_d.js";
 
 // ── Group definitions ────────────────────────────────────────────────
@@ -202,8 +203,8 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "path_editing",
-    tools: ["path2d_edit_curve"],
-    keywords: ["path", "path2d", "curve", "bezier", "spline", "follow path", "curve2d"],
+    tools: ["path2d_edit_curve", "collision_from_texture"],
+    keywords: ["path", "path2d", "curve", "bezier", "spline", "follow path", "curve2d", "collision", "collision polygon", "sprite", "bitmap", "alpha", "shape from texture"],
   },
   {
     name: "3d_tools",
@@ -250,6 +251,7 @@ for (const tools of [
   nodeManagementTools,
   layerNameTools,
   pathTools,
+  collisionTools,
   threeDTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
