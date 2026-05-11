@@ -70,9 +70,9 @@ enable specialized tools on demand, **stubs** expose locked gates.
 
 | Profile      | Behaviour | Default tools |
 |--------------|-----------|---------------|
-| **standard** (default) | 27 tools (24 core + 3 gated stubs) + `enable_tool_group` + `extensions_refresh` = 29 in `tools/list`. 8 groups (32 tools) loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
+| **standard** (default) | 27 tools (24 core + 3 gated stubs) + `enable_tool_group` + `extensions_refresh` = 29 in `tools/list`. 9 groups (31 tools) loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
 | **minimal** | 12 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
-| **full** (Power User) | All 59 tools registered at startup (group tools eager-loaded, no meta-tool). Startup warning emitted. | Everything passing its feature gate. |
+| **full** (Power User) | All 60 tools registered at startup (group tools eager-loaded, no meta-tool). Startup warning emitted. | Everything passing its feature gate. |
 | **custom**   | Comma-separated tool list via `GODOT_MCP_CUSTOM_TOOLS` env var. | Whatever you list. |
 
 `--lite` still works but maps to `minimal` with a deprecation warning.
@@ -86,16 +86,19 @@ any profile. Single source of truth: `src/profiles.ts`.
 
 ### Lazy-load groups (standard / custom profiles)
 
-Six groups (22 tools total) loaded via `enable_tool_group`:
+Nine groups (31 tools total) loaded via `enable_tool_group`:
 
 | Group                 | Tools | Gate |
 |-----------------------|-------|------|
-| `runtime`             | `runtime_screenshot`, `runtime_get_node_state`, `debugger_get_log`, `input_simulate`, `animation_player_control` | — |
+| `runtime_advanced`    | `runtime_get_node_state`, `animation_player_control` | — |
 | `signals`             | `signal_list`, `signal_manage`, `signal_emit` | — |
 | `animation_authoring` | `animation_keyframe`, `animation_get_keys` | — |
 | `input_map`           | `input_map_action`, `input_map_event` | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE` |
-| `asset_management`    | `asset_get_dependencies`, `asset_import`, `resource_delete`, `file_delete`, `scene_delete`, `scene_close` | — |
+| `asset_management`    | `asset_get_dependencies`, `asset_import`, `resource_delete`, `file_delete`, `scene_delete`, `scene_close`, `resource_load`, `resource_write`, `script_delete`, `folder_delete` | — |
 | `user_data`           | `save_read`, `save_write`, `save_delete`, `save_list` | `GODOT_MCP_ALLOW_USER_SCOPE` |
+| `scene_advanced`      | `scene_diff`, `scene_instantiate` | — |
+| `editor_advanced`     | `editor_screenshot`, `editor_reload_scripts`, `editor_wait_for_idle` | — |
+| `tilemap`             | `tilemap_set_cells`, `tileset_create`, `tileset_edit` | — |
 
 Groups persist for the session. Gated groups require their env var.
 Source of truth: `src/groups.ts`.
@@ -125,8 +128,8 @@ Gate logic lives in `src/feature_gate.ts`. Each tool module's exported array
 conditionally pushes gated tools based on `isEnabled(feature)`.
 
 Default tool count (standard profile): 27 (24 core + 3 gated stubs) + meta-tool + extensions_refresh = 29 in
-`tools/list`. 8 groups hold 33 additional tools loaded on demand.
-Full profile with all gates: 60 tools.
+`tools/list`. 9 groups hold 31 additional tools loaded on demand.
+Full profile with all gates: 61 tools.
 
 ### Dual-pass smoke runner (`npm run smoke`)
 

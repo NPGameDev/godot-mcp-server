@@ -122,12 +122,15 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 
 | Group | Tools | What it unlocks |
 |-------|-------|-----------------|
-| `runtime` | 5 | Runtime screenshots, live node inspection, game log, input simulation, animation control |
+| `runtime_advanced` | 2 | Live node state inspection, animation player control |
 | `signals` | 3 | Signal connect/disconnect, emit |
 | `animation_authoring` | 2 | Keyframe editing, key inspection |
 | `input_map` | 2 | InputMap action/event management (feature-gated) |
-| `asset_management` | 6 | Asset import, resource/scene/file deletion, scene close |
+| `asset_management` | 10 | Asset import/dependencies, resource/scene/file/folder deletion, scene close, resource load/write |
 | `user_data` | 4 | `user://` file read/write/delete/list (feature-gated) |
+| `scene_advanced` | 2 | Scene diff, scene instantiation |
+| `editor_advanced` | 3 | Editor screenshot, script reload, wait-for-idle |
+| `tilemap` | 3 | TileMap cell painting, TileSet creation and per-tile editing |
 
 ## Tool reference
 

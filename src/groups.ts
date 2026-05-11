@@ -1,6 +1,6 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * enable_tool_group. 8 groups, 33 tools total. Standard profile
+ * enable_tool_group. 9 groups, 31 tools total. Standard profile
  * registers enable_tool_group as the meta-tool; power_user profile
  * registers all group tools at startup.
  */
@@ -45,7 +45,8 @@ export type GroupName =
   | "asset_management"
   | "user_data"
   | "scene_advanced"
-  | "editor_advanced";
+  | "editor_advanced"
+  | "tilemap";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -56,6 +57,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "user_data",
   "scene_advanced",
   "editor_advanced",
+  "tilemap",
 ];
 
 interface GroupDef {
@@ -105,11 +107,15 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "scene_advanced",
-    tools: ["scene_diff", "scene_instantiate", "tilemap_set_cells", "tileset_create"],
+    tools: ["scene_diff", "scene_instantiate"],
   },
   {
     name: "editor_advanced",
     tools: ["editor_screenshot", "editor_reload_scripts", "editor_wait_for_idle"],
+  },
+  {
+    name: "tilemap",
+    tools: ["tilemap_set_cells", "tileset_create", "tileset_edit"],
   },
 ];
 

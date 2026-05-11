@@ -2,12 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import {
-  callAndWrap,
-  registerTools,
-  toolErrorFromPayload,
-  runtimeErrorWithCrashContext,
-} from "../tool_helpers.js";
+import { callAndWrap, registerTools, toolErrorFromPayload, runtimeErrorWithCrashContext } from "../tool_helpers.js";
 import { stableStringify } from "../schema_min.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on

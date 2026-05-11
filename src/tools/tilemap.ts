@@ -42,6 +42,38 @@ export const tilemapTools: ToolDef[] = [
     },
     annotations: { idempotentHint: false, openWorldHint: false },
   },
+  {
+    name: "tileset_edit",
+    method: "tileset.edit",
+    description:
+      "Edit per-tile properties on an existing TileSet: collision polygons, " +
+      "terrain peering, navigation, occlusion, custom data, animation, " +
+      "probability, alternatives, and adding atlas sources.",
+    inputSchema: {
+      file_path: z.string().describe("Path to existing .tres TileSet"),
+      source_id: z.number().int().optional().describe("Atlas source id for per-tile edits. Default 0"),
+      tiles: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe(
+          "Per-tile edits: [{atlas_x, atlas_y, physics_polygon?, terrain_set?, terrain?, " +
+            "terrain_peering?, navigation_polygon?, occlusion_polygon?, custom_data?, " +
+            "animation?, probability?, alternative?}]",
+        ),
+      add_source: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe("Add atlas source: {texture_path, tile_size?: {x, y}}"),
+      layers: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          "Layer setup (before tile edits): {terrain_sets?, custom_data?, " +
+            "navigation_layers?, occlusion_layers?, physics_layers?}",
+        ),
+    },
+    annotations: { openWorldHint: false },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
