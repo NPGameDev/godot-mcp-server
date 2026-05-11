@@ -11,7 +11,11 @@ export const inputMapTools: ToolDef[] = [
   {
     name: "input_map_action",
     method: "input_map.action",
-    description: "Add or remove an InputMap action. action='add' is idempotent with optional deadzone.",
+    description:
+      "Add or remove an InputMap action. " +
+      "action: 'add' or 'remove' (the operation). " +
+      "action_name: the input map name (e.g. 'jump', 'move_left'). " +
+      "action='add' is idempotent with optional deadzone.",
     inputSchema: {
       action: z.enum(["add", "remove"]),
       action_name: z.string(),
@@ -23,13 +27,26 @@ export const inputMapTools: ToolDef[] = [
     name: "input_map_event",
     method: "input_map.event",
     description:
-      "Bind/unbind an input event. action='bind' idempotent. " +
-      "event.type: 'key'|'mouse_button'|'joypad_button'|'joypad_motion' (NOT class names). " +
-      "Ex: {type:'key', keycode:'Space'}.",
+      "Bind/unbind an input event to an action. " +
+      "action: 'bind' or 'unbind' (the operation). " +
+      "event: object — {type:'key', keycode:'Space'}, {type:'mouse_button', button_index:1}. " +
+      "action='bind' is idempotent.",
     inputSchema: {
       action: z.enum(["bind", "unbind"]),
       action_name: z.string(),
-      event: z.record(z.string(), z.unknown()),
+      event: z.preprocess(
+        (val) => {
+          if (typeof val === "string") {
+            try {
+              return JSON.parse(val);
+            } catch {
+              return val;
+            }
+          }
+          return val;
+        },
+        z.record(z.string(), z.unknown()),
+      ),
     },
     annotations: { idempotentHint: true, openWorldHint: false },
   },

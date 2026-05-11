@@ -125,8 +125,8 @@ Gate logic lives in `src/feature_gate.ts`. Each tool module's exported array
 conditionally pushes gated tools based on `isEnabled(feature)`.
 
 Default tool count (standard profile): 27 (24 core + 3 gated stubs) + meta-tool + extensions_refresh = 29 in
-`tools/list`. 8 groups hold 32 additional tools loaded on demand.
-Full profile with all gates: 59 tools.
+`tools/list`. 8 groups hold 33 additional tools loaded on demand.
+Full profile with all gates: 60 tools.
 
 ### Dual-pass smoke runner (`npm run smoke`)
 

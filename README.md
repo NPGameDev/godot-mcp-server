@@ -4,7 +4,7 @@
 ![version](https://img.shields.io/badge/version-1.0.0-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 60 tools for scene manipulation, script editing, resource management, playtesting, and more.
+[MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 61 tools for scene manipulation, script editing, resource management, playtesting, and more.
 
 ## What it does
 

@@ -123,6 +123,37 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     /* noop */
   }
 
+  // ── tileset.create ──
+  const tilesetPath = "res://mcp_smoke_tileset_13.tres";
+  const tilesetResult = (await bridge.call(
+    "tileset.create",
+    { file_path: tilesetPath, texture_path: "res://icon.svg", tile_size: { x: 32, y: 32 } },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; source_id?: number; tiles_created?: number; code?: string };
+  if (tilesetResult?.success === true && typeof tilesetResult.source_id === "number") {
+    pass(`tileset.create -> source_id=${tilesetResult.source_id} tiles=${tilesetResult.tiles_created}`);
+  } else {
+    fail(`tileset.create: ${JSON.stringify(tilesetResult)}`);
+  }
+  // Cleanup
+  try {
+    await bridge.call("file.delete", { file_path: tilesetPath }, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
+
+  assertGuard(
+    ctx,
+    "tileset.create missing texture",
+    await bridge.call(
+      "tileset.create",
+      { file_path: "res://mcp_smoke_ts_guard.tres", texture_path: "res://no_such.png" },
+      CALL_TIMEOUT,
+    ),
+    "NOT_FOUND",
+    "texture",
+  );
+
   // ── editor.screenshot with node_path (node-focused capture) ──
   // editor.screenshot_node was merged into editor.screenshot via the
   // optional node_path parameter. The bridge method is editor.screenshot.

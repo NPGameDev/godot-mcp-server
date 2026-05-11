@@ -2,7 +2,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { callAndWrap, registerTools, toolErrorFromPayload, toolErrorFromException } from "../tool_helpers.js";
+import {
+  callAndWrap,
+  registerTools,
+  toolErrorFromPayload,
+  runtimeErrorWithCrashContext,
+} from "../tool_helpers.js";
 import { stableStringify } from "../schema_min.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
@@ -33,7 +38,8 @@ export const runtimeTools: ToolDef[] = [
     name: "debugger_get_log",
     method: "debugger.get_log",
     description:
-      "Get recent output from running game. source='buffer' reads ring buffer; 'file' reads user://logs/godot.log. limit default 200. text_filter: plain text by default; is_regex=true to interpret as regex.",
+      "Game output (needs running game — use editor_get_console after crash). " +
+      "source='buffer'|'file'. limit=200. text_filter + is_regex for search.",
     inputSchema: {
       limit: z.number().int().positive().optional(),
       source: z.enum(["buffer", "file"]).optional(),
@@ -181,7 +187,7 @@ function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown
         ],
       };
     } catch (err) {
-      return toolErrorFromException(err);
+      return runtimeErrorWithCrashContext(bridge, err);
     }
   })();
 }
@@ -209,7 +215,7 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
       const text = stableStringify({ _summary: summary, ...obj });
       return { content: [{ type: "text" as const, text }] };
     } catch (e) {
-      return toolErrorFromException(e);
+      return runtimeErrorWithCrashContext(bridge, e);
     }
   })();
 }
@@ -228,6 +234,14 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
     "debugger_get_log",
     (input) => debuggerLogHandler(bridge, "debugger.get_log", input) as Promise<ToolTextResult>,
   );
+  // game_eval: alias "expression" → "code" (agents send the wrong param name)
+  handlers.set("game_eval", (input) => {
+    if (!input.code && input.expression) {
+      input.code = input.expression;
+      delete input.expression;
+    }
+    return callAndWrap(bridge, "game.eval", input, { runtime: true });
+  });
   // Default runtime handler for remaining tools
   for (const tool of runtimeTools) {
     if (!handlers.has(tool.name)) {

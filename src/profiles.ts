@@ -112,6 +112,7 @@ export const MUTATING_TOOLS = new Set([
   // Animation / tilemap
   "animation_keyframe",
   "tilemap_set_cells",
+  "tileset_create",
   // User data
   "save_write",
   "save_delete",

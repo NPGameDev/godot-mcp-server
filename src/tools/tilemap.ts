@@ -19,6 +19,29 @@ export const tilemapTools: ToolDef[] = [
     },
     annotations: { openWorldHint: false },
   },
+  {
+    name: "tileset_create",
+    method: "tileset.create",
+    description:
+      "Create a TileSet .tres from a texture. Auto-generates atlas tiles " +
+      "for the full texture grid. Returns source_id + atlas grid dims — " +
+      "use these with tilemap_set_cells. Physics layer added by default.",
+    inputSchema: {
+      file_path: z.string().describe("Output path, e.g. 'res://resources/tileset.tres'"),
+      texture_path: z.string().describe("Texture for the atlas source, e.g. 'res://assets/tiles.png'"),
+      tile_size: z
+        .object({
+          x: z.number().int().positive(),
+          y: z.number().int().positive(),
+        })
+        .optional()
+        .describe("Tile size in pixels. Default {x:16, y:16}"),
+      physics: z.boolean().optional().describe("Add physics layer. Default true"),
+      collision_layer: z.number().int().optional().describe("Physics collision layer bitmask. Default 1"),
+      collision_mask: z.number().int().optional().describe("Physics collision mask bitmask. Default 1"),
+    },
+    annotations: { idempotentHint: false, openWorldHint: false },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {

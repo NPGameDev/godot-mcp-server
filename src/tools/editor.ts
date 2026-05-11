@@ -69,7 +69,8 @@ export const editorTools: ToolDef[] = [
     name: "editor_get_console",
     method: "editor.get_console",
     description:
-      "Tail editor Output panel. source='buffer' reads ring buffer; 'file' reads session log. level_filter + since_id for polling. text_filter: plain text by default; is_regex=true to interpret as regex.",
+      "Tail editor Output panel. source='buffer'|'file'. level_filter, since_id, text_filter (is_regex=true for regex). " +
+      "Primary post-crash diagnostic tool — reads runtime errors even after game_stop.",
     inputSchema: {
       limit: z.number().optional(),
       level_filter: z

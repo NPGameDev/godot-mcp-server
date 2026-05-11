@@ -8,7 +8,8 @@ export const sceneTools: ToolDef[] = [
   {
     name: "scene_get_tree",
     method: "scene.get_tree",
-    description: "Return the current edited scene's node tree as nested JSON { name, class, path, children }.",
+    description:
+      'Return the current edited scene\'s node tree as nested JSON { name, class, path, children }. Paths use "." for root — pass them directly to other editor commands.',
     inputSchema: {
       depth: z.number().optional().describe("Tree depth. Default 2. Use -1 for full tree."),
       include_properties: z.boolean().optional().describe("Embed property snapshot per node. Default false."),
@@ -22,7 +23,7 @@ export const sceneTools: ToolDef[] = [
     method: "scene.create_node",
     description:
       "Create a node of class_name under parent. Supports engine + user-defined class_name classes. Idempotent: 'returned' on collision, 'created' on fresh.\n\n" +
-      'Example: class_name: "CharacterBody2D", parent_path: "/root/Main", node_name: "Player"',
+      'Example: class_name: "CharacterBody2D", parent_path: ".", node_name: "Player"',
     inputSchema: {
       class_name: z.string(),
       parent_path: z.string(),
@@ -66,7 +67,7 @@ export const sceneTools: ToolDef[] = [
     method: "scene.instantiate",
     description:
       "Instantiate PackedScene at packed_path under parent_path. Silent-return on name collision (status: returned). UndoRedo-wrapped; owner set for save.\n\n" +
-      'Example: packed_path: "res://scenes/player.tscn", parent_path: "/root/Main", as_name: "Player"',
+      'Example: packed_path: "res://scenes/player.tscn", parent_path: ".", as_name: "Player"',
     inputSchema: {
       parent_path: z.string(),
       packed_path: z.string(),

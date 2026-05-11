@@ -26,6 +26,7 @@ export const nodeTools: ToolDef[] = [
     description:
       "Set a property on a node in the EDITOR scene tree (saved to .tscn files). " +
       "Does NOT affect the running game — for runtime property changes during playtesting, use runtime_set_property.\n\n" +
+      'Node paths are relative to the edited scene root: "." is root, "./Player" is a direct child, "./Player/Sprite2D" for deeper nodes.\n\n' +
       "Engine types: {type:'Vector2',x,y}. Inline sub-resources: {type:'NewResource',class:'CircleShape2D',properties:{radius:50}}.\n\n" +
       "Anchor presets: setting anchors_preset alone may not auto-apply underlying values. " +
       "For reliable layout, set anchor_left/top/right/bottom and offset_left/top/right/bottom explicitly.",

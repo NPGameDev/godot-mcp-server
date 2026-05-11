@@ -17,7 +17,8 @@ export const resourceTools: ToolDef[] = [
     name: "resource_write",
     method: "resource.write",
     description:
-      "Write/create a .tres/.res resource. If file exists, updates properties. If not, 'type' (class name) is required to create it.",
+      "Write/create a .tres/.res resource. If file exists, updates properties. If not, 'type' (class name) is required to create it. " +
+      "For TileSets, use tileset_create instead (handles atlas + physics setup).",
     inputSchema: {
       file_path: z.string(),
       properties: z
