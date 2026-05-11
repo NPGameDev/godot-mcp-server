@@ -47,6 +47,7 @@ import { testExtensibility } from "./sections/22_extensibility.js";
 import { testClassdb } from "./sections/23_classdb.js";
 import { testScriptCheck } from "./sections/24_script_check.js";
 import { testCsharpCompat } from "./sections/25_csharp_compat.js";
+import { testLayerNames } from "./sections/26_layer_names.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -175,6 +176,7 @@ async function runFullMode(): Promise<void> {
     await testClassdb(ctx);
     await testScriptCheck(ctx);
     await testCsharpCompat(ctx);
+    await testLayerNames(ctx);
     await testReconnect(ctx);
   } catch (err) {
     failFn(`unexpected error: ${(err as Error).message}`);
