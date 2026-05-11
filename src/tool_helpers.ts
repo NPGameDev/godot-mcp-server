@@ -363,10 +363,13 @@ export function registerTools(
     ) => Promise<ToolTextResult>;
 
     // Gated tools: register with full schema, check gate at call time.
-    // Static gate note in description avoids ToolSearch cache staleness.
+    // Description only mentions the gate when disabled — when enabled the
+    // tool looks like any other tool so agents don't hesitate to use it.
     if (tool.gate) {
       const envVar = envVarFor(tool.gate) ?? tool.gate;
-      description = `${tool.description} [gate: ${envVar}]`;
+      if (!isEnabled(tool.gate)) {
+        description = `${tool.description} [gate: ${envVar}]`;
+      }
       const baseHandler = handler;
       handler = async (input: unknown) => {
         if (!isEnabled(tool.gate!)) {

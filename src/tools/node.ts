@@ -79,8 +79,7 @@ export const nodeTools: ToolDef[] = [
   {
     name: "node_call_method",
     method: "node.call_method",
-    description:
-      "Call method with args on an edited-scene node (editor-only; for runtime nodes use game_eval). Gate: GODOT_MCP_ALLOW_NODE_CALL_METHOD.",
+    description: "Call method with args on an edited-scene node (editor-only; for runtime nodes use game_eval).",
     inputSchema: {
       node_path: z.string(),
       method_name: z.string(),
