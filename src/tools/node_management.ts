@@ -22,7 +22,7 @@ export const nodeManagementTools: ToolDef[] = [
       new_name: z.string().optional().describe("Required for rename; optional for duplicate."),
       new_parent_path: z.string().optional().describe("Required for reparent."),
       keep_global_transform: z.boolean().optional().describe("For reparent: preserve world transform. Default true."),
-      new_index: z.number().int().optional().describe("For reorder: 0-based sibling index."),
+      new_index: z.coerce.number().int().optional().describe("For reorder: 0-based sibling index."),
       parent_path: z.string().optional().describe("For duplicate: target parent. Defaults to same parent."),
       properties: z
         .record(z.string(), z.unknown())
