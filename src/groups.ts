@@ -38,6 +38,7 @@ import { themeTools } from "./tools/theme.js";
 import { nodeManagementTools } from "./tools/node_management.js";
 import { layerNameTools } from "./tools/layer_names.js";
 import { pathTools } from "./tools/path.js";
+import { threeDTools } from "./tools/three_d.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -54,7 +55,8 @@ export type GroupName =
   | "theme"
   | "node_management"
   | "layer_naming"
-  | "path_editing";
+  | "path_editing"
+  | "3d_tools";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -70,6 +72,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "node_management",
   "layer_naming",
   "path_editing",
+  "3d_tools",
 ];
 
 interface GroupDef {
@@ -192,6 +195,22 @@ export const GROUPS: GroupDef[] = [
     tools: ["path2d_edit_curve"],
     keywords: ["path", "path2d", "curve", "bezier", "spline", "follow path", "curve2d"],
   },
+  {
+    name: "3d_tools",
+    tools: ["3d_create_primitive", "3d_setup_environment", "3d_create_light", "3d_create_camera"],
+    keywords: [
+      "3d",
+      "mesh",
+      "meshinstance",
+      "primitive",
+      "camera3d",
+      "light",
+      "environment",
+      "directional light",
+      "world environment",
+      "sky",
+    ],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -221,6 +240,7 @@ for (const tools of [
   nodeManagementTools,
   layerNameTools,
   pathTools,
+  threeDTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
