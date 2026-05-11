@@ -128,6 +128,11 @@ export const MUTATING_TOOLS = new Set([
   "node_manage",
   "node_groups",
   "autoload_manage",
+  // 3D tools
+  "3d_create_primitive",
+  "3d_setup_environment",
+  "3d_create_light",
+  "3d_create_camera",
 ]);
 
 /** Determine the active profile from env vars + CLI args. */
