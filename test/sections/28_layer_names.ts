@@ -18,11 +18,11 @@ export async function testLayerNames(ctx: TestCtx): Promise<void> {
     ctx.fail(`project.set_layer_names: ${JSON.stringify(setResult)}`);
   else pass(`project.set_layer_names 2d_physics -> layers_set=${setResult.layers_set}`);
 
-  const getResult = (await bridge.call(
-    "project.get_layer_names",
-    { category: "2d_physics" },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; category?: string; layers?: Record<string, string> };
+  const getResult = (await bridge.call("project.get_layer_names", { category: "2d_physics" }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    category?: string;
+    layers?: Record<string, string>;
+  };
 
   if (getResult?.success !== true) {
     ctx.fail(`project.get_layer_names: ${JSON.stringify(getResult)}`);
