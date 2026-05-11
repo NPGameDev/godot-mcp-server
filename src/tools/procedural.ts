@@ -89,7 +89,7 @@ export const proceduralTools: ToolDef[] = [
       lacunarity: z.number().optional().describe("Octave frequency multiplier"),
       gain: z.number().optional().describe("Octave amplitude multiplier"),
       fractal_type: z.enum(["none", "fbm", "ridged", "ping_pong"]).optional().describe("Fractal type"),
-      cellular_distance_function: z.enum(["euclidean", "euclidean_squared", "manhattan", "chebyshev"]).optional(),
+      cellular_distance_function: z.enum(["euclidean", "euclidean_squared", "manhattan", "hybrid"]).optional(),
       cellular_return_type: z
         .enum([
           "cell_value",
