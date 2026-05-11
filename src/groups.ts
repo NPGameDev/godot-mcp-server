@@ -45,6 +45,7 @@ import { sceneInheritanceTools } from "./tools/scene_inheritance.js";
 import { audioTools } from "./tools/audio.js";
 import { spriteframesTools } from "./tools/spriteframes.js";
 import { sceneQueryTools } from "./tools/scene_query.js";
+import { particleTools } from "./tools/particles.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ export type GroupName =
   | "scene_inheritance"
   | "audio";
   | "spriteframes";
+  | "particles";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -87,6 +89,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "scene_inheritance",
   "audio",
   "spriteframes",
+  "particles",
 ];
 
 interface GroupDef {
@@ -274,6 +277,23 @@ export const GROUPS: GroupDef[] = [
       "2d animation",
       "spritesheet",
       "atlas",
+    name: "particles",
+    tools: ["particles_create"],
+    keywords: [
+      "particle",
+      "particles",
+      "gpu particles",
+      "vfx",
+      "visual effect",
+      "effects",
+      "fire",
+      "smoke",
+      "sparks",
+      "rain",
+      "snow",
+      "explosion",
+      "emitter",
+      "particle system",
     ],
   },
 ];
@@ -312,6 +332,7 @@ for (const tools of [
   audioTools,
   spriteframesTools,
   sceneQueryTools,
+  particleTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }

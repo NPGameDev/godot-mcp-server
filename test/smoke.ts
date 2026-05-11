@@ -64,6 +64,7 @@ import { testSceneInheritance } from "./sections/33_scene_inheritance.js";
 import { testAudiobus } from "./sections/34_audiobus.js";
 import { testSpriteframes } from "./sections/35_spriteframes.js";
 import { testSceneQuery } from "./sections/36_scene_query.js";
+import { testParticles } from "./sections/37_particles.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -210,6 +211,7 @@ const ALL_SECTIONS: Section[] = [
   { num: 34, name: "audiobus", run: testAudiobus },
   { num: 35, name: "spriteframes", run: testSpriteframes },
   { num: 36, name: "scene_query", run: testSceneQuery },
+  { num: 37, name: "particles", run: testParticles },
 ];
 
 function filterSections(): Section[] {
