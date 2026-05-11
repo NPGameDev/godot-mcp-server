@@ -25,6 +25,7 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "classdb_get_info",
   "classdb_search",
   "script_check",
+  "scene_query",
 ];
 
 /** 29 standard tools (discover_tools + extensions_refresh added programmatically → 31 total). */
@@ -64,6 +65,8 @@ export const STANDARD_TOOLS: readonly string[] = [
   "classdb_search",
   // Script diagnostics (1)
   "script_check",
+  // Scene query (1)
+  "scene_query",
   // Gated tools — included so they register on Standard when gate is open
   // (prevents the vanishing-tools bug where neither stub nor real tool appears).
   "game_eval",

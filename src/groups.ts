@@ -44,6 +44,7 @@ import { proceduralTools } from "./tools/procedural.js";
 import { sceneInheritanceTools } from "./tools/scene_inheritance.js";
 import { audioTools } from "./tools/audio.js";
 import { spriteframesTools } from "./tools/spriteframes.js";
+import { sceneQueryTools } from "./tools/scene_query.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -310,6 +311,7 @@ for (const tools of [
   sceneInheritanceTools,
   audioTools,
   spriteframesTools,
+  sceneQueryTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
@@ -567,6 +569,10 @@ const CORE_TOOL_KEYWORDS = new Map<string, string[]>([
   ["asset_list", ["list assets", "files", "browse", "directory listing"]],
   ["classdb_get_info", ["class", "classdb", "class info", "properties", "methods", "signals", "inheritance"]],
   ["classdb_search", ["search class", "find class", "class lookup", "api"]],
+  [
+    "scene_query",
+    ["query", "search", "find node", "filter", "class filter", "group filter", "node search", "scene query"],
+  ],
   ["extensions_refresh", ["extensions", "refresh", "reload extensions", "plugins"]],
 ]);
 
