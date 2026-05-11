@@ -65,7 +65,7 @@ const EXCEPTION_HINTS: Record<string, string> = {
   FEATURE_GATED:
     "Toggle the feature gate in the Godot editor dock or set the env var in .mcp.json. Changes are applied live.",
   FEATURE_DISABLED:
-    "This tool is disabled in the current profile. Switch to a higher profile or use enable_tool_group to load it dynamically.",
+    "This tool is disabled in the current profile. Switch to a higher profile or use discover_tools to load it dynamically.",
 };
 
 /**

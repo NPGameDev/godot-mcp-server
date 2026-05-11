@@ -26,14 +26,15 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - `src/profiles.ts` — profile resolution (`selectedProfile`, `resolveAllowedTools`,
   `isReadOnly`). Defines `MINIMAL_TOOLS`, `STANDARD_TOOLS`, `MUTATING_TOOLS`.
 - `src/groups.ts` — lazy-load group system. `registerGroupSystem` (standard/custom)
-  or `registerAllGroupTools` (full). `enable_tool_group` meta-tool + `GROUP_TOOL_NAMES`.
+  or `registerAllGroupTools` (full). `discover_tools` meta-tool + `GROUP_TOOL_NAMES`.
 - `src/stubs.ts` — locked stubs for gated tools. `registerStubs(server, profile)`.
 - `src/feature_gate.ts` — env-var-only gate checks (`isEnabled`, `envVarFor`).
 - `src/schema_min.ts` — `minifySchema` + `stableStringify` (sorted-key JSON for
   prompt-cache hits).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
   `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,
-  `input_map`, `animation`, `tilemap`, `asset`, `file`, `save`, `classdb`).
+  `input_map`, `animation`, `tilemap`, `asset`, `file`, `save`, `classdb`,
+  `node_management`).
   Each exports a typed `ToolDef[]` (with MCP annotations) and a
   `register(server, bridge, allowedTools)` function. Tools filter via the
   `allowedTools` Set.
@@ -70,9 +71,9 @@ enable specialized tools on demand, **stubs** expose locked gates.
 
 | Profile      | Behaviour | Default tools |
 |--------------|-----------|---------------|
-| **standard** (default) | 27 tools (24 core + 3 gated stubs) + `enable_tool_group` + `extensions_refresh` = 29 in `tools/list`. 9 groups (31 tools) loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
+| **standard** (default) | 27 tools (24 core + 3 gated stubs) + `discover_tools` + `extensions_refresh` = 29 in `tools/list`. 10 groups (34 tools) loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
 | **minimal** | 12 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
-| **full** (Power User) | All 60 tools registered at startup (group tools eager-loaded, no meta-tool). Startup warning emitted. | Everything passing its feature gate. |
+| **full** (Power User) | All 63 tools registered at startup (group tools eager-loaded, no meta-tool). Startup warning emitted. | Everything passing its feature gate. |
 | **custom**   | Comma-separated tool list via `GODOT_MCP_CUSTOM_TOOLS` env var. | Whatever you list. |
 
 `--lite` still works but maps to `minimal` with a deprecation warning.
@@ -86,7 +87,7 @@ any profile. Single source of truth: `src/profiles.ts`.
 
 ### Lazy-load groups (standard / custom profiles)
 
-Nine groups (31 tools total) loaded via `enable_tool_group`:
+Ten groups (34 tools total) loaded via `discover_tools`:
 
 | Group                 | Tools | Gate |
 |-----------------------|-------|------|
@@ -99,6 +100,7 @@ Nine groups (31 tools total) loaded via `enable_tool_group`:
 | `scene_advanced`      | `scene_diff`, `scene_instantiate` | — |
 | `editor_advanced`     | `editor_screenshot`, `editor_reload_scripts`, `editor_wait_for_idle` | — |
 | `tilemap`             | `tilemap_set_cells`, `tileset_create`, `tileset_edit` | — |
+| `node_management`     | `node_manage`, `node_groups`, `autoload_manage` | — |
 
 Groups persist for the session. Gated groups require their env var.
 Source of truth: `src/groups.ts`.

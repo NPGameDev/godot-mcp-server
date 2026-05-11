@@ -1,7 +1,7 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * enable_tool_group. 9 groups, 31 tools total. Standard profile
- * registers enable_tool_group as the meta-tool; power_user profile
+ * discover_tools. 10 groups, 34 tools total. Standard profile
+ * registers discover_tools as the meta-tool; power_user profile
  * registers all group tools at startup.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -34,6 +34,7 @@ import { scriptTools } from "./tools/script.js";
 import { folderTools } from "./tools/folder.js";
 import { diffTools } from "./tools/diff.js";
 import { tilemapTools } from "./tools/tilemap.js";
+import { nodeManagementTools } from "./tools/node_management.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -46,7 +47,8 @@ export type GroupName =
   | "user_data"
   | "scene_advanced"
   | "editor_advanced"
-  | "tilemap";
+  | "tilemap"
+  | "node_management";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -58,11 +60,13 @@ const GROUP_NAMES: readonly GroupName[] = [
   "scene_advanced",
   "editor_advanced",
   "tilemap",
+  "node_management",
 ];
 
 interface GroupDef {
   name: GroupName;
   tools: string[];
+  keywords: string[];
   gate?: string; // Feature gate required to load this group
   gateEnvVar?: string;
 }
@@ -71,18 +75,22 @@ export const GROUPS: GroupDef[] = [
   {
     name: "runtime_advanced",
     tools: ["runtime_get_node_state", "animation_player_control"],
+    keywords: ["runtime", "node state", "animation playback", "animationplayer", "play animation", "stop animation"],
   },
   {
     name: "signals",
     tools: ["signal_list", "signal_manage", "signal_emit"],
+    keywords: ["signal", "connect", "disconnect", "emit", "observer", "event"],
   },
   {
     name: "animation_authoring",
     tools: ["animation_keyframe", "animation_get_keys"],
+    keywords: ["animation", "keyframe", "track", "animate"],
   },
   {
     name: "input_map",
     tools: ["input_map_action", "input_map_event"],
+    keywords: ["input", "input map", "action", "key binding", "keybind", "controller", "gamepad", "joystick"],
   },
   {
     name: "asset_management",
@@ -98,24 +106,57 @@ export const GROUPS: GroupDef[] = [
       "script_delete",
       "folder_delete",
     ],
+    keywords: [
+      "asset",
+      "import",
+      "resource",
+      "delete file",
+      "delete scene",
+      "delete script",
+      "cleanup",
+      "dependencies",
+    ],
   },
   {
     name: "user_data",
     tools: ["save_read", "save_write", "save_delete", "save_list"],
+    keywords: ["save", "save file", "user data", "persistence", "save game", "load game", "savegame"],
     gate: "read_user_scope",
     gateEnvVar: "GODOT_MCP_ALLOW_USER_SCOPE",
   },
   {
     name: "scene_advanced",
     tools: ["scene_diff", "scene_instantiate"],
+    keywords: ["instantiate", "instance", "scene diff", "compare", "prefab", "spawn", "batch instantiate"],
   },
   {
     name: "editor_advanced",
     tools: ["editor_screenshot", "editor_reload_scripts", "editor_wait_for_idle"],
+    keywords: ["screenshot", "editor screenshot", "reload scripts", "wait idle", "editor capture"],
   },
   {
     name: "tilemap",
     tools: ["tilemap_set_cells", "tileset_create", "tileset_edit"],
+    keywords: ["tilemap", "tileset", "tile", "grid", "terrain", "cell", "layer"],
+  },
+  {
+    name: "node_management",
+    tools: ["node_manage", "node_groups", "autoload_manage"],
+    keywords: [
+      "node",
+      "rename",
+      "reparent",
+      "reorder",
+      "duplicate",
+      "clone",
+      "copy node",
+      "move node",
+      "group",
+      "node group",
+      "autoload",
+      "singleton",
+      "batch",
+    ],
   },
 ];
 
@@ -142,6 +183,7 @@ for (const tools of [
   folderTools,
   diffTools,
   tilemapTools,
+  nodeManagementTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
@@ -180,6 +222,7 @@ export interface ExtensionCmd {
 interface ExtensionGroupDef {
   name: string;
   description: string;
+  keywords: string[];
   commands: ExtensionCmd[];
 }
 
@@ -187,7 +230,12 @@ const extensionGroups = new Map<string, ExtensionGroupDef>();
 const loadedExtensionGroups = new Set<string>();
 
 /** Register a deferred extension group (called from discoverExtensions). Deduplicates by method name. */
-export function addExtensionGroup(name: string, description: string, commands: ExtensionCmd[]): void {
+export function addExtensionGroup(
+  name: string,
+  description: string,
+  commands: ExtensionCmd[],
+  keywords?: string[],
+): void {
   const existing = extensionGroups.get(name);
   if (existing) {
     for (const cmd of commands) {
@@ -195,8 +243,14 @@ export function addExtensionGroup(name: string, description: string, commands: E
         existing.commands.push(cmd);
       }
     }
+    // Merge keywords without duplicates.
+    if (keywords) {
+      for (const kw of keywords) {
+        if (!existing.keywords.includes(kw)) existing.keywords.push(kw);
+      }
+    }
   } else {
-    extensionGroups.set(name, { name, description, commands });
+    extensionGroups.set(name, { name, description, keywords: keywords ?? [], commands });
   }
 }
 
@@ -353,10 +407,128 @@ function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, 
   return registered;
 }
 
-// I2 waiver: enable_tool_group description intentionally exceeds the 200-char
-// tool-description limit. As the gateway to 22+ hidden tools, discoverability
+// ── Core tool keywords (Standard profile tools) ─────────────────────
+// Maps standard-profile tool names to keyword arrays for discover_tools
+// core_matches. Kept here (not in types.ts) to avoid touching every tool file.
+
+const CORE_TOOL_KEYWORDS = new Map<string, string[]>([
+  ["scene_get_tree", ["scene", "tree", "hierarchy", "nodes", "scene tree"]],
+  ["scene_create_node", ["create node", "add node", "new node", "scene"]],
+  ["scene_delete_node", ["delete node", "remove node", "scene"]],
+  ["scene_create", ["new scene", "create scene", "packed scene"]],
+  ["scene_open", ["open scene", "load scene", "switch scene"]],
+  ["node_get_property", ["property", "get property", "inspect", "node"]],
+  ["node_set_property", ["set property", "change property", "modify", "node"]],
+  ["node_get_property_list", ["property list", "properties", "inspect", "node"]],
+  ["node_set_script", ["attach script", "set script", "node", "gdscript"]],
+  ["script_read", ["read script", "view script", "gdscript", "source"]],
+  ["script_write", ["write script", "create script", "edit script", "gdscript"]],
+  ["script_check", ["check script", "validate", "syntax", "diagnostics", "lint"]],
+  ["editor_save_scene", ["save", "save scene", "persist"]],
+  ["editor_get_console", ["console", "output", "log", "errors", "warnings"]],
+  ["project_get_settings", ["project settings", "config", "configuration"]],
+  ["project_set_setting", ["set setting", "change setting", "project config"]],
+  ["game_start", ["run", "play", "start game", "launch", "playtest"]],
+  ["game_stop", ["stop", "quit", "stop game", "end playtest"]],
+  ["game_eval", ["eval", "evaluate", "execute", "runtime code", "expression"]],
+  ["runtime_screenshot", ["screenshot", "capture", "viewport", "screen"]],
+  ["input_simulate", ["input", "click", "key press", "mouse", "simulate"]],
+  ["runtime_get_script_vars", ["variables", "script vars", "inspect runtime", "debug"]],
+  ["runtime_set_property", ["runtime property", "set runtime", "live edit"]],
+  ["debugger_get_log", ["debug", "debugger", "log", "breakpoint", "stack"]],
+  ["node_call_method", ["call method", "invoke", "method", "function call"]],
+  ["folder_create", ["folder", "directory", "mkdir", "create folder"]],
+  ["asset_list", ["list assets", "files", "browse", "directory listing"]],
+  ["classdb_get_info", ["class", "classdb", "class info", "properties", "methods", "signals", "inheritance"]],
+  ["classdb_search", ["search class", "find class", "class lookup", "api"]],
+  ["extensions_refresh", ["extensions", "refresh", "reload extensions", "plugins"]],
+]);
+
+// ── Keyword matching ────────────────────────────────────────────────
+
+type GroupMatch = { group: GroupDef; score: number };
+type ExtGroupMatch = { name: string; ext: ExtensionGroupDef; score: number };
+type CoreMatch = { name: string; description: string };
+
+function matchKeywords(query: string, keywords: string[]): number {
+  let score = 0;
+  for (const kw of keywords) {
+    if (query === kw) score += 3;
+    else if (query.includes(kw)) score += 2;
+    else if (kw.includes(query) && query.length >= 3) score += 1;
+  }
+  return score;
+}
+
+function findMatchingGroups(rawRequest: string | string[]): {
+  builtIn: GroupMatch[];
+  extension: ExtGroupMatch[];
+  core: CoreMatch[];
+} {
+  const queries = (Array.isArray(rawRequest) ? rawRequest : [rawRequest]).map((q) => q.toLowerCase());
+  const builtIn: GroupMatch[] = [];
+  const extension: ExtGroupMatch[] = [];
+  const core: CoreMatch[] = [];
+
+  for (const group of GROUPS) {
+    let score = 0;
+    for (const q of queries) {
+      score += matchKeywords(q, group.keywords);
+      // Also match against tool names (underscores → spaces).
+      for (const toolName of group.tools) {
+        const norm = toolName.replace(/_/g, " ");
+        if (norm.includes(q) && q.length >= 3) score += 1;
+      }
+    }
+    if (score > 0) builtIn.push({ group, score });
+  }
+  builtIn.sort((a, b) => b.score - a.score);
+
+  for (const [name, ext] of extensionGroups) {
+    let score = 0;
+    for (const q of queries) {
+      // Extension keywords (author-provided) — same scoring as built-in groups.
+      if (ext.keywords.length > 0) {
+        score += matchKeywords(q, ext.keywords);
+      }
+      // Fallback: match against description tokens + tool names.
+      const descTokens = (ext.description || name).toLowerCase().split(/\s+/);
+      for (const tok of descTokens) {
+        if (q === tok) score += 2;
+        else if (tok.includes(q) && q.length >= 3) score += 1;
+      }
+      for (const cmd of ext.commands) {
+        const norm = cmd.toolName.replace(/_/g, " ");
+        if (norm.includes(q) && q.length >= 3) score += 1;
+      }
+    }
+    if (score > 0) extension.push({ name, ext, score });
+  }
+  extension.sort((a, b) => b.score - a.score);
+
+  // Core tool matching — surface already-available tools that match.
+  const seen = new Set<string>();
+  for (const [toolName, keywords] of CORE_TOOL_KEYWORDS) {
+    for (const q of queries) {
+      if (matchKeywords(q, keywords) > 0 && !seen.has(toolName)) {
+        const def = allDefs.get(toolName);
+        if (def) {
+          core.push({ name: toolName, description: def.description.slice(0, 120) });
+          seen.add(toolName);
+        }
+      }
+    }
+  }
+
+  return { builtIn, extension, core };
+}
+
+// ── discover_tools description builder ──────────────────────────────
+
+// I2 waiver: discover_tools description intentionally exceeds the 200-char
+// tool-description limit. As the gateway to 30+ hidden tools, discoverability
 // is more important than description brevity for this meta-tool.
-function buildEnableGroupDesc(): string {
+function buildDiscoverToolsDesc(): string {
   const parts: string[] = [];
   for (const group of GROUPS) {
     const loaded = loadedGroups.has(group.name);
@@ -372,7 +544,6 @@ function buildEnableGroupDesc(): string {
     parts.push(entry);
   }
 
-  // Extension groups: description first (primary discoverability hint for LLM).
   const extParts: string[] = [];
   for (const [name, ext] of extensionGroups) {
     const loaded = loadedExtensionGroups.has(name);
@@ -382,9 +553,10 @@ function buildEnableGroupDesc(): string {
   }
 
   let description =
-    "Load additional tool groups for specialized workflows. Groups persist for session. Call once with all needed groups. " +
-    "Requires client support for tools/list_changed notifications. " +
-    "Built-in: " +
+    "Search and activate tool groups by keyword or name. " +
+    "Pass request to search by domain ('animation', 'save game data') or groups to activate by name. " +
+    "No params → full catalog. reset: true → deactivate all groups. " +
+    "Groups: " +
     parts.join("; ");
   if (extParts.length > 0) {
     description += ". Extensions: " + extParts.join("; ");
@@ -397,87 +569,256 @@ function buildEnableGroupDesc(): string {
 function buildGroupsDescribe(): string {
   const builtIn = GROUP_NAMES.join(", ");
   const extNames = getExtensionGroupNames();
-  if (extNames.length === 0) return `Group names to load: ${builtIn}`;
-  return `Group names to load: ${builtIn}, ${extNames.join(", ")}`;
+  if (extNames.length === 0) return `Group names to activate: ${builtIn}`;
+  return `Group names to activate: ${builtIn}, ${extNames.join(", ")}`;
+}
+
+// ── Group deactivation ──────────────────────────────────────────────
+
+function deactivateGroups(names: string[] | true, readOnly: boolean): string[] {
+  const deactivated: string[] = [];
+  const targets = names === true ? [...loadedGroups, ...loadedExtensionGroups] : names;
+
+  for (const groupName of targets) {
+    // Built-in group?
+    const group = GROUPS.find((g) => g.name === groupName);
+    if (group && loadedGroups.has(groupName)) {
+      for (const toolName of group.tools) {
+        if (readOnly && MUTATING_TOOLS.has(toolName)) continue;
+        removeToolByName(toolName);
+      }
+      loadedGroups.delete(groupName);
+      deactivated.push(groupName);
+      continue;
+    }
+    // Extension group?
+    if (loadedExtensionGroups.has(groupName)) {
+      const ext = extensionGroups.get(groupName);
+      if (ext) {
+        for (const cmd of ext.commands) removeToolByName(cmd.toolName);
+      }
+      loadedExtensionGroups.delete(groupName);
+      deactivated.push(groupName);
+    }
+  }
+  return deactivated;
 }
 
 /**
- * Register the enable_tool_group meta-tool and its handler.
+ * Register the discover_tools meta-tool and its handler.
  * Call this for the standard profile only. Idempotent — if the tool
  * already exists, updates its description in-place (one notification);
  * otherwise registers fresh (also one notification).
  */
 export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly: boolean): void {
-  // If already registered, update description in-place (avoids remove+register = 2 notifications).
-  if (hasToolRef("enable_tool_group")) {
-    updateToolRef("enable_tool_group", { description: buildEnableGroupDesc() });
+  if (hasToolRef("discover_tools")) {
+    updateToolRef("discover_tools", { description: buildDiscoverToolsDesc() });
     return;
   }
   registerToolWrapped(
     server,
     bridge,
-    "enable_tool_group",
+    "discover_tools",
     {
-      description: buildEnableGroupDesc(),
+      description: buildDiscoverToolsDesc(),
       inputSchema: {
-        groups: z.array(z.string()).min(1).describe(buildGroupsDescribe()),
+        request: z
+          .union([z.string(), z.array(z.string())])
+          .optional()
+          .describe(
+            "Search by keyword — a domain, task, or Godot concept. " +
+              "String for single ('animation') or array for multiple (['animation', 'tilemap']). " +
+              "Matching groups are auto-activated (set activate=false to browse).",
+          ),
+        groups: z.array(z.string()).optional().describe(buildGroupsDescribe()),
+        activate: z
+          .boolean()
+          .optional()
+          .describe("Auto-activate matching groups. Default true. Set false to browse without loading."),
+        reset: z
+          .union([z.literal(true), z.array(z.string())])
+          .optional()
+          .describe(
+            "Deactivate groups. true = reset ALL on-demand groups. Array = selectively deactivate named groups.",
+          ),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async (input: Record<string, unknown>) => {
-      const { groups: requested } = input as { groups: string[] };
-      const results: Record<string, { loaded: boolean; tools?: string[]; error?: string }> = {};
+      const parsed = input as {
+        request?: string | string[];
+        groups?: string[];
+        activate?: boolean;
+        reset?: true | string[];
+      };
+      const activate = parsed.activate !== false;
 
-      // Batch all tool registrations into a single notification.
+      type GroupResult = {
+        name: string;
+        status: "activated" | "available" | "already_loaded" | "gated";
+        tools: string[];
+        description?: string;
+        gate?: string;
+      };
+      const groupResults: GroupResult[] = [];
+      const deactivated: string[] = [];
+
       batchToolRegistration(server, () => {
-        for (const groupName of requested) {
-          // Already loaded (built-in or extension)?
-          if (loadedGroups.has(groupName) || loadedExtensionGroups.has(groupName)) {
-            const group = GROUPS.find((g) => g.name === groupName);
-            const extGroup = extensionGroups.get(groupName);
-            const tools = group?.tools ?? extGroup?.commands.map((c) => c.toolName) ?? [];
-            results[groupName] = { loaded: true, tools };
-            continue;
-          }
+        // Phase 1: reset/deactivation.
+        if (parsed.reset !== undefined) {
+          const names = parsed.reset === true ? true : parsed.reset;
+          deactivated.push(...deactivateGroups(names, readOnly));
+        }
 
-          // Check built-in groups first.
-          const group = GROUPS.find((g) => g.name === groupName);
-          if (group) {
-            if (group.gate && !isEnabled(group.gate)) {
-              const envVar = group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate;
-              results[groupName] = {
-                loaded: false,
-                error: `Group '${groupName}' requires ${envVar}=1 in .mcp.json env.`,
-              };
-              continue;
-            }
-            const registered = registerGroupTools(server, bridge, group, readOnly);
-            loadedGroups.add(groupName);
-            results[groupName] = { loaded: true, tools: registered };
-            continue;
+        // Phase 2: direct group activation.
+        if (parsed.groups) {
+          for (const groupName of parsed.groups) {
+            groupResults.push(activateOrReportGroup(server, bridge, groupName, activate, readOnly));
           }
+        }
 
-          // Check extension groups.
-          const extGroup = extensionGroups.get(groupName);
-          if (extGroup) {
-            const registered = registerExtGroupTools(server, bridge, extGroup);
-            loadedExtensionGroups.add(groupName);
-            results[groupName] = { loaded: true, tools: registered };
-            continue;
+        // Phase 3: keyword search.
+        if (parsed.request !== undefined) {
+          const matches = findMatchingGroups(parsed.request);
+          for (const m of matches.builtIn) {
+            if (groupResults.some((r) => r.name === m.group.name)) continue;
+            groupResults.push(activateOrReportGroup(server, bridge, m.group.name, activate, readOnly));
           }
-
-          results[groupName] = { loaded: false, error: `Unknown group: ${groupName}` };
+          for (const m of matches.extension) {
+            if (groupResults.some((r) => r.name === m.name)) continue;
+            groupResults.push(activateOrReportExtGroup(server, bridge, m.name, activate));
+          }
         }
       });
 
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify({ success: true, groups: results }) }],
-      };
+      // No params → full catalog (no activation).
+      if (parsed.request === undefined && !parsed.groups && parsed.reset === undefined) {
+        for (const group of GROUPS) {
+          groupResults.push(reportGroupStatus(group.name));
+        }
+        for (const [name] of extensionGroups) {
+          groupResults.push(reportExtGroupStatus(name));
+        }
+      }
+
+      // Build response.
+      const response: Record<string, unknown> = { success: true, groups: groupResults };
+
+      // Core matches — only when request was given.
+      if (parsed.request !== undefined) {
+        const { core } = findMatchingGroups(parsed.request);
+        if (core.length > 0) response.core_matches = core;
+      }
+      if (deactivated.length > 0) response.deactivated = deactivated;
+
+      // Update discover_tools description to reflect new state.
+      updateToolRef("discover_tools", { description: buildDiscoverToolsDesc() });
+
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     },
   );
 }
 
-/** Register an extension group's tools (called from enable_tool_group handler). */
+/** Activate a built-in or extension group by name, or report status if not activating. */
+function activateOrReportGroup(
+  server: McpServer,
+  bridge: Bridge,
+  groupName: string,
+  activate: boolean,
+  readOnly: boolean,
+): {
+  name: string;
+  status: "activated" | "available" | "already_loaded" | "gated";
+  tools: string[];
+  description?: string;
+  gate?: string;
+} {
+  const group = GROUPS.find((g) => g.name === groupName);
+  if (!group) {
+    // Try extension groups.
+    return activateOrReportExtGroup(server, bridge, groupName, activate);
+  }
+
+  if (loadedGroups.has(groupName)) {
+    return { name: groupName, status: "already_loaded", tools: group.tools };
+  }
+  if (group.gate && !isEnabled(group.gate)) {
+    return {
+      name: groupName,
+      status: "gated",
+      tools: group.tools,
+      gate: group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate,
+    };
+  }
+  if (!activate) {
+    return { name: groupName, status: "available", tools: group.tools };
+  }
+  const registered = registerGroupTools(server, bridge, group, readOnly);
+  loadedGroups.add(groupName);
+  return { name: groupName, status: "activated", tools: registered };
+}
+
+function activateOrReportExtGroup(
+  server: McpServer,
+  bridge: Bridge,
+  name: string,
+  activate: boolean,
+): {
+  name: string;
+  status: "activated" | "available" | "already_loaded" | "gated";
+  tools: string[];
+  description?: string;
+} {
+  const ext = extensionGroups.get(name);
+  if (!ext) {
+    return { name, status: "available", tools: [], description: `Unknown group: ${name}` };
+  }
+  const tools = ext.commands.map((c) => c.toolName);
+  if (loadedExtensionGroups.has(name)) {
+    return { name, status: "already_loaded", tools, description: ext.description };
+  }
+  if (!activate) {
+    return { name, status: "available", tools, description: ext.description };
+  }
+  const registered = registerExtGroupTools(server, bridge, ext);
+  loadedExtensionGroups.add(name);
+  return { name, status: "activated", tools: registered, description: ext.description };
+}
+
+function reportGroupStatus(groupName: string): {
+  name: string;
+  status: "activated" | "available" | "already_loaded" | "gated";
+  tools: string[];
+  gate?: string;
+} {
+  const group = GROUPS.find((g) => g.name === groupName);
+  if (!group) return { name: groupName, status: "available", tools: [] };
+  if (loadedGroups.has(groupName)) return { name: groupName, status: "already_loaded", tools: group.tools };
+  if (group.gate && !isEnabled(group.gate)) {
+    return {
+      name: groupName,
+      status: "gated",
+      tools: group.tools,
+      gate: group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate,
+    };
+  }
+  return { name: groupName, status: "available", tools: group.tools };
+}
+
+function reportExtGroupStatus(name: string): {
+  name: string;
+  status: "activated" | "available" | "already_loaded" | "gated";
+  tools: string[];
+  description?: string;
+} {
+  const ext = extensionGroups.get(name);
+  if (!ext) return { name, status: "available", tools: [] };
+  const tools = ext.commands.map((c) => c.toolName);
+  if (loadedExtensionGroups.has(name)) return { name, status: "already_loaded", tools, description: ext.description };
+  return { name, status: "available", tools, description: ext.description };
+}
+
+/** Register an extension group's tools (called from discover_tools handler). */
 function registerExtGroupTools(server: McpServer, bridge: Bridge, group: ExtensionGroupDef): string[] {
   const registered: string[] = [];
   for (const cmd of group.commands) {
@@ -518,7 +859,7 @@ export function registerAllExtensionGroupTools(server: McpServer, bridge: Bridge
 
 /**
  * For the `power_user` profile: register ALL group tools at startup.
- * No enable_tool_group needed.
+ * No discover_tools needed.
  */
 export function registerAllGroupTools(server: McpServer, bridge: Bridge, readOnly: boolean): void {
   for (const group of GROUPS) {

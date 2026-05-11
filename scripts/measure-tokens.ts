@@ -131,28 +131,35 @@ function measure(tool: ToolDef): ToolMeasurement {
   };
 }
 
-// ── Synthetic entries (enable_tool_group + stubs) ────────────────────
+// ── Synthetic entries (discover_tools + stubs) ──────────────────────
 // These are defined inline in groups.ts / stubs.ts and don't appear in
 // the ToolDef arrays. We define them here for accurate standard-profile
 // measurement.
 
-const ENABLE_GROUP_ENTRY: McpToolEntry = {
-  name: "enable_tool_group",
+const DISCOVER_TOOLS_ENTRY: McpToolEntry = {
+  name: "discover_tools",
   description:
-    "Load additional tool groups for specialized workflows. " +
-    "Available: runtime, signals, animation_authoring, input_map (gated), asset_management, user_data (gated). " +
-    "Groups persist for session. Call once with all needed groups.",
+    "Search and activate tool groups by keyword or name. " +
+    "Pass request to search by domain ('animation', 'save game data') or groups to activate by name. " +
+    "No params → full catalog. reset: true → deactivate all groups.",
   inputSchema: {
     type: "object",
     properties: {
+      request: {
+        anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+        description: "Search by keyword — a domain, task, or Godot concept.",
+      },
       groups: {
         type: "array",
-        items: { type: "string", enum: GROUPS.map((g) => g.name) },
-        minItems: 1,
-        description: "Group names to load: " + GROUPS.map((g) => g.name).join(", "),
+        items: { type: "string" },
+        description: "Group names to activate: " + GROUPS.map((g) => g.name).join(", "),
+      },
+      activate: { type: "boolean", description: "Auto-activate matching groups. Default true." },
+      reset: {
+        anyOf: [{ const: true }, { type: "array", items: { type: "string" } }],
+        description: "Deactivate groups. true = reset all.",
       },
     },
-    required: ["groups"],
   },
   annotations: { readOnlyHint: true, openWorldHint: false },
 };
@@ -185,7 +192,7 @@ const STUB_ENTRIES: McpToolEntry[] = [
 // Minimal: MINIMAL_TOOLS only
 const minimalDefs = MINIMAL_TOOLS.map((n) => byName.get(n)).filter(Boolean) as ToolDef[];
 
-// Standard (default, gates closed): STANDARD_TOOLS + enable_tool_group + stubs
+// Standard (default, gates closed): STANDARD_TOOLS + discover_tools + stubs
 const standardDefs = STANDARD_TOOLS.map((n) => byName.get(n)).filter(Boolean) as ToolDef[];
 
 // Power User (all gates open): every tool from every module
@@ -214,14 +221,18 @@ function profileCost(
 
 const minimal = profileCost(minimalDefs);
 const minimalMin = profileCost(minimalDefs, [], true);
-const standard = profileCost(standardDefs, [ENABLE_GROUP_ENTRY, ...STUB_ENTRIES]);
-const standardMin = profileCost(standardDefs, [ENABLE_GROUP_ENTRY, ...STUB_ENTRIES], true);
+const standard = profileCost(standardDefs, [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES]);
+const standardMin = profileCost(standardDefs, [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES], true);
 const full = profileCost(fullDefs);
 const fullMin = profileCost(fullDefs, [], true);
 
 // Standard + all groups loaded
-const standardWithGroups = profileCost([...standardDefs, ...groupDefs], [ENABLE_GROUP_ENTRY, ...STUB_ENTRIES]);
-const standardWithGroupsMin = profileCost([...standardDefs, ...groupDefs], [ENABLE_GROUP_ENTRY, ...STUB_ENTRIES], true);
+const standardWithGroups = profileCost([...standardDefs, ...groupDefs], [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES]);
+const standardWithGroupsMin = profileCost(
+  [...standardDefs, ...groupDefs],
+  [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES],
+  true,
+);
 
 // Version annotation overhead: compare full catalogue with and without
 // godotMinVersion tools' extra annotation data
@@ -277,7 +288,7 @@ emit("");
 // On-demand groups
 emit("## On-demand group costs (standard profile)");
 emit("");
-emit("Groups are loaded via `enable_tool_group` and persist for the session.");
+emit("Groups are loaded via `discover_tools` and persist for the session.");
 emit("");
 emit("| Group | Tools | Incremental bytes | Incremental tokens |");
 emit("|-------|------:|------------------:|-------------------:|");

@@ -66,13 +66,23 @@ export const sceneTools: ToolDef[] = [
     name: "scene_instantiate",
     method: "scene.instantiate",
     description:
-      "Instantiate PackedScene at packed_path under parent_path. Silent-return on name collision (status: returned). UndoRedo-wrapped; owner set for save.\n\n" +
-      'Example: packed_path: "res://scenes/player.tscn", parent_path: ".", as_name: "Player"',
+      "Instantiate PackedScene at packed_path under parent_path. Single mode: silent-return on name collision. " +
+      "Batch mode: pass instances array to spawn N copies with transforms in one UndoRedo action.\n\n" +
+      'Single: packed_path: "res://coin.tscn", parent_path: ".", as_name: "Coin"\n' +
+      'Batch: packed_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200}}, ...]',
     inputSchema: {
       parent_path: z.string(),
       packed_path: z.string(),
-      as_name: z.string().optional(),
-      transform: z.record(z.string(), z.unknown()).optional(),
+      as_name: z.string().optional().describe("Single mode: instance name."),
+      transform: z.record(z.string(), z.unknown()).optional().describe("Single mode: property overrides."),
+      instances: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe(
+          "Batch mode: array of {name?, position?, rotation?, scale?}. " +
+            "When present, spawns N instances in a single UndoRedo action. " +
+            "as_name and transform are ignored in batch mode.",
+        ),
     },
     annotations: { idempotentHint: true, openWorldHint: false },
   },

@@ -1,0 +1,71 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+
+import type { Bridge, ToolDef } from "../types.js";
+import { registerTools } from "../tool_helpers.js";
+
+export const nodeManagementTools: ToolDef[] = [
+  // I2 waiver: node_manage description exceeds 200-char limit.
+  // Action-consolidated tool needs per-action param documentation.
+  {
+    name: "node_manage",
+    method: "node.manage",
+    description:
+      "Structural node operations on the edited scene tree. UndoRedo-wrapped.\n\n" +
+      "action: rename — requires new_name.\n" +
+      "action: reparent — requires new_parent_path, optional keep_global_transform (default true).\n" +
+      "action: reorder — requires new_index (0-based sibling index).\n" +
+      "action: duplicate — optional new_name, parent_path, properties (overrides like {position:{x,y}}).",
+    inputSchema: {
+      action: z.enum(["rename", "reparent", "reorder", "duplicate"]),
+      node_path: z.string(),
+      new_name: z.string().optional().describe("Required for rename; optional for duplicate."),
+      new_parent_path: z.string().optional().describe("Required for reparent."),
+      keep_global_transform: z.boolean().optional().describe("For reparent: preserve world transform. Default true."),
+      new_index: z.number().int().optional().describe("For reorder: 0-based sibling index."),
+      parent_path: z.string().optional().describe("For duplicate: target parent. Defaults to same parent."),
+      properties: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe("For duplicate: property overrides on the copy (e.g. {position:{x:100,y:200}})."),
+    },
+    annotations: { openWorldHint: false },
+  },
+  {
+    name: "node_groups",
+    method: "node.groups",
+    description:
+      "Manage node group membership. Groups are the idiomatic Godot way to tag and query game objects " +
+      "(e.g. 'coins', 'enemies'). UndoRedo-wrapped.\n\n" +
+      "action: add — requires group name. action: remove — requires group name. action: list — returns all groups.",
+    inputSchema: {
+      action: z.enum(["add", "remove", "list"]),
+      node_path: z.string(),
+      group: z.string().optional().describe("Group name. Required for add/remove."),
+      persistent: z.boolean().optional().describe("For add: save to .tscn. Default true."),
+    },
+    annotations: { openWorldHint: false },
+  },
+  {
+    name: "autoload_manage",
+    method: "autoload.manage",
+    description:
+      "Manage project autoload singletons (GameManager, AudioManager, etc.). " +
+      "Writes to project.godot; takes effect on next game launch.\n\n" +
+      "action: register — requires name + script_path. action: unregister — requires name. action: list — returns all.",
+    inputSchema: {
+      action: z.enum(["register", "unregister", "list"]),
+      name: z.string().optional().describe("Autoload name (e.g. 'GameManager'). Required for register/unregister."),
+      script_path: z
+        .string()
+        .optional()
+        .describe("Script path (e.g. 'res://scripts/game_manager.gd'). Required for register."),
+      enabled: z.boolean().optional().describe("For register: auto-initialize on startup. Default true."),
+    },
+    annotations: { openWorldHint: false },
+  },
+];
+
+export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+  registerTools(server, bridge, nodeManagementTools, allowedTools);
+}

@@ -118,7 +118,7 @@ GODOT_MCP_PROFILE=minimal npx @npgamedev/godot-mcp-server
 
 ### On-demand tool groups (standard profile)
 
-The standard profile includes an `enable_tool_group` meta-tool that lets the AI assistant unlock additional capabilities during a session without switching profiles:
+The standard profile includes a `discover_tools` meta-tool that lets the AI assistant search for and unlock additional capabilities during a session without switching profiles. Search by keyword (`discover_tools({request: "animation"})`) or activate groups directly (`discover_tools({groups: ["signals"]})`):
 
 | Group | Tools | What it unlocks |
 |-------|-------|-----------------|
@@ -128,9 +128,10 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 | `input_map` | 2 | InputMap action/event management (feature-gated) |
 | `asset_management` | 10 | Asset import/dependencies, resource/scene/file/folder deletion, scene close, resource load/write |
 | `user_data` | 4 | `user://` file read/write/delete/list (feature-gated) |
-| `scene_advanced` | 2 | Scene diff, scene instantiation |
+| `scene_advanced` | 2 | Scene diff, scene instantiation (single + batch) |
 | `editor_advanced` | 3 | Editor screenshot, script reload, wait-for-idle |
 | `tilemap` | 3 | TileMap cell painting, TileSet creation and per-tile editing |
+| `node_management` | 3 | Node rename/reparent/reorder/duplicate, group membership, autoload singletons |
 
 ## Tool reference
 
@@ -302,6 +303,27 @@ The standard profile includes an `enable_tool_group` meta-tool that lets the AI 
 
 </details>
 
+<details>
+<summary><strong>Node management tools</strong> (3, on-demand group)</summary>
+
+| Tool | Description |
+|------|-------------|
+| `node_manage` | Structural node operations: rename, reparent, reorder, duplicate (UndoRedo-wrapped) |
+| `node_groups` | Manage node group membership: add, remove, list |
+| `autoload_manage` | Manage project autoload singletons: register, unregister, list |
+
+</details>
+
+<details>
+<summary><strong>Meta tools</strong> (2)</summary>
+
+| Tool | Description |
+|------|-------------|
+| `discover_tools` | Search and activate tool groups by keyword or name (standard profile) |
+| `extensions_refresh` | Re-scan for third-party extension tools |
+
+</details>
+
 ## Headless mode
 
 When Godot runs with `--headless --editor`, the plugin loads and 51 of 53 tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `runtime_screenshot`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.6 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
@@ -331,9 +353,9 @@ The eval suite is separate from the smoke test. Smoke validates "does it work" (
 
 ### `claude -p` does not support dynamic tool loading
 
-**Affected:** Standard profile's `enable_tool_group` lazy-loading (Claude Code 2.1.104, confirmed 2026-05-06).
+**Affected:** Standard profile's `discover_tools` lazy-loading (Claude Code 2.1.104, confirmed 2026-05-06).
 
-`claude -p` (pipe mode) does not process `tools/list_changed` MCP notifications. The server sends the notification after `enable_tool_group` registers new tools, but the pipe-mode client does not re-fetch the tool list. Dynamically loaded tools are unreachable.
+`claude -p` (pipe mode) does not process `tools/list_changed` MCP notifications. The server sends the notification after `discover_tools` registers new tools, but the pipe-mode client does not re-fetch the tool list. Dynamically loaded tools are unreachable.
 
 **Workaround:** Set `GODOT_MCP_PROFILE=full` in `.mcp.json` for `claude -p` workflows. This eagerly loads all tools at startup. Interactive `claude` sessions handle dynamic loading correctly.
 

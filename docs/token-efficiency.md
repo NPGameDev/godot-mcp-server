@@ -26,12 +26,12 @@ Sizes shown are with schema minification enabled (the default). Token estimates 
 | Full engine access, advanced workflows | **Power User** | ~5,700 tokens |
 
 - **Minimal** gives you 13 read-only tools: scene inspection, script reading, class lookups, script validation. Enough for understanding a project without modifying it.
-- **Standard** gives you 34 core editing tools plus `enable_tool_group` for on-demand access to 22 additional tools across 6 groups. This is the sweet spot for most workflows — you pay for specialized tools only when you need them.
+- **Standard** gives you 34 core editing tools plus `discover_tools` for on-demand access to 34 additional tools across 10 groups. This is the sweet spot for most workflows — you pay for specialized tools only when you need them.
 - **Power User** unlocks everything including feature-gated tools (`game_eval`, `node_call_method`, `project_set_setting`). The token overhead vs standard-with-all-groups is negligible; the difference is immediate availability vs on-demand loading.
 
 ## On-demand group costs
 
-In the standard profile, specialized tool groups are loaded via `enable_tool_group`. Each group adds a known token cost:
+In the standard profile, specialized tool groups are loaded via `discover_tools`. Each group adds a known token cost:
 
 | Group | Tools | Added tokens |
 |-------|------:|------------:|

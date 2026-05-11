@@ -51,6 +51,7 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
       "meta.",
       "game.",
       "diff.",
+      "autoload.",
       "extensions.",
     ];
     const violations = extResult.commands.filter((c) => reserved.some((r) => c.method.startsWith(r)));

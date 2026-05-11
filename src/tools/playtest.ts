@@ -40,7 +40,7 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
         if (payload.success && !result.isError) {
           payload.group_hint =
             "Game started. To interact with the running game, call " +
-            "enable_tool_group(['runtime', 'signals']) to access runtime tools.";
+            "discover_tools({request: 'runtime'}) to access runtime tools.";
           result.content[0].text = JSON.stringify(payload);
         }
       } catch {

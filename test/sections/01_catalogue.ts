@@ -15,6 +15,7 @@ import { scriptTools } from "../../src/tools/script.js";
 import { signalTools } from "../../src/tools/signals.js";
 import { tilemapTools } from "../../src/tools/tilemap.js";
 import { classdbTools } from "../../src/tools/classdb.js";
+import { nodeManagementTools } from "../../src/tools/node_management.js";
 import type { ToolDef } from "../../src/types.js";
 import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 
@@ -47,6 +48,7 @@ function getAllToolDefs(): ToolDef[] {
     ...fileTools,
     ...(featureEnabled("read_user_scope") ? saveTools : []),
     ...classdbTools,
+    ...nodeManagementTools,
   ];
 }
 
@@ -58,11 +60,11 @@ function getAllToolDefs(): ToolDef[] {
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 54 base (56 in arrays minus 2 gated: game_eval, node_call_method).
+  // Tool count — 57 base (59 in arrays minus 2 gated: game_eval, node_call_method).
   // getAllToolDefs applies gateFilter, so the base already excludes gated tools.
   // read_user_scope (+4) adds save_read/write/delete/list via conditional spread.
-  // All off = 54; all on = 60.
-  let expectedToolCount = 54;
+  // All off = 57; all on = 63.
+  let expectedToolCount = 57;
   if (featureEnabled("game_eval")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;
@@ -90,7 +92,10 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
 
   // Tool description length (I2: <= 200 chars, with explicit waivers).
   const descWaivers = new Set([
-    "enable_tool_group",
+    "discover_tools",
+    "node_manage",
+    "node_groups",
+    "autoload_manage",
     "input_simulate",
     "game_eval",
     "editor_screenshot",

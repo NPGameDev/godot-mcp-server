@@ -1,7 +1,7 @@
 /**
  * Shared tool-ref registry. Tracks RegisteredTool refs returned by
  * server.registerTool() so that tools can be surgically removed by
- * name (stub->real swap in enable_tool_group) or bulk-removed
+ * name (stub->real swap in discover_tools) or bulk-removed
  * (config reload).
  */
 

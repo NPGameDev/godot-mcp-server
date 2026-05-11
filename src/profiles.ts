@@ -27,7 +27,7 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "script_check",
 ];
 
-/** 29 standard tools (enable_tool_group + extensions_refresh added programmatically → 31 total). */
+/** 29 standard tools (discover_tools + extensions_refresh added programmatically → 31 total). */
 export const STANDARD_TOOLS: readonly string[] = [
   // Scene (5)
   "scene_get_tree",
@@ -121,6 +121,10 @@ export const MUTATING_TOOLS = new Set([
   "input_simulate",
   "runtime_set_property",
   "animation_player_control",
+  // Node management
+  "node_manage",
+  "node_groups",
+  "autoload_manage",
 ]);
 
 /** Determine the active profile from env vars + CLI args. */

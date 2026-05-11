@@ -44,6 +44,7 @@ import * as signal from "./tools/signals.js";
 import * as save from "./tools/save.js";
 import * as tilemap from "./tools/tilemap.js";
 import * as classdb from "./tools/classdb.js";
+import * as nodeManagement from "./tools/node_management.js";
 
 // ── Tool catalogue ───────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ const ALL_MODULE_DEFS = [
   save.saveTools,
   tilemap.tilemapTools,
   classdb.classdbTools,
+  nodeManagement.nodeManagementTools,
 ];
 
 // ── Profile resolution ───────────────────────────────────────────────
@@ -194,13 +196,14 @@ function registerModules(ma: Set<string>): void {
   file.register(server, bridge, ma);
   save.register(server, bridge, ma);
   classdb.register(server, bridge, ma);
+  nodeManagement.register(server, bridge, ma);
 }
 
 function registerGroups(): void {
   if (profile === "power_user") {
     registerAllGroupTools(server, bridge, readOnly);
   } else if (profile !== "minimal") {
-    // Register enable_tool_group with built-in groups BEFORE transport
+    // Register discover_tools with built-in groups BEFORE transport
     // connects, so it's in the initial tools/list response — no extra
     // notification needed for the common case (no extensions).
     // If extensions are later discovered, registerGroupSystem is called
@@ -286,7 +289,7 @@ function handleConfigReload(params?: Record<string, unknown>): void {
     );
   }
 
-  // Re-discover extensions + register enable_tool_group (the MCP SDK
+  // Re-discover extensions + register discover_tools (the MCP SDK
   // auto-emits tool list notifications on each registerTool call).
   discoverExtensions().catch(() => {});
 }
@@ -353,7 +356,7 @@ bridge.onNotification((type, params) => {
 // ── Extension discovery ──────────────────────────────────────────────
 
 // After the server starts, discover third-party extensions from the toolkit
-// and register them as MCP tools. Also registers enable_tool_group for
+// and register them as MCP tools. Also registers discover_tools for
 // standard profile — deferred to here so the LLM only ever sees the
 // complete description (built-in + extension groups), avoiding stale schemas.
 async function discoverExtensions(): Promise<void> {
@@ -371,7 +374,7 @@ async function discoverExtensions(): Promise<void> {
         description?: string;
         input_schema?: Record<string, unknown>;
         annotations?: Record<string, boolean>;
-        group?: { name: string; description?: string };
+        group?: { name: string; description?: string; keywords?: string[] };
       }[];
     };
     let result: ExtResult;
@@ -402,7 +405,7 @@ async function discoverExtensions(): Promise<void> {
             inputSchema: cmd.input_schema ?? {},
             annotations,
           };
-          addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd]);
+          addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
           deferredCount++;
         } else {
           ungrouped.push(cmd);
@@ -445,12 +448,12 @@ async function discoverExtensions(): Promise<void> {
     }
   } catch {
     // Editor unreachable or extensions.list not available — not an error.
-    // Fall through to register enable_tool_group with built-in groups only.
+    // Fall through to register discover_tools with built-in groups only.
   }
 
-  // Standard profile: update enable_tool_group description to include
+  // Standard profile: update discover_tools description to include
   // extension groups. Uses in-place update (1 notification).
-  // For the common case (no extensions), enable_tool_group was already
+  // For the common case (no extensions), discover_tools was already
   // registered at startup — no notification needed.
   if (deferredCount > 0 && profile !== "minimal" && profile !== "power_user") {
     registerGroupSystem(server, bridge, readOnly);
@@ -499,7 +502,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
         description?: string;
         input_schema?: Record<string, unknown>;
         annotations?: Record<string, boolean>;
-        group?: { name: string; description?: string };
+        group?: { name: string; description?: string; keywords?: string[] };
       }[]
     | undefined;
   const removedMethods = (params?.removed as string[]) ?? [];
@@ -546,7 +549,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
           inputSchema: cmd.input_schema ?? {},
           annotations,
         };
-        addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd]);
+        addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
         // Power_user: register immediately.
         if (profile === "power_user") {
           registerAllExtensionGroupTools(server, bridge);
@@ -584,7 +587,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
     }
   });
 
-  // Update enable_tool_group description if extension groups changed.
+  // Update discover_tools description if extension groups changed.
   if ((added > 0 || removed > 0) && profile !== "minimal" && profile !== "power_user") {
     registerGroupSystem(server, bridge, readOnly);
   }
