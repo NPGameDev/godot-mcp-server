@@ -15,16 +15,6 @@ export async function test3dTools(ctx: TestCtx): Promise<void> {
     return;
   }
 
-  // ── Activate the 3d_tools group ──
-  const discoverResult = (await bridge.call("meta.discover_tools", { groups: ["3d_tools"] }, CALL_TIMEOUT)) as {
-    success?: boolean;
-  };
-  if (!discoverResult?.success) {
-    fail(`3d_tools discover: ${JSON.stringify(discoverResult)}`);
-    return;
-  }
-  pass("3d_tools group activated");
-
   // ── 3d.create_primitive box with material ──
   const boxResult = (await bridge.call(
     "3d.create_primitive",

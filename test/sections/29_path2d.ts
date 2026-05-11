@@ -7,7 +7,7 @@ export async function testPath2d(ctx: TestCtx): Promise<void> {
   // Setup: create a Path2D test node.
   const createResult = (await bridge.call(
     "scene.create_node",
-    { parent: ".", name: "MCPSmokePath2D", type: "Path2D" },
+    { parent_path: ".", node_name: "MCPSmokePath2D", class_name: "Path2D" },
     CALL_TIMEOUT,
   )) as { success?: boolean };
   if (!createResult?.success) {
