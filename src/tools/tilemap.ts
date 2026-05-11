@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_helpers.js";
+import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
 
 export const tilemapTools: ToolDef[] = [
   {
@@ -12,9 +12,9 @@ export const tilemapTools: ToolDef[] = [
       "Batch-set cells on TileMap or TileMapLayer. Single UndoRedo action. Returns cells_written + cells_unchanged. source_id:-1 clears a cell.",
     inputSchema: {
       tilemap_path: z.string(),
-      layer: z.number().optional(),
+      layer: z.coerce.number().optional(),
       cells: z
-        .array(z.record(z.string(), z.unknown()))
+        .preprocess(jsonCoerce, z.array(z.record(z.string(), z.unknown())))
         .describe("Array of {x, y, source_id, atlas_x, atlas_y, alternative_tile?}. source_id:-1 clears."),
     },
     annotations: { openWorldHint: false },
@@ -31,14 +31,14 @@ export const tilemapTools: ToolDef[] = [
       texture_path: z.string().describe("Texture for the atlas source, e.g. 'res://assets/tiles.png'"),
       tile_size: z
         .object({
-          x: z.number().int().positive(),
-          y: z.number().int().positive(),
+          x: z.coerce.number().int().positive(),
+          y: z.coerce.number().int().positive(),
         })
         .optional()
         .describe("Tile size in pixels. Default {x:16, y:16}"),
-      physics: z.boolean().optional().describe("Add physics layer. Default true"),
-      collision_layer: z.number().int().optional().describe("Physics collision layer bitmask. Default 1"),
-      collision_mask: z.number().int().optional().describe("Physics collision mask bitmask. Default 1"),
+      physics: coercedBoolean().optional().describe("Add physics layer. Default true"),
+      collision_layer: z.coerce.number().int().optional().describe("Physics collision layer bitmask. Default 1"),
+      collision_mask: z.coerce.number().int().optional().describe("Physics collision mask bitmask. Default 1"),
     },
     annotations: { idempotentHint: false, openWorldHint: false },
   },
@@ -51,9 +51,9 @@ export const tilemapTools: ToolDef[] = [
       "probability, alternatives, and adding atlas sources.",
     inputSchema: {
       file_path: z.string().describe("Path to existing .tres TileSet"),
-      source_id: z.number().int().optional().describe("Atlas source id for per-tile edits. Default 0"),
+      source_id: z.coerce.number().int().optional().describe("Atlas source id for per-tile edits. Default 0"),
       tiles: z
-        .array(z.record(z.string(), z.unknown()))
+        .preprocess(jsonCoerce, z.array(z.record(z.string(), z.unknown())))
         .optional()
         .describe(
           "Per-tile edits: [{atlas_x, atlas_y, physics_polygon?, terrain_set?, terrain?, " +

@@ -19,7 +19,7 @@ export const inputMapTools: ToolDef[] = [
     inputSchema: {
       action: z.enum(["add", "remove"]),
       action_name: z.string(),
-      deadzone: z.number().optional(),
+      deadzone: z.coerce.number().optional(),
     },
     annotations: { idempotentHint: true, openWorldHint: false },
   },

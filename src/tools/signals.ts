@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_helpers.js";
+import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
 
 // signal_emit is dual-mode: default routes to the editor-side Mode A
 // server (edited scene); `mode: "runtime"` routes to Mode B for
@@ -16,7 +16,7 @@ export const signalTools: ToolDef[] = [
       "List signals on a node in the edited scene. With include_connections=true, each signal includes its connected targets ({target_path, method_name, flags}).",
     inputSchema: {
       node_path: z.string(),
-      include_connections: z.boolean().optional(),
+      include_connections: coercedBoolean().optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -42,7 +42,7 @@ export const signalTools: ToolDef[] = [
     inputSchema: {
       node_path: z.string(),
       signal_name: z.string(),
-      args: z.array(z.unknown()).optional(),
+      args: z.preprocess(jsonCoerce, z.array(z.unknown())).optional(),
       mode: z.enum(["editor", "runtime"]).optional(),
     },
     annotations: { openWorldHint: false },

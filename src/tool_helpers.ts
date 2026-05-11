@@ -204,6 +204,34 @@ export function getVersionMap(): Map<string, number> {
   return _versionMap;
 }
 
+// ── MCP string-coercion helpers ────────────────────────────────────
+
+/**
+ * Boolean schema that coerces string inputs ("true"→true, "false"→false).
+ * MCP clients may send all values as strings for dynamically-registered
+ * tools (added via tools/list_changed). Standard z.boolean() rejects
+ * strings; z.coerce.boolean() converts "false" to true (truthy string).
+ * This preprocess handles the "false" case correctly.
+ */
+export const coercedBoolean = () =>
+  z.preprocess((v) => (typeof v === "string" ? v.toLowerCase() === "true" || v === "1" : v), z.boolean());
+
+/**
+ * Preprocess for JSON-string coercion: parses stringified arrays/objects.
+ * Same root cause as coercedBoolean — MCP clients may serialize complex
+ * values as JSON strings rather than native JSON types.
+ */
+export const jsonCoerce = (v: unknown) => {
+  if (typeof v === "string") {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
+  return v;
+};
+
 // ── JSON Schema → Zod conversion ────────────────────────────────────
 
 /**
@@ -248,13 +276,13 @@ function jsonSchemaToZodShape(schema: Record<string, unknown>): Record<string, z
         break;
       case "number":
       case "integer":
-        zodType = z.number();
+        zodType = z.coerce.number();
         break;
       case "boolean":
-        zodType = z.boolean();
+        zodType = coercedBoolean();
         break;
       case "array":
-        zodType = z.array(z.any());
+        zodType = z.preprocess(jsonCoerce, z.array(z.any()));
         break;
       default:
         zodType = z.any();

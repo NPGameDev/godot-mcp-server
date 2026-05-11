@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_helpers.js";
+import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
 
 export const assetTools: ToolDef[] = [
   {
@@ -14,8 +14,8 @@ export const assetTools: ToolDef[] = [
       path_prefix: z.string().optional(),
       name_glob: z.string().optional(),
       class_filter: z.string().optional(),
-      extension_filter: z.array(z.string()).optional(),
-      max_results: z.number().optional(),
+      extension_filter: z.preprocess(jsonCoerce, z.array(z.string())).optional(),
+      max_results: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -26,8 +26,8 @@ export const assetTools: ToolDef[] = [
       "Forward dependencies of a res:// resource/scene via EditorFileSystem cache. include_transitive walks deps-of-deps. Returns [{path,raw_path,class}].",
     inputSchema: {
       file_path: z.string(),
-      include_transitive: z.boolean().optional(),
-      max_results: z.number().optional(),
+      include_transitive: coercedBoolean().optional(),
+      max_results: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -41,7 +41,7 @@ export const assetTools: ToolDef[] = [
       base64_data: z.string().optional(),
       dest_path: z.string(),
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
-      wait_for_scan_ms: z.number().optional(),
+      wait_for_scan_ms: z.coerce.number().optional(),
     },
     annotations: { idempotentHint: true, openWorldHint: false },
   },

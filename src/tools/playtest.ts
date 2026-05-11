@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { callAndWrap, registerTools } from "../tool_helpers.js";
+import { callAndWrap, registerTools, coercedBoolean } from "../tool_helpers.js";
 import { isGroupLoaded } from "../groups.js";
 
 export const playtestTools: ToolDef[] = [
@@ -13,8 +13,8 @@ export const playtestTools: ToolDef[] = [
       "Start playtest. scene_path:'main'|'current'(default)|res://path. if_running:'return' for idempotent mode (default 'fail'). runtime_poll:true re-probes runtime (overrides if_running).",
     inputSchema: {
       scene_path: z.string().optional(),
-      wait_for_runtime: z.boolean().optional(),
-      runtime_poll: z.boolean().optional(),
+      wait_for_runtime: coercedBoolean().optional(),
+      runtime_poll: coercedBoolean().optional(),
       if_running: z.enum(["return", "fail"]).optional(),
     },
     annotations: { openWorldHint: false },

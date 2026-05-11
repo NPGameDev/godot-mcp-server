@@ -12,8 +12,8 @@ export const scriptTools: ToolDef[] = [
       "Read a script file (res:// only). Returns the file content as text. Pass start_line / end_line for partial reads (1-indexed, inclusive).",
     inputSchema: {
       file_path: z.string(),
-      start_line: z.number().optional().describe("First line to read (1-indexed, inclusive)"),
-      end_line: z.number().optional().describe("Last line to read (1-indexed, inclusive)"),
+      start_line: z.coerce.number().optional().describe("First line to read (1-indexed, inclusive)"),
+      end_line: z.coerce.number().optional().describe("Last line to read (1-indexed, inclusive)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

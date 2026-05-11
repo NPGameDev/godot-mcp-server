@@ -2,7 +2,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { callAndWrap, registerTools, toolErrorFromPayload, runtimeErrorWithCrashContext } from "../tool_helpers.js";
+import {
+  callAndWrap,
+  registerTools,
+  toolErrorFromPayload,
+  runtimeErrorWithCrashContext,
+  coercedBoolean,
+} from "../tool_helpers.js";
 import { stableStringify } from "../schema_min.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
@@ -36,14 +42,13 @@ export const runtimeTools: ToolDef[] = [
       "Game output (needs running game — use editor_get_console after crash). " +
       "source='buffer'|'file'. limit=200. text_filter + is_regex for search.",
     inputSchema: {
-      limit: z.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().optional(),
       source: z.enum(["buffer", "file"]).optional(),
       text_filter: z
         .string()
         .optional()
         .describe("Substring to match against log message text (case-insensitive). Set is_regex=true for regex."),
-      is_regex: z
-        .boolean()
+      is_regex: coercedBoolean()
         .optional()
         .describe("Treat text_filter as a regex pattern instead of a plain substring (default false)."),
     },
@@ -70,21 +75,21 @@ export const runtimeTools: ToolDef[] = [
         z.object({
           event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click", "click_node"]),
           event_data: z.record(z.string(), z.unknown()).optional(),
-          delay_before_ms: z.number().int().nonnegative().optional(),
-          delay_after_ms: z.number().int().nonnegative().optional(),
+          delay_before_ms: z.coerce.number().int().nonnegative().optional(),
+          delay_after_ms: z.coerce.number().int().nonnegative().optional(),
         }),
         z
           .array(
             z.object({
               event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click", "click_node"]),
               event_data: z.record(z.string(), z.unknown()).optional(),
-              delay_before_ms: z.number().int().nonnegative().optional(),
-              delay_after_ms: z.number().int().nonnegative().optional(),
+              delay_before_ms: z.coerce.number().int().nonnegative().optional(),
+              delay_after_ms: z.coerce.number().int().nonnegative().optional(),
             }),
           )
           .min(1),
       ]),
-      summary: z.boolean().optional(),
+      summary: coercedBoolean().optional(),
     },
     annotations: { openWorldHint: false },
   },
@@ -97,7 +102,7 @@ export const runtimeTools: ToolDef[] = [
       node_path: z.string(),
       operation: z.enum(["play", "pause", "stop", "seek"]),
       animation_name: z.string().optional(),
-      time: z.number().optional(),
+      time: z.coerce.number().optional(),
     },
     annotations: { openWorldHint: false },
   },

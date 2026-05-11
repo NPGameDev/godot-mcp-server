@@ -2,7 +2,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { toolErrorFromException, toolErrorFromPayload, registerTools } from "../tool_helpers.js";
+import {
+  toolErrorFromException,
+  toolErrorFromPayload,
+  registerTools,
+  jsonCoerce,
+  coercedBoolean,
+} from "../tool_helpers.js";
 import { stableStringify } from "../schema_min.js";
 
 // ── Tool definitions ─────────────────────────────────────────────────
@@ -24,7 +30,7 @@ export const editorTools: ToolDef[] = [
       save_path: z.string().optional(),
       node_path: z.string().optional().describe("Focus + capture a specific node instead of the full viewport"),
       size: z
-        .object({ width: z.number(), height: z.number() })
+        .object({ width: z.coerce.number(), height: z.coerce.number() })
         .optional()
         .describe("Output size when capturing a specific node (default 1280x720)"),
     },
@@ -36,7 +42,10 @@ export const editorTools: ToolDef[] = [
     description:
       "Flush filesystem changes to the editor. With file_paths, targets specific files (O(1) per file). Without, does a full project rescan. Call after batch external edits.",
     inputSchema: {
-      file_paths: z.array(z.string()).optional().describe("res:// paths to update; omit for full scan"),
+      file_paths: z
+        .preprocess(jsonCoerce, z.array(z.string()))
+        .optional()
+        .describe("res:// paths to update; omit for full scan"),
     },
     annotations: { openWorldHint: false },
   },
@@ -72,19 +81,18 @@ export const editorTools: ToolDef[] = [
       "Tail editor Output panel. source='buffer'|'file'. level_filter, since_id, text_filter (is_regex=true for regex). " +
       "Primary post-crash diagnostic tool — reads runtime errors even after game_stop.",
     inputSchema: {
-      limit: z.number().optional(),
+      limit: z.coerce.number().optional(),
       level_filter: z
         .union([z.enum(["info", "warning", "error"]), z.array(z.enum(["info", "warning", "error"]))])
         .optional()
         .describe("Single level or array of levels to filter by"),
-      since_id: z.number().optional(),
+      since_id: z.coerce.number().optional(),
       source: z.enum(["buffer", "file"]).optional(),
       text_filter: z
         .string()
         .optional()
         .describe("Substring to match against message text (case-insensitive). Set is_regex=true for regex patterns."),
-      is_regex: z
-        .boolean()
+      is_regex: coercedBoolean()
         .optional()
         .describe("Treat text_filter as a regex pattern instead of a plain substring (default false)."),
     },
@@ -96,7 +104,7 @@ export const editorTools: ToolDef[] = [
     description:
       "Poll EditorFileSystem.is_scanning() until idle or timeout_ms (default 10s, cap 30s). Use after asset.import, editor.reload_scripts, or file mutations.",
     inputSchema: {
-      timeout_ms: z.number().optional(),
+      timeout_ms: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

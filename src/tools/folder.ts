@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_helpers.js";
+import { registerTools, coercedBoolean } from "../tool_helpers.js";
 
 export const folderTools: ToolDef[] = [
   {
@@ -20,7 +20,7 @@ export const folderTools: ToolDef[] = [
       "Delete directory. recursive:false(default) requires empty. Refuses project root, addons, and folders containing open scenes/scripts (PATH_IN_USE).",
     inputSchema: {
       folder_path: z.string(),
-      recursive: z.boolean().optional(),
+      recursive: coercedBoolean().optional(),
     },
     annotations: { destructiveHint: true, openWorldHint: false },
   },

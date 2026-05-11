@@ -15,7 +15,7 @@ export const animationTools: ToolDef[] = [
       player_path: z.string(),
       animation_name: z.string(),
       track_path: z.string(),
-      time: z.number(),
+      time: z.coerce.number(),
       value: z.unknown().optional().describe("Required for action='add'."),
       track_type: z.string().optional(),
     },

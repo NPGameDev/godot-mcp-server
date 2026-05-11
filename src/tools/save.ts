@@ -17,7 +17,7 @@ export const saveTools: ToolDef[] = [
       "Read whitelisted user:// file (default 64 KB cap; max 256 KB). Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8. USER_SCOPE_DISABLED without gate.",
     inputSchema: {
       path: z.string(),
-      max_bytes: z.number().int().positive().max(262144).optional(),
+      max_bytes: z.coerce.number().int().positive().max(262144).optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

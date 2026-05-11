@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_helpers.js";
+import { registerTools, jsonCoerce, coercedBoolean } from "../tool_helpers.js";
 
 export const sceneTools: ToolDef[] = [
   {
@@ -11,8 +11,8 @@ export const sceneTools: ToolDef[] = [
     description:
       'Return the current edited scene\'s node tree as nested JSON { name, class, path, children }. Paths use "." for root — pass them directly to other editor commands.',
     inputSchema: {
-      depth: z.number().optional().describe("Tree depth. Default 2. Use -1 for full tree."),
-      include_properties: z.boolean().optional().describe("Embed property snapshot per node. Default false."),
+      depth: z.coerce.number().optional().describe("Tree depth. Default 2. Use -1 for full tree."),
+      include_properties: coercedBoolean().optional().describe("Embed property snapshot per node. Default false."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -76,7 +76,7 @@ export const sceneTools: ToolDef[] = [
       as_name: z.string().optional().describe("Single mode: instance name."),
       transform: z.record(z.string(), z.unknown()).optional().describe("Single mode: property overrides."),
       instances: z
-        .array(z.record(z.string(), z.unknown()))
+        .preprocess(jsonCoerce, z.array(z.record(z.string(), z.unknown())))
         .optional()
         .describe(
           "Batch mode: array of {name?, position?, rotation?, scale?}. " +

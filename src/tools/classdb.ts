@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_helpers.js";
+import { registerTools, coercedBoolean } from "../tool_helpers.js";
 
 export const classdbTools: ToolDef[] = [
   {
@@ -12,7 +12,9 @@ export const classdbTools: ToolDef[] = [
       "Inspect any Godot class: properties, methods, signals, constants, inheritance. Supports engine + user class_name classes.",
     inputSchema: {
       class_name: z.string().describe("Engine class (e.g. RigidBody3D) or user-defined class_name."),
-      include_inherited: z.boolean().optional().describe("Include inherited members (default: false, own class only)."),
+      include_inherited: coercedBoolean()
+        .optional()
+        .describe("Include inherited members (default: false, own class only)."),
       sections: z
         .array(z.enum(["properties", "methods", "signals", "constants"]))
         .optional()
@@ -28,8 +30,8 @@ export const classdbTools: ToolDef[] = [
     inputSchema: {
       base_class: z.string().optional().describe("Filter to subclasses of this class."),
       pattern: z.string().optional().describe("Case-insensitive substring match on class name."),
-      instantiable_only: z.boolean().optional().describe("Exclude abstract classes (default: true)."),
-      include_global: z.boolean().optional().describe("Include user class_name classes (default: true)."),
+      instantiable_only: coercedBoolean().optional().describe("Exclude abstract classes (default: true)."),
+      include_global: coercedBoolean().optional().describe("Include user class_name classes (default: true)."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

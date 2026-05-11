@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_helpers.js";
+import { registerTools, coercedBoolean } from "../tool_helpers.js";
 
 export const nodeManagementTools: ToolDef[] = [
   // I2 waiver: node_manage description exceeds 200-char limit.
@@ -21,7 +21,9 @@ export const nodeManagementTools: ToolDef[] = [
       node_path: z.string(),
       new_name: z.string().optional().describe("Required for rename; optional for duplicate."),
       new_parent_path: z.string().optional().describe("Required for reparent."),
-      keep_global_transform: z.boolean().optional().describe("For reparent: preserve world transform. Default true."),
+      keep_global_transform: coercedBoolean()
+        .optional()
+        .describe("For reparent: preserve world transform. Default true."),
       new_index: z.coerce.number().int().optional().describe("For reorder: 0-based sibling index."),
       parent_path: z.string().optional().describe("For duplicate: target parent. Defaults to same parent."),
       properties: z
@@ -42,7 +44,7 @@ export const nodeManagementTools: ToolDef[] = [
       action: z.enum(["add", "remove", "list"]),
       node_path: z.string(),
       group: z.string().optional().describe("Group name. Required for add/remove."),
-      persistent: z.boolean().optional().describe("For add: save to .tscn. Default true."),
+      persistent: coercedBoolean().optional().describe("For add: save to .tscn. Default true."),
     },
     annotations: { openWorldHint: false },
   },
@@ -60,7 +62,7 @@ export const nodeManagementTools: ToolDef[] = [
         .string()
         .optional()
         .describe("Script path (e.g. 'res://scripts/game_manager.gd'). Required for register."),
-      enabled: z.boolean().optional().describe("For register: auto-initialize on startup. Default true."),
+      enabled: coercedBoolean().optional().describe("For register: auto-initialize on startup. Default true."),
     },
     annotations: { openWorldHint: false },
   },
