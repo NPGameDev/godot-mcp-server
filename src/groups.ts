@@ -92,7 +92,17 @@ export const GROUPS: GroupDef[] = [
   {
     name: "signals",
     tools: ["signal_list", "signal_manage", "signal_emit"],
-    keywords: ["signal", "connect", "disconnect", "emit", "observer", "event"],
+    keywords: [
+      "signal",
+      "connect",
+      "disconnect",
+      "emit",
+      "observer",
+      "event",
+      "editor signal",
+      "persisted connection",
+      "scene signal",
+    ],
   },
   {
     name: "animation_authoring",

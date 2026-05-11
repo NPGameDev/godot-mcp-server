@@ -13,7 +13,7 @@ export const signalTools: ToolDef[] = [
     name: "signal_list",
     method: "signal.list",
     description:
-      "List signals on a node in the edited scene. With include_connections=true, each signal includes its connected targets ({target_path, method_name, flags}).",
+      "List signals on a node. include_connections=true adds targets ({target_path, method_name, flags}). flags & 2 = CONNECT_PERSIST (saved in .tscn).",
     inputSchema: {
       node_path: z.string(),
       include_connections: coercedBoolean().optional(),
@@ -24,7 +24,7 @@ export const signalTools: ToolDef[] = [
     name: "signal_manage",
     method: "signal.manage",
     description:
-      "Connect or disconnect a signal in the edited scene. action='connect' is UndoRedo-wrapped and idempotent (status 'returned' on collision).",
+      "Connect or disconnect a signal (editor-time, CONNECT_PERSIST — saved in .tscn, survives save/load). Idempotent connect (status 'returned' on collision). UndoRedo-wrapped.",
     inputSchema: {
       action: z.enum(["connect", "disconnect"]),
       source_path: z.string(),
