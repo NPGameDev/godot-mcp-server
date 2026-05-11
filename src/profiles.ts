@@ -103,6 +103,7 @@ export const MUTATING_TOOLS = new Set([
   "game_eval",
   // Settings
   "project_set_setting",
+  "layer_names_set",
   // Signals
   "signal_manage",
   "signal_emit",

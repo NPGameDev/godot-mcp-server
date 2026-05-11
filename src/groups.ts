@@ -36,6 +36,7 @@ import { diffTools } from "./tools/diff.js";
 import { tilemapTools } from "./tools/tilemap.js";
 import { themeTools } from "./tools/theme.js";
 import { nodeManagementTools } from "./tools/node_management.js";
+import { layerNameTools } from "./tools/layer_names.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -50,7 +51,8 @@ export type GroupName =
   | "editor_advanced"
   | "tilemap"
   | "theme"
-  | "node_management";
+  | "node_management"
+  | "layer_naming";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -64,6 +66,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "tilemap",
   "theme",
   "node_management",
+  "layer_naming",
 ];
 
 interface GroupDef {
@@ -176,6 +179,11 @@ export const GROUPS: GroupDef[] = [
       "batch",
     ],
   },
+  {
+    name: "layer_naming",
+    tools: ["layer_names_set", "layer_names_get"],
+    keywords: ["layer", "layer name", "physics layer", "render layer", "collision layer", "mask"],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -203,6 +211,7 @@ for (const tools of [
   tilemapTools,
   themeTools,
   nodeManagementTools,
+  layerNameTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
