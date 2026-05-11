@@ -87,8 +87,18 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "animation_authoring",
-    tools: ["animation_keyframe", "animation_get_keys"],
-    keywords: ["animation", "keyframe", "track", "animate"],
+    tools: ["animation_keyframe", "animation_get_keys", "animationtree_edit"],
+    keywords: [
+      "animation",
+      "keyframe",
+      "track",
+      "animate",
+      "animationtree",
+      "state machine",
+      "blend tree",
+      "transition",
+      "blend",
+    ],
   },
   {
     name: "input_map",

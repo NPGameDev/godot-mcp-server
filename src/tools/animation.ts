@@ -32,6 +32,50 @@ export const animationTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
+  {
+    name: "animationtree_edit",
+    method: "animationtree.edit",
+    description:
+      "Configure AnimationTree state machines: set root, add/remove nodes and transitions, set properties, or list structure. UndoRedo-wrapped.",
+    inputSchema: {
+      node_path: z.string().describe("Path to an AnimationTree node in the edited scene."),
+      action: z
+        .enum(["set_root", "add_node", "remove_node", "add_transition", "remove_transition", "set_property", "list"])
+        .describe("Operation to perform on the AnimationTree."),
+      root_type: z
+        .enum(["AnimationNodeStateMachine", "AnimationNodeBlendTree"])
+        .optional()
+        .describe("For set_root: type of root node to create."),
+      node_name: z.string().optional().describe("For add_node/remove_node: name of the state machine node."),
+      node_type: z
+        .string()
+        .optional()
+        .describe("For add_node: AnimationNode subclass (e.g. AnimationNodeAnimation, AnimationNodeBlendSpace2D)."),
+      animation_name: z
+        .string()
+        .optional()
+        .describe("For add_node with AnimationNodeAnimation: which animation to play."),
+      position: z
+        .object({ x: z.number(), y: z.number() })
+        .optional()
+        .describe("For add_node: graph position { x, y }."),
+      from: z.string().optional().describe("For transitions: source node name."),
+      to: z.string().optional().describe("For transitions: destination node name."),
+      switch_mode: z
+        .enum(["immediate", "sync", "at_end"])
+        .optional()
+        .describe("For add_transition: when the transition fires."),
+      advance_condition: z.string().optional().describe("For add_transition: condition name for conditional advance."),
+      advance_mode: z
+        .enum(["disabled", "enabled", "auto"])
+        .optional()
+        .describe("For add_transition: advance mode (disabled=0, enabled=1, auto=2)."),
+      target_node: z.string().optional().describe("For set_property: node name in the state machine."),
+      property: z.string().optional().describe("For set_property: property name to set."),
+      value: z.unknown().optional().describe("For set_property: value to assign."),
+    },
+    annotations: { idempotentHint: true, openWorldHint: false },
+  },
 ];
 
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
