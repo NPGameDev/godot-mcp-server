@@ -24,8 +24,8 @@ export const tilemapTools: ToolDef[] = [
     method: "tileset.create",
     description:
       "Create a TileSet .tres from a texture. Auto-generates atlas tiles " +
-      "for the full texture grid. Returns source_id + atlas grid dims — " +
-      "use these with tilemap_set_cells. Physics layer added by default.",
+      "with full-tile collision polygons (physics on by default). Returns " +
+      "source_id + atlas grid dims — use these with tilemap_set_cells.",
     inputSchema: {
       file_path: z.string().describe("Output path, e.g. 'res://resources/tileset.tres'"),
       texture_path: z.string().describe("Texture for the atlas source, e.g. 'res://assets/tiles.png'"),
