@@ -18,7 +18,7 @@ export async function testCollision(ctx: TestCtx): Promise<void> {
   // Set the texture to Godot's icon
   const setTexResult = (await bridge.call(
     "node.set_property",
-    { node_path: "MCPSmokeCollSprite", property: "texture", value: "res://icon.svg" },
+    { node_path: "MCPSmokeCollSprite", property: "texture", value: { type: "Resource", path: "res://icon.svg" } },
     CALL_TIMEOUT,
   )) as { success?: boolean };
   if (!setTexResult?.success) {
