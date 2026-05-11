@@ -143,6 +143,10 @@ export const MUTATING_TOOLS = new Set([
   "procedural_edit_noise",
   // Audio
   "audiobus_edit",
+  // SpriteFrames
+  "spriteframes_create",
+  "spriteframes_edit",
+  "spriteframes_from_spritesheet",
 ]);
 
 /** Determine the active profile from env vars + CLI args. */

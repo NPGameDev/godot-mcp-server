@@ -43,6 +43,7 @@ import { threeDTools } from "./tools/three_d.js";
 import { proceduralTools } from "./tools/procedural.js";
 import { sceneInheritanceTools } from "./tools/scene_inheritance.js";
 import { audioTools } from "./tools/audio.js";
+import { spriteframesTools } from "./tools/spriteframes.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -64,6 +65,7 @@ export type GroupName =
   | "procedural"
   | "scene_inheritance"
   | "audio";
+  | "spriteframes";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -83,6 +85,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "procedural",
   "scene_inheritance",
   "audio",
+  "spriteframes",
 ];
 
 interface GroupDef {
@@ -259,6 +262,18 @@ export const GROUPS: GroupDef[] = [
     name: "audio",
     tools: ["audiobus_edit"],
     keywords: ["audio", "audiobus", "sound", "music", "volume", "bus", "effect", "reverb", "sfx"],
+    name: "spriteframes",
+    tools: ["spriteframes_create", "spriteframes_edit", "spriteframes_from_spritesheet"],
+    keywords: [
+      "sprite",
+      "spriteframes",
+      "animated sprite",
+      "frame",
+      "flipbook",
+      "2d animation",
+      "spritesheet",
+      "atlas",
+    ],
   },
 ];
 
@@ -294,6 +309,7 @@ for (const tools of [
   proceduralTools,
   sceneInheritanceTools,
   audioTools,
+  spriteframesTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
