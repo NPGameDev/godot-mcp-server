@@ -36,6 +36,7 @@ export async function testParticles(ctx: TestCtx): Promise<void> {
     "particles.create invalid preset",
     await bridge.call("particles.create", { parent_path: ".", type: "2d", preset: "lava" }, CALL_TIMEOUT),
     "INVALID_PARAMS",
+    "preset",
   );
 
   // Guard: invalid type
@@ -44,6 +45,7 @@ export async function testParticles(ctx: TestCtx): Promise<void> {
     "particles.create invalid type",
     await bridge.call("particles.create", { parent_path: ".", type: "4d" }, CALL_TIMEOUT),
     "INVALID_PARAMS",
+    "type",
   );
 
   // Guard: non-existent parent
@@ -52,6 +54,7 @@ export async function testParticles(ctx: TestCtx): Promise<void> {
     "particles.create missing parent",
     await bridge.call("particles.create", { parent_path: "NonExistent", type: "2d" }, CALL_TIMEOUT),
     "NOT_FOUND",
+    "parent",
   );
 
   // Cleanup

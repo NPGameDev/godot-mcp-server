@@ -74,6 +74,7 @@ export async function testSpriteframes(ctx: TestCtx): Promise<void> {
     "spriteframes.create empty animations guard",
     await bridge.call("spriteframes.create", { file_path: "res://mcp_smoke_bad.tres", animations: [] }, CALL_TIMEOUT),
     "INVALID_PARAMS",
+    "animations",
   );
 
   // Guard: non-existent texture
@@ -89,6 +90,7 @@ export async function testSpriteframes(ctx: TestCtx): Promise<void> {
       CALL_TIMEOUT,
     ),
     "NOT_FOUND",
+    "texture",
   );
 
   // Cleanup
