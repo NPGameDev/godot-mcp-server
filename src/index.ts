@@ -45,6 +45,7 @@ import * as save from "./tools/save.js";
 import * as tilemap from "./tools/tilemap.js";
 import * as classdb from "./tools/classdb.js";
 import * as nodeManagement from "./tools/node_management.js";
+import * as sceneQuery from "./tools/scene_query.js";
 
 // ── Tool catalogue ───────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ const ALL_MODULE_DEFS = [
   tilemap.tilemapTools,
   classdb.classdbTools,
   nodeManagement.nodeManagementTools,
+  sceneQuery.sceneQueryTools,
 ];
 
 // ── Profile resolution ───────────────────────────────────────────────
@@ -197,6 +199,7 @@ function registerModules(ma: Set<string>): void {
   save.register(server, bridge, ma);
   classdb.register(server, bridge, ma);
   nodeManagement.register(server, bridge, ma);
+  sceneQuery.register(server, bridge, ma);
 }
 
 function registerGroups(): void {
