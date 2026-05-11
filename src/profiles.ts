@@ -152,6 +152,8 @@ export const MUTATING_TOOLS = new Set([
   "spriteframes_from_spritesheet",
   // Particles
   "particles_create",
+  // Navigation
+  "navigation_edit",
 ]);
 
 /** Determine the active profile from env vars + CLI args. */

@@ -46,6 +46,7 @@ import { audioTools } from "./tools/audio.js";
 import { spriteframesTools } from "./tools/spriteframes.js";
 import { sceneQueryTools } from "./tools/scene_query.js";
 import { particleTools } from "./tools/particles.js";
+import { navigationTools } from "./tools/navigation.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -68,7 +69,8 @@ export type GroupName =
   | "scene_inheritance"
   | "audio"
   | "spriteframes"
-  | "particles";
+  | "particles"
+  | "navigation";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -90,6 +92,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "audio",
   "spriteframes",
   "particles",
+  "navigation",
 ];
 
 interface GroupDef {
@@ -301,6 +304,21 @@ export const GROUPS: GroupDef[] = [
       "particle system",
     ],
   },
+  {
+    name: "navigation",
+    tools: ["navigation_edit"],
+    keywords: [
+      "navigation",
+      "navmesh",
+      "pathfinding",
+      "navigate",
+      "obstacle",
+      "avoidance",
+      "navigation region",
+      "nav polygon",
+      "ai pathfinding",
+    ],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -338,6 +356,7 @@ for (const tools of [
   spriteframesTools,
   sceneQueryTools,
   particleTools,
+  navigationTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
