@@ -709,7 +709,21 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         const { core } = findMatchingGroups(parsed.request);
         if (core.length > 0) response.core_matches = core;
       }
-      if (deactivated.length > 0) response.deactivated = deactivated;
+      if (deactivated.length > 0) {
+        response.deactivated = deactivated;
+        // List individual tool names so the agent knows exactly what's gone.
+        const deactivatedTools: string[] = [];
+        for (const gName of deactivated) {
+          const group = GROUPS.find((g) => g.name === gName);
+          if (group) deactivatedTools.push(...group.tools);
+          const ext = extensionGroups.get(gName);
+          if (ext) deactivatedTools.push(...ext.commands.map((c) => c.toolName));
+        }
+        if (deactivatedTools.length > 0) response.deactivated_tools = deactivatedTools;
+        response.hint =
+          "Deactivated tools are no longer callable. " +
+          "Call discover_tools(groups=[...]) to re-activate before using them.";
+      }
 
       // Update discover_tools description to reflect new state.
       updateToolRef("discover_tools", { description: buildDiscoverToolsDesc() });
