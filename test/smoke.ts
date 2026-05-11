@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Smoke test orchestrator — imports and runs 26 self-contained test
-// sections sequentially. Each section lives in test/sections/.
+// Smoke test orchestrator — imports and runs numbered test sections
+// sequentially. Each section lives in test/sections/.
 //
 // Port-check first: if the editor plugin isn't reachable, print
 // instructions and exit before any assertions.
@@ -11,8 +11,14 @@
 //   2 — precondition failure (Godot not running, port not listening, etc.)
 //
 // Flags:
-//   --ci  Skip the port check and run only static catalogue/registration
-//         validation (no Godot calls). Useful in CI where no editor runs.
+//   --ci          Static catalogue validation only (no Godot required).
+//   --from N      Run sections N and above.
+//   --to N        Run sections up to N (inclusive).
+//   --only N,M,O  Run only the listed sections (comma-separated).
+//
+// Section 01 (catalogue) is auto-included when section 10 is selected,
+// since it provides the ncmGated flag. Section 19 (reconnect) always
+// runs last when included — it drops the connection.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { createBridge } from "../src/bridge.js";
@@ -82,6 +88,26 @@ import { testLayerNames } from "./sections/28_layer_names.js";
 // ─── CLI flag parsing ────────────────────────────────────────────────────
 const CI_MODE = process.argv.includes("--ci");
 
+function parseIntArg(flag: string): number | undefined {
+  const idx = process.argv.indexOf(flag);
+  if (idx === -1 || idx + 1 >= process.argv.length) return undefined;
+  const val = parseInt(process.argv[idx + 1], 10);
+  return isNaN(val) ? undefined : val;
+}
+
+function parseListArg(flag: string): number[] | undefined {
+  const idx = process.argv.indexOf(flag);
+  if (idx === -1 || idx + 1 >= process.argv.length) return undefined;
+  return process.argv[idx + 1]
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !isNaN(n));
+}
+
+const FROM_SECTION = parseIntArg("--from");
+const TO_SECTION = parseIntArg("--to");
+const ONLY_SECTIONS = parseListArg("--only");
+
 // ─── Counters ────────────────────────────────────────────────────────────
 let passCount = 0;
 let failCount = 0;
@@ -123,6 +149,83 @@ function discoverProjectPath(): string | undefined {
   return undefined;
 }
 
+// ─── Section registry ────────────────────────────────────────────────────
+// Shared state: section 01 produces ncmGated, section 10 consumes it.
+let ncmGated = false;
+
+interface Section {
+  num: number;
+  name: string;
+  run: (ctx: TestCtx) => Promise<void> | void;
+}
+
+const ALL_SECTIONS: Section[] = [
+  {
+    num: 1,
+    name: "catalogue",
+    run: async (ctx) => {
+      ({ ncmGated } = await testCatalogue(ctx));
+    },
+  },
+  { num: 2, name: "scene_node_basics", run: testSceneNodeBasics },
+  { num: 3, name: "script_ops", run: testScriptOps },
+  { num: 4, name: "editor_and_scene_nav", run: testEditorAndSceneNav },
+  { num: 5, name: "signals_and_introspection", run: testSignalsAndIntrospection },
+  { num: 6, name: "scene_diff", run: testSceneDiff },
+  { num: 7, name: "error_contract", run: testErrorContract },
+  { num: 8, name: "scene_file_lifecycle", run: testSceneFileLifecycle },
+  { num: 9, name: "resource_folder_shader", run: testResourceFolderShader },
+  { num: 10, name: "playtest_and_composition", run: (ctx) => testPlaytestAndComposition(ctx, ncmGated) },
+  { num: 11, name: "project_set_setting", run: testProjectSetSetting },
+  { num: 12, name: "input_map", run: testInputMap },
+  { num: 13, name: "animation_tilemap_screenshot", run: testAnimationTilemapScreenshot },
+  { num: 14, name: "asset_discovery_and_console", run: testAssetDiscoveryAndConsole },
+  { num: 15, name: "asset_import", run: testAssetImport },
+  { num: 16, name: "custom_class_and_file_ops", run: testCustomClassAndFileOps },
+  { num: 17, name: "mode_b", run: testModeB },
+  { num: 18, name: "security", run: testSecurity },
+  { num: 19, name: "reconnect", run: testReconnect },
+  { num: 20, name: "user_scope", run: testUserScope },
+  { num: 21, name: "response_caps", run: testResponseCaps },
+  { num: 22, name: "extensibility", run: testExtensibility },
+  { num: 23, name: "classdb", run: testClassdb },
+  { num: 24, name: "script_check", run: testScriptCheck },
+  { num: 25, name: "csharp_compat", run: testCsharpCompat },
+  { num: 26, name: "theme", run: testTheme },
+  { num: 27, name: "animationtree", run: testAnimationTree },
+  { num: 28, name: "layer_names", run: testLayerNames },
+];
+
+function filterSections(): Section[] {
+  let filtered: Section[];
+
+  if (ONLY_SECTIONS) {
+    const set = new Set(ONLY_SECTIONS);
+    filtered = ALL_SECTIONS.filter((s) => set.has(s.num));
+  } else if (FROM_SECTION !== undefined || TO_SECTION !== undefined) {
+    const from = FROM_SECTION ?? 1;
+    const to = TO_SECTION ?? Infinity;
+    filtered = ALL_SECTIONS.filter((s) => s.num >= from && s.num <= to);
+  } else {
+    filtered = [...ALL_SECTIONS];
+  }
+
+  // Section 10 depends on ncmGated from section 01
+  if (filtered.some((s) => s.num === 10) && !filtered.some((s) => s.num === 1)) {
+    filtered.unshift(ALL_SECTIONS[0]);
+    console.log("[smoke] Auto-included section 01 (catalogue) — required by section 10\n");
+  }
+
+  // Section 19 (reconnect) always runs last — it drops the connection
+  const reconnectIdx = filtered.findIndex((s) => s.num === 19);
+  if (reconnectIdx !== -1 && reconnectIdx !== filtered.length - 1) {
+    const [reconnect] = filtered.splice(reconnectIdx, 1);
+    filtered.push(reconnect);
+  }
+
+  return filtered;
+}
+
 // ─── CI mode: static catalogue validation only ───────────────────────────
 async function runCiMode(): Promise<void> {
   console.log("[smoke] CI mode — running static catalogue validation (no Godot required)\n");
@@ -133,7 +236,7 @@ async function runCiMode(): Promise<void> {
   process.exit(failCount > 0 ? 1 : 0);
 }
 
-// ─── Full mode: port probe + all test sections ───────────────────────────
+// ─── Full mode: port probe + filtered test sections ─────────────────────
 async function runFullMode(): Promise<void> {
   const reachable = await probePort(HOST, PORT, PROBE_TIMEOUT_MS);
   if (!reachable) {
@@ -153,35 +256,16 @@ async function runFullMode(): Promise<void> {
     projectPath,
   };
 
+  const sections = filterSections();
+  const nums = sections.map((s) => s.num);
+  if (ONLY_SECTIONS || FROM_SECTION !== undefined || TO_SECTION !== undefined) {
+    console.log(`[smoke] Running sections: ${nums.join(", ")}\n`);
+  }
+
   try {
-    const { ncmGated } = await testCatalogue(ctx);
-    await testSceneNodeBasics(ctx);
-    await testScriptOps(ctx);
-    await testEditorAndSceneNav(ctx);
-    await testSignalsAndIntrospection(ctx);
-    await testSceneDiff(ctx);
-    await testErrorContract(ctx);
-    await testSceneFileLifecycle(ctx);
-    await testResourceFolderShader(ctx);
-    await testPlaytestAndComposition(ctx, ncmGated);
-    await testProjectSetSetting(ctx);
-    await testInputMap(ctx);
-    await testAnimationTilemapScreenshot(ctx);
-    await testAssetDiscoveryAndConsole(ctx);
-    await testAssetImport(ctx);
-    await testCustomClassAndFileOps(ctx);
-    await testModeB(ctx);
-    await testSecurity(ctx);
-    await testUserScope(ctx);
-    await testResponseCaps(ctx);
-    await testExtensibility(ctx);
-    await testClassdb(ctx);
-    await testScriptCheck(ctx);
-    await testCsharpCompat(ctx);
-    await testTheme(ctx);
-    await testAnimationTree(ctx);
-    await testLayerNames(ctx);
-    await testReconnect(ctx);
+    for (const section of sections) {
+      await section.run(ctx);
+    }
   } catch (err) {
     failFn(`unexpected error: ${(err as Error).message}`);
   } finally {
