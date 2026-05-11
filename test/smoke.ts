@@ -56,6 +56,7 @@ import { testCsharpCompat } from "./sections/25_csharp_compat.js";
 import { testTheme } from "./sections/26_theme.js";
 import { testAnimationTree } from "./sections/27_animationtree.js";
 import { testLayerNames } from "./sections/28_layer_names.js";
+import { testPath2d } from "./sections/29_path2d.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -194,6 +195,7 @@ const ALL_SECTIONS: Section[] = [
   { num: 26, name: "theme", run: testTheme },
   { num: 27, name: "animationtree", run: testAnimationTree },
   { num: 28, name: "layer_names", run: testLayerNames },
+  { num: 29, name: "path2d", run: testPath2d },
 ];
 
 function filterSections(): Section[] {

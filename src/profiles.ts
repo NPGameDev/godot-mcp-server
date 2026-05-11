@@ -117,6 +117,8 @@ export const MUTATING_TOOLS = new Set([
   "tileset_create",
   "tileset_edit",
   "theme_edit",
+  // Path editing
+  "path2d_edit_curve",
   // User data
   "save_write",
   "save_delete",

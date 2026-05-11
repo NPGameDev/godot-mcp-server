@@ -37,6 +37,7 @@ import { tilemapTools } from "./tools/tilemap.js";
 import { themeTools } from "./tools/theme.js";
 import { nodeManagementTools } from "./tools/node_management.js";
 import { layerNameTools } from "./tools/layer_names.js";
+import { pathTools } from "./tools/path.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -52,7 +53,8 @@ export type GroupName =
   | "tilemap"
   | "theme"
   | "node_management"
-  | "layer_naming";
+  | "layer_naming"
+  | "path_editing";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -67,6 +69,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "theme",
   "node_management",
   "layer_naming",
+  "path_editing",
 ];
 
 interface GroupDef {
@@ -184,6 +187,11 @@ export const GROUPS: GroupDef[] = [
     tools: ["layer_names_set", "layer_names_get"],
     keywords: ["layer", "layer name", "physics layer", "render layer", "collision layer", "mask"],
   },
+  {
+    name: "path_editing",
+    tools: ["path2d_edit_curve"],
+    keywords: ["path", "path2d", "curve", "bezier", "spline", "follow path", "curve2d"],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -212,6 +220,7 @@ for (const tools of [
   themeTools,
   nodeManagementTools,
   layerNameTools,
+  pathTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
