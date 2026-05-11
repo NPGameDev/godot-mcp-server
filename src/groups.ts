@@ -66,8 +66,8 @@ export type GroupName =
   | "3d_tools"
   | "procedural"
   | "scene_inheritance"
-  | "audio";
-  | "spriteframes";
+  | "audio"
+  | "spriteframes"
   | "particles";
 
 const GROUP_NAMES: readonly GroupName[] = [
@@ -266,6 +266,8 @@ export const GROUPS: GroupDef[] = [
     name: "audio",
     tools: ["audiobus_edit"],
     keywords: ["audio", "audiobus", "sound", "music", "volume", "bus", "effect", "reverb", "sfx"],
+  },
+  {
     name: "spriteframes",
     tools: ["spriteframes_create", "spriteframes_edit", "spriteframes_from_spritesheet"],
     keywords: [
@@ -277,6 +279,9 @@ export const GROUPS: GroupDef[] = [
       "2d animation",
       "spritesheet",
       "atlas",
+    ],
+  },
+  {
     name: "particles",
     tools: ["particles_create"],
     keywords: [

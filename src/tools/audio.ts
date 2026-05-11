@@ -25,7 +25,7 @@ export const audioTools: ToolDef[] = [
           type: z.string().describe("Effect class: Reverb, Delay, Compressor, Chorus, EQ, etc."),
           index: z.number().int().optional().describe("Effect slot index"),
           enabled: z.boolean().optional().describe("Enable/disable the effect"),
-          properties: z.record(z.unknown()).optional().describe("Effect-specific properties"),
+          properties: z.record(z.string(), z.unknown()).optional().describe("Effect-specific properties"),
         })
         .optional()
         .describe("Effect to add/remove"),
