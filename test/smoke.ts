@@ -58,6 +58,7 @@ import { testAnimationTree } from "./sections/27_animationtree.js";
 import { testLayerNames } from "./sections/28_layer_names.js";
 import { testPath2d } from "./sections/29_path2d.js";
 import { test3dTools } from "./sections/30_3d_tools.js";
+import { testSceneInheritance } from "./sections/33_scene_inheritance.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -198,6 +199,7 @@ const ALL_SECTIONS: Section[] = [
   { num: 28, name: "layer_names", run: testLayerNames },
   { num: 29, name: "path2d", run: testPath2d },
   { num: 30, name: "3d_tools", run: test3dTools },
+  { num: 33, name: "scene_inheritance", run: testSceneInheritance },
 ];
 
 function filterSections(): Section[] {

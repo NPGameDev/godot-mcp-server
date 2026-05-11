@@ -39,6 +39,7 @@ import { nodeManagementTools } from "./tools/node_management.js";
 import { layerNameTools } from "./tools/layer_names.js";
 import { pathTools } from "./tools/path.js";
 import { threeDTools } from "./tools/three_d.js";
+import { sceneInheritanceTools } from "./tools/scene_inheritance.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -56,7 +57,8 @@ export type GroupName =
   | "node_management"
   | "layer_naming"
   | "path_editing"
-  | "3d_tools";
+  | "3d_tools"
+  | "scene_inheritance";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -73,6 +75,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "layer_naming",
   "path_editing",
   "3d_tools",
+  "scene_inheritance",
 ];
 
 interface GroupDef {
@@ -221,6 +224,19 @@ export const GROUPS: GroupDef[] = [
       "sky",
     ],
   },
+  {
+    name: "scene_inheritance",
+    tools: ["scene_create_inherited"],
+    keywords: [
+      "inheritance",
+      "inherited scene",
+      "prefab",
+      "variant",
+      "base scene",
+      "scene extend",
+      "inherit",
+    ],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -251,6 +267,7 @@ for (const tools of [
   layerNameTools,
   pathTools,
   threeDTools,
+  sceneInheritanceTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
