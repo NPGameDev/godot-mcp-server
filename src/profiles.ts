@@ -80,6 +80,7 @@ export const MUTATING_TOOLS = new Set([
   "scene_delete",
   "scene_instantiate",
   "scene_close",
+  "scene_create_inherited",
   // Node mutations
   "node_set_property",
   "node_set_script",

@@ -41,6 +41,7 @@ import { pathTools } from "./tools/path.js";
 import { collisionTools } from "./tools/collision.js";
 import { threeDTools } from "./tools/three_d.js";
 import { proceduralTools } from "./tools/procedural.js";
+import { sceneInheritanceTools } from "./tools/scene_inheritance.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -59,7 +60,8 @@ export type GroupName =
   | "layer_naming"
   | "path_editing"
   | "3d_tools"
-  | "procedural";
+  | "procedural"
+  | "scene_inheritance";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -77,6 +79,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "path_editing",
   "3d_tools",
   "procedural",
+  "scene_inheritance",
 ];
 
 interface GroupDef {
@@ -207,7 +210,21 @@ export const GROUPS: GroupDef[] = [
   {
     name: "path_editing",
     tools: ["path2d_edit_curve", "collision_from_texture"],
-    keywords: ["path", "path2d", "curve", "bezier", "spline", "follow path", "curve2d", "collision", "collision polygon", "sprite", "bitmap", "alpha", "shape from texture"],
+    keywords: [
+      "path",
+      "path2d",
+      "curve",
+      "bezier",
+      "spline",
+      "follow path",
+      "curve2d",
+      "collision",
+      "collision polygon",
+      "sprite",
+      "bitmap",
+      "alpha",
+      "shape from texture",
+    ],
   },
   {
     name: "3d_tools",
@@ -228,16 +245,12 @@ export const GROUPS: GroupDef[] = [
   {
     name: "procedural",
     tools: ["procedural_edit_gradient", "procedural_edit_curve", "procedural_edit_noise"],
-    keywords: [
-      "procedural",
-      "generate",
-      "gradient",
-      "noise",
-      "curve",
-      "resource create",
-      "fastnoiselite",
-      "easing",
-    ],
+    keywords: ["procedural", "generate", "gradient", "noise", "curve", "resource create", "fastnoiselite", "easing"],
+  },
+  {
+    name: "scene_inheritance",
+    tools: ["scene_create_inherited"],
+    keywords: ["inheritance", "inherited scene", "prefab", "variant", "base scene", "scene extend", "inherit"],
   },
 ];
 
@@ -271,6 +284,7 @@ for (const tools of [
   collisionTools,
   threeDTools,
   proceduralTools,
+  sceneInheritanceTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
