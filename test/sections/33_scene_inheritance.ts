@@ -53,6 +53,22 @@ export async function testSceneInheritance(ctx: TestCtx): Promise<void> {
     fail(`scene.create_inherited custom root: ${JSON.stringify(customResult)}`);
   }
 
+  // Idempotency: calling again on same file returns status "returned"
+  const idempResult = (await bridge.call(
+    "scene.create_inherited",
+    {
+      file_path: "res://mcp_smoke_inherited_scene.tscn",
+      base_scene: "res://mcp_smoke_base_scene.tscn",
+    },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; status?: string };
+
+  if (idempResult?.success === true && idempResult.status === "returned") {
+    pass(`scene.create_inherited idempotent -> status=${idempResult.status}`);
+  } else {
+    fail(`scene.create_inherited idempotent: expected status='returned', got ${JSON.stringify(idempResult)}`);
+  }
+
   // Guard: non-existent base scene
   assertGuard(
     ctx,
