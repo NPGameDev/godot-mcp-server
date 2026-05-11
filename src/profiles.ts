@@ -141,6 +141,8 @@ export const MUTATING_TOOLS = new Set([
   "procedural_edit_gradient",
   "procedural_edit_curve",
   "procedural_edit_noise",
+  // Particles
+  "particles_create",
 ]);
 
 /** Determine the active profile from env vars + CLI args. */
