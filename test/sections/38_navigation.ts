@@ -6,8 +6,8 @@ export async function testNavigation(ctx: TestCtx): Promise<void> {
 
   // Create a NavigationRegion2D node for testing
   const addResult = (await bridge.call(
-    "scene.add_node",
-    { parent_path: ".", type: "NavigationRegion2D", name: "MCPSmokeNavRegion" },
+    "scene.create_node",
+    { parent_path: ".", class_name: "NavigationRegion2D", node_name: "MCPSmokeNavRegion" },
     CALL_TIMEOUT,
   )) as { success?: boolean };
 
