@@ -119,7 +119,7 @@ export const runtimeTools: ToolDef[] = [
   },
   // I2 waiver: runtime_set_property description exceeds 200-char limit.
   // Inline examples eliminate the #1 agent confusion (F21/F33): reaching
-  // for game_eval .set() when a purpose-built tool exists.
+  // for execute_code .set() when a purpose-built tool exists.
   {
     name: "runtime_set_property",
     method: "runtime.set_property",
@@ -140,26 +140,34 @@ export const runtimeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, openWorldHint: false },
   },
-  // game_eval is RCE-equivalent — gated via feature_gate. Plugin-side
+  // execute_code is RCE-equivalent — gated via feature_gate. Plugin-side
   // FeatureGate (feature_gate.gd) performs the full dual-gate check as
   // defence-in-depth; the gate here only controls MCP-catalogue exposure.
   // I2 waiver: expression-only examples are the fix for F23/F32 — agents
   // repeatedly tried `score = 100` (assignment) and hit parse errors.
   {
-    name: "game_eval",
-    method: "game.eval",
+    name: "execute_code",
+    method: "execute.code",
     description:
-      "DANGER: evaluates a GDScript expression in the running game. Expression-only — " +
+      "DANGER: evaluates a GDScript expression. Expression-only — " +
       "no var/return/if/for statements, no = assignment.\n\n" +
+      "context: 'game' (default) runs in the running game, 'editor' runs in the editor process.\n\n" +
       "To set properties: get_node('/root/Main/Player').set('speed', 400)\n" +
       "To call methods: get_node('/root/Main/Player').call('take_damage', 25)\n" +
       "To read values: get_node('/root/Main/Player').position\n\n" +
       "Prefer runtime_set_property for single property changes (safer, no expression syntax). " +
-      "Use game_eval for complex multi-step operations or method calls with specific arguments. " +
-      "If C# project, managed methods are callable at runtime.",
-    inputSchema: { code: z.string(), scope_path: z.string().optional() },
+      "Use execute_code for complex multi-step operations or method calls with specific arguments. " +
+      "If C# project, managed methods are callable at runtime (context:'game').",
+    inputSchema: {
+      code: z.string(),
+      scope_path: z.string().optional(),
+      context: z
+        .enum(["game", "editor"])
+        .optional()
+        .describe("Execution context: 'game' for running game (default), 'editor' for editor process"),
+    },
     annotations: { destructiveHint: true, openWorldHint: false },
-    gate: "game_eval",
+    gate: "execute_code",
   },
 ];
 
@@ -234,13 +242,18 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
     "debugger_get_log",
     (input) => debuggerLogHandler(bridge, "debugger.get_log", input) as Promise<ToolTextResult>,
   );
-  // game_eval: alias "expression" → "code" (agents send the wrong param name)
-  handlers.set("game_eval", (input) => {
+  // execute_code: alias "expression" → "code" (agents send the wrong param name),
+  // route based on context param (game → runtime bridge, editor → editor bridge).
+  handlers.set("execute_code", (input) => {
     if (!input.code && input.expression) {
       input.code = input.expression;
       delete input.expression;
     }
-    return callAndWrap(bridge, "game.eval", input, { runtime: true });
+    const context = input.context ?? "game";
+    if (context === "editor") {
+      return callAndWrap(bridge, "execute.code", input);
+    }
+    return callAndWrap(bridge, "execute.code", input, { runtime: true });
   });
   // Default runtime handler for remaining tools
   for (const tool of runtimeTools) {

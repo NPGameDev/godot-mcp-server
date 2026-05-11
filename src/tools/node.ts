@@ -79,7 +79,7 @@ export const nodeTools: ToolDef[] = [
   {
     name: "node_call_method",
     method: "node.call_method",
-    description: "Call method with args on an edited-scene node (editor-only; for runtime nodes use game_eval).",
+    description: "Call method with args on an edited-scene node (editor-only; for runtime nodes use execute_code).",
     inputSchema: {
       node_path: z.string(),
       method_name: z.string(),

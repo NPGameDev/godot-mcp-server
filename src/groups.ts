@@ -603,7 +603,10 @@ const CORE_TOOL_KEYWORDS = new Map<string, string[]>([
   ["project_set_setting", ["set setting", "change setting", "project config"]],
   ["game_start", ["run", "play", "start game", "launch", "playtest"]],
   ["game_stop", ["stop", "quit", "stop game", "end playtest"]],
-  ["game_eval", ["eval", "evaluate", "execute", "runtime code", "expression"]],
+  [
+    "execute_code",
+    ["eval", "evaluate", "execute", "runtime code", "expression", "execute code", "editor eval", "editor expression"],
+  ],
   ["runtime_screenshot", ["screenshot", "capture", "viewport", "screen"]],
   ["input_simulate", ["input", "click", "key press", "mouse", "simulate"]],
   ["runtime_get_script_vars", ["variables", "script vars", "inspect runtime", "debug"]],

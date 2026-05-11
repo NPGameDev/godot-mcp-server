@@ -48,7 +48,7 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
     "project.set_setting mcp_toolkit/*",
     await bridge.call(
       "project.set_setting",
-      { setting: "mcp_toolkit/feature_gates/allow_game_eval", value: true },
+      { setting: "mcp_toolkit/feature_gates/allow_execute_code", value: true },
       CALL_TIMEOUT,
     ),
     "INVALID_PATH",

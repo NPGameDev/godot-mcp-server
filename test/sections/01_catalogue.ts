@@ -60,25 +60,25 @@ function getAllToolDefs(): ToolDef[] {
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 57 base (59 in arrays minus 2 gated: game_eval, node_call_method).
+  // Tool count — 57 base (59 in arrays minus 2 gated: execute_code, node_call_method).
   // getAllToolDefs applies gateFilter, so the base already excludes gated tools.
   // read_user_scope (+4) adds save_read/write/delete/list via conditional spread.
   // All off = 57; all on = 63.
   let expectedToolCount = 57;
-  if (featureEnabled("game_eval")) expectedToolCount += 1;
+  if (featureEnabled("execute_code")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;
   const allTools = getAllToolDefs();
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else
     pass(
-      `tool count == ${expectedToolCount} (gates: game_eval=${featureEnabled("game_eval")}, node_call_method=${featureEnabled("node_call_method")}, read_user_scope=${featureEnabled("read_user_scope")})`,
+      `tool count == ${expectedToolCount} (gates: execute_code=${featureEnabled("execute_code")}, node_call_method=${featureEnabled("node_call_method")}, read_user_scope=${featureEnabled("read_user_scope")})`,
     );
 
   // Feature gate catalogue checks — verify gated tools are present/absent
   // based on gate state. Uses filtered allTools (mirrors registration logic).
   const gateChecks: [string, string][] = [
-    ["game_eval", "game_eval"],
+    ["execute_code", "execute_code"],
     ["node_call_method", "node_call_method"],
     ["read_user_scope", "save_read"],
   ];
@@ -97,7 +97,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     "node_groups",
     "autoload_manage",
     "input_simulate",
-    "game_eval",
+    "execute_code",
     "editor_screenshot",
     "runtime_set_property",
     "node_set_property",

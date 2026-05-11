@@ -6,7 +6,7 @@ import { HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS, CALL_TIMEOUT, SCREENSHOT_TIMEOUT,
 
 export async function testModeB(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
-  const gameEvalEnabled = featureEnabled("game_eval");
+  const gameEvalEnabled = featureEnabled("execute_code");
 
   const runtimeReachable = await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS);
   if (!runtimeReachable) {
@@ -17,7 +17,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       ["input.simulate", { event_type: "action", event_data: { action: "ui_accept" } }],
       ["animation_player.control", { node_path: "/root/NoSuchAP", operation: "pause" }],
     ];
-    if (gameEvalEnabled) modeBChecks.push(["game.eval", { code: "1+2" }]);
+    if (gameEvalEnabled) modeBChecks.push(["execute.code", { code: "1+2" }]);
     for (const [method, params] of modeBChecks) {
       try {
         await bridge.callRuntime(method, params, 3000);
@@ -81,17 +81,17 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     else pass("animation_player.control bogus -> NOT_FOUND");
 
     if (gameEvalEnabled) {
-      const gameEvalResult = (await bridge.callRuntime("game.eval", { code: "1+2" }, CALL_TIMEOUT)) as {
+      const gameEvalResult = (await bridge.callRuntime("execute.code", { code: "1+2" }, CALL_TIMEOUT)) as {
         result?: unknown;
         code?: string;
         success?: boolean;
       };
       if (gameEvalResult?.code === "FEATURE_DISABLED") {
-        pass("game.eval -> FEATURE_DISABLED (Godot-side dual gate off; skipping)");
+        pass("execute.code -> FEATURE_DISABLED (Godot-side dual gate off; skipping)");
       } else if (gameEvalResult?.result !== 3) {
-        fail(`game.eval 1+2: expected 3, got ${JSON.stringify(gameEvalResult)}`);
+        fail(`execute.code 1+2: expected 3, got ${JSON.stringify(gameEvalResult)}`);
       } else {
-        pass("game.eval 1+2 -> 3");
+        pass("execute.code 1+2 -> 3");
       }
     }
   }

@@ -512,7 +512,7 @@ async function main(): Promise<void> {
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  section("18. game_eval — C# method call at runtime");
+  section("18. execute_code — C# method call at runtime");
   // ──────────────────────────────────────────────────────────────────────
   try {
     // Start the game
@@ -523,21 +523,21 @@ async function main(): Promise<void> {
       // Wait for runtime to initialize
       await new Promise((r) => setTimeout(r, 3000));
 
-      // Call a C# method via game_eval
+      // Call a C# method via execute_code
       try {
         const evalR = (await bridge.callRuntime(
-          "game.eval",
+          "execute.code",
           { code: "GetCurrentHealth()", scope_path: "/root/Main/Player" },
           CALL_TIMEOUT,
         )) as { success?: boolean; result?: unknown; value?: unknown };
         if (evalR.success !== false) {
           const val = evalR.result ?? evalR.value;
-          pass(`game_eval C# method call: GetCurrentHealth() = ${JSON.stringify(val)}`);
+          pass(`execute_code C# method call: GetCurrentHealth() = ${JSON.stringify(val)}`);
         } else {
-          fail(`game_eval C# method call failed: ${JSON.stringify(evalR).slice(0, 300)}`);
+          fail(`execute_code C# method call failed: ${JSON.stringify(evalR).slice(0, 300)}`);
         }
       } catch (e) {
-        fail(`game_eval C# method threw: ${e}`);
+        fail(`execute_code C# method threw: ${e}`);
       }
 
       // Stop the game

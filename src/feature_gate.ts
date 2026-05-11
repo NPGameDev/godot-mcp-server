@@ -9,7 +9,7 @@
  */
 
 const FEATURE_ENV_VARS: Record<string, string> = {
-  game_eval: "GODOT_MCP_ALLOW_GAME_EVAL",
+  execute_code: "GODOT_MCP_ALLOW_EXECUTE_CODE",
   read_user_scope: "GODOT_MCP_ALLOW_USER_SCOPE",
   node_call_method: "GODOT_MCP_ALLOW_NODE_CALL_METHOD",
 };

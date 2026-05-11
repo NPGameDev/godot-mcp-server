@@ -69,7 +69,7 @@ export const STANDARD_TOOLS: readonly string[] = [
   "scene_query",
   // Gated tools — included so they register on Standard when gate is open
   // (prevents the vanishing-tools bug where neither stub nor real tool appears).
-  "game_eval",
+  "execute_code",
   "node_call_method",
   "project_set_setting",
 ];
@@ -104,7 +104,7 @@ export const MUTATING_TOOLS = new Set([
   // Playtest
   "game_start",
   "game_stop",
-  "game_eval",
+  "execute_code",
   // Settings
   "project_set_setting",
   "layer_names_set",
