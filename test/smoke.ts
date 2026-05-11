@@ -142,17 +142,33 @@ function printSummary(): void {
 
 // Discover the project path for the editor listening on PORT so the bridge
 // can derive the per-worktree token filename. Prefers env var, then
-// searches the registry for a matching port entry.
+// searches the registry for a matching port entry.  When multiple entries
+// share the same port (stale leftover from a dead editor), prefer the one
+// with the highest started_at timestamp and filter out dead PIDs.
 function discoverProjectPath(): string | undefined {
   const envPath = process.env.GODOT_MCP_PROJECT_PATH;
   if (envPath) return envPath;
   try {
     const data = JSON.parse(readFileSync(registryPath(), "utf-8")) as {
-      by_path?: Record<string, { port?: number }>;
+      by_path?: Record<string, { port?: number; started_at?: number; pid?: number }>;
     };
+    let best: { path: string; startedAt: number } | undefined;
     for (const [path, entry] of Object.entries(data.by_path ?? {})) {
-      if (entry.port === PORT) return path;
+      if (entry.port !== PORT) continue;
+      // Filter out entries whose PID is provably dead.
+      if (entry.pid != null && entry.pid > 0) {
+        try {
+          process.kill(entry.pid, 0);
+        } catch {
+          continue; // PID dead — skip stale entry.
+        }
+      }
+      const ts = entry.started_at ?? 0;
+      if (!best || ts > best.startedAt) {
+        best = { path, startedAt: ts };
+      }
     }
+    return best?.path;
   } catch {
     // Registry unreadable — fall through.
   }

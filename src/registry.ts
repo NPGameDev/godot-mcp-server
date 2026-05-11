@@ -77,6 +77,20 @@ function readRegistry(): Registry {
 }
 
 /**
+ * Check if a process is still alive. Returns false if provably dead.
+ * Uses signal 0 (no-op) — reliable on all platforms including Windows.
+ */
+function isPidAlive(pid: number): boolean {
+  if (!pid || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Look up a project by its absolute path. Returns the entry or null.
  * The path is normalised before lookup (backslashes → forward slashes,
  * trailing slash stripped) so Windows CWD and GDScript registry keys match.
@@ -85,6 +99,24 @@ export function lookupProject(projectPath: string): RegistryEntry | null {
   const key = normalizePath(projectPath);
   const registry = readRegistry();
   return registry.by_path[key] ?? null;
+}
+
+/**
+ * Look up the most-recently-started project entry on a given port.
+ * Filters out entries whose PID is provably dead. Returns null if no
+ * live entry matches the port.
+ */
+export function lookupByPort(port: number): { path: string; entry: RegistryEntry } | null {
+  const registry = readRegistry();
+  let best: { path: string; entry: RegistryEntry } | null = null;
+  for (const [path, entry] of Object.entries(registry.by_path)) {
+    if (entry.port !== port) continue;
+    if (!isPidAlive(entry.pid)) continue;
+    if (!best || entry.started_at > best.entry.started_at) {
+      best = { path, entry };
+    }
+  }
+  return best;
 }
 
 /**

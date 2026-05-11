@@ -107,7 +107,16 @@ export const GROUPS: GroupDef[] = [
   {
     name: "runtime_advanced",
     tools: ["runtime_get_node_state", "animation_player_control"],
-    keywords: ["runtime", "node state", "animation playback", "animationplayer", "play animation", "stop animation"],
+    keywords: [
+      "runtime",
+      "node state",
+      "animation playback",
+      "animationplayer",
+      "play animation",
+      "stop animation",
+      "animation control",
+      "inspect node",
+    ],
   },
   {
     name: "signals",
@@ -119,6 +128,8 @@ export const GROUPS: GroupDef[] = [
       "emit",
       "observer",
       "event",
+      "handler",
+      "callback",
       "editor signal",
       "persisted connection",
       "scene signal",
@@ -142,7 +153,17 @@ export const GROUPS: GroupDef[] = [
   {
     name: "input_map",
     tools: ["input_map_action", "input_map_event"],
-    keywords: ["input", "input map", "action", "key binding", "keybind", "controller", "gamepad", "joystick"],
+    keywords: [
+      "input",
+      "input map",
+      "action",
+      "key binding",
+      "keybind",
+      "keyboard",
+      "controller",
+      "gamepad",
+      "joystick",
+    ],
   },
   {
     name: "asset_management",
@@ -162,6 +183,8 @@ export const GROUPS: GroupDef[] = [
       "asset",
       "import",
       "resource",
+      "texture",
+      "image",
       "delete file",
       "delete scene",
       "delete script",
@@ -218,7 +241,7 @@ export const GROUPS: GroupDef[] = [
   {
     name: "layer_naming",
     tools: ["layer_names_set", "layer_names_get"],
-    keywords: ["layer", "layer name", "physics layer", "render layer", "collision layer", "mask"],
+    keywords: ["layer", "layer name", "physics layer", "render layer", "collision layer", "collision mask", "mask"],
   },
   {
     name: "path_editing",
@@ -230,6 +253,7 @@ export const GROUPS: GroupDef[] = [
       "bezier",
       "spline",
       "follow path",
+      "pathfollow",
       "curve2d",
       "collision",
       "collision polygon",
@@ -308,6 +332,7 @@ export const GROUPS: GroupDef[] = [
     name: "navigation",
     tools: ["navigation_edit"],
     keywords: [
+      "nav",
       "navigation",
       "navmesh",
       "pathfinding",
