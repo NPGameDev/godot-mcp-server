@@ -34,6 +34,7 @@ import { scriptTools } from "./tools/script.js";
 import { folderTools } from "./tools/folder.js";
 import { diffTools } from "./tools/diff.js";
 import { tilemapTools } from "./tools/tilemap.js";
+import { themeTools } from "./tools/theme.js";
 import { nodeManagementTools } from "./tools/node_management.js";
 
 // ── Group definitions ────────────────────────────────────────────────
@@ -48,6 +49,7 @@ export type GroupName =
   | "scene_advanced"
   | "editor_advanced"
   | "tilemap"
+  | "theme"
   | "node_management";
 
 const GROUP_NAMES: readonly GroupName[] = [
@@ -60,6 +62,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "scene_advanced",
   "editor_advanced",
   "tilemap",
+  "theme",
   "node_management",
 ];
 
@@ -140,6 +143,11 @@ export const GROUPS: GroupDef[] = [
     keywords: ["tilemap", "tileset", "tile", "grid", "terrain", "cell", "layer"],
   },
   {
+    name: "theme",
+    tools: ["theme_edit"],
+    keywords: ["theme", "style", "stylebox", "font", "color", "ui style", "control theme"],
+  },
+  {
     name: "node_management",
     tools: ["node_manage", "node_groups", "autoload_manage"],
     keywords: [
@@ -183,6 +191,7 @@ for (const tools of [
   folderTools,
   diffTools,
   tilemapTools,
+  themeTools,
   nodeManagementTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);

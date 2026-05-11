@@ -109,11 +109,12 @@ export const MUTATING_TOOLS = new Set([
   // Input map
   "input_map_action",
   "input_map_event",
-  // Animation / tilemap
+  // Animation / tilemap / theme
   "animation_keyframe",
   "tilemap_set_cells",
   "tileset_create",
   "tileset_edit",
+  "theme_edit",
   // User data
   "save_write",
   "save_delete",
