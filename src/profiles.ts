@@ -136,6 +136,10 @@ export const MUTATING_TOOLS = new Set([
   "3d_setup_environment",
   "3d_create_light",
   "3d_create_camera",
+  // Procedural resources
+  "procedural_edit_gradient",
+  "procedural_edit_curve",
+  "procedural_edit_noise",
 ]);
 
 /** Determine the active profile from env vars + CLI args. */

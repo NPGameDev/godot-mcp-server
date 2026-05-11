@@ -40,6 +40,7 @@ import { layerNameTools } from "./tools/layer_names.js";
 import { pathTools } from "./tools/path.js";
 import { collisionTools } from "./tools/collision.js";
 import { threeDTools } from "./tools/three_d.js";
+import { proceduralTools } from "./tools/procedural.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -57,7 +58,8 @@ export type GroupName =
   | "node_management"
   | "layer_naming"
   | "path_editing"
-  | "3d_tools";
+  | "3d_tools"
+  | "procedural";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -74,6 +76,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "layer_naming",
   "path_editing",
   "3d_tools",
+  "procedural",
 ];
 
 interface GroupDef {
@@ -222,6 +225,20 @@ export const GROUPS: GroupDef[] = [
       "sky",
     ],
   },
+  {
+    name: "procedural",
+    tools: ["procedural_edit_gradient", "procedural_edit_curve", "procedural_edit_noise"],
+    keywords: [
+      "procedural",
+      "generate",
+      "gradient",
+      "noise",
+      "curve",
+      "resource create",
+      "fastnoiselite",
+      "easing",
+    ],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -253,6 +270,7 @@ for (const tools of [
   pathTools,
   collisionTools,
   threeDTools,
+  proceduralTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
