@@ -111,6 +111,7 @@ export const MUTATING_TOOLS = new Set([
   "input_map_event",
   // Animation / tilemap
   "animation_keyframe",
+  "animationtree_edit",
   "tilemap_set_cells",
   "tileset_create",
   "tileset_edit",
