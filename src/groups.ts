@@ -42,6 +42,7 @@ import { collisionTools } from "./tools/collision.js";
 import { threeDTools } from "./tools/three_d.js";
 import { proceduralTools } from "./tools/procedural.js";
 import { sceneInheritanceTools } from "./tools/scene_inheritance.js";
+import { audioTools } from "./tools/audio.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -61,7 +62,8 @@ export type GroupName =
   | "path_editing"
   | "3d_tools"
   | "procedural"
-  | "scene_inheritance";
+  | "scene_inheritance"
+  | "audio";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -80,6 +82,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "3d_tools",
   "procedural",
   "scene_inheritance",
+  "audio",
 ];
 
 interface GroupDef {
@@ -252,6 +255,11 @@ export const GROUPS: GroupDef[] = [
     tools: ["scene_create_inherited"],
     keywords: ["inheritance", "inherited scene", "prefab", "variant", "base scene", "scene extend", "inherit"],
   },
+  {
+    name: "audio",
+    tools: ["audiobus_edit"],
+    keywords: ["audio", "audiobus", "sound", "music", "volume", "bus", "effect", "reverb", "sfx"],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -285,6 +293,7 @@ for (const tools of [
   threeDTools,
   proceduralTools,
   sceneInheritanceTools,
+  audioTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }

@@ -61,6 +61,7 @@ import { test3dTools } from "./sections/30_3d_tools.js";
 import { testCollision } from "./sections/31_collision.js";
 import { testProcedural } from "./sections/32_procedural.js";
 import { testSceneInheritance } from "./sections/33_scene_inheritance.js";
+import { testAudiobus } from "./sections/34_audiobus.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -204,6 +205,7 @@ const ALL_SECTIONS: Section[] = [
   { num: 31, name: "collision", run: testCollision },
   { num: 32, name: "procedural", run: testProcedural },
   { num: 33, name: "scene_inheritance", run: testSceneInheritance },
+  { num: 34, name: "audiobus", run: testAudiobus },
 ];
 
 function filterSections(): Section[] {

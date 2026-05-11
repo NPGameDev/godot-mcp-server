@@ -141,6 +141,8 @@ export const MUTATING_TOOLS = new Set([
   "procedural_edit_gradient",
   "procedural_edit_curve",
   "procedural_edit_noise",
+  // Audio
+  "audiobus_edit",
 ]);
 
 /** Determine the active profile from env vars + CLI args. */
