@@ -95,6 +95,11 @@ export const editorTools: ToolDef[] = [
       is_regex: coercedBoolean()
         .optional()
         .describe("Treat text_filter as a regex pattern instead of a plain substring (default false)."),
+      clear_buffer: coercedBoolean()
+        .optional()
+        .describe(
+          "Clear the log buffer before reading. Use when stale errors persist after successful script recompilation.",
+        ),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

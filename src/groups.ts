@@ -55,7 +55,9 @@ export type GroupName =
   | "signals"
   | "animation_authoring"
   | "input_map"
-  | "asset_management"
+  | "resource_io"
+  | "asset_ops"
+  | "cleanup"
   | "user_data"
   | "scene_advanced"
   | "editor_advanced"
@@ -77,7 +79,9 @@ const GROUP_NAMES: readonly GroupName[] = [
   "signals",
   "animation_authoring",
   "input_map",
-  "asset_management",
+  "resource_io",
+  "asset_ops",
+  "cleanup",
   "user_data",
   "scene_advanced",
   "editor_advanced",
@@ -165,32 +169,21 @@ export const GROUPS: GroupDef[] = [
       "joystick",
     ],
   },
+  // FIX-3: asset_management (10 tools) split into 3 groups (2+2+6).
   {
-    name: "asset_management",
-    tools: [
-      "asset_get_dependencies",
-      "asset_import",
-      "resource_delete",
-      "file_delete",
-      "scene_delete",
-      "scene_close",
-      "resource_load",
-      "resource_write",
-      "script_delete",
-      "folder_delete",
-    ],
-    keywords: [
-      "asset",
-      "import",
-      "resource",
-      "texture",
-      "image",
-      "delete file",
-      "delete scene",
-      "delete script",
-      "cleanup",
-      "dependencies",
-    ],
+    name: "resource_io",
+    tools: ["resource_load", "resource_write"],
+    keywords: ["resource", "load", "write", "save resource", "tres", "res"],
+  },
+  {
+    name: "asset_ops",
+    tools: ["asset_get_dependencies", "asset_import"],
+    keywords: ["asset", "import", "dependencies", "texture", "image"],
+  },
+  {
+    name: "cleanup",
+    tools: ["file_delete", "scene_delete", "script_delete", "resource_delete", "folder_delete", "scene_close"],
+    keywords: ["delete", "cleanup", "close", "remove", "delete file", "delete scene", "delete script"],
   },
   {
     name: "user_data",

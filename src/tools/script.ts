@@ -21,7 +21,9 @@ export const scriptTools: ToolDef[] = [
     name: "script_write",
     method: "script.write",
     description:
-      "Write .gd/.cs/.gdshader/.gdshaderinc at file_path (res:// only, creates or overwrites). Not idempotent. Use script.delete to remove; resource.create for .tres; scene.create for .tscn.",
+      "Write .gd/.cs/.gdshader/.gdshaderinc at file_path (res:// only, creates or overwrites). " +
+      "For .gd files, returns inline diagnostics (valid: bool, diagnostics: [...]) — check valid before proceeding. " +
+      "Not idempotent. Use script.delete to remove; resource.create for .tres; scene.create for .tscn.",
     inputSchema: { file_path: z.string(), content: z.string() },
     annotations: { openWorldHint: false },
   },

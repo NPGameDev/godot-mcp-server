@@ -69,7 +69,7 @@ export const tilemapTools: ToolDef[] = [
         .optional()
         .describe(
           "Layer setup (before tile edits): {terrain_sets?, custom_data?, " +
-            "navigation_layers?, occlusion_layers?, physics_layers?}",
+            "navigation_layers?: <int count>, occlusion_layers?: <int count>, physics_layers?: <int count>}",
         ),
     },
     annotations: { openWorldHint: false },

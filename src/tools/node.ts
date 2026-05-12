@@ -27,17 +27,35 @@ export const nodeTools: ToolDef[] = [
       "Set a property on a node in the EDITOR scene tree (saved to .tscn files). " +
       "Does NOT affect the running game — for runtime property changes during playtesting, use runtime_set_property.\n\n" +
       'Node paths are relative to the edited scene root: "." is root, "./Player" is a direct child, "./Player/Sprite2D" for deeper nodes.\n\n' +
-      "Engine types: {type:'Vector2',x,y}. Inline sub-resources: {type:'NewResource',class:'CircleShape2D',properties:{radius:50}}.\n\n" +
+      "Engine types: {type:'Vector2',x,y}. Inline sub-resources: {type:'NewResource',class:'CircleShape2D',properties:{radius:50}}. " +
+      "Packed arrays: {type:'PackedVector2Array', values:[{type:'Vector2',x:0,y:0}, ...]}. " +
+      "Unknown type tags are rejected with an error listing supported types.\n\n" +
       "Anchor presets: setting anchors_preset alone may not auto-apply underlying values. " +
-      "For reliable layout, set anchor_left/top/right/bottom and offset_left/top/right/bottom explicitly.",
+      "For reliable layout, set anchor_left/top/right/bottom and offset_left/top/right/bottom explicitly.\n\n" +
+      "Batch mode: pass batch:[{node_path, property, value}, ...] to set multiple properties in one UndoRedo action.",
     inputSchema: {
-      node_path: z.string(),
+      node_path: z.string().optional().describe("Single mode: path to target node"),
       property: z
         .string()
+        .optional()
         .describe(
-          "Property name. Compound '/' paths supported. Use ':' for sub-resource chaining (e.g. 'material:shader_parameter/value').",
+          "Single mode: property name. Compound '/' paths supported. Use ':' for sub-resource chaining (e.g. 'material:shader_parameter/value').",
         ),
-      value: z.unknown(),
+      value: z.unknown().optional(),
+      batch: z
+        .array(
+          z.object({
+            node_path: z.string(),
+            property: z.string(),
+            value: z.unknown(),
+          }),
+        )
+        .min(1)
+        .optional()
+        .describe(
+          "Batch mode: array of {node_path, property, value}. All changes in a single UndoRedo action. " +
+            "When present, top-level node_path/property/value are ignored.",
+        ),
     },
     annotations: { openWorldHint: false },
   },
