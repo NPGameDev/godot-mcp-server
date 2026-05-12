@@ -27,7 +27,7 @@ export const signalTools: ToolDef[] = [
       "Connect or disconnect a signal (editor-time, CONNECT_PERSIST — saved in .tscn, survives save/load). Idempotent connect (status 'returned' on collision). UndoRedo-wrapped.",
     inputSchema: {
       action: z.enum(["connect", "disconnect"]),
-      source_path: z.string(),
+      node_path: z.string(),
       signal_name: z.string(),
       target_path: z.string(),
       method_name: z.string(),

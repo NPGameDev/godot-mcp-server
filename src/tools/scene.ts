@@ -66,13 +66,13 @@ export const sceneTools: ToolDef[] = [
     name: "scene_instantiate",
     method: "scene.instantiate",
     description:
-      "Instantiate PackedScene at packed_path under parent_path. Single mode: silent-return on name collision. " +
+      "Instantiate PackedScene at scene_path under parent_path. Single mode: silent-return on name collision. " +
       "Batch mode: pass instances array to spawn N copies with transforms in one UndoRedo action.\n\n" +
-      'Single: packed_path: "res://coin.tscn", parent_path: ".", as_name: "Coin"\n' +
-      'Batch: packed_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200}}, ...]',
+      'Single: scene_path: "res://coin.tscn", parent_path: ".", as_name: "Coin"\n' +
+      'Batch: scene_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200}}, ...]',
     inputSchema: {
       parent_path: z.string(),
-      packed_path: z.string(),
+      scene_path: z.string(),
       as_name: z.string().optional().describe("Single mode: instance name."),
       transform: z.record(z.string(), z.unknown()).optional().describe("Single mode: property overrides."),
       instances: z

@@ -890,6 +890,13 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
             groupResults.push(activateOrReportExtGroup(server, bridge, m.name, activate));
           }
         }
+
+        // Update discover_tools description inside the batch so the
+        // tools/list_changed notification fires atomically with all
+        // registrations.  Previously this lived outside batchToolRegistration,
+        // causing a split notification that left Claude Code's tool index
+        // stale after groups: activation (FIX-C).
+        updateToolRef("discover_tools", { description: buildDiscoverToolsDesc() });
       });
 
       // No params → full catalog (no activation).
@@ -935,9 +942,6 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           "Prefer activating only the groups needed for your current task. " +
           "Use reset to deactivate groups you no longer need.";
       }
-
-      // Update discover_tools description to reflect new state.
-      updateToolRef("discover_tools", { description: buildDiscoverToolsDesc() });
 
       return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     },
