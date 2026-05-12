@@ -47,6 +47,16 @@ import * as classdb from "./tools/classdb.js";
 import * as nodeManagement from "./tools/node_management.js";
 import * as sceneQuery from "./tools/scene_query.js";
 
+// ── Node.js version gate ────────────────────────────────────────────
+const [nodeMajor] = process.versions.node.split(".").map(Number);
+if (nodeMajor < 20) {
+  process.stderr.write(
+    `[godot-mcp] Error: requires Node.js >= 20 (found ${process.version}).\n` +
+      `Download the latest LTS from https://nodejs.org\n`,
+  );
+  process.exit(1);
+}
+
 // ── Tool catalogue ───────────────────────────────────────────────────
 
 // All module tool-def arrays. Gated tools are always present in their
