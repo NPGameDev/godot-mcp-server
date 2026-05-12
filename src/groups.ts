@@ -760,7 +760,8 @@ function buildDiscoverToolsDesc(): string {
   let description =
     "Search and activate tool groups by keyword or name. " +
     "Pass request to search by domain ('animation', 'save game data') or groups to activate by name. " +
-    "No params → full catalog. reset: true → deactivate all groups. " +
+    "Activate only the groups needed for your current task (up to ~5) — loading many groups at once floods the tool list and degrades response quality. " +
+    "No params → full catalog. reset: true → deactivate ALL groups; reset: ['group_a'] → deactivate only group_a. " +
     "Groups: " +
     parts.join("; ");
   if (extParts.length > 0) {
@@ -844,7 +845,9 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           .union([z.literal(true), z.array(z.string())])
           .optional()
           .describe(
-            "Deactivate groups. true = reset ALL on-demand groups. Array = selectively deactivate named groups.",
+            "Deactivate groups. true = reset ALL on-demand groups. " +
+              'Array of group names = selectively deactivate only those groups (e.g. reset: ["tilemap", "audio"]). ' +
+              "Other loaded groups remain active.",
           ),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -928,6 +931,16 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         response.hint =
           "Deactivated tools are no longer callable. " +
           "Call discover_tools(groups=[...]) to re-activate before using them.";
+      }
+
+      // Warn when too many groups are activated at once — context flood degrades agent quality.
+      const justActivated = groupResults.filter((r) => r.status === "activated");
+      if (justActivated.length > 5) {
+        response.warning =
+          `${justActivated.length} groups activated at once. ` +
+          "This adds many tools to your context and may degrade response quality. " +
+          "Prefer activating only the groups needed for your current task. " +
+          "Use reset to deactivate groups you no longer need.";
       }
 
       // Update discover_tools description to reflect new state.
