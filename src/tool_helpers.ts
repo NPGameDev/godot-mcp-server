@@ -50,14 +50,18 @@ export function toolErrorFromPayload(result: unknown): ToolTextResult | null {
 /** Default hints for transport-level exception codes. */
 const EXCEPTION_HINTS: Record<string, string> = {
   TIMEOUT:
-    "The editor or game may be busy. For editor calls, try editor.wait_for_idle. " +
-    "For runtime calls, the game may have crashed — call game_stop + editor_get_console.",
+    "The editor or game may be busy, or the game failed to compile/start. " +
+    "For editor calls, try editor.wait_for_idle. For runtime calls, the game " +
+    "may have crashed or failed to compile — call editor_get_console to check for script errors.",
+  COMPILATION_FAILED:
+    "The game failed to compile. Fix the script errors listed above, then call game_start again. " +
+    "If no errors are shown, call editor_reload_scripts to retrigger them, then editor_get_console for the full log.",
   DISCONNECTED:
     "Plugin WebSocket not connected. Ensure Godot is running with the plugin enabled. If running headless, launch with: godot --headless --editor --path <project>",
   GAME_NOT_RUNNING:
-    "No running game detected. Use game_start to launch a playtest. " +
-    "If the game just crashed, use editor_get_console to read errors " +
-    "(works after game_stop). debugger_get_log is a runtime command and cannot work after the game exits.",
+    "No running game detected. Possible causes: (1) game_start was never called, " +
+    "(2) the game failed to compile — call editor_reload_scripts then editor_get_console for script errors, " +
+    "(3) the game crashed after starting. Call game_stop + editor_get_console to diagnose.",
   LOG_BUSY:
     "Transient file lock during log flush — retry in 1-2 seconds, or use source='buffer' (default) which reads from an in-memory ring buffer with no file I/O.",
   LOG_UNAVAILABLE:
@@ -93,9 +97,11 @@ async function fetchCrashContext(bridge: Bridge): Promise<string> {
       { limit: 15, level_filter: ["error"] },
       5_000, // short timeout — don't block long if editor is also stuck
     )) as Record<string, unknown>;
-    const lines = result?.lines;
-    if (typeof lines === "string" && lines.length > 0) return lines;
-    if (Array.isArray(lines) && lines.length > 0) return lines.map(String).join("\n");
+    // editor.get_console returns { entries: "<untrusted-...>JSON</...>", count, ... }
+    const count = result?.count;
+    if (typeof count === "number" && count === 0) return "";
+    const entries = result?.entries;
+    if (typeof entries === "string" && entries.length > 0) return entries;
   } catch {
     // Editor might be down too — fall through to generic hint
   }
@@ -108,15 +114,19 @@ async function fetchCrashContext(bridge: Bridge): Promise<string> {
  * (runtime_screenshot, debugger_get_log) that don't use callAndWrap.
  */
 export async function runtimeErrorWithCrashContext(bridge: Bridge, err: unknown): Promise<ToolTextResult> {
-  if (err instanceof BridgeError && (err.code === "TIMEOUT" || err.code === "GAME_NOT_RUNNING")) {
+  if (
+    err instanceof BridgeError &&
+    (err.code === "TIMEOUT" || err.code === "GAME_NOT_RUNNING" || err.code === "COMPILATION_FAILED")
+  ) {
     const crashContext = await fetchCrashContext(bridge);
     if (crashContext) {
       return toolError(
         err.code,
         err.message,
-        "Game crashed or stopped. Recent errors from editor console:\n" +
+        "Game crashed or failed to compile. Recent errors from editor console:\n" +
           crashContext +
-          "\nFix the script, then game_stop + game_start to retry.",
+          "\nFix the script errors, then game_stop + game_start to retry. " +
+          "If errors are stale, call editor_reload_scripts to retrigger them.",
       );
     }
   }
