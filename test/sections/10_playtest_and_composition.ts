@@ -13,7 +13,14 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
   } catch {
     /* noop */
   }
-  for (const orphan of ["smoke_inst_child", "CellA", "Renamed", "CoercionSprite"]) {
+  for (const orphan of [
+    "smoke_inst_child",
+    "smoke_inst_child2",
+    "smoke_inst_child3",
+    "CellA",
+    "Renamed",
+    "CoercionSprite",
+  ]) {
     try {
       await bridge.call("scene.delete_node", { node_path: orphan }, CALL_TIMEOUT);
     } catch {
@@ -135,9 +142,10 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
     );
   } else pass(`scene.instantiate fresh -> status='created' at ${instantiateFresh.path}`);
 
+  // Idempotent: explicit as_name matching existing node → returned.
   const instantiateIdempotent = (await bridge.call(
     "scene.instantiate",
-    { parent_path: ".", packed_path: instChildPath },
+    { parent_path: ".", packed_path: instChildPath, as_name: defaultName },
     CALL_TIMEOUT,
   )) as { status?: string; path?: string; code?: string };
   if (instantiateIdempotent?.status !== "returned" || instantiateIdempotent.path !== defaultName)
@@ -147,6 +155,23 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
   else if (instantiateIdempotent.code !== undefined)
     fail(`scene.instantiate returned must not carry code (got ${instantiateIdempotent.code})`);
   else pass(`scene.instantiate idempotent -> status='returned' (code absent)`);
+
+  // FIX-K: implicit name collision → auto-rename (Node, Node2, Node3...).
+  const autoRenamed = (await bridge.call(
+    "scene.instantiate",
+    { parent_path: ".", packed_path: instChildPath },
+    CALL_TIMEOUT,
+  )) as { status?: string; path?: string; class_name?: string };
+  if (autoRenamed?.status !== "created" || !autoRenamed.path?.startsWith(defaultName))
+    fail(
+      `scene.instantiate FIX-K auto-rename: expected status='created' with suffixed name, got ${JSON.stringify(autoRenamed)}`,
+    );
+  else pass(`scene.instantiate FIX-K auto-rename -> ${autoRenamed.path}`);
+  try {
+    await bridge.call("scene.delete_node", { node_path: autoRenamed?.path ?? "" }, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
 
   // Ownership: save → reload → verify child persists.
   const saveAfterInstantiate = (await bridge.call("editor.save_scene", {}, CALL_TIMEOUT)) as {

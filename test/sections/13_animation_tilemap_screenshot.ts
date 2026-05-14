@@ -84,7 +84,33 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     CALL_TIMEOUT,
   )) as { status?: string; path?: string; code?: string };
   const tilemapPath = tilemapNode?.path ?? "MCPSmokeTML";
+  const smokeTilemapTsPath = "res://mcp_smoke_ts_tilemap.tres";
   if (tilemapNode?.status === "created") {
+    // FIX-J: no-tileset guard rejects cell operations before a tileset is assigned.
+    assertGuard(
+      ctx,
+      "tilemap.set_cells no-tileset guard",
+      await bridge.call(
+        "tilemap.set_cells",
+        { tilemap_path: tilemapPath, cells: [{ x: 0, y: 0, source_id: 0, atlas_x: 0, atlas_y: 0 }] },
+        CALL_TIMEOUT,
+      ),
+      "INVALID_STATE",
+      "no tileset",
+    );
+
+    // Assign a tileset so remaining tests can proceed.
+    await bridge.call(
+      "tileset.create",
+      { file_path: smokeTilemapTsPath, texture_path: "res://icon.svg", tile_size: { x: 32, y: 32 } },
+      CALL_TIMEOUT,
+    );
+    await bridge.call(
+      "node.set_property",
+      { node_path: tilemapPath, property: "tile_set", value: { type: "Resource", path: smokeTilemapTsPath } },
+      CALL_TIMEOUT,
+    );
+
     const tilemapClearResult = (await bridge.call(
       "tilemap.set_cells",
       {
@@ -119,6 +145,11 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
   }
   try {
     await bridge.call("scene.delete_node", { node_path: tilemapPath }, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
+  try {
+    await bridge.call("file.delete", { file_path: smokeTilemapTsPath }, CALL_TIMEOUT);
   } catch {
     /* noop */
   }

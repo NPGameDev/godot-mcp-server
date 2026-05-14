@@ -103,6 +103,8 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     "node_set_property",
     "scene_create_node",
     "scene_instantiate",
+    "script_write",
+    "tilemap_set_cells",
   ]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;

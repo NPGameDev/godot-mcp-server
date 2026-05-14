@@ -17,13 +17,16 @@ import { allFeatures, envVarFor } from "../src/feature_gate.js";
 
 const PROJECT_NAME = process.env.GODOT_MCP_PROJECT_NAME ?? "Godot MCP Toolkit";
 
+// Forward CLI flags (--from, --to, --only, --ci) to each smoke.ts invocation.
+const smokeArgs = process.argv.slice(2);
+
 function run(label: string, env: Record<string, string>): Promise<number> {
   const bar = "=".repeat(60);
   console.log(`\n${bar}`);
   console.log(`  ${label}`);
   console.log(`${bar}\n`);
   return new Promise<number>((resolve) => {
-    const child = spawn(process.execPath, ["--import", "tsx", "test/smoke.ts"], {
+    const child = spawn(process.execPath, ["--import", "tsx", "test/smoke.ts", ...smokeArgs], {
       env: { ...process.env, ...env },
       stdio: "inherit",
     });
