@@ -158,8 +158,9 @@ export const runtimeTools: ToolDef[] = [
       "Prefer runtime_set_property for single property changes (safer, no expression syntax). " +
       "Use execute_code for complex multi-step operations or method calls with specific arguments. " +
       "If C# project, managed methods are callable at runtime (context:'game').\n\n" +
-      "LIMITATION: Expression cannot access engine singletons (EditorInterface, Engine, OS, Input) " +
-      "or chain property access on returned objects — use dedicated MCP tools instead.",
+      "LIMITATION: Expression cannot access engine singletons (EditorInterface, Engine, OS, Input), " +
+      "chain property access on returned objects, or call load()/preload() — " +
+      "use dedicated MCP tools instead (node_set_property for resources, node_call_method for script methods).",
     inputSchema: {
       code: z.string(),
       scope_path: z.string().optional(),
