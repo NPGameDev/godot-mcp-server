@@ -28,7 +28,7 @@ export const MINIMAL_TOOLS: readonly string[] = [
   "scene_query",
 ];
 
-/** 29 standard tools (discover_tools + extensions_refresh added programmatically → 31 total). */
+/** 35 standard tools (discover_tools + extensions_refresh added programmatically → 37 total). */
 export const STANDARD_TOOLS: readonly string[] = [
   // Scene (5)
   "scene_get_tree",
@@ -36,11 +36,16 @@ export const STANDARD_TOOLS: readonly string[] = [
   "scene_delete_node",
   "scene_create",
   "scene_open",
-  // Node (4)
+  // Node (7) — node_manage, node_groups, autoload_manage promoted from
+  // node_management group: dynamic activation unreliable due to Claude Code
+  // not processing tools/list_changed notifications (platform limitation).
   "node_get_property",
   "node_set_property",
   "node_get_property_list",
   "node_set_script",
+  "node_manage",
+  "node_groups",
+  "autoload_manage",
   // Script (2)
   "script_read",
   "script_write",

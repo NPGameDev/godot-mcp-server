@@ -1,6 +1,6 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * discover_tools. 10 groups, 34 tools total. Standard profile
+ * discover_tools. 21 groups, 51 group tools. Standard profile
  * registers discover_tools as the meta-tool; power_user profile
  * registers all group tools at startup.
  */
@@ -63,7 +63,6 @@ export type GroupName =
   | "editor_advanced"
   | "tilemap"
   | "theme"
-  | "node_management"
   | "layer_naming"
   | "path_editing"
   | "3d_tools"
@@ -87,7 +86,6 @@ const GROUP_NAMES: readonly GroupName[] = [
   "editor_advanced",
   "tilemap",
   "theme",
-  "node_management",
   "layer_naming",
   "path_editing",
   "3d_tools",
@@ -211,25 +209,6 @@ export const GROUPS: GroupDef[] = [
     name: "theme",
     tools: ["theme_edit"],
     keywords: ["theme", "style", "stylebox", "font", "color", "ui style", "control theme"],
-  },
-  {
-    name: "node_management",
-    tools: ["node_manage", "node_groups", "autoload_manage"],
-    keywords: [
-      "node",
-      "rename",
-      "reparent",
-      "reorder",
-      "duplicate",
-      "clone",
-      "copy node",
-      "move node",
-      "group",
-      "node group",
-      "autoload",
-      "singleton",
-      "batch",
-    ],
   },
   {
     name: "layer_naming",
