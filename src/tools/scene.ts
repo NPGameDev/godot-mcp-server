@@ -32,6 +32,11 @@ export const sceneTools: ToolDef[] = [
         .number()
         .optional()
         .describe("Layout mode for Control nodes: 0=free, 1=anchors. Auto-sets 1 when parent is Container."),
+      unique_name: coercedBoolean()
+        .optional()
+        .describe(
+          "Mark as scene-unique node for %Name access in scripts. Warns if name collides with existing unique node.",
+        ),
     },
     annotations: { idempotentHint: true, openWorldHint: false },
   },

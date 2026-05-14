@@ -47,6 +47,21 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
     fail(`scene.create_node collision success must not carry code (got ${idempotentNode.code})`);
   else pass(`scene.create_node idempotent -> status='returned' at ${idempotentNode.path}`);
 
+  // unique_name flag.
+  const uniqueNodeName = "SmokeUniqueProbe";
+  const uniqueNode = (await bridge.call(
+    "scene.create_node",
+    { class_name: "Node", parent_path: ".", node_name: uniqueNodeName, unique_name: true },
+    CALL_TIMEOUT,
+  )) as { path?: string; status?: string; unique_name?: boolean; code?: string };
+  if (!uniqueNode || uniqueNode.status !== "created" || uniqueNode.unique_name !== true)
+    fail(
+      `scene.create_node unique_name: expected status='created' + unique_name=true, got ${JSON.stringify(uniqueNode)}`,
+    );
+  else pass(`scene.create_node unique_name=true -> created at ${uniqueNode.path}`);
+  // Cleanup unique node.
+  await bridge.call("scene.delete_node", { node_path: uniqueNode?.path ?? uniqueNodeName }, CALL_TIMEOUT);
+
   // Property round-trip via editor_description (plain String).
   const nodePath = freshNode?.path ?? nodeName;
   const marker = `smoke-${Date.now()}`;
