@@ -14,11 +14,11 @@ export const inputMapTools: ToolDef[] = [
     description:
       "Add or remove an InputMap action. " +
       "action: 'add' or 'remove' (the operation). " +
-      "action_name: the input map name (e.g. 'jump', 'move_left'). " +
+      "name: the input map name (e.g. 'jump', 'move_left'). " +
       "action='add' is idempotent with optional deadzone.",
     inputSchema: {
       action: z.enum(["add", "remove"]),
-      action_name: z.string(),
+      name: z.string(),
       deadzone: z.coerce.number().optional(),
     },
     annotations: { idempotentHint: true, openWorldHint: false },
@@ -33,7 +33,7 @@ export const inputMapTools: ToolDef[] = [
       "action='bind' is idempotent.",
     inputSchema: {
       action: z.enum(["bind", "unbind"]),
-      action_name: z.string(),
+      name: z.string(),
       event: z.preprocess(
         (val) => {
           if (typeof val === "string") {
