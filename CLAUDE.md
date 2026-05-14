@@ -87,20 +87,11 @@ any profile. Single source of truth: `src/profiles.ts`.
 
 ### Lazy-load groups (standard / custom profiles)
 
-Ten groups (34 tools total) loaded via `discover_tools`:
+21 groups (51 tools total) loaded via `discover_tools`. `node_manage`,
+`node_groups`, `autoload_manage` were promoted to the Standard eager set
+(Claude Code does not process `tools/list_changed` notifications).
 
-| Group                 | Tools | Gate |
-|-----------------------|-------|------|
-| `runtime_advanced`    | `runtime_get_node_state`, `animation_player_control` | — |
-| `signals`             | `signal_list`, `signal_manage`, `signal_emit` | — |
-| `animation_authoring` | `animation_keyframe`, `animation_get_keys` | — |
-| `input_map`           | `input_map_action`, `input_map_event` | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE` |
-| `asset_management`    | `asset_get_dependencies`, `asset_import`, `resource_delete`, `file_delete`, `scene_delete`, `scene_close`, `resource_load`, `resource_write`, `script_delete`, `folder_delete` | — |
-| `user_data`           | `save_read`, `save_write`, `save_delete`, `save_list` | `GODOT_MCP_ALLOW_USER_SCOPE` |
-| `scene_advanced`      | `scene_diff`, `scene_instantiate` | — |
-| `editor_advanced`     | `editor_screenshot`, `editor_reload_scripts`, `editor_wait_for_idle` | — |
-| `tilemap`             | `tilemap_set_cells`, `tileset_create`, `tileset_edit` | — |
-| `node_management`     | `node_manage`, `node_groups`, `autoload_manage` | — |
+Source of truth: `src/groups.ts` — see `GROUPS` array for full list.
 
 Groups persist for the session. Gated groups require their env var.
 Source of truth: `src/groups.ts`.

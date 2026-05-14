@@ -131,7 +131,6 @@ The standard profile includes a `discover_tools` meta-tool that lets the AI assi
 | `scene_advanced` | 2 | Scene diff, scene instantiation (single + batch) |
 | `editor_advanced` | 3 | Editor screenshot, script reload, wait-for-idle |
 | `tilemap` | 3 | TileMap cell painting, TileSet creation and per-tile editing |
-| `node_management` | 3 | Node rename/reparent/reorder/duplicate, group membership, autoload singletons |
 
 ## Tool reference
 
