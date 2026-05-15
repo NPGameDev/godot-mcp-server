@@ -183,7 +183,7 @@ The standard profile includes a `discover_tools` meta-tool that lets the AI assi
 | Tool | Description |
 |------|-------------|
 | `editor_save_scene` | Save (or save-as) the current scene |
-| `editor_reload_scripts` | Rescan `res://` and reload scripts |
+| `editor_refresh` | Refresh editor filesystem — picks up new/changed/deleted files and reloads scripts |
 | `editor_get_console` | Tail the editor Output panel |
 | `editor_wait_for_idle` | Wait for EditorFileSystem scan to complete |
 | `project_get_settings` | List ProjectSettings (optional prefix filter) |

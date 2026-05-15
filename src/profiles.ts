@@ -98,7 +98,7 @@ export const MUTATING_TOOLS = new Set([
   "script_delete",
   // Editor mutations
   "editor_save_scene",
-  "editor_reload_scripts",
+  "editor_refresh",
   // Resource/folder/file
   "resource_write",
   "resource_delete",

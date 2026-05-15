@@ -37,10 +37,13 @@ export const editorTools: ToolDef[] = [
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
-    name: "editor_reload_scripts",
-    method: "editor.reload_scripts",
+    // I2 waiver: editor_refresh description exceeds 200-char limit.
+    // Clarity is critical — agents must know this handles ALL file types
+    // (not just scripts) and when to call it (after external file creation).
+    name: "editor_refresh",
+    method: "editor.refresh",
     description:
-      "Flush filesystem changes to the editor. With file_paths, targets specific files (O(1) per file). Without, does a full project rescan. Call after batch external edits.",
+      "Refresh the editor's view of the filesystem — picks up new, changed, or deleted files (images, scenes, scripts, resources) and reloads open scripts. Call after creating files externally (e.g. Python, Bash) or after batch edits. With file_paths, targets specific files (O(1) per file). Without, does a full project rescan + reimport.",
     inputSchema: {
       file_paths: z
         .preprocess(jsonCoerce, z.array(z.string()))
@@ -107,7 +110,7 @@ export const editorTools: ToolDef[] = [
     name: "editor_wait_for_idle",
     method: "editor.wait_for_idle",
     description:
-      "Poll EditorFileSystem.is_scanning() until idle or timeout_ms (default 10s, cap 30s). Use after asset.import, editor.reload_scripts, or file mutations.",
+      "Poll EditorFileSystem.is_scanning() until idle or timeout_ms (default 10s, cap 30s). Use after asset.import, editor.refresh, or file mutations.",
     inputSchema: {
       timeout_ms: z.coerce.number().optional(),
     },

@@ -59,7 +59,7 @@ Minification saves ~19% across all profiles. This is enabled by default and requ
 ## Per-tool cost range
 
 - **Heaviest:** `classdb_get_info` at ~160 tokens (rich schema with section filters and inheritance options)
-- **Lightest:** `editor_reload_scripts` at ~63 tokens (no parameters)
+- **Lightest:** `editor_refresh` at ~63 tokens (no parameters)
 - **Average:** ~97 tokens per tool
 
 Tools with more parameters and detailed descriptions cost more tokens. All descriptions stay under the 200-character limit (I2 invariant); the average is 130 characters.

@@ -102,7 +102,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     fail(`classdb.get_info global: could not write probe script: ${JSON.stringify(writeResult)}`);
   } else {
     // Reload scripts so Godot picks up the new class_name
-    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
     // Small delay to allow script class list to update
     await new Promise((r) => setTimeout(r, 500));
 
@@ -155,7 +155,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
 
     // Clean up: delete the probe script
     await bridge.call("script.delete", { file_path: testScriptPath }, CALL_TIMEOUT);
-    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
   }
 
   // ─── classdb.search: base_class filter ──────────────────────────────────

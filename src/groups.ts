@@ -197,8 +197,18 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "editor_advanced",
-    tools: ["editor_screenshot", "editor_reload_scripts", "editor_wait_for_idle"],
-    keywords: ["screenshot", "editor screenshot", "reload scripts", "wait idle", "editor capture"],
+    tools: ["editor_screenshot", "editor_refresh", "editor_wait_for_idle"],
+    keywords: [
+      "screenshot",
+      "editor screenshot",
+      "refresh",
+      "reload scripts",
+      "rescan",
+      "filesystem",
+      "reimport",
+      "wait idle",
+      "editor capture",
+    ],
   },
   {
     name: "tilemap",

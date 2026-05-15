@@ -55,12 +55,12 @@ const EXCEPTION_HINTS: Record<string, string> = {
     "may have crashed or failed to compile — call editor_get_console to check for script errors.",
   COMPILATION_FAILED:
     "The game failed to compile. Fix the script errors listed above, then call game_start again. " +
-    "If no errors are shown, call editor_reload_scripts to retrigger them, then editor_get_console for the full log.",
+    "If no errors are shown, call editor_refresh to retrigger them, then editor_get_console for the full log.",
   DISCONNECTED:
     "Plugin WebSocket not connected. Ensure Godot is running with the plugin enabled. If running headless, launch with: godot --headless --editor --path <project>",
   GAME_NOT_RUNNING:
     "No running game detected. Possible causes: (1) game_start was never called, " +
-    "(2) the game failed to compile — call editor_reload_scripts then editor_get_console for script errors, " +
+    "(2) the game failed to compile — call editor_refresh then editor_get_console for script errors, " +
     "(3) the game crashed after starting. Call game_stop + editor_get_console to diagnose.",
   LOG_BUSY:
     "Transient file lock during log flush — retry in 1-2 seconds, or use source='buffer' (default) which reads from an in-memory ring buffer with no file I/O.",
@@ -126,7 +126,7 @@ export async function runtimeErrorWithCrashContext(bridge: Bridge, err: unknown)
         "Game crashed or failed to compile. Recent errors from editor console:\n" +
           crashContext +
           "\nFix the script errors, then game_stop + game_start to retry. " +
-          "If errors are stale, call editor_reload_scripts to retrigger them.",
+          "If errors are stale, call editor_refresh to retrigger them.",
       );
     }
   }

@@ -11,7 +11,7 @@ export async function testCustomClassAndFileOps(ctx: TestCtx): Promise<void> {
     { file_path: "res://smoke_custom_class.gd", content: customClassScript },
     CALL_TIMEOUT,
   );
-  await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+  await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
   await bridge.call("editor.wait_for_idle", { timeout_ms: 5000 }, SCREENSHOT_TIMEOUT);
 
   const customNode = (await bridge.call(

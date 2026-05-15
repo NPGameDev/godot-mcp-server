@@ -24,7 +24,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     /* noop */
   }
   try {
-    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
   } catch {
     /* noop */
   }
@@ -136,7 +136,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     /* noop */
   }
   try {
-    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
   } catch {
     /* noop */
   }
@@ -242,7 +242,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     /* noop */
   }
   try {
-    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
   } catch {
     /* noop */
   }
@@ -297,7 +297,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     /* noop */
   }
   try {
-    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
   } catch {
     /* noop */
   }
@@ -407,7 +407,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     /* noop */
   }
   try {
-    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
   } catch {
     /* noop */
   }
@@ -465,7 +465,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     /* noop */
   }
   try {
-    await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT);
+    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
   } catch {
     /* noop */
   }

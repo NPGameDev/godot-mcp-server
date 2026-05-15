@@ -379,20 +379,20 @@ async function main(): Promise<void> {
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  section("12. editor.reload_scripts — with C# scripts present");
+  section("12. editor.refresh — with C# scripts present");
   // ──────────────────────────────────────────────────────────────────────
   try {
-    const r = (await bridge.call("editor.reload_scripts", {}, CALL_TIMEOUT)) as {
+    const r = (await bridge.call("editor.refresh", {}, CALL_TIMEOUT)) as {
       success?: boolean;
       reloaded?: number;
     };
     if (r.success !== false) {
-      pass(`editor.reload_scripts succeeded (reloaded: ${r.reloaded ?? "unknown"})`);
+      pass(`editor.refresh succeeded (reloaded: ${r.reloaded ?? "unknown"})`);
     } else {
-      fail(`editor.reload_scripts failed: ${JSON.stringify(r)}`);
+      fail(`editor.refresh failed: ${JSON.stringify(r)}`);
     }
   } catch (e) {
-    fail(`editor.reload_scripts threw: ${e}`);
+    fail(`editor.refresh threw: ${e}`);
   }
 
   // ──────────────────────────────────────────────────────────────────────

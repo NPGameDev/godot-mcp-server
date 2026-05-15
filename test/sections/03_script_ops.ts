@@ -23,12 +23,12 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
   if (readContent !== scriptBody) fail(`script.read round-trip mismatch: ${JSON.stringify(readResult)}`);
   else pass("script.write (undoable) + script.read round-trip");
 
-  const reloadResult = (await bridge.call("editor.reload_scripts", null, CALL_TIMEOUT)) as {
+  const reloadResult = (await bridge.call("editor.refresh", null, CALL_TIMEOUT)) as {
     success?: boolean;
     code?: string;
   };
-  if (!reloadResult?.success) fail(`editor.reload_scripts: ${JSON.stringify(reloadResult)}`);
-  else pass("editor.reload_scripts ok");
+  if (!reloadResult?.success) fail(`editor.refresh: ${JSON.stringify(reloadResult)}`);
+  else pass("editor.refresh ok");
 
   const bogusRead = (await bridge.call(
     "script.read",
