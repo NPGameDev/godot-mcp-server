@@ -30,7 +30,7 @@ export const nodeTools: ToolDef[] = [
       "Engine types: {type:'Vector2',x,y}. Inline sub-resources: {type:'NewResource',class:'CircleShape2D',properties:{radius:50}}. " +
       "External resources (textures, audio, tilesets, materials): {type:'Resource', path:'res://path/to/file.tres'}. " +
       "Packed arrays: {type:'PackedVector2Array', values:[{type:'Vector2',x:0,y:0}, ...]}. " +
-      "Collision layers: {type:'LayerMask', layers:[1,'collectibles',6]} — accepts layer numbers OR named layers (from layer_names_set); optional category defaults to '2d_physics'. " +
+      "Collision layers: {type:'LayerMask', layers:[1,4,6]} (by number) or {type:'LayerMask', layers:['player','walls']} (by name from layer_names_set); optional category defaults to '2d_physics'. " +
       "All supported type tags: Vector2, Vector3, Vector4, Vector2i, Vector3i, Color, Rect2, Rect2i, " +
       "Transform2D, Transform3D, NodePath, Resource, NewResource, PackedVector2Array, PackedVector3Array, PackedColorArray, LayerMask. " +
       "Unknown type tags are rejected with an error listing supported types.\n\n" +

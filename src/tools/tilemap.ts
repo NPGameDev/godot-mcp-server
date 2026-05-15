@@ -50,11 +50,15 @@ export const tilemapTools: ToolDef[] = [
       collision_layer: z
         .union([z.coerce.number().int(), z.array(z.union([z.coerce.number().int(), z.string()]))])
         .optional()
-        .describe("Physics collision layer. Integer bitmask OR array of layer numbers/names [1,'walls']. Default 1"),
+        .describe(
+          "Physics collision layer. Integer bitmask OR array of layer numbers [1,6] or names ['player','walls']. Default 1",
+        ),
       collision_mask: z
         .union([z.coerce.number().int(), z.array(z.union([z.coerce.number().int(), z.string()]))])
         .optional()
-        .describe("Physics collision mask. Integer bitmask OR array of layer numbers/names [1,'walls']. Default 1"),
+        .describe(
+          "Physics collision mask. Integer bitmask OR array of layer numbers [2,4] or names ['enemies','collectibles']. Default 1",
+        ),
     },
     annotations: { idempotentHint: false, openWorldHint: false },
   },
