@@ -47,8 +47,14 @@ export const tilemapTools: ToolDef[] = [
         .optional()
         .describe("Tile size in pixels. Default {x:16, y:16}"),
       physics: coercedBoolean().optional().describe("Add physics layer. Default true"),
-      collision_layer: z.coerce.number().int().optional().describe("Physics collision layer bitmask. Default 1"),
-      collision_mask: z.coerce.number().int().optional().describe("Physics collision mask bitmask. Default 1"),
+      collision_layer: z
+        .union([z.coerce.number().int(), z.array(z.union([z.coerce.number().int(), z.string()]))])
+        .optional()
+        .describe("Physics collision layer. Integer bitmask OR array of layer numbers/names [1,'walls']. Default 1"),
+      collision_mask: z
+        .union([z.coerce.number().int(), z.array(z.union([z.coerce.number().int(), z.string()]))])
+        .optional()
+        .describe("Physics collision mask. Integer bitmask OR array of layer numbers/names [1,'walls']. Default 1"),
     },
     annotations: { idempotentHint: false, openWorldHint: false },
   },

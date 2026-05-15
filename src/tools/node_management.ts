@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools, coercedBoolean } from "../tool_helpers.js";
+import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
 
 export const nodeManagementTools: ToolDef[] = [
   // I2 waiver: node_manage description exceeds 200-char limit.
@@ -39,12 +39,21 @@ export const nodeManagementTools: ToolDef[] = [
     description:
       "Manage node group membership. Groups are the idiomatic Godot way to tag and query game objects " +
       "(e.g. 'coins', 'enemies'). UndoRedo-wrapped.\n\n" +
-      "action: add — requires group name. action: remove — requires group name. action: list — returns all groups.",
+      "Single: node_path + group. Batch: entries array of {node_path, group} — one UndoRedo action.\n\n" +
+      "action: add — requires group. action: remove — requires group. action: list — returns all groups (single only).",
     inputSchema: {
       action: z.enum(["add", "remove", "list"]),
-      node_path: z.string(),
-      group: z.string().optional().describe("Group name. Required for add/remove."),
+      node_path: z.string().optional().describe("Single mode: target node path."),
+      group: z.string().optional().describe("Group name. Required for single add/remove."),
       persistent: coercedBoolean().optional().describe("For add: save to .tscn. Default true."),
+      entries: z
+        .preprocess(jsonCoerce, z.array(z.record(z.string(), z.unknown())))
+        .optional()
+        .describe(
+          "Batch mode (add/remove only): array of {node_path, group}. " +
+            "When present, processes all entries in a single UndoRedo action. " +
+            "node_path and group params are ignored in batch mode.",
+        ),
     },
     annotations: { openWorldHint: false },
   },

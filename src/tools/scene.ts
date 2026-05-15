@@ -74,7 +74,7 @@ export const sceneTools: ToolDef[] = [
       "Instantiate PackedScene at scene_path under parent_path. Single mode: silent-return on name collision. " +
       "Batch mode: pass instances array to spawn N copies with transforms in one UndoRedo action.\n\n" +
       'Single: scene_path: "res://coin.tscn", parent_path: ".", as_name: "Coin"\n' +
-      'Batch: scene_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200}}, ...]',
+      'Batch: scene_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200},properties:{coin_value:5}}, ...]',
     inputSchema: {
       parent_path: z.string(),
       scene_path: z.string(),
@@ -84,7 +84,8 @@ export const sceneTools: ToolDef[] = [
         .preprocess(jsonCoerce, z.array(z.record(z.string(), z.unknown())))
         .optional()
         .describe(
-          "Batch mode: array of {name?, position?, rotation?, scale?}. " +
+          "Batch mode: array of {name?, position?, rotation?, scale?, properties?}. " +
+            "properties: arbitrary overrides applied after instantiation (e.g. {key_type: 'Gold'}). " +
             "When present, spawns N instances in a single UndoRedo action. " +
             "as_name and transform are ignored in batch mode.",
         ),
