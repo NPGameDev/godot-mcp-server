@@ -16,6 +16,11 @@ export interface Bridge {
   getGodotVersion(): string | null;
   /** Godot minor version number (e.g. 5 for "4.5.2"), or null if unknown. */
   getGodotMinor(): number | null;
+  /** Wait for a runtime port to appear in the registry (game_start async gap).
+   *  Resolves with {port} on discovery, null on timeout. Optional — only
+   *  available when the bridge was created with a projectPath and registry
+   *  watcher. */
+  waitForRuntimeConnection?(timeoutMs: number): Promise<{ port: number } | null>;
 }
 
 // BridgeError lives in errors.ts (runtime class, not a pure type).

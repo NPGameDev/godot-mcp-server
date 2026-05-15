@@ -553,6 +553,12 @@ export function createBridge(
     : null;
   let cachedRuntimePort: number | null = opts?.explicitRuntimePort ? Number(opts.explicitRuntimePort) : null;
 
+  // ── Runtime-port waiters (for waitForRuntimeConnection) ────────
+  // Resolved when onDiscovered fires for this project; timed out by
+  // the caller's deadline.  Cleaned up in close().
+  type RuntimePortResolver = (port: number | null) => void;
+  let runtimePortResolvers: RuntimePortResolver[] = [];
+
   // ── Registry watcher for instant runtime discovery ─────────────
   // fs.watch on projects.json auto-connects to new runtime ports and
   // tears down stale channels. Replaces per-RPC file reads in
@@ -567,6 +573,10 @@ export function createBridge(
         if (runtimeChannel) void runtimeChannel.close();
         runtimeChannel = createChannel(`ws://127.0.0.1:${port}`, projectPath);
         cachedRuntimePort = port;
+        // Notify any pending waitForRuntimeConnection callers.
+        const resolvers = runtimePortResolvers;
+        runtimePortResolvers = [];
+        for (const resolve of resolvers) resolve(port);
       },
       onRemoved: (removedPath) => {
         if (removedPath !== normalizedProject) return;
@@ -654,6 +664,11 @@ export function createBridge(
       }
     },
     async close() {
+      // Resolve outstanding runtime-port waiters as null (bridge closing).
+      const resolvers = runtimePortResolvers;
+      runtimePortResolvers = [];
+      for (const resolve of resolvers) resolve(null);
+
       unwatchRegistry();
       await editor.close();
       if (runtimeChannel) await runtimeChannel.close();
@@ -665,6 +680,23 @@ export function createBridge(
       if (!godotVersion) return null;
       const parts = godotVersion.split(".");
       return parts.length >= 2 ? Number(parts[1]) : null;
+    },
+    waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | null> {
+      if (!projectPath) return Promise.resolve(null);
+      return new Promise<{ port: number } | null>((resolve) => {
+        const timer = setTimeout(() => {
+          runtimePortResolvers = runtimePortResolvers.filter((r) => r !== handler);
+          resolve(null);
+        }, timeoutMs);
+        timer.unref?.();
+
+        const handler: RuntimePortResolver = (port) => {
+          clearTimeout(timer);
+          runtimePortResolvers = runtimePortResolvers.filter((r) => r !== handler);
+          resolve(port != null ? { port } : null);
+        };
+        runtimePortResolvers.push(handler);
+      });
     },
     onNotification(handler: NotificationHandler) {
       notificationHandler = handler;

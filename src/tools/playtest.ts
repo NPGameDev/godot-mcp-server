@@ -47,6 +47,33 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
         /* parse failure — pass through unchanged */
       }
     }
+    // Server-side wait-for-runtime: absorb the async gap so agents get
+    // single-call game launch instead of a two-step dance.
+    if (input.wait_for_runtime && result.content?.[0]?.type === "text" && !result.isError) {
+      try {
+        const payload = JSON.parse(result.content[0].text);
+        if (payload.runtime_discovery === "bridge" && bridge.waitForRuntimeConnection) {
+          const runtime = await bridge.waitForRuntimeConnection(10_000);
+          if (runtime) {
+            // Success — merge runtime info, drop the bridge-discovery marker.
+            payload.runtime_ready = true;
+            payload.runtime_port = runtime.port;
+            delete payload.runtime_discovery;
+            delete payload.hint;
+          } else {
+            // Timeout — add fallback hint (toolkit hint is suppressed when
+            // wait_for_runtime=true, so the agent needs guidance here).
+            payload.hint =
+              "Game launched but runtime did not connect within 10s. " +
+              "Follow up with game_start(if_running:'return', runtime_poll:true) " +
+              "to retry, or check editor_get_console for startup errors.";
+          }
+          result.content[0].text = JSON.stringify(payload);
+        }
+      } catch {
+        /* parse failure — pass through unchanged */
+      }
+    }
     return result;
   });
   registerTools(server, bridge, playtestTools, allowedTools ? allowedTools : null, { handlers });

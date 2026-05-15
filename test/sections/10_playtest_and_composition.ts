@@ -87,6 +87,38 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
     fail(`game.stop idempotent: expected was_running=false, got ${JSON.stringify(gameStopIdempotent)}`);
   else pass(`game.stop idempotent -> was_running=false`);
 
+  // ── game.start wait_for_runtime hint gating + bridge wait ──
+  // Toolkit should return runtime_discovery:"bridge" WITHOUT the "Follow up
+  // with..." hint when wait_for_runtime=true (server absorbs the async gap).
+  const waitResult = (await bridge.call(
+    "game.start",
+    { scene_path: "current", wait_for_runtime: true },
+    SCREENSHOT_TIMEOUT,
+  )) as {
+    success?: boolean;
+    runtime_discovery?: string;
+    hint?: string;
+    code?: string;
+  };
+  if (waitResult?.success !== true || waitResult.runtime_discovery !== "bridge")
+    fail(`game.start wait_for_runtime=true: expected runtime_discovery='bridge', got ${JSON.stringify(waitResult)}`);
+  else if (waitResult.hint && waitResult.hint.includes("Follow up with"))
+    fail(`game.start wait_for_runtime=true: hint should be suppressed, got "${waitResult.hint}"`);
+  else pass(`game.start wait_for_runtime=true -> runtime_discovery='bridge', hint suppressed`);
+
+  // Bridge-level waitForRuntimeConnection: should resolve when game
+  // starts its runtime MCP server and registers in the project registry.
+  if (bridge.waitForRuntimeConnection) {
+    const runtimeInfo = await bridge.waitForRuntimeConnection(10_000);
+    if (runtimeInfo?.port && runtimeInfo.port > 0) pass(`waitForRuntimeConnection -> port ${runtimeInfo.port}`);
+    else fail(`waitForRuntimeConnection: expected {port:N}, got ${JSON.stringify(runtimeInfo)}`);
+  } else {
+    pass(`waitForRuntimeConnection not available (no project path) — skipped`);
+  }
+
+  await bridge.call("game.stop", {}, CALL_TIMEOUT);
+  await new Promise((res) => setTimeout(res, 500));
+
   // game.start guard rejections.
   assertGuard(
     ctx,
