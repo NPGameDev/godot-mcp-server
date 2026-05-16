@@ -229,9 +229,10 @@ function createChannel(
   projectPath?: string,
   onGodotVersion?: (version: string) => void,
   onNotification?: () => NotificationHandler | null,
-  opts?: { noReconnect?: boolean },
+  opts?: { noReconnect?: boolean; connectTimeoutMs?: number },
 ): Channel {
   const noReconnect = opts?.noReconnect ?? false;
+  const connectTimeout = opts?.connectTimeoutMs ?? 30_000;
   const pending = new Map<string, Pending>();
   const openWaiters = new Set<Waiter>();
   let ws: WebSocket | null = null;
@@ -338,20 +339,22 @@ function createChannel(
     connectPromise = new Promise<WebSocket>((resolve, reject) => {
       const socket = new WebSocket(url);
       ws = socket;
-      // Connection timeout: if neither `open` nor `error` fires within 30s
-      // (e.g., TCP accepted but WebSocket upgrade never completes), tear
-      // down the attempt. Without this, connect() hangs indefinitely.
-      // 30s is generous (reference repos use 3-15s) but accommodates
-      // slow editor startups on heavy projects.
+      // Connection timeout: if neither `open` nor `error` fires within the
+      // deadline, tear down the attempt. Without this, connect() hangs
+      // indefinitely. Editor channels use 30s (slow startups); runtime
+      // channels use 10s (game is either there or dead).
       const connectTimer = setTimeout(() => {
         connectPromise = null;
         ws = null;
         socket.removeAllListeners();
         socket.close();
-        const error = new BridgeError("CONNECT_FAILED", `WebSocket connection to ${url} timed out (30s)`);
+        const error = new BridgeError(
+          "CONNECT_FAILED",
+          `WebSocket connection to ${url} timed out (${connectTimeout / 1000}s)`,
+        );
         scheduleReconnect();
         reject(error);
-      }, 30_000);
+      }, connectTimeout);
       connectTimer.unref?.();
       socket.once("open", () => {
         clearTimeout(connectTimer);
@@ -577,6 +580,7 @@ export function createBridge(
   let runtimeChannel: Channel | null = opts?.explicitRuntimePort
     ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`, projectPath, undefined, undefined, {
         noReconnect: true,
+        connectTimeoutMs: 10_000,
       })
     : null;
   let cachedRuntimePort: number | null = opts?.explicitRuntimePort ? Number(opts.explicitRuntimePort) : null;
@@ -601,8 +605,10 @@ export function createBridge(
         if (runtimeChannel) void runtimeChannel.close();
         runtimeChannel = createChannel(`ws://127.0.0.1:${port}`, projectPath, undefined, undefined, {
           noReconnect: true,
+          connectTimeoutMs: 10_000,
         });
         cachedRuntimePort = port;
+        startHeartbeat();
         // Notify any pending waitForRuntimeConnection callers.
         const resolvers = runtimePortResolvers;
         runtimePortResolvers = [];
@@ -611,6 +617,7 @@ export function createBridge(
       onRemoved: (removedPath) => {
         if (removedPath !== normalizedProject) return;
         process.stderr.write(`[bridge] runtime removed\n`);
+        stopHeartbeat();
         if (runtimeChannel) {
           void runtimeChannel.close();
           runtimeChannel = null;
@@ -618,6 +625,49 @@ export function createBridge(
         }
       },
     });
+  }
+
+  // ── Runtime heartbeat (frozen-game detection) ───────────────────
+  // Pings the runtime every 15s with a 10s timeout. Four consecutive
+  // failures (~60s unresponsive) → proactive teardown. The generous
+  // threshold avoids false positives on poorly-optimized games running
+  // at very low FPS. True freezes (infinite loop) will never respond.
+  let heartbeatInterval: NodeJS.Timeout | null = null;
+  let heartbeatFailures = 0;
+
+  function startHeartbeat(): void {
+    if (heartbeatInterval) return;
+    heartbeatFailures = 0;
+    heartbeatInterval = setInterval(async () => {
+      if (!runtimeChannel) {
+        stopHeartbeat();
+        return;
+      }
+      try {
+        await runtimeChannel.call("ping", null, 10_000);
+        heartbeatFailures = 0;
+      } catch {
+        heartbeatFailures++;
+        if (heartbeatFailures >= 4) {
+          process.stderr.write("[bridge] heartbeat failed 4x (~60s) — runtime dead/frozen, clearing\n");
+          if (runtimeChannel) {
+            void runtimeChannel.close();
+            runtimeChannel = null;
+            cachedRuntimePort = null;
+          }
+          stopHeartbeat();
+        }
+      }
+    }, 15_000);
+    heartbeatInterval.unref?.();
+  }
+
+  function stopHeartbeat(): void {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+    heartbeatFailures = 0;
   }
 
   return {
@@ -679,6 +729,7 @@ export function createBridge(
         // Disk confirms a port exists — new game started. Create channel.
         runtimeChannel = createChannel(`ws://127.0.0.1:${diskPort}`, projectPath, undefined, undefined, {
           noReconnect: true,
+          connectTimeoutMs: 10_000,
         });
         cachedRuntimePort = diskPort;
       } else {
@@ -702,6 +753,7 @@ export function createBridge(
           if (runtimeChannel) await runtimeChannel.close();
           runtimeChannel = createChannel(`ws://127.0.0.1:${currentPort}`, projectPath, undefined, undefined, {
             noReconnect: true,
+            connectTimeoutMs: 10_000,
           });
           cachedRuntimePort = currentPort;
         }
@@ -724,6 +776,7 @@ export function createBridge(
       }
     },
     async close() {
+      stopHeartbeat();
       // Resolve outstanding runtime-port waiters as null (bridge closing).
       const resolvers = runtimePortResolvers;
       runtimePortResolvers = [];
@@ -759,6 +812,7 @@ export function createBridge(
       });
     },
     clearRuntime() {
+      stopHeartbeat();
       if (runtimeChannel) {
         void runtimeChannel.close();
         runtimeChannel = null;

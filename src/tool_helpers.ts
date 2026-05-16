@@ -59,11 +59,9 @@ const EXCEPTION_HINTS: Record<string, string> = {
   DISCONNECTED:
     "Plugin WebSocket not connected. Ensure Godot is running with the plugin enabled. If running headless, launch with: godot --headless --editor --path <project>",
   GAME_NOT_RUNNING:
-    "No running game detected. debugger_get_log auto-serves cached output from the last session. " +
-    "If empty, call editor_get_console without level_filter. " +
-    "Possible causes: (1) game_start was never called, " +
-    "(2) compilation failure — call editor_refresh then editor_get_console, " +
-    "(3) runtime crash — cached log should contain the error.",
+    "No running game. Call editor_get_console(level_filter:['error']) for crash diagnostics. " +
+    "If empty, the game may have crashed — debugger_get_log serves cached output from log file after a real crash (OS signal). " +
+    "To restart: fix the errors, then game_start.",
   LOG_BUSY:
     "Transient file lock during log flush — retry in 1-2 seconds, or use source='buffer' (default) which reads from an in-memory ring buffer with no file I/O.",
   LOG_UNAVAILABLE:

@@ -232,21 +232,43 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
       return { content: [{ type: "text" as const, text }] };
     } catch (e) {
       // Fallback: if game is not running, try the editor-side cache.
-      // CLOSED/DISCONNECTED can surface when onRemoved tears down the
-      // stale runtime channel mid-wait (fs.watch fires before the 10s ceiling).
+      // Catch ALL errors (not just BridgeError) — an unhandled throw here
+      // would crash the bridge process. CLOSED/DISCONNECTED/TypeError can
+      // all surface depending on timing of channel teardown.
+      const code = e instanceof BridgeError ? e.code : "INTERNAL";
       if (
-        e instanceof BridgeError &&
-        (e.code === "GAME_NOT_RUNNING" || e.code === "TIMEOUT" || e.code === "DISCONNECTED" || e.code === "CLOSED")
+        code === "GAME_NOT_RUNNING" ||
+        code === "TIMEOUT" ||
+        code === "DISCONNECTED" ||
+        code === "CLOSED" ||
+        code === "INTERNAL"
       ) {
         try {
+          // Auto game_stop: kill the game to flush the log file. The game is
+          // useless for MCP at this point (runtime dead/frozen), so stopping
+          // it ensures the cache has complete output including crash info.
+          try {
+            await bridge.call("game.stop", {}, 3_000);
+          } catch {
+            /* best-effort — game may already be dead */
+          }
+          // Brief delay: give the OS time to flush the killed process's file
+          // buffers to disk. OS.crash() flushes explicitly, but normal
+          // stop_playing_scene() may not wait for the child's buffers.
+          await new Promise((r) => setTimeout(r, 800));
           const cached = await bridge.call("debugger.get_log", input, 5_000);
           const cErr = toolErrorFromPayload(cached);
           if (cErr) return runtimeErrorWithCrashContext(bridge, e);
           const obj = cached as Record<string, unknown>;
           const count = typeof obj.count === "number" ? obj.count : 0;
-          const summary = `${count} cached line${count !== 1 ? "s" : ""} from last game session`;
-          const text = stableStringify({ _summary: summary, ...obj });
-          return { content: [{ type: "text" as const, text }] };
+          // If cache has content, serve it. If empty, fall through to
+          // runtimeErrorWithCrashContext which fetches from editor_get_console
+          // (has game errors received via debugger protocol on 4.5+).
+          if (count > 0) {
+            const summary = `${count} cached line${count !== 1 ? "s" : ""} from last game session`;
+            const text = stableStringify({ _summary: summary, ...obj });
+            return { content: [{ type: "text" as const, text }] };
+          }
         } catch {
           // Editor bridge also failed — fall through to crash context
         }

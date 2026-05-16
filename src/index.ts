@@ -626,6 +626,14 @@ async function shutdown(): Promise<void> {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+// Prevent unhandled errors from crashing the bridge process.
+// Log to stderr for diagnostics; the bridge stays alive.
+process.on("unhandledRejection", (reason) => {
+  process.stderr.write(`[godot-mcp] unhandledRejection: ${reason}\n`);
+});
+process.on("uncaughtException", (err) => {
+  process.stderr.write(`[godot-mcp] uncaughtException: ${err?.stack ?? err}\n`);
+});
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
