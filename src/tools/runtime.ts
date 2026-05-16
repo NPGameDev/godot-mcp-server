@@ -9,6 +9,7 @@ import {
   runtimeErrorWithCrashContext,
   coercedBoolean,
 } from "../tool_helpers.js";
+import { BridgeError } from "../errors.js";
 import { stableStringify } from "../schema_min.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
@@ -39,7 +40,7 @@ export const runtimeTools: ToolDef[] = [
     name: "debugger_get_log",
     method: "debugger.get_log",
     description:
-      "Game output (needs running game — use editor_get_console after crash). " +
+      "Game output log. Works during gameplay AND after crash (auto-serves cached output). " +
       "source='buffer'|'file'. limit=200. text_filter + is_regex for search.",
     inputSchema: {
       limit: z.coerce.number().int().positive().optional(),
@@ -212,11 +213,15 @@ function inputSimulateHandler(bridge: Bridge, method: string, input: unknown) {
   return callAndWrap(bridge, method, parsed, { runtime: true });
 }
 
-/** debugger_get_log prefixes a line-count summary before the payload. */
+/** debugger_get_log prefixes a line-count summary before the payload.
+ *  Falls back to the editor-side cache when the game is not running. */
 function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
   return (async () => {
     try {
-      const result = await bridge.callRuntime(method, input);
+      // Short timeout: debugger_get_log is a read-only buffer operation —
+      // if the game is alive it responds in <100ms. A 5s ceiling detects
+      // frozen games quickly without waiting the full 30s default.
+      const result = await bridge.callRuntime(method, input, 5_000);
       const err = toolErrorFromPayload(result);
       if (err) return err;
       const obj = result as Record<string, unknown>;
@@ -226,6 +231,26 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
       const text = stableStringify({ _summary: summary, ...obj });
       return { content: [{ type: "text" as const, text }] };
     } catch (e) {
+      // Fallback: if game is not running, try the editor-side cache.
+      // CLOSED/DISCONNECTED can surface when onRemoved tears down the
+      // stale runtime channel mid-wait (fs.watch fires before the 10s ceiling).
+      if (
+        e instanceof BridgeError &&
+        (e.code === "GAME_NOT_RUNNING" || e.code === "TIMEOUT" || e.code === "DISCONNECTED" || e.code === "CLOSED")
+      ) {
+        try {
+          const cached = await bridge.call("debugger.get_log", input, 5_000);
+          const cErr = toolErrorFromPayload(cached);
+          if (cErr) return runtimeErrorWithCrashContext(bridge, e);
+          const obj = cached as Record<string, unknown>;
+          const count = typeof obj.count === "number" ? obj.count : 0;
+          const summary = `${count} cached line${count !== 1 ? "s" : ""} from last game session`;
+          const text = stableStringify({ _summary: summary, ...obj });
+          return { content: [{ type: "text" as const, text }] };
+        } catch {
+          // Editor bridge also failed — fall through to crash context
+        }
+      }
       return runtimeErrorWithCrashContext(bridge, e);
     }
   })();

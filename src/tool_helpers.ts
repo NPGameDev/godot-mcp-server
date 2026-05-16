@@ -51,17 +51,19 @@ export function toolErrorFromPayload(result: unknown): ToolTextResult | null {
 const EXCEPTION_HINTS: Record<string, string> = {
   TIMEOUT:
     "The editor or game may be busy, or the game failed to compile/start. " +
-    "For editor calls, try editor.wait_for_idle. For runtime calls, the game " +
-    "may have crashed or failed to compile — call editor_get_console to check for script errors.",
+    "For editor calls, try editor.wait_for_idle. For runtime calls, " +
+    "debugger_get_log returns cached output after a crash. If empty, call editor_get_console without level_filter.",
   COMPILATION_FAILED:
     "The game failed to compile. Fix the script errors listed above, then call game_start again. " +
     "If no errors are shown, call editor_refresh to retrigger them, then editor_get_console for the full log.",
   DISCONNECTED:
     "Plugin WebSocket not connected. Ensure Godot is running with the plugin enabled. If running headless, launch with: godot --headless --editor --path <project>",
   GAME_NOT_RUNNING:
-    "No running game detected. Possible causes: (1) game_start was never called, " +
-    "(2) the game failed to compile — call editor_refresh then editor_get_console for script errors, " +
-    "(3) the game crashed after starting. Call game_stop + editor_get_console to diagnose.",
+    "No running game detected. debugger_get_log auto-serves cached output from the last session. " +
+    "If empty, call editor_get_console without level_filter. " +
+    "Possible causes: (1) game_start was never called, " +
+    "(2) compilation failure — call editor_refresh then editor_get_console, " +
+    "(3) runtime crash — cached log should contain the error.",
   LOG_BUSY:
     "Transient file lock during log flush — retry in 1-2 seconds, or use source='buffer' (default) which reads from an in-memory ring buffer with no file I/O.",
   LOG_UNAVAILABLE:

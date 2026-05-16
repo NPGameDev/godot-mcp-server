@@ -21,6 +21,9 @@ export interface Bridge {
    *  available when the bridge was created with a projectPath and registry
    *  watcher. */
   waitForRuntimeConnection?(timeoutMs: number): Promise<{ port: number } | null>;
+  /** Proactively tear down the runtime channel (e.g. on game_stopped notification).
+   *  Next callRuntime() will fail immediately with GAME_NOT_RUNNING. */
+  clearRuntime?(): void;
 }
 
 // BridgeError lives in errors.ts (runtime class, not a pure type).

@@ -229,7 +229,9 @@ function createChannel(
   projectPath?: string,
   onGodotVersion?: (version: string) => void,
   onNotification?: () => NotificationHandler | null,
+  opts?: { noReconnect?: boolean },
 ): Channel {
+  const noReconnect = opts?.noReconnect ?? false;
   const pending = new Map<string, Pending>();
   const openWaiters = new Set<Waiter>();
   let ws: WebSocket | null = null;
@@ -242,6 +244,7 @@ function createChannel(
   // `callRuntime` can map "game never started" to GAME_NOT_RUNNING in ms,
   // not after a 10s reconnect-await ceiling. Once we've connected once we
   // assume the peer exists and ride out transient drops with backoff.
+  // When noReconnect is set (runtime channels), disconnect is always terminal.
   let hasConnectedOnce = false;
 
   function rejectAllPending(code: string, message: string): void {
@@ -270,6 +273,12 @@ function createChannel(
 
   function scheduleReconnect(): void {
     if (closed) return;
+    // Runtime channels (noReconnect): game is dead, don't try again.
+    // Reject all waiters immediately so callers get DISCONNECTED fast.
+    if (noReconnect) {
+      rejectAllWaiters("DISCONNECTED", `${url} disconnected (no reconnect — runtime channel)`);
+      return;
+    }
     if (reconnectTimer) return;
     const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** attempt);
     attempt = Math.min(attempt + 1, RECONNECT_MAX_ATTEMPT);
@@ -329,7 +338,23 @@ function createChannel(
     connectPromise = new Promise<WebSocket>((resolve, reject) => {
       const socket = new WebSocket(url);
       ws = socket;
+      // Connection timeout: if neither `open` nor `error` fires within 30s
+      // (e.g., TCP accepted but WebSocket upgrade never completes), tear
+      // down the attempt. Without this, connect() hangs indefinitely.
+      // 30s is generous (reference repos use 3-15s) but accommodates
+      // slow editor startups on heavy projects.
+      const connectTimer = setTimeout(() => {
+        connectPromise = null;
+        ws = null;
+        socket.removeAllListeners();
+        socket.close();
+        const error = new BridgeError("CONNECT_FAILED", `WebSocket connection to ${url} timed out (30s)`);
+        scheduleReconnect();
+        reject(error);
+      }, 30_000);
+      connectTimer.unref?.();
       socket.once("open", () => {
+        clearTimeout(connectTimer);
         connectPromise = null;
         if (reconnectTimer) {
           clearTimeout(reconnectTimer);
@@ -342,6 +367,7 @@ function createChannel(
         void performAuth(socket, resolve, reject);
       });
       socket.once("error", (err) => {
+        clearTimeout(connectTimer);
         connectPromise = null;
         ws = null;
         const error = new BridgeError("CONNECT_FAILED", `WebSocket error: ${(err as Error).message}`);
@@ -549,7 +575,9 @@ export function createBridge(
   // newly-started playtests. The channel is cached and recreated only
   // when the port changes.
   let runtimeChannel: Channel | null = opts?.explicitRuntimePort
-    ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`, projectPath)
+    ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`, projectPath, undefined, undefined, {
+        noReconnect: true,
+      })
     : null;
   let cachedRuntimePort: number | null = opts?.explicitRuntimePort ? Number(opts.explicitRuntimePort) : null;
 
@@ -571,7 +599,9 @@ export function createBridge(
         if (discoveredPath !== normalizedProject) return;
         process.stderr.write(`[bridge] runtime discovered on port ${port}\n`);
         if (runtimeChannel) void runtimeChannel.close();
-        runtimeChannel = createChannel(`ws://127.0.0.1:${port}`, projectPath);
+        runtimeChannel = createChannel(`ws://127.0.0.1:${port}`, projectPath, undefined, undefined, {
+          noReconnect: true,
+        });
         cachedRuntimePort = port;
         // Notify any pending waitForRuntimeConnection callers.
         const resolvers = runtimePortResolvers;
@@ -625,39 +655,69 @@ export function createBridge(
         throw new BridgeError("GAME_NOT_RUNNING", "no runtime port configured and no project path for registry lookup");
       }
 
-      // Path A (watcher active): zero-I/O cache lookup.
-      // Path B (watcher inactive / fallback): per-RPC file read.
-      const currentPort = isWatcherActive() ? getCachedRuntimePort(projectPath) : discoverRuntime(projectPath);
-      if (currentPort === null) {
-        // No playtest running — close stale channel and reject immediately.
-        if (runtimeChannel) {
-          await runtimeChannel.close();
-          runtimeChannel = null;
-          cachedRuntimePort = null;
+      // Fast path: if clearRuntime() was called (game_stopped notification),
+      // trust it over the potentially-stale registry cache. The registry
+      // watcher has a 100ms debounce — during that window getCachedRuntimePort
+      // still returns the old port. Don't create a doomed channel to it.
+      if (!runtimeChannel && cachedRuntimePort === null) {
+        const freshPort = isWatcherActive() ? getCachedRuntimePort(projectPath) : discoverRuntime(projectPath);
+        if (freshPort === null) {
+          throw new BridgeError(
+            "GAME_NOT_RUNNING",
+            "no runtime_port in registry — start the game in the editor (F5) with a debug build",
+          );
         }
-        throw new BridgeError(
-          "GAME_NOT_RUNNING",
-          "no runtime_port in registry — start the game in the editor (F5) with a debug build",
-        );
-      }
+        // Registry still has a port — either watcher is stale (race) or a new
+        // game started before we ran. Re-read the file to break the debounce.
+        const diskPort = discoverRuntime(projectPath);
+        if (diskPort === null) {
+          throw new BridgeError(
+            "GAME_NOT_RUNNING",
+            "game stopped (runtime cleared by notification, registry not yet updated)",
+          );
+        }
+        // Disk confirms a port exists — new game started. Create channel.
+        runtimeChannel = createChannel(`ws://127.0.0.1:${diskPort}`, projectPath, undefined, undefined, {
+          noReconnect: true,
+        });
+        cachedRuntimePort = diskPort;
+      } else {
+        // Normal path: consult registry cache.
+        const currentPort = isWatcherActive() ? getCachedRuntimePort(projectPath) : discoverRuntime(projectPath);
+        if (currentPort === null) {
+          // No playtest running — close stale channel and reject immediately.
+          if (runtimeChannel) {
+            await runtimeChannel.close();
+            runtimeChannel = null;
+            cachedRuntimePort = null;
+          }
+          throw new BridgeError(
+            "GAME_NOT_RUNNING",
+            "no runtime_port in registry — start the game in the editor (F5) with a debug build",
+          );
+        }
 
-      // Port changed (new playtest or different runtime instance).
-      if (currentPort !== cachedRuntimePort) {
-        if (runtimeChannel) await runtimeChannel.close();
-        runtimeChannel = createChannel(`ws://127.0.0.1:${currentPort}`, projectPath);
-        cachedRuntimePort = currentPort;
+        // Port changed (new playtest or different runtime instance).
+        if (currentPort !== cachedRuntimePort) {
+          if (runtimeChannel) await runtimeChannel.close();
+          runtimeChannel = createChannel(`ws://127.0.0.1:${currentPort}`, projectPath, undefined, undefined, {
+            noReconnect: true,
+          });
+          cachedRuntimePort = currentPort;
+        }
       }
 
       try {
         return await runtimeChannel!.call(method, params, timeoutMs);
       } catch (err) {
         if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
+          const failedPort = cachedRuntimePort;
           await runtimeChannel!.close();
           runtimeChannel = null;
           cachedRuntimePort = null;
           throw new BridgeError(
             "GAME_NOT_RUNNING",
-            `runtime server on port ${currentPort} is not responding — playtest may have ended`,
+            `runtime server on port ${failedPort} is not responding — playtest may have ended`,
           );
         }
         throw err;
@@ -697,6 +757,14 @@ export function createBridge(
         };
         runtimePortResolvers.push(handler);
       });
+    },
+    clearRuntime() {
+      if (runtimeChannel) {
+        void runtimeChannel.close();
+        runtimeChannel = null;
+        cachedRuntimePort = null;
+        process.stderr.write("[bridge] runtime cleared (game_stopped notification)\n");
+      }
     },
     onNotification(handler: NotificationHandler) {
       notificationHandler = handler;

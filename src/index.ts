@@ -363,6 +363,11 @@ bridge.onNotification((type, params) => {
     }, 300);
   } else if (type === "extensions.changed") {
     handleExtensionsChanged(params);
+  } else if (type === "game_stopped") {
+    // Proactive runtime teardown: editor detected game-stop/crash and
+    // notified us. Clear the runtime channel immediately so the next
+    // callRuntime() fails with GAME_NOT_RUNNING in 0ms (no TCP probe).
+    bridge.clearRuntime?.();
   }
 });
 
