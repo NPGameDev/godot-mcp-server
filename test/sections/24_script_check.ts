@@ -89,6 +89,51 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
     await bridge.call("script.delete", { file_path: brokenPath }, CALL_TIMEOUT);
   }
 
+  // ─── REGRESSION: class_name false positive (fixed T:8f74e23) ───────────
+  // Scripts with class_name should not produce false positive errors from
+  // GDScript.new().reload() validation. A valid script with class_name
+  // must return valid=true.
+  const classNamePath = "res://smoke_check_classname.gd";
+  const classNameContent = "class_name SmokeCheckClass\nextends Node\n\nfunc _ready() -> void:\n\tpass\n";
+  const writeClassName = (await bridge.call(
+    "script.write",
+    { file_path: classNamePath, content: classNameContent },
+    CALL_TIMEOUT,
+  )) as { success?: boolean };
+  if (writeClassName?.success) {
+    const checkClassName = (await bridge.call("script.check", { file_path: classNamePath }, CALL_TIMEOUT)) as {
+      success?: boolean;
+      valid?: boolean;
+      diagnostics?: unknown[];
+    };
+    if (checkClassName?.success && checkClassName.valid === true) {
+      pass("REGRESSION script_check class_name -> valid=true (no false positive)");
+    } else {
+      fail(`REGRESSION script_check class_name: expected valid=true, got ${JSON.stringify(checkClassName)}`);
+    }
+    await bridge.call("script.delete", { file_path: classNamePath }, CALL_TIMEOUT);
+  }
+
+  // ─── Hint assertion: diagnostics have structured line/column info ���─────
+  // When script.check returns valid=false, diagnostics should include line numbers.
+  const hintBrokenPath = "res://smoke_check_hint.gd";
+  const hintBrokenContent = "extends Node\n\nfunc _ready():\n  var x = \n";
+  await bridge.call("script.write", { file_path: hintBrokenPath, content: hintBrokenContent }, CALL_TIMEOUT);
+  const checkHintBroken = (await bridge.call("script.check", { file_path: hintBrokenPath }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    valid?: boolean;
+    diagnostics?: { line?: number; column?: number; severity?: string; message?: string }[];
+  };
+  if (checkHintBroken?.success && checkHintBroken.valid === false && Array.isArray(checkHintBroken.diagnostics)) {
+    const d = checkHintBroken.diagnostics[0];
+    if (typeof d?.line === "number" && typeof d?.severity === "string" && typeof d?.message === "string") {
+      pass(`script_check diagnostics -> structured (line=${d.line}, severity=${d.severity})`);
+    } else {
+      fail(`script_check diagnostics: missing structured fields: ${JSON.stringify(d)}`);
+    }
+  }
+  await bridge.call("script.delete", { file_path: hintBrokenPath }, CALL_TIMEOUT);
+
   // ─── Nonexistent file → NOT_FOUND ─────────────────────────────────────
   const notFound = await bridge.call(
     "script.check",

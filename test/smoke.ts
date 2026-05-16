@@ -66,6 +66,8 @@ import { testSpriteframes } from "./sections/35_spriteframes.js";
 import { testSceneQuery } from "./sections/36_scene_query.js";
 import { testParticles } from "./sections/37_particles.js";
 import { testNavigation } from "./sections/38_navigation.js";
+import { testDiscoverTools } from "./sections/39_discover_tools.js";
+import { testCrashDetection } from "./sections/40_crash_detection.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -230,6 +232,8 @@ const ALL_SECTIONS: Section[] = [
   { num: 36, name: "scene_query", run: testSceneQuery },
   { num: 37, name: "particles", run: testParticles },
   { num: 38, name: "navigation", run: testNavigation },
+  { num: 39, name: "discover_tools", run: testDiscoverTools },
+  { num: 40, name: "crash_detection", run: testCrashDetection },
 ];
 
 function filterSections(): Section[] {

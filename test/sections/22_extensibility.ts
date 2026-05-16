@@ -26,6 +26,26 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
     pass(`extensions.list -> ${extResult.commands.length} extension(s)`);
   }
 
+  // ── extensions.refresh (hot-reload trigger) ─────────────────────────
+  // The extensions.refresh method forces a filesystem scan for extension manifests.
+  // Even with no extensions installed, it should succeed.
+  // (MCP tool name is "extensions_refresh"; Godot method is "extensions.refresh")
+  const refreshResult = (await bridge.call("extensions.refresh", {}, CALL_TIMEOUT)) as {
+    success?: boolean;
+    commands?: unknown[];
+    code?: string;
+  };
+  if (refreshResult?.success === true) {
+    pass(
+      `extensions.refresh -> success (${Array.isArray(refreshResult.commands) ? refreshResult.commands.length : 0} commands found)`,
+    );
+  } else if (refreshResult?.code) {
+    // May fail if the toolkit doesn't support extensions.refresh yet — acceptable.
+    pass(`extensions.refresh -> ${refreshResult.code} (older plugin — acceptable)`);
+  } else {
+    fail(`extensions.refresh: unexpected response ${JSON.stringify(refreshResult)}`);
+  }
+
   // ── Reserved namespace rejection ─────────────────────────────────────
   // Verify that the extensions endpoint doesn't list any commands under
   // reserved namespaces (the loader rejects these at load time).

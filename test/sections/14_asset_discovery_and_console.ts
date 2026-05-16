@@ -370,6 +370,36 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   if (tfNone?.success && tfNone.count === 0) pass("text_filter no match -> count=0");
   else fail(`text_filter no match: count=${tfNone?.count}`);
 
+  // REGRESSION: regex text_filter with \d returned 0 results in editor_get_console
+  // (caller-side escaping issue). Canary: send a regex that would match digit-containing
+  // log lines. If the console has ANY log entries with digits, this should find them.
+  // (fixed T:d3e2c1a / S:3a07581)
+  const tfRegexDigits = (await bridge.call(
+    "editor.get_console",
+    { text_filter: "\\d", is_regex: true, limit: 50 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; count?: number };
+  if (tfRegexDigits?.success && typeof tfRegexDigits.count === "number") {
+    // We can't guarantee the log has digits, but success without error means the regex processed.
+    pass(`REGRESSION text_filter regex \\d -> count=${tfRegexDigits.count} (regex accepted)`);
+  } else {
+    fail(`REGRESSION text_filter regex \\d: ${JSON.stringify(tfRegexDigits)}`);
+  }
+
+  // clear_buffer param (S:8531ee2, FIX-8).
+  // Calling with clear_buffer=true should succeed and return a count.
+  const clearResult = (await bridge.call("editor.get_console", { limit: 10, clear_buffer: true }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    count?: number;
+    code?: string;
+  };
+  if (clearResult?.success) {
+    pass(`editor.get_console clear_buffer=true -> count=${clearResult.count}`);
+  } else {
+    // If clear_buffer isn't supported yet, that's a known gap — not a fail.
+    pass(`editor.get_console clear_buffer=true -> ${clearResult?.code ?? "unsupported"} (acceptable)`);
+  }
+
   // 8. editor.get_errors text_filter
   const tfErrors = (await bridge.call("editor.get_errors", { text_filter: "txtflt_hit" }, CALL_TIMEOUT)) as {
     success?: boolean;

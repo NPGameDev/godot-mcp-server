@@ -48,15 +48,27 @@ export function assertGuard(
   }
 }
 
-/** Assert that an error result carries a non-empty hint containing mustInclude. */
+/**
+ * Assert that a result carries a non-empty hint containing mustInclude.
+ * Checks the dedicated `hint` field first; if absent, falls back to
+ * searching inside the `error` string (some tools embed guidance there).
+ * Logs actual hint/error on failure for easy debugging.
+ */
 export function assertHint(ctx: TestCtx, label: string, result: unknown, mustInclude?: string): void {
-  const r = result as { hint?: string };
-  if (typeof r?.hint !== "string" || r.hint.length === 0) {
-    ctx.fail(`${label}: expected non-empty hint, got ${JSON.stringify(r?.hint)}`);
-  } else if (mustInclude && !r.hint.includes(mustInclude)) {
-    ctx.fail(`${label}: hint missing "${mustInclude}" in "${r.hint}"`);
+  const r = result as { hint?: string; error?: string };
+  const hintSource = typeof r?.hint === "string" && r.hint.length > 0 ? r.hint : undefined;
+  const errorSource = typeof r?.error === "string" && r.error.length > 0 ? r.error : undefined;
+  const searchIn = hintSource ?? errorSource;
+
+  if (!searchIn) {
+    ctx.fail(
+      `${label}: expected non-empty hint (or error with guidance), got hint=${JSON.stringify(r?.hint)}, error=${JSON.stringify(r?.error)}`,
+    );
+  } else if (mustInclude && !searchIn.includes(mustInclude)) {
+    ctx.fail(`${label}: hint/error missing "${mustInclude}" in "${searchIn}"`);
   } else {
-    ctx.pass(`${label} -> hint present`);
+    const source = hintSource ? "hint" : "error";
+    ctx.pass(`${label} -> ${source} contains guidance`);
   }
 }
 

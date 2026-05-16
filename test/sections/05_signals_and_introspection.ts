@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT } from "../helpers.js";
+import { CALL_TIMEOUT, assertHint } from "../helpers.js";
 
 export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -59,6 +59,11 @@ export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; code?: string };
   if (!emitResult?.success) fail(`signal.emit: ${JSON.stringify(emitResult)}`);
   else pass("signal.emit child_order_changed");
+
+  // REGRESSION: signal_manage method hint — connect response should include
+  // persistence guidance or method reference (fixed T:5f96b62 / S:6964946).
+  // The hint should contain actionable guidance (e.g., "Save" to persist).
+  assertHint(ctx, "REGRESSION signal_manage connect hint", connectFresh, "persist");
 
   const disconnectFirst = (await bridge.call(
     "signal.manage",
