@@ -39,7 +39,8 @@ export const scriptTools: ToolDef[] = [
     name: "script_check",
     method: "script.check",
     description:
-      "Validate a GDScript file. Returns structured diagnostics (errors/warnings with line numbers). Read-only — does not modify the script.",
+      "Lightweight offline GDScript validation — pass/fail with line-level errors. Works without editor. " +
+      "For richer diagnostics, activate lsp_code_analysis group.",
     inputSchema: { file_path: z.string().describe("res:// path to a .gd file") },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

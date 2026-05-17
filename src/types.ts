@@ -57,6 +57,7 @@ export type ErrorCode =
   | "INTERNAL"
   | "INVALID_CLASS"
   | "INVALID_METHOD"
+  | "LSP_UNAVAILABLE"
   | "INVALID_PARAMS"
   | "INVALID_PATH"
   | "LOAD_FAILED"
@@ -80,6 +81,7 @@ export type ErrorCode =
   | "SEND_FAILED"
   | "TIMEOUT"
   | "UNSUPPORTED"
+  | "UNSUPPORTED_FILE_TYPE"
   | "USER_PATH_NOT_WHITELISTED"
   | "USER_SCOPE_DISABLED"
   | "WRITE_FAILED";

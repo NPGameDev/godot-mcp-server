@@ -1,6 +1,6 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * discover_tools. 21 groups, 51 group tools. Standard profile
+ * discover_tools. 23 groups, 57 group tools. Standard profile
  * registers discover_tools as the meta-tool; power_user profile
  * registers all group tools at startup.
  */
@@ -47,6 +47,7 @@ import { spriteframesTools } from "./tools/spriteframes.js";
 import { sceneQueryTools } from "./tools/scene_query.js";
 import { particleTools } from "./tools/particles.js";
 import { navigationTools } from "./tools/navigation.js";
+import { lspAnalysisTools, lspNavigationTools, createLspHandler } from "./tools/lsp.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -71,7 +72,9 @@ export type GroupName =
   | "audio"
   | "spriteframes"
   | "particles"
-  | "navigation";
+  | "navigation"
+  | "lsp_code_analysis"
+  | "lsp_code_navigation";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -95,6 +98,8 @@ const GROUP_NAMES: readonly GroupName[] = [
   "spriteframes",
   "particles",
   "navigation",
+  "lsp_code_analysis",
+  "lsp_code_navigation",
 ];
 
 interface GroupDef {
@@ -326,6 +331,38 @@ export const GROUPS: GroupDef[] = [
       "ai pathfinding",
     ],
   },
+  {
+    name: "lsp_code_analysis",
+    tools: ["lsp_diagnostics", "lsp_symbols", "lsp_hover"],
+    keywords: [
+      "lsp",
+      "diagnostics",
+      "symbols",
+      "hover",
+      "type",
+      "gdscript",
+      "shader",
+      "gdshader",
+      "errors",
+      "warnings",
+      "validate",
+      "analyze",
+    ],
+  },
+  {
+    name: "lsp_code_navigation",
+    tools: ["lsp_completion", "lsp_definition", "lsp_references"],
+    keywords: [
+      "completion",
+      "definition",
+      "references",
+      "go to definition",
+      "find references",
+      "autocomplete",
+      "navigate",
+      "cross-file",
+    ],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -364,6 +401,8 @@ for (const tools of [
   sceneQueryTools,
   particleTools,
   navigationTools,
+  lspAnalysisTools,
+  lspNavigationTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
@@ -373,6 +412,16 @@ for (const tools of [
 // (runtime_screenshot, input_simulate, runtime_get_script_vars,
 // debugger_get_log) are now standard and handled by runtime.ts.
 const RUNTIME_TOOLS = new Set(["runtime_get_node_state", "animation_player_control"]);
+
+// LSP tools — use their own TCP client, not the bridge.
+const LSP_TOOLS = new Set([
+  "lsp_diagnostics",
+  "lsp_hover",
+  "lsp_completion",
+  "lsp_definition",
+  "lsp_symbols",
+  "lsp_references",
+]);
 
 // Tracks loaded groups for the session.
 const loadedGroups = new Set<string>();
@@ -550,6 +599,10 @@ function createHandler(bridge: Bridge, def: ToolDef) {
     case "editor_screenshot":
       return handleEditorScreenshot(bridge, def);
     default: {
+      if (LSP_TOOLS.has(def.name)) {
+        const projectPath = process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
+        return createLspHandler(def.name, projectPath);
+      }
       const useRuntime = RUNTIME_TOOLS.has(def.name);
       return (input: unknown) => callAndWrap(bridge, def.method, input, { runtime: useRuntime });
     }
