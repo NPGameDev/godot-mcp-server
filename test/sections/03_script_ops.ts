@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, unwrapUntrusted, assertHint } from "../helpers.js";
+import { CALL_TIMEOUT, unwrapUntrusted } from "../helpers.js";
 
 export async function testScriptOps(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;

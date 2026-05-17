@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, assertHint } from "../helpers.js";
+import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE } from "../helpers.js";
 
 /**
  * Section 40 — Crash detection and debugger_get_log cache
