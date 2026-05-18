@@ -15,19 +15,18 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 
 ## Architecture
 
-- `src/index.ts` — entry. Resolves profile/readOnly, constructs `McpServer` +
-  `Bridge`, registers tools per profile, connects `StdioServerTransport`.
+- `src/index.ts` — entry. Resolves readOnly mode, constructs `McpServer` +
+  `Bridge`, registers Standard tools, connects `StdioServerTransport`.
 - `src/bridge.ts` — WebSocket client (lazy-connect, pending-map keyed by uuid,
   per-call timeout). Exposes `Bridge.call(method, params, timeoutMs)` and `close()`.
 - `src/types.ts` — `Bridge` interface, `ToolDef`, pure type/interface exports.
 - `src/errors.ts` — `BridgeError` runtime error class.
 - `src/tool_helpers.ts` — `callAndWrap` (uses `stableStringify` for deterministic
   output), `toolError*` helpers, `registerToolWrapped`/`registerTools`.
-- `src/profiles.ts` — profile resolution (`selectedProfile`, `resolveAllowedTools`,
-  `isReadOnly`). Defines `MINIMAL_TOOLS`, `STANDARD_TOOLS`, `MUTATING_TOOLS`.
-- `src/groups.ts` — lazy-load group system. `registerGroupSystem` (standard/custom)
-  or `registerAllGroupTools` (full). `discover_tools` meta-tool + `GROUP_TOOL_NAMES`.
-- `src/stubs.ts` — locked stubs for gated tools. `registerStubs(server, profile)`.
+- `src/profiles.ts` — tool visibility (`resolveAllowedTools`, `isReadOnly`).
+  Defines `STANDARD_TOOLS`, `MUTATING_TOOLS`.
+- `src/groups.ts` — lazy-load group system. `registerGroupSystem` registers
+  `discover_tools` meta-tool. `GROUP_TOOL_NAMES` tracks group membership.
 - `src/feature_gate.ts` — env-var-only gate checks (`isEnabled`, `envVarFor`).
 - `src/schema_min.ts` — `minifySchema` + `stableStringify` (sorted-key JSON for
   prompt-cache hits).
@@ -62,67 +61,35 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
   server-side work.
 
-## Tool-catalogue profiles (iter 22)
+## Tool catalogue
 
-Three-axis system: **profiles** control safe-tool visibility, **groups**
-enable specialized tools on demand, **stubs** expose locked gates.
+Standard tools are always visible. Group tools are loaded on demand via
+`discover_tools`. `GODOT_MCP_READ_ONLY=1` hides all mutating tools.
+Source of truth: `src/profiles.ts` (`STANDARD_TOOLS`, `MUTATING_TOOLS`).
 
-### Profiles (`GODOT_MCP_PROFILE` env var)
+### Lazy-load groups
 
-| Profile      | Behaviour | Default tools |
-|--------------|-----------|---------------|
-| **standard** (default) | 27 tools (24 core + 3 gated stubs) + `discover_tools` + `extensions_refresh` = 29 in `tools/list`. 10 groups (34 tools) loaded on demand. | `src/profiles.ts` → `STANDARD_TOOLS` |
-| **minimal** | 12 read-only tools. No groups, no stubs, no meta-tool. Good for code review. | `MINIMAL_TOOLS` |
-| **full** (Power User) | All 63 tools registered at startup (group tools eager-loaded, no meta-tool). Startup warning emitted. | Everything passing its feature gate. |
-| **custom**   | Comma-separated tool list via `GODOT_MCP_CUSTOM_TOOLS` env var. | Whatever you list. |
-
-`--lite` still works but maps to `minimal` with a deprecation warning.
-
-**Token costs** (measured via `npx tsx scripts/measure-tokens.ts`):
-minimal ~1,300 tokens, standard ~3,600, Power User ~5,700. Schema
-minification saves ~19%. See `docs/token-efficiency.md` for full data.
-
-`GODOT_MCP_READ_ONLY=1` removes all tools in the `MUTATING_TOOLS` set from
-any profile. Single source of truth: `src/profiles.ts`.
-
-### Lazy-load groups (standard / custom profiles)
-
-22 groups (55 tools total) loaded via `discover_tools`. `node_manage`,
+24 groups (61 tools) loaded via `discover_tools`. `node_manage`,
 `node_groups`, `autoload_manage` were promoted to the Standard eager set
 (Claude Code does not process `tools/list_changed` notifications).
 
 Source of truth: `src/groups.ts` — see `GROUPS` array for full list.
-
 Groups persist for the session. Gated groups require their env var.
-Source of truth: `src/groups.ts`.
-
-### Locked stubs
-
-For standard/full/custom profiles, gated tools whose gate is closed appear
-as `LOCKED —` stubs in `tools/list` so the model can discover them and
-tell the user how to enable. Stubs defined in `src/stubs.ts`.
 
 ## Feature gates (iter 19)
 
-Seven features are gated behind explicit opt-in via env vars. The TS side
+Three features are gated behind explicit opt-in via env vars. The TS side
 controls MCP catalogue visibility only (env-var check at registration
-time); the plugin side performs the full dual/single-gate check as
+time); the plugin side performs the full deny → sidecar check as
 defence-in-depth.
 
-| Feature               | Gate type | Env var                                  | Tools affected |
-|-----------------------|-----------|------------------------------------------|----------------|
-| `game_eval`           | dual      | `GODOT_MCP_ALLOW_GAME_EVAL`             | `game_eval` (runtime) |
-| `project_set_setting` | dual      | `GODOT_MCP_ALLOW_PROJECT_SET_SETTING`   | `project_set_setting` |
-| `node_call_method`    | single    | `GODOT_MCP_ALLOW_NODE_CALL_METHOD`      | `node_call_method` |
-| `input_map_write`     | single    | `GODOT_MCP_ALLOW_INPUT_MAP_WRITE`       | `input_map_action`, `input_map_event` |
-| `read_user_scope`     | dual      | `GODOT_MCP_ALLOW_USER_SCOPE`            | `save_read`, `save_write`, `save_delete`, `save_list` |
+| Feature               | Env var                                  | Tools affected |
+|-----------------------|------------------------------------------|----------------|
+| `execute_code`        | `GODOT_MCP_ALLOW_EXECUTE_CODE`           | `execute_code` |
+| `node_call_method`    | `GODOT_MCP_ALLOW_NODE_CALL_METHOD`       | `node_call_method` |
+| `read_user_scope`     | `GODOT_MCP_ALLOW_USER_SCOPE`             | `save_read`, `save_write`, `save_delete`, `save_list` |
 
-Gate logic lives in `src/feature_gate.ts`. Each tool module's exported array
-conditionally pushes gated tools based on `isEnabled(feature)`.
-
-Default tool count (standard profile): 27 (24 core + 3 gated stubs) + meta-tool + extensions_refresh = 29 in
-`tools/list`. 9 groups hold 31 additional tools loaded on demand.
-Full profile with all gates: 61 tools.
+Gate logic lives in `src/feature_gate.ts`.
 
 ### Dual-pass smoke runner (`npm run smoke`)
 
@@ -291,10 +258,9 @@ for end users with no further edits. See iter 13b + iter 20 in the plan repo.
    Include `annotations` (readOnlyHint, destructiveHint, idempotentHint,
    openWorldHint: false).
 2. Keep `description` ≤ 200 chars (I2).
-3. Decide placement: add the tool's name to `STANDARD_TOOLS` (standard profile),
-   or to a group's `tools` array in `src/groups.ts` (lazy-loaded), or leave it
-   full-only (only visible in the `full` profile). Gated tools go in their
-   module's conditional push block.
+3. Decide placement: add the tool's name to `STANDARD_TOOLS` (always visible),
+   or to a group's `tools` array in `src/groups.ts` (lazy-loaded via
+   `discover_tools`). Gated tools go in their module's conditional push block.
 4. If the tool returns non-text content (images, binary), handle it explicitly
    in the module's `register()` function — see `runtime.ts` `runtime_screenshot`
    for the image path. Group tools with custom handlers go in `createHandler`

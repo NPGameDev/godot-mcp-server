@@ -78,47 +78,26 @@ Launch your MCP client from the project root. The server discovers the plugin au
 | `GODOT_MCP_PROJECT_PATH` | `cwd` | Absolute path to the Godot project |
 | `GODOT_MCP_PROJECT_NAME` | from `project.godot` | Project name for token resolution |
 | `GODOT_MCP_TOKEN_PATH` | platform-specific | Override the auth token file path |
-| `GODOT_MCP_PROFILE` | `standard` | Profile: `minimal`, `standard`, `full`, or `custom` |
-| `GODOT_MCP_CUSTOM_TOOLS` | — | Comma-separated tool names (with `custom` profile) |
-| `GODOT_MCP_READ_ONLY` | `0` | Set to `1` to remove all mutating tools from any profile |
+| `GODOT_MCP_READ_ONLY` | `0` | Set to `1` to remove all mutating tools |
 | `GODOT_MCP_RATE_LIMIT` | `0` | Max tool calls per second (`0` = unlimited) |
 
 ### Feature gate variables
 
 These enable individually gated capabilities. Most require opt-in on **both** the server (env var) and the plugin (Project Settings).
 
-| Variable | Gate | Enables |
-|----------|------|---------|
-| `GODOT_MCP_ALLOW_GAME_EVAL` | dual | `game_eval` — arbitrary GDScript via Expression |
-| `GODOT_MCP_ALLOW_USER_SCOPE` | dual | `save_*` tools — read/write whitelisted `user://` paths |
-| `GODOT_MCP_ALLOW_NODE_CALL_METHOD` | single | `node_call_method` — call methods on editor nodes |
-| `GODOT_MCP_ALLOW_PROJECT_SET_SETTING` | dual | `project_set_setting` — write ProjectSettings keys |
-| `GODOT_MCP_ALLOW_INPUT_MAP_WRITE` | single | `input_map_*` tools — modify InputMap actions |
+| Variable | Enables |
+|----------|---------|
+| `GODOT_MCP_ALLOW_EXECUTE_CODE` | `execute_code` — arbitrary GDScript via Expression |
+| `GODOT_MCP_ALLOW_NODE_CALL_METHOD` | `node_call_method` — call methods on editor nodes |
+| `GODOT_MCP_ALLOW_USER_SCOPE` | `save_*` tools — read/write whitelisted `user://` paths |
 
-**Dual-gate** = both env var and plugin ProjectSetting must be enabled. **Single-gate** = either side enables it.
+## Read-only mode
 
-## Profiles
+For supervised environments (classrooms, CI, demos), set `GODOT_MCP_READ_ONLY=1` in `.mcp.json` env to restrict to read-only tools. All mutating tools are hidden.
 
-Control which tools your AI assistant sees. See [Token Efficiency](docs/token-efficiency.md) for per-profile token cost data.
+### On-demand tool groups
 
-| Profile | Tools | Catalogue tokens | Best for |
-|---------|-------|-----------------|----------|
-| **minimal** | 13 | ~1,300 | Read-only exploration. Scene inspection, script reading, class lookups. |
-| **standard** | 39 | ~3,700 | Day-to-day development. Scene/script/resource editing plus on-demand group access. |
-| **Power User** | 60 | ~5,800 | Full access including feature-gated tools. Risk warning on activation. |
-| **custom** | user-defined | varies | Cherry-pick tools via `GODOT_MCP_CUSTOM_TOOLS`. |
-
-```bash
-# Via environment variable
-GODOT_MCP_PROFILE=minimal npx @npgamedev/godot-mcp-server
-
-# In .mcp.json
-"env": { "GODOT_MCP_PROFILE": "full" }
-```
-
-### On-demand tool groups (standard profile)
-
-The standard profile includes a `discover_tools` meta-tool that lets the AI assistant search for and unlock additional capabilities during a session without switching profiles. Search by keyword (`discover_tools({request: "animation"})`) or activate groups directly (`discover_tools({groups: ["signals"]})`):
+The `discover_tools` meta-tool lets the AI assistant search for and unlock additional capabilities during a session. Search by keyword (`discover_tools({request: "animation"})`) or activate groups directly (`discover_tools({groups: ["signals"]})`):
 
 | Group | Tools | What it unlocks |
 |-------|-------|-----------------|
@@ -318,7 +297,7 @@ The standard profile includes a `discover_tools` meta-tool that lets the AI assi
 
 | Tool | Description |
 |------|-------------|
-| `discover_tools` | Search and activate tool groups by keyword or name (standard profile) |
+| `discover_tools` | Search and activate tool groups by keyword or name |
 | `extensions_refresh` | Re-scan for third-party extension tools |
 
 </details>
@@ -329,13 +308,9 @@ When Godot runs with `--headless --editor`, the plugin loads and 51 of 53 tools 
 
 ## Token efficiency
 
-Each profile consumes a fixed amount of context window for the MCP tool catalogue. Schema minification (enabled by default) reduces this by ~19%.
+The MCP tool catalogue consumes context window tokens. Schema minification (enabled by default) reduces this by ~19%.
 
-| Profile | Catalogue cost |
-|---------|---------------|
-| Minimal | ~1,300 tokens |
-| Standard | ~3,600 tokens (+ ~200–600 per on-demand group) |
-| Power User | ~5,700 tokens |
+Standard catalogue: ~3,600 tokens (+ ~200–600 per on-demand group). Read-only mode: ~1,600 tokens (mutating tools filtered).
 
 Run `npx tsx scripts/measure-tokens.ts` to regenerate measurements after adding or modifying tools. See [docs/token-efficiency.md](docs/token-efficiency.md) for the full per-tool breakdown, group costs, and methodology.
 
@@ -352,11 +327,11 @@ The eval suite is separate from the smoke test. Smoke validates "does it work" (
 
 ### `claude -p` does not support dynamic tool loading
 
-**Affected:** Standard profile's `discover_tools` lazy-loading (Claude Code 2.1.104, confirmed 2026-05-06).
+**Affected:** `discover_tools` lazy-loading (Claude Code 2.1.104, confirmed 2026-05-06).
 
 `claude -p` (pipe mode) does not process `tools/list_changed` MCP notifications. The server sends the notification after `discover_tools` registers new tools, but the pipe-mode client does not re-fetch the tool list. Dynamically loaded tools are unreachable.
 
-**Workaround:** Set `GODOT_MCP_PROFILE=full` in `.mcp.json` for `claude -p` workflows. This eagerly loads all tools at startup. Interactive `claude` sessions handle dynamic loading correctly.
+**Workaround:** No current workaround for pipe mode. Interactive `claude` sessions handle dynamic loading correctly.
 
 ## Security
 
