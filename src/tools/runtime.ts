@@ -249,21 +249,21 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
           const cached = await bridge.call("debugger.get_log", input, 5_000);
           const cErr = toolErrorFromPayload(cached);
           if (cErr) return runtimeErrorWithCrashContext(bridge, e);
+          // Always serve the editor-side response — even when count=0, the
+          // debug_state and note fields are valuable context for the agent.
           const obj = cached as Record<string, unknown>;
           const count = typeof obj.count === "number" ? obj.count : 0;
           const errorBuffer = Array.isArray(obj.error_buffer) ? obj.error_buffer : [];
-          if (count > 0 || errorBuffer.length > 0) {
-            const parts: string[] = [];
-            if (errorBuffer.length > 0) {
-              parts.push(`${errorBuffer.length} error${errorBuffer.length !== 1 ? "s" : ""} from debugger bridge`);
-            }
-            if (count > 0) {
-              parts.push(`${count} cached line${count !== 1 ? "s" : ""} from log file`);
-            }
-            const summary = parts.join(", ");
-            const text = stableStringify({ _summary: summary, ...obj });
-            return { content: [{ type: "text" as const, text }] };
+          const parts: string[] = [];
+          if (errorBuffer.length > 0) {
+            parts.push(`${errorBuffer.length} error${errorBuffer.length !== 1 ? "s" : ""} from debugger bridge`);
           }
+          if (count > 0) {
+            parts.push(`${count} cached line${count !== 1 ? "s" : ""} from log file`);
+          }
+          const summary = parts.length > 0 ? parts.join(", ") : "no output from last game session";
+          const text = stableStringify({ _summary: summary, ...obj });
+          return { content: [{ type: "text" as const, text }] };
         } catch {
           // Editor bridge also failed — fall through to crash context
         }
