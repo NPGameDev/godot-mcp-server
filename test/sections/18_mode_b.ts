@@ -12,6 +12,8 @@ import {
   assertHint,
 } from "../helpers.js";
 
+export const isAffectedByGates = true;
+
 export async function testModeB(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
   const gameEvalEnabled = featureEnabled("execute_code");

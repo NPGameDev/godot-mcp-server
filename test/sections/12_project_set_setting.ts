@@ -1,6 +1,8 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
 
+export const isAffectedByGates = true;
+
 export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   const { bridge, pass } = ctx;
 

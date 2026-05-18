@@ -39,7 +39,7 @@ Update `test/sections/` whenever an iteration:
 
 ## Section naming convention
 
-`NN_descriptive_name.ts` where NN is the next available number (currently 01–40).
+`NN_descriptive_name.ts` where NN is the next available number (currently 01–43).
 
 ## Running specific sections
 
@@ -60,13 +60,32 @@ The smoke suite runs twice per `npm run smoke`:
   this pass — they live inside their functional section which handles
   the gate check.
 
-- **Pass 2 (gates ON):** All feature gates enabled via env vars. Gated
-  sections exercise their tools fully. The over-activation warning in
-  section 39 fires because many groups get loaded.
+- **Pass 2 (gates ON, `--gates-on-skip`):** All feature gates enabled
+  via env vars. Only sections that export `isAffectedByGates = true`
+  run — non-gate-affected sections are skipped with a SKIP log line.
+  This cuts the gates-on pass from ~43 to ~6 sections. The
+  over-activation warning in section 40 fires because many groups get
+  loaded.
 
 A regression that only manifests with gates ON would be missed by a
 single-pass run. Always use `npm run smoke` (not `smoke:single`) for
 final validation.
+
+## `isAffectedByGates` export
+
+If your new section tests behavior that differs when feature gates are
+on vs off, add near the top of the section file:
+
+```typescript
+export const isAffectedByGates = true;
+```
+
+This ensures the section runs in the gates-on pass when `--gates-on-skip`
+is active. Sections without this export are skipped in pass 2. If you
+forget the export but your section checks `featureEnabled()`, the section
+still runs in pass 1 (gates off) — the only miss is the gates-on re-run.
+
+Currently gate-affected sections: **01, 11, 12, 13, 18, 21**.
 
 ## Gate-check pattern for gated sections
 
@@ -118,26 +137,30 @@ After any smoke update, update `test/SMOKE-COVERAGE-MANIFEST.md`:
 
 ## Section ordering rules
 
-- Section 01 (catalogue) auto-includes when section 10 is selected
+- Section 01 (catalogue) auto-includes when section 11 is selected
   (it provides the `ncmGated` flag).
-- Section 19 (reconnect) always runs LAST — it drops the WebSocket
+- Section 02 (gate_enforcement) validates all feature gates are blocked
+  when disabled. No `isAffectedByGates` export — runs in pass 1 only.
+- Section 20 (reconnect) always runs LAST — it drops the WebSocket
   connection. The filter logic moves it to the end regardless of
   declared position.
-- Section 39 (discover_tools) activates and resets groups — run after
+- Section 40 (discover_tools) activates and resets groups — run after
   functional sections to avoid namespace pollution.
-- Section 40 (crash_detection) starts/stops games — run second-to-last
+- Section 41 (crash_detection) starts/stops games — run second-to-last
   to avoid disrupting other test state.
 
 ## Adding new sections
 
 1. Create `test/sections/NN_descriptive_name.ts`
 2. Export a `run` function: `export async function testName(ctx: TestCtx): Promise<void>`
-3. Import and register in `test/smoke.ts`:
-   - Add import statement
-   - Add entry to `ALL_SECTIONS` array
-4. Include per-section cleanup (try/catch + `/* noop */` pattern)
-5. Update `test/SMOKE-COVERAGE-MANIFEST.md`
-6. Run `npm run format` before committing
+3. If the section tests gate-dependent behavior, add:
+   `export const isAffectedByGates = true;`
+4. Import and register in `test/smoke.ts`:
+   - Add `import * as secNN from "./sections/NN_descriptive_name.js";`
+   - Add entry to `ALL_SECTIONS` array (include `gateAffected` if applicable)
+5. Include per-section cleanup (try/catch + `/* noop */` pattern)
+6. Update `test/SMOKE-COVERAGE-MANIFEST.md`
+7. Run `npm run format` before committing
 
 ## Pre-commit checklist
 

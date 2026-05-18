@@ -1,6 +1,8 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, assertHint, unwrapUntrusted } from "../helpers.js";
 
+export const isAffectedByGates = true;
+
 export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

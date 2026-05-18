@@ -5,8 +5,8 @@ import type { Bridge, ToolDef } from "../types.js";
 import { registerTools } from "../tool_helpers.js";
 
 // input_map tools write to ProjectSettings (input/* keys). Ungated since
-// project_set_setting can already write the same keys without a gate —
-// these structured tools are safer than raw key-value writes.
+// project_set_setting can already write the same keys — these structured
+// tools are safer than raw key-value writes.
 export const inputMapTools: ToolDef[] = [
   {
     name: "input_map_action",

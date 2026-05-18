@@ -166,7 +166,7 @@ The `discover_tools` meta-tool lets the AI assistant search for and unlock addit
 | `editor_get_console` | Tail the editor Output panel |
 | `editor_wait_for_idle` | Wait for EditorFileSystem scan to complete |
 | `project_get_settings` | List ProjectSettings (optional prefix filter) |
-| `project_set_setting` | Write a ProjectSettings key (feature-gated) |
+| `project_set_setting` | Write a ProjectSettings key |
 
 </details>
 

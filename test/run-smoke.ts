@@ -20,13 +20,13 @@ const PROJECT_NAME = process.env.GODOT_MCP_PROJECT_NAME ?? "Godot MCP Toolkit";
 // Forward CLI flags (--from, --to, --only, --ci) to each smoke.ts invocation.
 const smokeArgs = process.argv.slice(2);
 
-function run(label: string, env: Record<string, string>): Promise<number> {
+function run(label: string, env: Record<string, string>, extraArgs: string[] = []): Promise<number> {
   const bar = "=".repeat(60);
   console.log(`\n${bar}`);
   console.log(`  ${label}`);
   console.log(`${bar}\n`);
   return new Promise<number>((resolve) => {
-    const child = spawn(process.execPath, ["--import", "tsx", "test/smoke.ts", ...smokeArgs], {
+    const child = spawn(process.execPath, ["--import", "tsx", "test/smoke.ts", ...smokeArgs, ...extraArgs], {
       env: { ...process.env, ...env },
       stdio: "inherit",
     });
@@ -59,7 +59,9 @@ async function main(): Promise<void> {
   // Smoke harness opt-in for user-scope round-trip tests.
   gatesOn["MCP_ENABLE_USER_SCOPE"] = "1";
 
-  const onCode = await run("SMOKE PASS 2 / 2 : ALL GATES ON", gatesOn);
+  const onCode = await run("SMOKE PASS 2 / 2 : ALL GATES ON (targeted — gate-affected sections only)", gatesOn, [
+    "--gates-on-skip",
+  ]);
   if (onCode === 2) {
     console.error("\nPrecondition failure — aborting.");
     process.exit(2);

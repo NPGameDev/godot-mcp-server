@@ -22,6 +22,8 @@ import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, deepEqual } from "../helpers.js";
 
+export const isAffectedByGates = true;
+
 /**
  * Collect all ToolDef arrays into a single flat list, filtering by gate
  * state to mirror registration-time behavior. Module-level gated tools
@@ -127,29 +129,8 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
   // Static catalogue checks (shared with CI mode).
   testCatalogueStatic(ctx);
 
-  // Defence-in-depth: call a gated editor-side method directly.
-  const gateProbe = (await bridge.call(
-    "node.call_method",
-    { node_path: ".", method_name: "get_name" },
-    CALL_TIMEOUT,
-  )) as { code?: string; how_to_enable?: string; risk?: string; success?: boolean; result?: unknown };
-  let ncmGated: boolean;
-  if (gateProbe?.code === "FEATURE_DISABLED") {
-    if (!gateProbe.how_to_enable?.includes("ALLOW_NODE_CALL_METHOD")) {
-      fail(`defence-in-depth: FEATURE_DISABLED missing how_to_enable path`);
-    } else if (!gateProbe.risk) {
-      fail(`defence-in-depth: FEATURE_DISABLED missing risk field`);
-    } else {
-      pass(`defence-in-depth: node.call_method -> FEATURE_DISABLED with risk + how_to_enable`);
-    }
-    ncmGated = true;
-  } else if (gateProbe?.success === true) {
-    pass(`defence-in-depth: node.call_method -> enabled on Godot side (gate open)`);
-    ncmGated = false;
-  } else {
-    fail(`defence-in-depth: unexpected response ${JSON.stringify(gateProbe)}`);
-    ncmGated = true;
-  }
+  // ncmGated: derive from env var (defence-in-depth probing moved to section 02).
+  const ncmGated = !featureEnabled("node_call_method");
 
   return { ncmGated };
 }

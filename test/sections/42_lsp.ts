@@ -1,5 +1,5 @@
 /**
- * Section 41 — LSP tools (conditional)
+ * Section 42 — LSP tools (conditional)
  *
  * Tests GDScript language intelligence via the Godot LSP connection.
  * Conditionally skips if port 6005 is not reachable (editor not running
@@ -7,7 +7,7 @@
  */
 import { probePort, HOST } from "../helpers.js";
 import { LspClient } from "../../src/lsp_client.js";
-import { lspTools, lspAnalysisTools, lspNavigationTools } from "../../src/tools/lsp.js";
+import { lspTools } from "../../src/tools/lsp.js";
 
 import type { TestCtx } from "../helpers.js";
 

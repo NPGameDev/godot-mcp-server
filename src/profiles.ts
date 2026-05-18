@@ -24,11 +24,12 @@ export const STANDARD_TOOLS: readonly string[] = [
   // Script (2)
   "script_read",
   "script_write",
-  // Editor (3) — editor_screenshot demoted to editor_advanced group;
+  // Editor (4) — editor_screenshot demoted to editor_advanced group;
   // editor_get_errors removed (use editor_get_console with level_filter)
   "editor_save_scene",
   "editor_get_console",
   "project_get_settings",
+  "project_set_setting",
   // Playtest (7) — runtime tools promoted from lazy runtime group
   "game_start",
   "game_stop",
@@ -51,7 +52,6 @@ export const STANDARD_TOOLS: readonly string[] = [
   // (prevents the vanishing-tools bug where neither stub nor real tool appears).
   "execute_code",
   "node_call_method",
-  "project_set_setting",
 ];
 
 /** Tools that modify state. Subtracted from catalogue when GODOT_MCP_READ_ONLY=1. */

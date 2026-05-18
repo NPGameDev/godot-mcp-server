@@ -11,13 +11,16 @@
 //   2 — precondition failure (Godot not running, port not listening, etc.)
 //
 // Flags:
-//   --ci          Static catalogue validation only (no Godot required).
-//   --from N      Run sections N and above.
-//   --to N        Run sections up to N (inclusive).
-//   --only N,M,O  Run only the listed sections (comma-separated).
+//   --ci              Static catalogue validation only (no Godot required).
+//   --from N          Run sections N and above.
+//   --to N            Run sections up to N (inclusive).
+//   --only N,M,O      Run only the listed sections (comma-separated).
+//   --gates-on-skip   Skip sections that don't export isAffectedByGates.
+//                     Used by run-smoke.ts pass 2 (gates ON) to run only
+//                     gate-affected sections.
 //
-// Section 01 (catalogue) is auto-included when section 10 is selected,
-// since it provides the ncmGated flag. Section 19 (reconnect) always
+// Section 01 (catalogue) is auto-included when section 11 is selected,
+// since it provides the ncmGated flag. Section 20 (reconnect) always
 // runs last when included — it drops the connection.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -28,48 +31,49 @@ import { readFileSync } from "node:fs";
 import { HOST, PORT, RUNTIME_PORT, PROBE_TIMEOUT_MS, probePort, printUnreachable } from "./helpers.js";
 import type { TestCtx } from "./helpers.js";
 
-import { testCatalogue, testCatalogueStatic } from "./sections/01_catalogue.js";
-import { testSceneNodeBasics } from "./sections/02_scene_node_basics.js";
-import { testScriptOps } from "./sections/03_script_ops.js";
-import { testEditorAndSceneNav } from "./sections/04_editor_and_scene_nav.js";
-import { testSignalsAndIntrospection } from "./sections/05_signals_and_introspection.js";
-import { testSceneDiff } from "./sections/06_scene_diff.js";
-import { testErrorContract } from "./sections/07_error_contract.js";
-import { testSceneFileLifecycle } from "./sections/08_scene_file_lifecycle.js";
-import { testResourceFolderShader } from "./sections/09_resource_folder_shader.js";
-import { testPlaytestAndComposition } from "./sections/10_playtest_and_composition.js";
-import { testProjectSetSetting } from "./sections/11_project_set_setting.js";
-import { testInputMap } from "./sections/12_input_map.js";
-import { testAnimationTilemapScreenshot } from "./sections/13_animation_tilemap_screenshot.js";
-import { testAssetDiscoveryAndConsole } from "./sections/14_asset_discovery_and_console.js";
-import { testAssetImport } from "./sections/15_asset_import.js";
-import { testCustomClassAndFileOps } from "./sections/16_custom_class_and_file_ops.js";
-import { testModeB } from "./sections/17_mode_b.js";
-import { testSecurity } from "./sections/18_security.js";
-import { testReconnect } from "./sections/19_reconnect.js";
-import { testUserScope } from "./sections/20_user_scope.js";
-import { testResponseCaps } from "./sections/21_response_caps.js";
-import { testExtensibility } from "./sections/22_extensibility.js";
-import { testClassdb } from "./sections/23_classdb.js";
-import { testScriptCheck } from "./sections/24_script_check.js";
-import { testCsharpCompat } from "./sections/25_csharp_compat.js";
-import { testTheme } from "./sections/26_theme.js";
-import { testAnimationTree } from "./sections/27_animationtree.js";
-import { testLayerNames } from "./sections/28_layer_names.js";
-import { testPath2d } from "./sections/29_path2d.js";
-import { test3dTools } from "./sections/30_3d_tools.js";
-import { testCollision } from "./sections/31_collision.js";
-import { testProcedural } from "./sections/32_procedural.js";
-import { testSceneInheritance } from "./sections/33_scene_inheritance.js";
-import { testAudiobus } from "./sections/34_audiobus.js";
-import { testSpriteframes } from "./sections/35_spriteframes.js";
-import { testSceneQuery } from "./sections/36_scene_query.js";
-import { testParticles } from "./sections/37_particles.js";
-import { testNavigation } from "./sections/38_navigation.js";
-import { testDiscoverTools } from "./sections/39_discover_tools.js";
-import { testCrashDetection } from "./sections/40_crash_detection.js";
-import { testLsp } from "./sections/41_lsp.js";
-import { testDebugger } from "./sections/42_debugger.js";
+import * as sec01 from "./sections/01_catalogue.js";
+import * as sec02 from "./sections/02_gate_enforcement.js";
+import * as sec03 from "./sections/03_scene_node_basics.js";
+import * as sec04 from "./sections/04_script_ops.js";
+import * as sec05 from "./sections/05_editor_and_scene_nav.js";
+import * as sec06 from "./sections/06_signals_and_introspection.js";
+import * as sec07 from "./sections/07_scene_diff.js";
+import * as sec08 from "./sections/08_error_contract.js";
+import * as sec09 from "./sections/09_scene_file_lifecycle.js";
+import * as sec10 from "./sections/10_resource_folder_shader.js";
+import * as sec11 from "./sections/11_playtest_and_composition.js";
+import * as sec12 from "./sections/12_project_set_setting.js";
+import * as sec13 from "./sections/13_input_map.js";
+import * as sec14 from "./sections/14_animation_tilemap_screenshot.js";
+import * as sec15 from "./sections/15_asset_discovery_and_console.js";
+import * as sec16 from "./sections/16_asset_import.js";
+import * as sec17 from "./sections/17_custom_class_and_file_ops.js";
+import * as sec18 from "./sections/18_mode_b.js";
+import * as sec19 from "./sections/19_security.js";
+import * as sec20 from "./sections/20_reconnect.js";
+import * as sec21 from "./sections/21_user_scope.js";
+import * as sec22 from "./sections/22_response_caps.js";
+import * as sec23 from "./sections/23_extensibility.js";
+import * as sec24 from "./sections/24_classdb.js";
+import * as sec25 from "./sections/25_script_check.js";
+import * as sec26 from "./sections/26_csharp_compat.js";
+import * as sec27 from "./sections/27_theme.js";
+import * as sec28 from "./sections/28_animationtree.js";
+import * as sec29 from "./sections/29_layer_names.js";
+import * as sec30 from "./sections/30_path2d.js";
+import * as sec31 from "./sections/31_3d_tools.js";
+import * as sec32 from "./sections/32_collision.js";
+import * as sec33 from "./sections/33_procedural.js";
+import * as sec34 from "./sections/34_scene_inheritance.js";
+import * as sec35 from "./sections/35_audiobus.js";
+import * as sec36 from "./sections/36_spriteframes.js";
+import * as sec37 from "./sections/37_scene_query.js";
+import * as sec38 from "./sections/38_particles.js";
+import * as sec39 from "./sections/39_navigation.js";
+import * as sec40 from "./sections/40_discover_tools.js";
+import * as sec41 from "./sections/41_crash_detection.js";
+import * as sec42 from "./sections/42_lsp.js";
+import * as sec43 from "./sections/43_debugger.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -101,6 +105,7 @@ import { testDebugger } from "./sections/42_debugger.js";
 
 // ─── CLI flag parsing ────────────────────────────────────────────────────
 const CI_MODE = process.argv.includes("--ci");
+const GATES_ON_SKIP = process.argv.includes("--gates-on-skip");
 
 function parseIntArg(flag: string): number | undefined {
   const idx = process.argv.indexOf(flag);
@@ -125,6 +130,7 @@ const ONLY_SECTIONS = parseListArg("--only");
 // ─── Counters ────────────────────────────────────────────────────────────
 let passCount = 0;
 let failCount = 0;
+let skipCount = 0;
 
 function passFn(msg: string): void {
   passCount++;
@@ -140,7 +146,8 @@ function printSummary(): void {
   const total = passCount + failCount;
   const bar = "-".repeat(50);
   console.log(`\n${bar}`);
-  console.log(`Smoke: ${passCount} passed, ${failCount} failed, ${total} total`);
+  const skipMsg = skipCount > 0 ? `, ${skipCount} skipped` : "";
+  console.log(`Smoke: ${passCount} passed, ${failCount} failed${skipMsg}, ${total} total`);
   console.log(bar);
 }
 
@@ -180,64 +187,92 @@ function discoverProjectPath(): string | undefined {
 }
 
 // ─── Section registry ────────────────────────────────────────────────────
-// Shared state: section 01 produces ncmGated, section 10 consumes it.
+// Shared state: section 01 produces ncmGated, section 11 consumes it.
 let ncmGated = false;
 
 interface Section {
   num: number;
   name: string;
   run: (ctx: TestCtx) => Promise<void> | void;
+  gateAffected?: boolean;
 }
 
 const ALL_SECTIONS: Section[] = [
   {
     num: 1,
     name: "catalogue",
+    gateAffected: (sec01 as { isAffectedByGates?: boolean }).isAffectedByGates,
     run: async (ctx) => {
-      ({ ncmGated } = await testCatalogue(ctx));
+      ({ ncmGated } = await sec01.testCatalogue(ctx));
     },
   },
-  { num: 2, name: "scene_node_basics", run: testSceneNodeBasics },
-  { num: 3, name: "script_ops", run: testScriptOps },
-  { num: 4, name: "editor_and_scene_nav", run: testEditorAndSceneNav },
-  { num: 5, name: "signals_and_introspection", run: testSignalsAndIntrospection },
-  { num: 6, name: "scene_diff", run: testSceneDiff },
-  { num: 7, name: "error_contract", run: testErrorContract },
-  { num: 8, name: "scene_file_lifecycle", run: testSceneFileLifecycle },
-  { num: 9, name: "resource_folder_shader", run: testResourceFolderShader },
-  { num: 10, name: "playtest_and_composition", run: (ctx) => testPlaytestAndComposition(ctx, ncmGated) },
-  { num: 11, name: "project_set_setting", run: testProjectSetSetting },
-  { num: 12, name: "input_map", run: testInputMap },
-  { num: 13, name: "animation_tilemap_screenshot", run: testAnimationTilemapScreenshot },
-  { num: 14, name: "asset_discovery_and_console", run: testAssetDiscoveryAndConsole },
-  { num: 15, name: "asset_import", run: testAssetImport },
-  { num: 16, name: "custom_class_and_file_ops", run: testCustomClassAndFileOps },
-  { num: 17, name: "mode_b", run: testModeB },
-  { num: 18, name: "security", run: testSecurity },
-  { num: 19, name: "reconnect", run: testReconnect },
-  { num: 20, name: "user_scope", run: testUserScope },
-  { num: 21, name: "response_caps", run: testResponseCaps },
-  { num: 22, name: "extensibility", run: testExtensibility },
-  { num: 23, name: "classdb", run: testClassdb },
-  { num: 24, name: "script_check", run: testScriptCheck },
-  { num: 25, name: "csharp_compat", run: testCsharpCompat },
-  { num: 26, name: "theme", run: testTheme },
-  { num: 27, name: "animationtree", run: testAnimationTree },
-  { num: 28, name: "layer_names", run: testLayerNames },
-  { num: 29, name: "path2d", run: testPath2d },
-  { num: 30, name: "3d_tools", run: test3dTools },
-  { num: 31, name: "collision", run: testCollision },
-  { num: 32, name: "procedural", run: testProcedural },
-  { num: 33, name: "scene_inheritance", run: testSceneInheritance },
-  { num: 34, name: "audiobus", run: testAudiobus },
-  { num: 35, name: "spriteframes", run: testSpriteframes },
-  { num: 36, name: "scene_query", run: testSceneQuery },
-  { num: 37, name: "particles", run: testParticles },
-  { num: 38, name: "navigation", run: testNavigation },
-  { num: 39, name: "discover_tools", run: testDiscoverTools },
-  { num: 40, name: "crash_detection", run: testCrashDetection },
-  { num: 41, name: "lsp", run: testLsp },
-  { num: 42, name: "debugger", run: testDebugger },
+  { num: 2, name: "gate_enforcement", run: sec02.testGateEnforcement },
+  { num: 3, name: "scene_node_basics", run: sec03.testSceneNodeBasics },
+  { num: 4, name: "script_ops", run: sec04.testScriptOps },
+  { num: 5, name: "editor_and_scene_nav", run: sec05.testEditorAndSceneNav },
+  { num: 6, name: "signals_and_introspection", run: sec06.testSignalsAndIntrospection },
+  { num: 7, name: "scene_diff", run: sec07.testSceneDiff },
+  { num: 8, name: "error_contract", run: sec08.testErrorContract },
+  { num: 9, name: "scene_file_lifecycle", run: sec09.testSceneFileLifecycle },
+  { num: 10, name: "resource_folder_shader", run: sec10.testResourceFolderShader },
+  {
+    num: 11,
+    name: "playtest_and_composition",
+    gateAffected: (sec11 as { isAffectedByGates?: boolean }).isAffectedByGates,
+    run: (ctx) => sec11.testPlaytestAndComposition(ctx, ncmGated),
+  },
+  {
+    num: 12,
+    name: "project_set_setting",
+    gateAffected: (sec12 as { isAffectedByGates?: boolean }).isAffectedByGates,
+    run: sec12.testProjectSetSetting,
+  },
+  {
+    num: 13,
+    name: "input_map",
+    gateAffected: (sec13 as { isAffectedByGates?: boolean }).isAffectedByGates,
+    run: sec13.testInputMap,
+  },
+  { num: 14, name: "animation_tilemap_screenshot", run: sec14.testAnimationTilemapScreenshot },
+  { num: 15, name: "asset_discovery_and_console", run: sec15.testAssetDiscoveryAndConsole },
+  { num: 16, name: "asset_import", run: sec16.testAssetImport },
+  { num: 17, name: "custom_class_and_file_ops", run: sec17.testCustomClassAndFileOps },
+  {
+    num: 18,
+    name: "mode_b",
+    gateAffected: (sec18 as { isAffectedByGates?: boolean }).isAffectedByGates,
+    run: sec18.testModeB,
+  },
+  { num: 19, name: "security", run: sec19.testSecurity },
+  { num: 20, name: "reconnect", run: sec20.testReconnect },
+  {
+    num: 21,
+    name: "user_scope",
+    gateAffected: (sec21 as { isAffectedByGates?: boolean }).isAffectedByGates,
+    run: sec21.testUserScope,
+  },
+  { num: 22, name: "response_caps", run: sec22.testResponseCaps },
+  { num: 23, name: "extensibility", run: sec23.testExtensibility },
+  { num: 24, name: "classdb", run: sec24.testClassdb },
+  { num: 25, name: "script_check", run: sec25.testScriptCheck },
+  { num: 26, name: "csharp_compat", run: sec26.testCsharpCompat },
+  { num: 27, name: "theme", run: sec27.testTheme },
+  { num: 28, name: "animationtree", run: sec28.testAnimationTree },
+  { num: 29, name: "layer_names", run: sec29.testLayerNames },
+  { num: 30, name: "path2d", run: sec30.testPath2d },
+  { num: 31, name: "3d_tools", run: sec31.test3dTools },
+  { num: 32, name: "collision", run: sec32.testCollision },
+  { num: 33, name: "procedural", run: sec33.testProcedural },
+  { num: 34, name: "scene_inheritance", run: sec34.testSceneInheritance },
+  { num: 35, name: "audiobus", run: sec35.testAudiobus },
+  { num: 36, name: "spriteframes", run: sec36.testSpriteframes },
+  { num: 37, name: "scene_query", run: sec37.testSceneQuery },
+  { num: 38, name: "particles", run: sec38.testParticles },
+  { num: 39, name: "navigation", run: sec39.testNavigation },
+  { num: 40, name: "discover_tools", run: sec40.testDiscoverTools },
+  { num: 41, name: "crash_detection", run: sec41.testCrashDetection },
+  { num: 42, name: "lsp", run: sec42.testLsp },
+  { num: 43, name: "debugger", run: sec43.testDebugger },
 ];
 
 function filterSections(): Section[] {
@@ -254,14 +289,14 @@ function filterSections(): Section[] {
     filtered = [...ALL_SECTIONS];
   }
 
-  // Section 10 depends on ncmGated from section 01
-  if (filtered.some((s) => s.num === 10) && !filtered.some((s) => s.num === 1)) {
+  // Section 11 depends on ncmGated from section 01
+  if (filtered.some((s) => s.num === 11) && !filtered.some((s) => s.num === 1)) {
     filtered.unshift(ALL_SECTIONS[0]);
-    console.log("[smoke] Auto-included section 01 (catalogue) — required by section 10\n");
+    console.log("[smoke] Auto-included section 01 (catalogue) — required by section 11\n");
   }
 
-  // Section 19 (reconnect) always runs last — it drops the connection
-  const reconnectIdx = filtered.findIndex((s) => s.num === 19);
+  // Section 20 (reconnect) always runs last — it drops the connection
+  const reconnectIdx = filtered.findIndex((s) => s.num === 20);
   if (reconnectIdx !== -1 && reconnectIdx !== filtered.length - 1) {
     const [reconnect] = filtered.splice(reconnectIdx, 1);
     filtered.push(reconnect);
@@ -274,7 +309,7 @@ function filterSections(): Section[] {
 async function runCiMode(): Promise<void> {
   console.log("[smoke] CI mode — running static catalogue validation (no Godot required)\n");
 
-  testCatalogueStatic({ pass: passFn, fail: failFn });
+  sec01.testCatalogueStatic({ pass: passFn, fail: failFn });
 
   printSummary();
   process.exit(failCount > 0 ? 1 : 0);
@@ -305,9 +340,19 @@ async function runFullMode(): Promise<void> {
   if (ONLY_SECTIONS || FROM_SECTION !== undefined || TO_SECTION !== undefined) {
     console.log(`[smoke] Running sections: ${nums.join(", ")}\n`);
   }
+  if (GATES_ON_SKIP) {
+    console.log("[smoke] --gates-on-skip active: skipping non-gate-affected sections\n");
+  }
 
   try {
     for (const section of sections) {
+      if (GATES_ON_SKIP && !section.gateAffected) {
+        skipCount++;
+        console.log(
+          `[smoke] SKIP  section ${String(section.num).padStart(2, "0")} — ${section.name} (not gate-affected)`,
+        );
+        continue;
+      }
       await section.run(ctx);
     }
   } catch (err) {
