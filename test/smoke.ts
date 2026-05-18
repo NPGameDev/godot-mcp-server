@@ -69,6 +69,7 @@ import { testNavigation } from "./sections/38_navigation.js";
 import { testDiscoverTools } from "./sections/39_discover_tools.js";
 import { testCrashDetection } from "./sections/40_crash_detection.js";
 import { testLsp } from "./sections/41_lsp.js";
+import { testDebugger } from "./sections/42_debugger.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -236,6 +237,7 @@ const ALL_SECTIONS: Section[] = [
   { num: 39, name: "discover_tools", run: testDiscoverTools },
   { num: 40, name: "crash_detection", run: testCrashDetection },
   { num: 41, name: "lsp", run: testLsp },
+  { num: 42, name: "debugger", run: testDebugger },
 ];
 
 function filterSections(): Section[] {

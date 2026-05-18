@@ -159,6 +159,9 @@ export const MUTATING_TOOLS = new Set([
   "particles_create",
   // Navigation
   "navigation_edit",
+  // Debugger
+  "debug_set_breakpoint",
+  "debug_continue",
 ]);
 
 /** Determine the active profile from env vars + CLI args. */

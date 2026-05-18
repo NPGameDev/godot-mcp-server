@@ -87,7 +87,7 @@ any profile. Single source of truth: `src/profiles.ts`.
 
 ### Lazy-load groups (standard / custom profiles)
 
-21 groups (51 tools total) loaded via `discover_tools`. `node_manage`,
+22 groups (55 tools total) loaded via `discover_tools`. `node_manage`,
 `node_groups`, `autoload_manage` were promoted to the Standard eager set
 (Claude Code does not process `tools/list_changed` notifications).
 

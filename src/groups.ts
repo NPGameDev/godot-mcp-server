@@ -48,6 +48,7 @@ import { sceneQueryTools } from "./tools/scene_query.js";
 import { particleTools } from "./tools/particles.js";
 import { navigationTools } from "./tools/navigation.js";
 import { lspAnalysisTools, lspNavigationTools, createLspHandler } from "./tools/lsp.js";
+import { debugTools } from "./tools/debug.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -74,7 +75,8 @@ export type GroupName =
   | "particles"
   | "navigation"
   | "lsp_code_analysis"
-  | "lsp_code_navigation";
+  | "lsp_code_navigation"
+  | "debugger";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -100,6 +102,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "navigation",
   "lsp_code_analysis",
   "lsp_code_navigation",
+  "debugger",
 ];
 
 interface GroupDef {
@@ -363,6 +366,11 @@ export const GROUPS: GroupDef[] = [
       "cross-file",
     ],
   },
+  {
+    name: "debugger",
+    tools: ["debug_state", "debug_list_breakpoints", "debug_set_breakpoint", "debug_continue"],
+    keywords: ["debug", "breakpoint", "pause", "continue", "step", "debugger", "state", "breaked"],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -403,6 +411,7 @@ for (const tools of [
   navigationTools,
   lspAnalysisTools,
   lspNavigationTools,
+  debugTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
