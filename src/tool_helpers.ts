@@ -88,16 +88,38 @@ export function toolErrorFromException(err: unknown): ToolTextResult {
 
 /**
  * When a runtime call fails, try to auto-fetch recent errors from the
- * editor console to give the agent actionable crash info.
+ * debugger bridge (game-session-specific errors + log file cache), with
+ * fallback to editor_get_console for pre-game-start scenarios.
  */
 async function fetchCrashContext(bridge: Bridge): Promise<string> {
+  // Primary: debugger.get_log has error_buffer (debugger bridge) + log file lines.
   try {
-    const result = (await bridge.call(
-      "editor.get_console",
-      { limit: 15, level_filter: ["error"] },
-      5_000, // short timeout — don't block long if editor is also stuck
-    )) as Record<string, unknown>;
-    // editor.get_console returns { entries: "<untrusted-...>JSON</...>", count, ... }
+    const result = (await bridge.call("debugger.get_log", { limit: 15 }, 5_000)) as Record<string, unknown>;
+    const parts: string[] = [];
+    const errorBuffer = Array.isArray(result?.error_buffer) ? result.error_buffer : [];
+    for (const entry of errorBuffer) {
+      const e = entry as Record<string, unknown>;
+      const msg = typeof e.message === "string" ? e.message : "";
+      const src = typeof e.source === "string" ? e.source : "";
+      const line = typeof e.line === "number" ? e.line : 0;
+      if (msg) {
+        parts.push(src && line ? `${msg} (${src}:${line})` : msg);
+      }
+    }
+    const lines = Array.isArray(result?.lines) ? result.lines : [];
+    for (const line of lines) {
+      parts.push(String(line));
+    }
+    if (parts.length > 0) return parts.join("\n");
+  } catch {
+    // debugger.get_log failed — fall through to editor_get_console
+  }
+  // Fallback: editor console (e.g., no game session was ever started).
+  try {
+    const result = (await bridge.call("editor.get_console", { limit: 15, level_filter: ["error"] }, 5_000)) as Record<
+      string,
+      unknown
+    >;
     const count = result?.count;
     if (typeof count === "number" && count === 0) return "";
     const entries = result?.entries;
