@@ -31,7 +31,7 @@ export const debugTools: ToolDef[] = [
       "Set or clear a breakpoint at a specific file and line in the script editor. GDScript (.gd) files only.",
     inputSchema: {
       file_path: z.string().describe("res:// path to a .gd file (e.g. res://scripts/player.gd)"),
-      line: z.coerce.number().int().min(1).describe("1-based line number"),
+      line: z.coerce.number().int().describe("1-based line number"),
       enabled: z
         .preprocess(
           (v) => (typeof v === "string" ? v.toLowerCase() === "true" || v === "1" : v),
