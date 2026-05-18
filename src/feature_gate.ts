@@ -5,7 +5,7 @@
  * (primary) or .mcp.json env vars (fallback for old plugin versions
  * or manual edits).  isEnabled() checks process.env regardless of
  * source.  The plugin-side FeatureGate (feature_gate.gd) performs the
- * full check (deny → profile → sidecar) as defence-in-depth.
+ * full check (deny → sidecar gate) as defence-in-depth.
  */
 
 const FEATURE_ENV_VARS: Record<string, string> = {
@@ -29,12 +29,4 @@ export function envVarFor(feature: string): string | undefined {
 /** List all known feature names. */
 export function allFeatures(): string[] {
   return Object.keys(FEATURE_ENV_VARS);
-}
-
-/** Force all gates enabled. Used at startup and reload for power_user
- *  profile — power_user ignores gate flags (all always ON). */
-export function enableAllGates(): void {
-  for (const envVar of Object.values(FEATURE_ENV_VARS)) {
-    process.env[envVar] = "1";
-  }
 }

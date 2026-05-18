@@ -4,20 +4,18 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { createBridge } from "./bridge.js";
 import { lookupProject } from "./registry.js";
-import { selectedProfile, resolveAllowedTools, isReadOnly, MUTATING_TOOLS, PROFILE_DISPLAY_NAMES } from "./profiles.js";
+import { resolveAllowedTools, isReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
 import {
   registerGroupSystem,
-  registerAllGroupTools,
   GROUP_TOOL_NAMES,
   resetLoadedGroups,
   addExtensionGroup,
-  hasExtensionGroups,
-  registerAllExtensionGroupTools,
   removeExtensionCommand,
   removeUngroupedExtensionTool,
 } from "./groups.js";
 import type { ExtensionCmd } from "./groups.js";
-import { enableAllGates } from "./feature_gate.js";
+// feature_gate.ts provides isEnabled/envVarFor — used by groups.ts and tool_helpers.ts.
+// No direct import needed here after profile removal.
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
 import { removeAllToolRefs, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
@@ -57,55 +55,13 @@ if (nodeMajor < 20) {
   process.exit(1);
 }
 
-// ── Tool catalogue ───────────────────────────────────────────────────
+// ── Mode resolution ─────────────────────────────────────────────────
 
-// All module tool-def arrays. Gated tools are always present in their
-// arrays (with a `gate` field); the gate check happens at registration
-// time so that config_reloaded can re-evaluate without frozen arrays.
-const ALL_MODULE_DEFS = [
-  animation.animationTools,
-  asset.assetTools,
-  diff.diffTools,
-  editor.editorTools,
-  file.fileTools,
-  folder.folderTools,
-  inputMap.inputMapTools,
-  node.nodeTools,
-  playtest.playtestTools,
-  resource.resourceTools,
-  runtime.runtimeTools,
-  scene.sceneTools,
-  script.scriptTools,
-  signal.signalTools,
-  save.saveTools,
-  tilemap.tilemapTools,
-  classdb.classdbTools,
-  nodeManagement.nodeManagementTools,
-  sceneQuery.sceneQueryTools,
-];
-
-// ── Profile resolution ───────────────────────────────────────────────
-
-let profile = selectedProfile();
+warnDeprecatedEnvVars();
 let readOnly = isReadOnly();
 
-// Power User ignores all gate flags — all gates always ON.
-// Symmetric with Minimal (all gates always OFF via profile filtering).
-if (profile === "power_user") enableAllGates();
-
-/** Resolve profile → expanded allowed-tool set (never null). */
 function buildAllowedTools(): Set<string> {
-  let allowed = resolveAllowedTools(profile, readOnly);
-  if (allowed === null) {
-    allowed = new Set<string>();
-    for (const defs of ALL_MODULE_DEFS) {
-      for (const t of defs) allowed.add(t.name);
-    }
-    if (readOnly) {
-      for (const name of MUTATING_TOOLS) allowed.delete(name);
-    }
-  }
-  return allowed;
+  return resolveAllowedTools(readOnly);
 }
 
 /** Subtract group-managed tools → set used by module register(). */
@@ -213,28 +169,18 @@ function registerModules(ma: Set<string>): void {
 }
 
 function registerGroups(): void {
-  if (profile === "power_user") {
-    registerAllGroupTools(server, bridge, readOnly);
-  } else if (profile !== "minimal") {
-    // Register discover_tools with built-in groups BEFORE transport
-    // connects, so it's in the initial tools/list response — no extra
-    // notification needed for the common case (no extensions).
-    // If extensions are later discovered, registerGroupSystem is called
-    // again (idempotent) which updates the description.
-    registerGroupSystem(server, bridge, readOnly);
-  }
+  // Register discover_tools with built-in groups BEFORE transport
+  // connects, so it's in the initial tools/list response — no extra
+  // notification needed for the common case (no extensions).
+  // If extensions are later discovered, registerGroupSystem is called
+  // again (idempotent) which updates the description.
+  registerGroupSystem(server, bridge, readOnly);
 }
 
-function logProfile(): void {
+function logStartup(): void {
   process.stderr.write(
-    `[godot-mcp] profile=${profile} (${PROFILE_DISPLAY_NAMES[profile]}) readOnly=${readOnly} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
+    `[godot-mcp] readOnly=${readOnly} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
   );
-  if (profile === "power_user") {
-    process.stderr.write(
-      "[godot-mcp] WARNING: Power User profile active — all tools including unsafe operations are enabled.\n" +
-        "[godot-mcp] This includes tools that can modify project settings, execute code, and write outside res://.\n",
-    );
-  }
 }
 
 // ── Initial registration ────────────────────────────────────────────
@@ -249,7 +195,7 @@ registerResources(server, bridge);
 initRoots(projectPath);
 registerRoots(server);
 
-logProfile();
+logStartup();
 
 // ── Live config reload ──────────────────────────────────────────────
 
@@ -259,13 +205,12 @@ function removeAllTools(): void {
 }
 
 function handleConfigReload(params?: Record<string, unknown>): void {
-  const pluginProfile = params?.profile as string | undefined;
   const pluginGates = params?.gates as Record<string, boolean> | undefined;
 
   if (pluginGates) {
     // Gates delivered directly from plugin auth/notification — apply to
     // process.env without re-reading .mcp.json (which may be stale).
-    applyGateState(pluginGates, pluginProfile);
+    applyGateState(pluginGates);
   } else {
     // Fallback: re-read .mcp.json (old plugin version or manual edit).
     const newEnv = readMcpJsonEnv(projectPath);
@@ -276,10 +221,7 @@ function handleConfigReload(params?: Record<string, unknown>): void {
     applyEnvUpdate(newEnv);
   }
 
-  const oldProfile = profile;
-  profile = selectedProfile();
   readOnly = isReadOnly();
-  if (profile === "power_user") enableAllGates();
   allowedTools = buildAllowedTools();
   moduleAllowed = buildModuleAllowed(allowedTools);
 
@@ -291,16 +233,7 @@ function handleConfigReload(params?: Record<string, unknown>): void {
     process.stderr.write(`[godot-mcp] gate states from plugin: ${JSON.stringify(pluginGates)}\n`);
   }
 
-  process.stderr.write(
-    `[godot-mcp] config reloaded: ${oldProfile} → ${profile}` +
-      (pluginProfile ? ` (plugin reports: ${pluginProfile})` : "") +
-      ` — ${toolRefCount()} tools registered\n`,
-  );
-  if (profile === "power_user") {
-    process.stderr.write(
-      "[godot-mcp] WARNING: Power User profile active — all tools including unsafe operations are enabled.\n",
-    );
-  }
+  process.stderr.write(`[godot-mcp] config reloaded — ${toolRefCount()} tools registered\n`);
 
   // Re-discover extensions + register discover_tools (the MCP SDK
   // auto-emits tool list notifications on each registerTool call).
@@ -309,19 +242,15 @@ function handleConfigReload(params?: Record<string, unknown>): void {
 
 /**
  * Apply gate state delivered by the plugin (auth response or notification).
- * Maps boolean gates to process.env GODOT_MCP_* vars so the existing
- * isEnabled() / selectedProfile() machinery works unchanged.
+ * Maps boolean gates to process.env GODOT_MCP_* vars so isEnabled() works.
  */
-function applyGateState(gates: Record<string, boolean>, pluginProfile?: string): void {
+function applyGateState(gates: Record<string, boolean>): void {
   for (const [envVar, enabled] of Object.entries(gates)) {
     if (enabled) {
       process.env[envVar] = "1";
     } else {
       delete process.env[envVar];
     }
-  }
-  if (pluginProfile) {
-    process.env.GODOT_MCP_PROFILE = pluginProfile;
   }
 }
 
@@ -348,8 +277,7 @@ bridge.onNotification((type, params) => {
       // Instead, just sync env vars so subsequent operations see the
       // plugin's gate state, and skip tool re-registration entirely.
       const pluginGates = params?.gates as Record<string, boolean> | undefined;
-      const pluginProfile = params?.profile as string | undefined;
-      if (pluginGates) applyGateState(pluginGates, pluginProfile);
+      if (pluginGates) applyGateState(pluginGates);
       process.stderr.write(
         "[godot-mcp] initial auth sync — env applied, skipping tool reload to avoid connection bounce\n",
       );
@@ -430,11 +358,9 @@ async function discoverExtensions(): Promise<void> {
         }
       }
 
-      // Batch all extension tool registrations into a single notification.
-      // For power_user: ungrouped + grouped all in one batch.
-      // For standard: only ungrouped (grouped stay deferred).
-      const needsEagerGroups = hasExtensionGroups() && profile === "power_user";
-      if (ungrouped.length > 0 || needsEagerGroups) {
+      // Batch ungrouped extension tool registrations into a single notification.
+      // Grouped extensions stay deferred — loaded via discover_tools.
+      if (ungrouped.length > 0) {
         batchToolRegistration(server, () => {
           for (const cmd of ungrouped) {
             const toolName = cmd.method.replace(/\./g, "_");
@@ -457,10 +383,6 @@ async function discoverExtensions(): Promise<void> {
             );
             registered++;
           }
-          if (needsEagerGroups) {
-            registerAllExtensionGroupTools(server, bridge);
-            registered += deferredCount;
-          }
         });
       }
     }
@@ -469,18 +391,17 @@ async function discoverExtensions(): Promise<void> {
     // Fall through to register discover_tools with built-in groups only.
   }
 
-  // Standard profile: update discover_tools description to include
-  // extension groups. Uses in-place update (1 notification).
-  // For the common case (no extensions), discover_tools was already
-  // registered at startup — no notification needed.
-  if (deferredCount > 0 && profile !== "minimal" && profile !== "power_user") {
+  // Update discover_tools description to include extension groups.
+  // Uses in-place update (1 notification). For the common case
+  // (no extensions), discover_tools was already registered at startup.
+  if (deferredCount > 0) {
     registerGroupSystem(server, bridge, readOnly);
   }
 
   if (registered > 0 || deferredCount > 0) {
     const parts: string[] = [];
     if (registered > 0) parts.push(`${registered} registered`);
-    if (deferredCount > 0 && profile !== "power_user") parts.push(`${deferredCount} deferred in groups`);
+    if (deferredCount > 0) parts.push(`${deferredCount} deferred in groups`);
     process.stderr.write(`[godot-mcp] extensions: ${parts.join(" + ")}\n`);
   }
 
@@ -568,10 +489,6 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
           annotations,
         };
         addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
-        // Power_user: register immediately.
-        if (profile === "power_user") {
-          registerAllExtensionGroupTools(server, bridge);
-        }
         knownExtensionTools.add(toolName);
         added++;
       } else {
@@ -606,7 +523,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
   });
 
   // Update discover_tools description if extension groups changed.
-  if ((added > 0 || removed > 0) && profile !== "minimal" && profile !== "power_user") {
+  if (added > 0 || removed > 0) {
     registerGroupSystem(server, bridge, readOnly);
   }
 

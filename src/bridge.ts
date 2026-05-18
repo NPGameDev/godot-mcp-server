@@ -169,7 +169,6 @@ async function readToken(projectPath?: string): Promise<string> {
 /** Parsed auth response from the Godot plugin. */
 export interface AuthResponse {
   godotVersion: string | null;
-  profile?: string;
   gates?: Record<string, boolean>;
 }
 
@@ -195,14 +194,12 @@ function authenticate(ws: WebSocket, token: string): Promise<AuthResponse> {
         const msg = JSON.parse(String(data)) as {
           authed?: boolean;
           godot_version?: string;
-          profile?: string;
           gates?: Record<string, boolean>;
         };
         if (msg.authed === true) {
           cleanup();
           resolve({
             godotVersion: msg.godot_version ?? null,
-            profile: msg.profile,
             gates: msg.gates,
           });
         }
@@ -317,7 +314,6 @@ function createChannel(
       if (wasReconnect || authResp.gates) {
         onNotification?.()?.("config_reloaded", {
           reconnect: wasReconnect,
-          ...(authResp.profile != null && { profile: authResp.profile }),
           ...(authResp.gates != null && { gates: authResp.gates }),
         });
       }

@@ -1,8 +1,6 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * discover_tools. 23 groups, 57 group tools. Standard profile
- * registers discover_tools as the meta-tool; power_user profile
- * registers all group tools at startup.
+ * discover_tools. 23 groups, 57 group tools.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -1135,19 +1133,4 @@ export function registerAllExtensionGroupTools(server: McpServer, bridge: Bridge
       loadedExtensionGroups.add(name);
     }
   });
-}
-
-/**
- * For the `power_user` profile: register ALL group tools at startup.
- * No discover_tools needed.
- */
-export function registerAllGroupTools(server: McpServer, bridge: Bridge, readOnly: boolean): void {
-  for (const group of GROUPS) {
-    // Skip gated groups whose gate is closed (they get stubs instead)
-    if (group.gate && !isEnabled(group.gate)) continue;
-    registerGroupTools(server, bridge, group, readOnly);
-    loadedGroups.add(group.name);
-  }
-  // Extension groups are registered via registerAllExtensionGroupTools()
-  // after discoverExtensions() completes (they aren't known at startup).
 }

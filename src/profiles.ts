@@ -1,32 +1,7 @@
 /**
- * Profile system — controls which safe tools are visible by default.
- * Three built-in profiles (minimal/standard/full) + custom. Read-only
- * mode (GODOT_MCP_READ_ONLY=1) removes mutating tools from any profile.
+ * Tool visibility — Standard tools are always available; read-only mode
+ * (GODOT_MCP_READ_ONLY=1) filters out mutating tools.
  */
-
-export type ProfileName = "minimal" | "standard" | "power_user";
-
-/** Human-facing display labels. Internal identifiers (env var values) stay lowercase. */
-export const PROFILE_DISPLAY_NAMES: Record<ProfileName, string> = {
-  minimal: "Minimal",
-  standard: "Standard",
-  power_user: "Power User",
-};
-
-/** 10 read-only tools for exploration and code review. */
-export const MINIMAL_TOOLS: readonly string[] = [
-  "scene_get_tree",
-  "node_get_property",
-  "node_get_property_list",
-  "script_read",
-  "editor_get_console",
-  "project_get_settings",
-  "asset_list",
-  "classdb_get_info",
-  "classdb_search",
-  "script_check",
-  "scene_query",
-];
 
 /** 35 standard tools (discover_tools + extensions_refresh added programmatically → 37 total). */
 export const STANDARD_TOOLS: readonly string[] = [
@@ -164,19 +139,6 @@ export const MUTATING_TOOLS = new Set([
   "debug_continue",
 ]);
 
-/** Determine the active profile from env vars + CLI args. */
-export function selectedProfile(): ProfileName {
-  if (process.argv.includes("--lite")) {
-    process.stderr.write("[godot-mcp] Warning: --lite is deprecated. Use GODOT_MCP_PROFILE=minimal instead.\n");
-    return "minimal";
-  }
-  const env = process.env.GODOT_MCP_PROFILE?.toLowerCase();
-  // "full" is a backwards-compat alias for "power_user" (existing .mcp.json files).
-  if (env === "full" || env === "power_user") return "power_user";
-  if (env === "minimal") return "minimal";
-  return "standard";
-}
-
 /** Whether read-only mode is active. */
 export function isReadOnly(): boolean {
   return process.env.GODOT_MCP_READ_ONLY === "1";
@@ -184,23 +146,25 @@ export function isReadOnly(): boolean {
 
 /**
  * Build the allowed-tool set for initial registration.
- * Returns null for the `power_user` profile (meaning "register everything").
+ * Standard tools, minus mutating tools when read-only.
  */
-export function resolveAllowedTools(profile: ProfileName, readOnly: boolean): Set<string> | null {
-  let names: Set<string> | null;
-  switch (profile) {
-    case "minimal":
-      names = new Set(MINIMAL_TOOLS);
-      break;
-    case "standard":
-      names = new Set(STANDARD_TOOLS);
-      break;
-    case "power_user":
-      names = null; // allow all
-      break;
-  }
-  if (readOnly && names) {
+export function resolveAllowedTools(readOnly: boolean): Set<string> {
+  const names = new Set(STANDARD_TOOLS);
+  if (readOnly) {
     for (const name of MUTATING_TOOLS) names.delete(name);
   }
   return names;
+}
+
+/** Emit a one-time deprecation warning if legacy env vars are set. */
+export function warnDeprecatedEnvVars(): void {
+  if (process.env.GODOT_MCP_PROFILE) {
+    process.stderr.write(
+      "[godot-mcp] GODOT_MCP_PROFILE is deprecated and ignored. " +
+        "Use GODOT_MCP_READ_ONLY=1 for restricted access.\n",
+    );
+  }
+  if (process.argv.includes("--lite")) {
+    process.stderr.write("[godot-mcp] Warning: --lite is deprecated and ignored. Use GODOT_MCP_READ_ONLY=1 instead.\n");
+  }
 }
