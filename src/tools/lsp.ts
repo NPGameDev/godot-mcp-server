@@ -110,7 +110,11 @@ export const lspAnalysisTools: ToolDef[] = [
       "Rich GDScript/shader diagnostics with column positions and severity (Error/Warning/Info/Hint). Needs editor running. " +
       "Call editor_refresh first if files were just created.",
     inputSchema: {
-      file_path: z.string().describe("res:// path to a .gd or .gdshader file"),
+      file_path: z
+        .string()
+        .describe(
+          "Godot resource path (must start with res://, e.g. res://scripts/player.gd). Only .gd and .gdshader — not .cs",
+        ),
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -120,7 +124,11 @@ export const lspAnalysisTools: ToolDef[] = [
     description:
       "List all symbols (functions, variables, classes, signals) in a .gd/.gdshader file. Structured tree — cheaper than reading full source.",
     inputSchema: {
-      file_path: z.string().describe("res:// path to a .gd or .gdshader file"),
+      file_path: z
+        .string()
+        .describe(
+          "Godot resource path (must start with res://, e.g. res://scripts/player.gd). Only .gd and .gdshader — not .cs",
+        ),
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -130,7 +138,11 @@ export const lspAnalysisTools: ToolDef[] = [
     description:
       "Get type signature and docs for one symbol at a specific position. Use for targeted type checks, not bulk exploration.",
     inputSchema: {
-      file_path: z.string().describe("res:// path to a .gd or .gdshader file"),
+      file_path: z
+        .string()
+        .describe(
+          "Godot resource path (must start with res://, e.g. res://scripts/player.gd). Only .gd and .gdshader — not .cs",
+        ),
       line: z.coerce.number().int().min(0).describe("Zero-based line number"),
       column: z.coerce.number().int().min(0).describe("Zero-based column number"),
     },
@@ -150,7 +162,11 @@ export const lspNavigationTools: ToolDef[] = [
     description:
       "Completions at a position. Use limit=5 for targeted queries to save tokens. Only call when you need to discover available API.",
     inputSchema: {
-      file_path: z.string().describe("res:// path to a .gd or .gdshader file"),
+      file_path: z
+        .string()
+        .describe(
+          "Godot resource path (must start with res://, e.g. res://scripts/player.gd). Only .gd and .gdshader — not .cs",
+        ),
       line: z.coerce.number().int().min(0).describe("Zero-based line number"),
       column: z.coerce.number().int().min(0).describe("Zero-based column number"),
       limit: z.coerce.number().int().min(1).max(50).default(10).optional().describe("Max items to return (default 10)"),
@@ -163,7 +179,11 @@ export const lspNavigationTools: ToolDef[] = [
     description:
       "Go to definition: file + line where a symbol is defined. One position per call — use only when you need the source location.",
     inputSchema: {
-      file_path: z.string().describe("res:// path to a .gd or .gdshader file"),
+      file_path: z
+        .string()
+        .describe(
+          "Godot resource path (must start with res://, e.g. res://scripts/player.gd). Only .gd and .gdshader — not .cs",
+        ),
       line: z.coerce.number().int().min(0).describe("Zero-based line number"),
       column: z.coerce.number().int().min(0).describe("Zero-based column number"),
     },
@@ -175,7 +195,11 @@ export const lspNavigationTools: ToolDef[] = [
     description:
       "Find all references to a symbol across the project. Use before renaming/removing to assess impact. One symbol per call.",
     inputSchema: {
-      file_path: z.string().describe("res:// path to a .gd or .gdshader file"),
+      file_path: z
+        .string()
+        .describe(
+          "Godot resource path (must start with res://, e.g. res://scripts/player.gd). Only .gd and .gdshader — not .cs",
+        ),
       line: z.coerce.number().int().min(0).describe("Zero-based line number"),
       column: z.coerce.number().int().min(0).describe("Zero-based column number"),
     },

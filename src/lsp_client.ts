@@ -13,6 +13,19 @@ const CONNECT_TIMEOUT_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 10_000;
 const HEADER_SEPARATOR = "\r\n\r\n";
 
+/**
+ * Normalize a file URI for map lookups. Godot's LSP may return URIs
+ * with different drive-letter casing or percent-encoding than we send.
+ */
+function normalizeUri(uri: string): string {
+  let norm = decodeURIComponent(uri).replace(/\\/g, "/");
+  // Lowercase Windows drive letter: file:///C: → file:///c:
+  if (/^file:\/\/\/[A-Z]:/.test(norm)) {
+    norm = "file:///" + norm[8].toLowerCase() + norm.slice(9);
+  }
+  return norm;
+}
+
 // ── Types ────────────────────────────────────────────────────────────
 
 interface JsonRpcRequest {
@@ -172,26 +185,31 @@ export class LspClient {
 
   /** Wait for diagnostics to arrive for a URI (with timeout). */
   async waitForDiagnostics(uri: string, timeoutMs = 5000): Promise<DiagnosticEntry[]> {
+    const normUri = normalizeUri(uri);
+
     // Check if we already have diagnostics from the notification.
-    const existing = this.diagnosticsByUri.get(uri);
+    const existing = this.diagnosticsByUri.get(normUri);
     if (existing !== undefined) {
-      this.diagnosticsByUri.delete(uri);
+      this.diagnosticsByUri.delete(normUri);
       return existing;
     }
 
     // Wait for the notification to arrive.
     return new Promise<DiagnosticEntry[]>((resolve) => {
       const timer = setTimeout(() => {
-        this.diagnosticWaiters.delete(uri);
-        // Timeout is not an error — may just mean zero diagnostics.
-        resolve([]);
+        this.diagnosticWaiters.delete(normUri);
+        // Final check — notification may have stored diagnostics under
+        // a slightly different key before normalization took effect.
+        const late = this.diagnosticsByUri.get(normUri) ?? [];
+        this.diagnosticsByUri.delete(normUri);
+        resolve(late);
       }, timeoutMs);
 
-      this.diagnosticWaiters.set(uri, {
+      this.diagnosticWaiters.set(normUri, {
         resolve: () => {
           clearTimeout(timer);
-          const diags = this.diagnosticsByUri.get(uri) ?? [];
-          this.diagnosticsByUri.delete(uri);
+          const diags = this.diagnosticsByUri.get(normUri) ?? [];
+          this.diagnosticsByUri.delete(normUri);
           resolve(diags);
         },
         timer,
@@ -293,7 +311,7 @@ export class LspClient {
       const params = notification.params as { uri?: string; diagnostics?: unknown[] } | undefined;
       if (!params?.uri) return;
 
-      const uri = params.uri;
+      const uri = normalizeUri(params.uri);
       const diagnostics: DiagnosticEntry[] = (params.diagnostics ?? []).map((d: unknown) => {
         const diag = d as {
           range?: { start?: { line?: number; character?: number } };
