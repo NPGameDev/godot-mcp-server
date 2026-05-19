@@ -9,7 +9,7 @@ export const fileTools: ToolDef[] = [
     name: "file_delete",
     method: "file.delete",
     description:
-      "Delete any file under res:// and its .import companion. Use for assets (.png, .wav, .glb, etc.) not covered by scene/script/resource.delete.",
+      "Delete any file under res:// and its .import companion. Auto-closes .tscn/.scn editor tabs on 4.5+ (tab_closed:true). Use for assets not covered by scene/script/resource.delete.",
     inputSchema: {
       file_path: z.string(),
     },

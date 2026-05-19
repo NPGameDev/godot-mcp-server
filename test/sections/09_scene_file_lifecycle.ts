@@ -139,15 +139,18 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
     "Node",
   );
 
-  // scene.delete round-trip.
+  // scene.delete round-trip (file not open in any tab).
   const sceneDeleted = (await bridge.call("scene.delete", { file_path: scenePath }, CALL_TIMEOUT)) as {
     success?: boolean;
     path?: string;
+    tab_closed?: boolean;
     code?: string;
   };
   if (sceneDeleted?.success !== true || sceneDeleted.path !== scenePath)
     fail(`scene.delete: ${JSON.stringify(sceneDeleted)}`);
-  else pass(`scene.delete ${scenePath}`);
+  else if (sceneDeleted.tab_closed !== false)
+    fail(`scene.delete tab_closed: expected false (not open), got ${JSON.stringify(sceneDeleted.tab_closed)}`);
+  else pass(`scene.delete ${scenePath} (tab_closed:false)`);
   const sceneDeleteRepeat = (await bridge.call("scene.delete", { file_path: scenePath }, CALL_TIMEOUT)) as {
     success?: boolean;
     code?: string;
@@ -163,7 +166,10 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
     ".tscn",
   );
 
-  // EDITED_SCENE refusal + clean teardown via scene.close.
+  // Version-branched: scene.delete of the active scene.
+  // 4.5+: auto-closes tab, returns success + tab_closed:true.
+  // 4.2-4.4: returns EDITED_SCENE (no close API for active tab).
+  const godotMinor = bridge.getGodotMinor();
   const editedProbePath = "res://smoke_edited_probe.tscn";
   await bridge.call(
     "scene.create",
@@ -173,18 +179,71 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   await bridge.call("scene.open", { file_path: editedProbePath }, CALL_TIMEOUT);
   const editedSceneDelete = (await bridge.call("scene.delete", { file_path: editedProbePath }, CALL_TIMEOUT)) as {
     success?: boolean;
+    tab_closed?: boolean;
     code?: string;
-    error?: string;
+    warnings?: string[];
   };
-  if (editedSceneDelete?.code !== "EDITED_SCENE")
-    fail(`scene.delete of currently-edited: expected EDITED_SCENE, got ${JSON.stringify(editedSceneDelete)}`);
-  else pass("scene.delete refuses currently-edited scene -> EDITED_SCENE");
-  const editedSceneClose = (await bridge.call("scene.close", { file_path: editedProbePath }, CALL_TIMEOUT)) as {
-    success?: boolean;
-  };
-  if (!editedSceneClose?.success) fail(`edited-probe scene.close: ${JSON.stringify(editedSceneClose)}`);
-  await bridge.call("scene.delete", { file_path: editedProbePath }, CALL_TIMEOUT);
-  pass("EDITED_SCENE probe: clean teardown via scene.close + scene.delete");
+  if (godotMinor !== null && godotMinor >= 5) {
+    // 4.5+: tab auto-closed, file deleted.
+    if (editedSceneDelete?.success !== true || editedSceneDelete.tab_closed !== true)
+      fail(
+        `scene.delete active tab (4.5+): expected success+tab_closed:true, got ${JSON.stringify(editedSceneDelete)}`,
+      );
+    else pass("scene.delete auto-closes active tab on 4.5+ (tab_closed:true)");
+  } else {
+    // 4.2-4.4: EDITED_SCENE refusal.
+    if (editedSceneDelete?.code !== "EDITED_SCENE")
+      fail(`scene.delete active tab (4.2-4.4): expected EDITED_SCENE, got ${JSON.stringify(editedSceneDelete)}`);
+    else pass("scene.delete refuses active tab on 4.2-4.4 -> EDITED_SCENE");
+    // Clean up: close + delete on 4.2-4.4 (scene.close only works on active tab there).
+    try {
+      // scene.close returns UNSUPPORTED on 4.2-4.4, so we just open another scene to switch away.
+      await bridge.call("scene.open", { file_path: scenePath }, CALL_TIMEOUT);
+    } catch {
+      /* best-effort */
+    }
+    try {
+      await bridge.call("scene.delete", { file_path: editedProbePath }, CALL_TIMEOUT);
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
+
+  // scene.close: non-active tab (4.5+ only — requires close_scene API).
+  if (godotMinor !== null && godotMinor >= 5) {
+    const closeProbeA = "res://smoke_close_a.tscn";
+    const closeProbeB = "res://smoke_close_b.tscn";
+    try {
+      await bridge.call("scene.delete", { file_path: closeProbeA }, CALL_TIMEOUT);
+      await bridge.call("scene.delete", { file_path: closeProbeB }, CALL_TIMEOUT);
+    } catch {
+      /* orphan cleanup */
+    }
+    await bridge.call("scene.create", { file_path: closeProbeA, root_type: "Node", if_exists: "return" }, CALL_TIMEOUT);
+    await bridge.call("scene.create", { file_path: closeProbeB, root_type: "Node", if_exists: "return" }, CALL_TIMEOUT);
+    await bridge.call("scene.open", { file_path: closeProbeA }, CALL_TIMEOUT);
+    await bridge.call("scene.open", { file_path: closeProbeB }, CALL_TIMEOUT);
+    // closeProbeB is now active; close non-active closeProbeA.
+    const closeNonActive = (await bridge.call("scene.close", { file_path: closeProbeA }, CALL_TIMEOUT)) as {
+      success?: boolean;
+    };
+    if (!closeNonActive?.success) fail(`scene.close non-active tab: ${JSON.stringify(closeNonActive)}`);
+    else pass("scene.close closes non-active tab");
+    // Cleanup.
+    try {
+      await bridge.call("scene.close", { file_path: closeProbeB }, CALL_TIMEOUT);
+    } catch {
+      /* best-effort */
+    }
+    try {
+      await bridge.call("scene.delete", { file_path: closeProbeA }, CALL_TIMEOUT);
+      await bridge.call("scene.delete", { file_path: closeProbeB }, CALL_TIMEOUT);
+    } catch {
+      /* best-effort cleanup */
+    }
+  } else {
+    pass("scene.close non-active tab -> SKIP (requires 4.5+)");
+  }
 
   // script.delete round-trip.
   const scriptDelPath = "res://smoke_throwaway.gd";

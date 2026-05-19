@@ -17,7 +17,7 @@ export const folderTools: ToolDef[] = [
     name: "folder_delete",
     method: "folder.delete",
     description:
-      "Delete directory. recursive:false(default) requires empty. Refuses project root, addons, and folders containing open scenes/scripts (PATH_IN_USE).",
+      "Delete directory. recursive:false(default) requires empty. On 4.5+ closes one open scene tab; multiple in stale_tabs - use scene_close. Refuses project root, addons, open scripts (PATH_IN_USE).",
     inputSchema: {
       folder_path: z.string(),
       recursive: coercedBoolean().optional(),

@@ -286,7 +286,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `DELETE_FAILED`    | plugin (iter 15 / 15b) | `DirAccess.remove` non-OK from `scene_delete` / `script_delete` / `resource_delete` / `folder_delete`. |
 | `DIR_NOT_EMPTY`    | plugin (iter 15b)| `folder_delete` with `recursive: false` on a non-empty directory.             |
 | `DISCONNECTED`     | bridge           | Socket closed mid-call or no reconnect within `CALL_AWAIT_RECONNECT_MS`.      |
-| `EDITED_SCENE`     | plugin (iter 15) | `scene_delete` against the currently-edited scene; open a different scene first. |
+| `EDITED_SCENE`     | plugin (iter 15) | `scene_delete` / `file_delete` against the active scene on 4.2-4.4 (no tab-close API). On 4.5+ the tab is auto-closed first. |
 | `EXECUTE_FAILED`   | plugin (Mode B)  | `game.eval` Expression.execute returned an error.                             |
 | `FEATURE_DISABLED` | both (iter 19+)  | Tool gated off by FeatureGate; reserved.                                      |
 | `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |

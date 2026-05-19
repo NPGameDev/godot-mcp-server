@@ -63,7 +63,7 @@ export const sceneTools: ToolDef[] = [
     name: "scene_delete",
     method: "scene.delete",
     description:
-      "Delete the .tscn and its .uid companion at path. Refuses non-.tscn paths and the currently-edited scene (codes INVALID_PATH / EDITED_SCENE).",
+      "Delete .tscn at path and .uid companion. Auto-closes editor tab on 4.5+ (tab_closed:true). 4.2-4.4: blocks active scene (EDITED_SCENE); non-active tabs get phantom warnings. Refuses non-.tscn.",
     inputSchema: { file_path: z.string() },
     annotations: { destructiveHint: true, openWorldHint: false },
   },
