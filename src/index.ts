@@ -301,6 +301,23 @@ bridge.onNotification((type, params) => {
 
 // ── Extension discovery ──────────────────────────────────────────────
 
+const DEFAULT_EXTENSION_TIMEOUT_MS = 30_000;
+
+/** Build a context-aware timeout hint for extension tools. */
+function buildExtensionTimeoutHint(method: string, timeoutMs?: number): string {
+  const effectiveMs = timeoutMs ?? DEFAULT_EXTENSION_TIMEOUT_MS;
+  if (timeoutMs != null) {
+    return (
+      `Extension tool '${method}' timed out after ${effectiveMs}ms (custom timeout). ` +
+      "If this exceeds 5 minutes, consider restructuring the tool to start work and return a polling handle rather than blocking the bridge."
+    );
+  }
+  return (
+    `Extension tool '${method}' timed out after ${effectiveMs / 1000}s. ` +
+    "If this tool calls external services, the extension author can increase timeout_ms in registry.add() options."
+  );
+}
+
 // After the server starts, discover third-party extensions from the toolkit
 // and register them as MCP tools. Also registers discover_tools for
 // standard profile — deferred to here so the LLM only ever sees the
@@ -321,6 +338,7 @@ async function discoverExtensions(): Promise<void> {
         input_schema?: Record<string, unknown>;
         annotations?: Record<string, boolean>;
         group?: { name: string; description?: string; keywords?: string[] };
+        timeout_ms?: number;
       }[];
     };
     let result: ExtResult;
@@ -337,13 +355,12 @@ async function discoverExtensions(): Promise<void> {
       for (const cmd of result.commands) {
         const toolName = cmd.method.replace(/\./g, "_");
         knownExtensionTools.add(toolName);
+        const annotations = {
+          readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
+          destructiveHint: cmd.annotations?.destructiveHint ?? false,
+          idempotentHint: cmd.annotations?.idempotentHint ?? false,
+        };
         if (cmd.group?.name) {
-          const annotations = {
-            readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
-            destructiveHint: cmd.annotations?.destructiveHint ?? false,
-            idempotentHint: cmd.annotations?.idempotentHint ?? false,
-            openWorldHint: cmd.annotations?.openWorldHint ?? false,
-          };
           const extCmd: ExtensionCmd = {
             method: cmd.method,
             toolName,
@@ -368,8 +385,11 @@ async function discoverExtensions(): Promise<void> {
               readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
               destructiveHint: cmd.annotations?.destructiveHint ?? false,
               idempotentHint: cmd.annotations?.idempotentHint ?? false,
-              openWorldHint: cmd.annotations?.openWorldHint ?? false,
             };
+            // Read-only mode: skip extension tools that aren't read-only.
+            if (readOnly && !annotations.readOnlyHint) continue;
+            const timeoutMs = cmd.timeout_ms ?? undefined;
+            const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
             registerToolWrapped(
               server,
               bridge,
@@ -379,7 +399,8 @@ async function discoverExtensions(): Promise<void> {
                 inputSchema: cmd.input_schema ?? {},
                 annotations,
               },
-              (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<ToolTextResult>,
+              (input: unknown) =>
+                callAndWrap(bridge, cmd.method, input, { timeoutMs, extensionTimeoutHint }) as Promise<ToolTextResult>,
             );
             registered++;
           }
@@ -442,6 +463,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
         input_schema?: Record<string, unknown>;
         annotations?: Record<string, boolean>;
         group?: { name: string; description?: string; keywords?: string[] };
+        timeout_ms?: number;
       }[]
     | undefined;
   const removedMethods = (params?.removed as string[]) ?? [];
@@ -474,13 +496,12 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
       const toolName = cmd.method.replace(/\./g, "_");
       if (knownExtensionTools.has(toolName)) continue; // Already registered.
 
+      const annotations = {
+        readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
+        destructiveHint: cmd.annotations?.destructiveHint ?? false,
+        idempotentHint: cmd.annotations?.idempotentHint ?? false,
+      };
       if (cmd.group?.name) {
-        const annotations = {
-          readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
-          destructiveHint: cmd.annotations?.destructiveHint ?? false,
-          idempotentHint: cmd.annotations?.idempotentHint ?? false,
-          openWorldHint: cmd.annotations?.openWorldHint ?? false,
-        };
         const extCmd: ExtensionCmd = {
           method: cmd.method,
           toolName,
@@ -504,8 +525,11 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
         readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
         destructiveHint: cmd.annotations?.destructiveHint ?? false,
         idempotentHint: cmd.annotations?.idempotentHint ?? false,
-        openWorldHint: cmd.annotations?.openWorldHint ?? false,
       };
+      // Read-only mode: skip extension tools that aren't read-only.
+      if (readOnly && !annotations.readOnlyHint) continue;
+      const timeoutMs = cmd.timeout_ms ?? undefined;
+      const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
       registerToolWrapped(
         server,
         bridge,
@@ -515,7 +539,8 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
           inputSchema: cmd.input_schema ?? {},
           annotations,
         },
-        (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<ToolTextResult>,
+        (input: unknown) =>
+          callAndWrap(bridge, cmd.method, input, { timeoutMs, extensionTimeoutHint }) as Promise<ToolTextResult>,
       );
       knownExtensionTools.add(toolName);
       added++;

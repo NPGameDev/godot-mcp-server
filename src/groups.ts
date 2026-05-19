@@ -1111,7 +1111,6 @@ function registerExtGroupTools(server: McpServer, bridge: Bridge, group: Extensi
           readOnlyHint: cmd.annotations.readOnlyHint ?? false,
           destructiveHint: cmd.annotations.destructiveHint ?? false,
           idempotentHint: cmd.annotations.idempotentHint ?? false,
-          openWorldHint: cmd.annotations.openWorldHint ?? false,
         },
       },
       (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<import("./types.js").ToolTextResult>,

@@ -171,7 +171,7 @@ export async function callAndWrap(
   bridge: Bridge,
   method: string,
   input: unknown,
-  opts: { runtime?: boolean; timeoutMs?: number } = {},
+  opts: { runtime?: boolean; timeoutMs?: number; extensionTimeoutHint?: string } = {},
 ): Promise<ToolTextResult> {
   try {
     const result = opts.runtime
@@ -182,6 +182,9 @@ export async function callAndWrap(
     return { content: [{ type: "text", text: stableStringify(result) }] };
   } catch (err) {
     if (opts.runtime) return runtimeErrorWithCrashContext(bridge, err);
+    if (opts.extensionTimeoutHint && err instanceof BridgeError && err.code === "TIMEOUT") {
+      return toolError("TIMEOUT", err.message, opts.extensionTimeoutHint);
+    }
     return toolErrorFromException(err);
   }
 }
