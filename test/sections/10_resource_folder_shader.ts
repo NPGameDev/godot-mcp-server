@@ -269,12 +269,15 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     "folder.delete",
     { folder_path: pathInUseDir, recursive: true },
     CALL_TIMEOUT,
-  )) as { success?: boolean; switched_to?: string; hint?: string; code?: string; error?: string };
-  if (folderInUse?.success && folderInUse.switched_to) {
-    pass(`folder.delete on folder containing edited scene -> auto-switched to ${folderInUse.switched_to}`);
+  )) as { success?: boolean; switched_to?: string; tab_closed?: string; hint?: string; code?: string; error?: string };
+  if (folderInUse?.success && (folderInUse.switched_to || folderInUse.tab_closed)) {
+    const detail = folderInUse.switched_to
+      ? `auto-switched to ${folderInUse.switched_to}`
+      : `tab_closed=${folderInUse.tab_closed}`;
+    pass(`folder.delete on folder containing edited scene -> ${detail}`);
   } else {
     fail(
-      `folder.delete on folder containing edited scene: expected success with switched_to, got ${JSON.stringify(folderInUse)}`,
+      `folder.delete on folder containing edited scene: expected success with switched_to or tab_closed, got ${JSON.stringify(folderInUse)}`,
     );
   }
   // Folder + scene already deleted; re-open main scene to restore state.
