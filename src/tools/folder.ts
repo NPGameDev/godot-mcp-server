@@ -11,7 +11,7 @@ export const folderTools: ToolDef[] = [
     description:
       "Create directory at res:// path (recursive — parents auto-created). Idempotent: status created on fresh, returned if pre-existing.",
     inputSchema: { folder_path: z.string() },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "folder_delete",
@@ -22,7 +22,7 @@ export const folderTools: ToolDef[] = [
       folder_path: z.string(),
       recursive: coercedBoolean().optional(),
     },
-    annotations: { destructiveHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
 ];
 

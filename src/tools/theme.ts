@@ -35,7 +35,7 @@ export const themeTools: ToolDef[] = [
         )
         .describe("Array of theme property edits to apply"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

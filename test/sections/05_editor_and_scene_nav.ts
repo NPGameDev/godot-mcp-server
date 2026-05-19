@@ -1,6 +1,14 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "editor_screenshot",
+  "scene_open",
+  "scene_close",
+  "scene_create",
+  "scene_delete",
+  "project_get_settings",
+];
 export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

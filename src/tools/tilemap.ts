@@ -27,7 +27,7 @@ export const tilemapTools: ToolDef[] = [
             "Can be combined with 'cells' — regions are appended to cells.",
         ),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "tileset_create",
@@ -60,7 +60,7 @@ export const tilemapTools: ToolDef[] = [
           "Physics collision mask. Integer bitmask OR array of layer numbers [2,4] or names ['enemies','collectibles']. Default 1",
         ),
     },
-    annotations: { idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "tileset_edit",
@@ -92,7 +92,7 @@ export const tilemapTools: ToolDef[] = [
             "navigation_layers?: <int count>, occlusion_layers?: <int count>, physics_layers?: <int count>}",
         ),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

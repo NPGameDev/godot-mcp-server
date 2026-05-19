@@ -31,6 +31,7 @@ import { readFileSync } from "node:fs";
 import { HOST, PORT, RUNTIME_PORT, PROBE_TIMEOUT_MS, probePort, printUnreachable } from "./helpers.js";
 import type { TestCtx } from "./helpers.js";
 
+import { runStructuralChecks } from "./structural.js";
 import * as sec01 from "./sections/01_catalogue.js";
 import * as sec02 from "./sections/02_gate_enforcement.js";
 import * as sec03 from "./sections/03_scene_node_basics.js";
@@ -310,6 +311,7 @@ async function runCiMode(): Promise<void> {
   console.log("[smoke] CI mode — running static catalogue validation (no Godot required)\n");
 
   sec01.testCatalogueStatic({ pass: passFn, fail: failFn });
+  runStructuralChecks({ pass: passFn, fail: failFn });
 
   printSummary();
   process.exit(failCount > 0 ? 1 : 0);

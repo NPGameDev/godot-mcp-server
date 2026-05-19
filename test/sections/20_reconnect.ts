@@ -3,6 +3,7 @@ import { createBridge } from "../../src/bridge.js";
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, makeFakeEchoServer, deepEqual } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [];
 export async function testReconnect(ctx: TestCtx): Promise<void> {
   const { pass, fail } = ctx;
 

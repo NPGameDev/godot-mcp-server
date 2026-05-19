@@ -12,6 +12,14 @@ import {
   assertHint,
 } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "runtime_screenshot",
+  "runtime_get_node_state",
+  "debugger_get_log",
+  "input_simulate",
+  "animation_player_control",
+  "execute_code",
+];
 export const isAffectedByGates = true;
 
 export async function testModeB(ctx: TestCtx): Promise<void> {

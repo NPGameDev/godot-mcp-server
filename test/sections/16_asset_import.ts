@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, IMPORT_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["asset_import", "asset_list", "editor_wait_for_idle", "file_delete"];
 export async function testAssetImport(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

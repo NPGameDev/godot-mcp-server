@@ -1,6 +1,28 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, assertHint, unwrapUntrusted } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "game_start",
+  "game_stop",
+  "scene_create",
+  "scene_instantiate",
+  "scene_open",
+  "scene_get_tree",
+  "scene_create_node",
+  "scene_delete_node",
+  "editor_save_scene",
+  "node_get_property",
+  "node_set_property",
+  "node_call_method",
+  "node_manage",
+  "node_groups",
+  "autoload_manage",
+  "resource_write",
+  "resource_delete",
+  "scene_delete",
+  "script_write",
+  "script_delete",
+];
 export const isAffectedByGates = true;
 
 export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean): Promise<void> {

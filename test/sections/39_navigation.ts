@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["scene_create_node", "scene_delete_node", "navigation_edit"];
 export async function testNavigation(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

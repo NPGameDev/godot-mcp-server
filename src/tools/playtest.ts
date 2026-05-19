@@ -17,7 +17,7 @@ export const playtestTools: ToolDef[] = [
       runtime_poll: coercedBoolean().optional(),
       if_running: z.enum(["return", "fail"]).optional(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "game_stop",
@@ -25,7 +25,7 @@ export const playtestTools: ToolDef[] = [
     description:
       "Stop the currently-playing scene (idempotent — returns was_running:false if nothing was running). No params.",
     inputSchema: {},
-    annotations: { destructiveHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
 ];
 

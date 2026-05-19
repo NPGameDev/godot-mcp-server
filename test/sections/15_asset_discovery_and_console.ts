@@ -1,6 +1,23 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "asset_list",
+  "asset_get_dependencies",
+  "editor_get_console",
+  "editor_get_errors",
+  "resource_write",
+  "script_write",
+  "script_delete",
+  "editor_refresh",
+  "scene_create",
+  "scene_open",
+  "scene_create_node",
+  "node_set_property",
+  "editor_save_scene",
+  "scene_close",
+  "scene_delete",
+];
 export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

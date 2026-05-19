@@ -19,7 +19,7 @@ export const animationTools: ToolDef[] = [
       value: z.unknown().optional().describe("Required for action='add'."),
       track_type: z.string().optional(),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "animation_get_keys",
@@ -74,7 +74,7 @@ export const animationTools: ToolDef[] = [
       property: z.string().optional().describe("For set_property: property name to set."),
       value: z.unknown().optional().describe("For set_property: value to assign."),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
 ];
 

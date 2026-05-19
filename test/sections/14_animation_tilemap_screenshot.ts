@@ -1,6 +1,17 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "scene_create_node",
+  "scene_delete_node",
+  "node_set_property",
+  "animation_keyframe",
+  "tilemap_set_cells",
+  "tileset_create",
+  "tileset_edit",
+  "editor_screenshot",
+  "file_delete",
+];
 export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

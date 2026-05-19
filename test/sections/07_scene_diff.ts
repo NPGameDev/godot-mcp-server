@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["scene_get_tree", "scene_create_node", "scene_delete_node", "scene_diff"];
 export async function testSceneDiff(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

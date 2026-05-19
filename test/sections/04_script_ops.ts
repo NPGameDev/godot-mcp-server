@@ -1,6 +1,13 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, unwrapUntrusted } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "script_write",
+  "script_read",
+  "script_delete",
+  "editor_refresh",
+  "editor_get_errors",
+];
 export async function testScriptOps(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

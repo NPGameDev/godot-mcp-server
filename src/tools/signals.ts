@@ -32,7 +32,7 @@ export const signalTools: ToolDef[] = [
       target_path: z.string(),
       method_name: z.string(),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "signal_emit",
@@ -45,7 +45,7 @@ export const signalTools: ToolDef[] = [
       args: z.preprocess(jsonCoerce, z.array(z.unknown())).optional(),
       mode: z.enum(["editor", "runtime"]).optional(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

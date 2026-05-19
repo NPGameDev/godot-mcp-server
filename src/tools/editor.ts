@@ -19,7 +19,7 @@ export const editorTools: ToolDef[] = [
     method: "editor.save_scene",
     description: "Save the current edited scene. Optional file_path triggers save-as.",
     inputSchema: { file_path: z.string().optional() },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "editor_screenshot",
@@ -50,7 +50,7 @@ export const editorTools: ToolDef[] = [
         .optional()
         .describe("res:// paths to update; omit for full scan"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "scene_open",
@@ -58,7 +58,7 @@ export const editorTools: ToolDef[] = [
     description:
       "Open a scene (.tscn / .scn) as the active edited scene. res:// only; NOT_FOUND if the file doesn't exist.",
     inputSchema: { file_path: z.string() },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "scene_close",
@@ -66,7 +66,7 @@ export const editorTools: ToolDef[] = [
     description:
       "Close any open scene tab by file_path (active or inactive). The editor auto-creates an empty scene if the last tab is closed. NOT_FOUND if not open. Requires Godot 4.5+.",
     inputSchema: { file_path: z.string() },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     godotMinVersion: 5,
   },
   {
@@ -125,7 +125,7 @@ export const editorTools: ToolDef[] = [
       setting: z.string().describe("ProjectSettings key (e.g. 'application/config/name')"),
       value: z.unknown(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

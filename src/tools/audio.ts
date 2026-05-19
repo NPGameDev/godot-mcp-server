@@ -30,7 +30,7 @@ export const audioTools: ToolDef[] = [
         .optional()
         .describe("Effect to add/remove"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

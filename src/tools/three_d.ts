@@ -45,7 +45,7 @@ export const threeDTools: ToolDef[] = [
         .describe("Material to apply: {type:'StandardMaterial3D', albedo_color?, metallic?, roughness?}"),
       position: z.preprocess(jsonCoerce, vec3Schema).optional().describe("World position {x,y,z}"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "3d_setup_environment",
@@ -93,7 +93,7 @@ export const threeDTools: ToolDef[] = [
         .optional()
         .describe("Fog settings: {enabled?, color?, density?}"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "3d_create_light",
@@ -110,7 +110,7 @@ export const threeDTools: ToolDef[] = [
       position: z.preprocess(jsonCoerce, vec3Schema).optional().describe("World position {x,y,z}"),
       rotation: z.preprocess(jsonCoerce, vec3Schema).optional().describe("Rotation in Euler degrees {x,y,z}"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "3d_create_camera",
@@ -127,7 +127,7 @@ export const threeDTools: ToolDef[] = [
       rotation: z.preprocess(jsonCoerce, vec3Schema).optional().describe("Rotation in Euler degrees {x,y,z}"),
       current: z.boolean().optional().describe("Set as the current active camera"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

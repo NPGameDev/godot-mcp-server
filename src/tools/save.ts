@@ -30,7 +30,7 @@ export const saveTools: ToolDef[] = [
       path: z.string(),
       content: z.string(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "save_delete",
@@ -40,7 +40,7 @@ export const saveTools: ToolDef[] = [
     inputSchema: {
       path: z.string(),
     },
-    annotations: { destructiveHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
   {
     name: "save_list",

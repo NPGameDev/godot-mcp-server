@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["scene_create", "scene_create_inherited", "file_delete"];
 export async function testSceneInheritance(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

@@ -15,7 +15,7 @@ export const sceneInheritanceTools: ToolDef[] = [
       base_scene: z.string().describe("Base scene path (e.g. 'res://scenes/enemy.tscn')"),
       root_name: z.string().optional().describe("Root node name override (default: base scene's root name)"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

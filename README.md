@@ -314,6 +314,10 @@ Standard catalogue: ~3,600 tokens (+ ~200–600 per on-demand group). Read-only 
 
 Run `npx tsx scripts/measure-tokens.ts` to regenerate measurements after adding or modifying tools. See [docs/token-efficiency.md](docs/token-efficiency.md) for the full per-tool breakdown, group costs, and methodology.
 
+## CI coverage
+
+CI runs `npm run smoke:ci` which validates the static tool catalogue without a Godot editor. Checks include tool count, gate membership, description length, JSON Schema integrity, per-section test coverage, annotation completeness, and naming conventions. Full interactive smoke tests (43 sections, 250+ assertions) require a local Godot 4.x editor with the toolkit plugin enabled — run `npm run smoke` locally after changes that touch tool behavior.
+
 ## Accuracy eval
 
 An accuracy eval suite (`npm run eval`) tests two dimensions against a live Godot instance:

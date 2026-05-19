@@ -16,7 +16,7 @@ export const layerNameTools: ToolDef[] = [
       category: CATEGORY_ENUM,
       layers: z.preprocess(jsonCoerce, z.record(z.string(), z.string())).describe("Layer number (1-32) to name"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "layer_names_get",

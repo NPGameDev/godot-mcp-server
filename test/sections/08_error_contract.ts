@@ -1,6 +1,21 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertError, assertHint } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "scene_create_node",
+  "scene_delete_node",
+  "node_get_property",
+  "node_set_property",
+  "node_get_property_list",
+  "script_write",
+  "script_read",
+  "editor_save_scene",
+  "signal_list",
+  "signal_manage",
+  "signal_emit",
+  "scene_diff",
+  "resource_load",
+];
 export async function testErrorContract(ctx: TestCtx): Promise<void> {
   const { bridge, pass } = ctx;
 

@@ -22,6 +22,7 @@ import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, deepEqual } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["discover_tools"];
 export const isAffectedByGates = true;
 
 /**

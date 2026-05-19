@@ -4,6 +4,14 @@ import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT } from "../helpers.js";
 import { envVarFor } from "../../src/feature_gate.js";
 
+export const TOOLS_TESTED: string[] = [
+  "node_call_method",
+  "execute_code",
+  "save_write",
+  "save_read",
+  "save_delete",
+  "save_list",
+];
 type GateResponse = {
   success?: boolean;
   code?: string;

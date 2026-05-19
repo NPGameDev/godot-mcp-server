@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["project_set_setting", "project_get_settings"];
 export const isAffectedByGates = true;
 
 export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {

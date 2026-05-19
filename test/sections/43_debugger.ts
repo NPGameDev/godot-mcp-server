@@ -10,6 +10,12 @@ import { debugTools } from "../../src/tools/debug.js";
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "debug_state",
+  "debug_set_breakpoint",
+  "debug_list_breakpoints",
+  "debug_continue",
+];
 export async function testDebugger(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

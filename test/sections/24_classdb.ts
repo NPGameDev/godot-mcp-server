@@ -1,6 +1,13 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertError } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "classdb_get_info",
+  "classdb_search",
+  "script_write",
+  "script_delete",
+  "editor_refresh",
+];
 export async function testClassdb(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

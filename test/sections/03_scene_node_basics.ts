@@ -1,6 +1,13 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, unwrapUntrusted, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "scene_get_tree",
+  "scene_create_node",
+  "scene_delete_node",
+  "node_set_property",
+  "node_get_property",
+];
 export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

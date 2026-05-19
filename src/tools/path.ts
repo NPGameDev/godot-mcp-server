@@ -30,7 +30,7 @@ export const pathTools: ToolDef[] = [
         .describe("Curve points with optional bezier handles"),
       index: z.number().int().optional().describe("Insert position (add) or point index to remove"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

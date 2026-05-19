@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["extensions_refresh"];
 export async function testExtensibility(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

@@ -11,6 +11,14 @@ import { lspTools } from "../../src/tools/lsp.js";
 
 import type { TestCtx } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "lsp_diagnostics",
+  "lsp_symbols",
+  "lsp_hover",
+  "lsp_completion",
+  "lsp_definition",
+  "lsp_references",
+];
 const LSP_PORT = Number(process.env.GODOT_MCP_LSP_PORT ?? "6005");
 
 export async function testLsp(ctx: TestCtx): Promise<void> {

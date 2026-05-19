@@ -34,5 +34,14 @@ jobs:
       - name: Format check (Prettier)
         run: npm run format
 
-      - name: Smoke test (CI mode — catalogue validation)
+      # CI smoke tests validate the static tool catalogue WITHOUT a running
+      # Godot editor. Checks: tool count, gate membership, description length,
+      # echo round-trip, schema integrity, tool coverage, annotation
+      # completeness, naming conventions.
+      #
+      # Full interactive smoke tests (43 sections) require a Godot 4.x editor
+      # on port 6550 with the toolkit plugin enabled. Run locally:
+      #   npm run smoke
+      # See test/README.md or CONTRIBUTING.md for setup instructions.
+      - name: Smoke test (CI mode — catalogue + structural validation)
         run: npm run smoke:ci

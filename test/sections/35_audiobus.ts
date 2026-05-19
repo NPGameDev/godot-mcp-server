@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["audiobus_edit"];
 export async function testAudiobus(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

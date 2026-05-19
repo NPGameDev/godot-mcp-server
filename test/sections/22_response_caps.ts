@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, unwrapUntrusted } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["script_write", "script_read", "script_delete"];
 export async function testResponseCaps(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

@@ -1,6 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertError } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = ["script_check", "script_write", "script_delete"];
 export async function testScriptCheck(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

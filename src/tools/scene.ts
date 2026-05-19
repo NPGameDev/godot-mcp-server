@@ -38,14 +38,14 @@ export const sceneTools: ToolDef[] = [
           "Mark as scene-unique node for %Name access in scripts. Warns if name collides with existing unique node.",
         ),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
     name: "scene_delete_node",
     method: "scene.delete_node",
     description: "Delete the node at path (NodePath). Refuses to delete the edited scene root.",
     inputSchema: { node_path: z.string() },
-    annotations: { destructiveHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
   {
     name: "scene_create",
@@ -57,7 +57,7 @@ export const sceneTools: ToolDef[] = [
       root_type: z.string().optional(),
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "scene_delete",
@@ -65,7 +65,7 @@ export const sceneTools: ToolDef[] = [
     description:
       "Delete .tscn at path and .uid companion. Auto-closes editor tab on 4.5+ (tab_closed:true). 4.2-4.4: blocks active scene (EDITED_SCENE); non-active tabs get phantom warnings. Refuses non-.tscn.",
     inputSchema: { file_path: z.string() },
-    annotations: { destructiveHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
   {
     name: "scene_instantiate",
@@ -90,7 +90,7 @@ export const sceneTools: ToolDef[] = [
             "as_name and transform are ignored in batch mode.",
         ),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
 ];
 

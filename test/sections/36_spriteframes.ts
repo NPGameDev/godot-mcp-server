@@ -1,6 +1,12 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "spriteframes_create",
+  "spriteframes_edit",
+  "spriteframes_from_spritesheet",
+  "file_delete",
+];
 export async function testSpriteframes(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

@@ -20,6 +20,6 @@ export const navigationTools: ToolDef[] = [
         .describe("For 'add_outline': single outline as array of {x,y} points"),
       index: z.number().int().optional().describe("For 'remove_outline': outline index"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];

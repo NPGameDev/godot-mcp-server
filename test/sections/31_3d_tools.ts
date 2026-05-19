@@ -1,6 +1,14 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "scene_create_node",
+  "scene_delete_node",
+  "3d_create_primitive",
+  "3d_setup_environment",
+  "3d_create_light",
+  "3d_create_camera",
+];
 export async function test3dTools(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

@@ -43,7 +43,7 @@ export const assetTools: ToolDef[] = [
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
       wait_for_scan_ms: z.coerce.number().optional(),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
 ];
 

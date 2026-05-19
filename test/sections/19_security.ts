@@ -1,6 +1,14 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "script_read",
+  "resource_load",
+  "scene_instantiate",
+  "folder_create",
+  "editor_screenshot",
+  "project_get_settings",
+];
 export async function testSecurity(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

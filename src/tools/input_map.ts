@@ -21,7 +21,7 @@ export const inputMapTools: ToolDef[] = [
       name: z.string(),
       deadzone: z.coerce.number().optional(),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "input_map_event",
@@ -48,7 +48,7 @@ export const inputMapTools: ToolDef[] = [
         z.record(z.string(), z.unknown()),
       ),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
 ];
 

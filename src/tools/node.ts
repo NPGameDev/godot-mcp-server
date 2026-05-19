@@ -61,7 +61,7 @@ export const nodeTools: ToolDef[] = [
             "When present, top-level node_path/property/value are ignored.",
         ),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "node_get_property_list",
@@ -93,7 +93,7 @@ export const nodeTools: ToolDef[] = [
       node_path: z.string(),
       script_path: z.string(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   // node_call_method is feature-gated (single-gate: env OR PS). Plugin-side
   // FeatureGate performs the full check as defence-in-depth; the gate here
@@ -107,7 +107,7 @@ export const nodeTools: ToolDef[] = [
       method_name: z.string(),
       args: z.array(z.unknown()).optional(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     gate: "node_call_method",
   },
 ];

@@ -1,6 +1,14 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "resource_write",
+  "resource_load",
+  "resource_delete",
+  "script_write",
+  "script_delete",
+  "folder_delete",
+];
 export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

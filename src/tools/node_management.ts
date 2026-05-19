@@ -31,7 +31,7 @@ export const nodeManagementTools: ToolDef[] = [
         .optional()
         .describe("For duplicate: property overrides on the copy (e.g. {position:{x:100,y:200}})."),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "node_groups",
@@ -55,7 +55,7 @@ export const nodeManagementTools: ToolDef[] = [
             "node_path and group params are ignored in batch mode.",
         ),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "autoload_manage",
@@ -73,7 +73,7 @@ export const nodeManagementTools: ToolDef[] = [
         .describe("Script path (e.g. 'res://scripts/game_manager.gd'). Required for register."),
       enabled: coercedBoolean().optional().describe("For register: auto-initialize on startup. Default true."),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

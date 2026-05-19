@@ -13,7 +13,7 @@ export const fileTools: ToolDef[] = [
     inputSchema: {
       file_path: z.string(),
     },
-    annotations: { destructiveHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
 ];
 

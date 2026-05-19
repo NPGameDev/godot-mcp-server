@@ -21,6 +21,19 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertError, unwrapUntrusted } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "project_get_settings",
+  "script_write",
+  "script_read",
+  "script_delete",
+  "script_check",
+  "scene_get_tree",
+  "node_get_property",
+  "node_set_property",
+  "node_get_property_list",
+  "node_call_method",
+  "signal_list",
+];
 /** Find the first node in the scene tree whose script ends with .cs. */
 function findCsNode(tree: unknown): { path: string; scriptPath: string } | null {
   const walk = (node: Record<string, unknown>, parentPath: string): { path: string; scriptPath: string } | null => {

@@ -2,6 +2,7 @@ import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard, assertError } from "../helpers.js";
 import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 
+export const TOOLS_TESTED: string[] = ["save_write", "save_read", "save_list", "save_delete"];
 export const isAffectedByGates = true;
 
 export async function testUserScope(ctx: TestCtx): Promise<void> {

@@ -1,6 +1,12 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "scene_create_node",
+  "scene_delete_node",
+  "node_set_property",
+  "collision_from_texture",
+];
 export async function testCollision(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

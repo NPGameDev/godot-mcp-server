@@ -1,6 +1,17 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "scene_create_node",
+  "scene_delete_node",
+  "script_write",
+  "script_delete",
+  "editor_refresh",
+  "editor_wait_for_idle",
+  "node_set_script",
+  "file_delete",
+  "asset_import",
+];
 export async function testCustomClassAndFileOps(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

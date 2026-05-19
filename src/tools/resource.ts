@@ -29,7 +29,7 @@ export const resourceTools: ToolDef[] = [
         ),
       type: z.string().optional().describe("Resource class name. Required when creating a new resource."),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "resource_delete",
@@ -37,7 +37,7 @@ export const resourceTools: ToolDef[] = [
     description:
       "Delete the .tres/.res and its .uid companion at file_path. No active-use guard (Godot refs survive file deletion; detect orphans via editor_get_console).",
     inputSchema: { file_path: z.string() },
-    annotations: { destructiveHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
 ];
 

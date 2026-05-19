@@ -1,6 +1,15 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "game_start",
+  "game_stop",
+  "debugger_get_log",
+  "script_write",
+  "editor_refresh",
+  "scene_open",
+  "file_delete",
+];
 /**
  * Section 40 — Crash detection and debugger_get_log cache
  *

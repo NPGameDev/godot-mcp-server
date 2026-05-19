@@ -1,6 +1,16 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "scene_create",
+  "scene_delete",
+  "script_write",
+  "script_delete",
+  "resource_write",
+  "resource_delete",
+  "folder_create",
+  "folder_delete",
+];
 export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

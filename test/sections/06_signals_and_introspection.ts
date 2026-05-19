@@ -1,6 +1,13 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertHint } from "../helpers.js";
 
+export const TOOLS_TESTED: string[] = [
+  "signal_list",
+  "signal_manage",
+  "signal_emit",
+  "node_get_property_list",
+  "resource_load",
+];
 export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 

@@ -92,7 +92,7 @@ export const runtimeTools: ToolDef[] = [
       ]),
       summary: coercedBoolean().optional(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "animation_player_control",
@@ -105,7 +105,7 @@ export const runtimeTools: ToolDef[] = [
       animation_name: z.string().optional(),
       time: z.coerce.number().optional(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "runtime_get_script_vars",
@@ -139,7 +139,7 @@ export const runtimeTools: ToolDef[] = [
         .union([z.string(), z.number(), z.boolean(), z.array(z.any()), z.record(z.string(), z.any())])
         .describe("Value to set — type is coerced to match the property's existing type"),
     },
-    annotations: { readOnlyHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   // execute_code is RCE-equivalent — gated via feature_gate. Plugin-side
   // FeatureGate (feature_gate.gd) performs the full dual-gate check as
@@ -170,7 +170,7 @@ export const runtimeTools: ToolDef[] = [
         .optional()
         .describe("Execution context: 'game' for running game (default), 'editor' for editor process"),
     },
-    annotations: { destructiveHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
     gate: "execute_code",
   },
 ];

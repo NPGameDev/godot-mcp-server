@@ -32,7 +32,7 @@ export const spriteframesTools: ToolDef[] = [
       file_path: z.string().describe("Output .tres file path (res://)"),
       animations: z.array(animationSchema).min(1).describe("Animations with their frames"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "spriteframes_edit",
@@ -60,7 +60,7 @@ export const spriteframesTools: ToolDef[] = [
       frame_index: z.number().int().optional().describe("Frame index (for remove/reorder)"),
       new_index: z.number().int().optional().describe("New position (for reorder)"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "spriteframes_from_spritesheet",
@@ -90,6 +90,6 @@ export const spriteframesTools: ToolDef[] = [
         .min(1)
         .describe("Animation definitions mapping to spritesheet regions"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];

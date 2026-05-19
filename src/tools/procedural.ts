@@ -38,7 +38,7 @@ export const proceduralTools: ToolDef[] = [
       index: z.number().int().optional().describe("Point index (for remove_point)"),
       interpolation_mode: z.enum(["linear", "cubic", "constant"]).optional().describe("Interpolation between stops"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "procedural_edit_curve",
@@ -70,7 +70,7 @@ export const proceduralTools: ToolDef[] = [
       min_value: z.number().optional().describe("Curve minimum Y value"),
       max_value: z.number().optional().describe("Curve maximum Y value"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   {
     name: "procedural_edit_noise",
@@ -104,7 +104,7 @@ export const proceduralTools: ToolDef[] = [
       domain_warp_enabled: z.boolean().optional(),
       domain_warp_amplitude: z.number().optional(),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
 

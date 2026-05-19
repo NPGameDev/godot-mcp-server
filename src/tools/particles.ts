@@ -83,6 +83,6 @@ export const particleTools: ToolDef[] = [
       particle_flag_align_y: z.boolean().optional(),
       position: z.union([vec2, vec3]).optional().describe("Node position"),
     },
-    annotations: { openWorldHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
 ];
