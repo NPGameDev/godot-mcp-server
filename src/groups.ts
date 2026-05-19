@@ -1113,7 +1113,8 @@ function registerExtGroupTools(server: McpServer, bridge: Bridge, group: Extensi
           idempotentHint: cmd.annotations.idempotentHint ?? false,
         },
       },
-      (input: unknown) => callAndWrap(bridge, cmd.method, input) as Promise<import("./types.js").ToolTextResult>,
+      (input: unknown, signal?: AbortSignal) =>
+        callAndWrap(bridge, cmd.method, input, { signal }) as Promise<import("./types.js").ToolTextResult>,
     );
     registered.push(cmd.toolName);
   }

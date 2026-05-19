@@ -35,7 +35,7 @@ const CALL_AWAIT_RECONNECT_MS = 10_000;
 // ── Internal types ───────────────────────────────────────────────────
 
 interface Channel {
-  call(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
+  call(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
   close(): Promise<void>;
 }
 
@@ -245,6 +245,26 @@ function createChannel(
   // When noReconnect is set (runtime channels), disconnect is always terminal.
   let hasConnectedOnce = false;
 
+  /** Send a fire-and-forget JSON-RPC notification to the toolkit (no id, no response). */
+  function sendNotification(method: string, params: Record<string, unknown>): void {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ jsonrpc: JSONRPC_VERSION, method, params }));
+    }
+  }
+
+  /** Cancel an in-flight bridge call: clear its timeout, reject the promise, and
+   *  notify the toolkit so cooperative cancellation can bail out early. */
+  function cancelPending(id: string): void {
+    const pendingRequest = pending.get(id);
+    if (pendingRequest) {
+      clearTimeout(pendingRequest.timer);
+      pendingRequest.reject(new BridgeError("CANCELLED", "Request cancelled by client"));
+      pending.delete(id);
+    }
+    // Always notify toolkit — fire-and-forget even if pending already resolved.
+    sendNotification("_cancel", { request_id: id });
+  }
+
   function rejectAllPending(code: string, message: string): void {
     for (const [id, pendingRequest] of pending) {
       clearTimeout(pendingRequest.timer);
@@ -439,8 +459,11 @@ function createChannel(
   }
 
   return {
-    async call(method, params = null, timeoutMs = DEFAULT_TIMEOUT_MS) {
+    async call(method, params = null, timeoutMs = DEFAULT_TIMEOUT_MS, signal?: AbortSignal) {
       if (closed) throw new BridgeError("CLOSED", "channel is closed");
+      // Pre-aborted guard: if the signal was already aborted before we start,
+      // throw immediately to avoid half-initialized pending state.
+      if (signal?.aborted) throw new BridgeError("CANCELLED", "Request already cancelled");
       const socket = ws && ws.readyState === WebSocket.OPEN ? ws : await awaitOpenSocket(CALL_AWAIT_RECONNECT_MS);
       const id = randomUUID();
       const payload = JSON.stringify({ jsonrpc: JSONRPC_VERSION, id, method, params });
@@ -450,6 +473,9 @@ function createChannel(
           reject(new BridgeError("TIMEOUT", `call to ${method} timed out after ${timeoutMs}ms`));
         }, timeoutMs);
         pending.set(id, { resolve, reject, timer });
+        // Wire up cooperative cancellation: when the MCP client cancels the
+        // request, the SDK aborts this signal, which triggers cancelPending.
+        signal?.addEventListener("abort", () => cancelPending(id), { once: true });
         socket.send(payload, (err) => {
           if (err) {
             const pendingRequest = pending.get(id);
@@ -667,24 +693,24 @@ export function createBridge(
   }
 
   return {
-    async call(method, params, timeoutMs) {
+    async call(method, params, timeoutMs, signal) {
       try {
-        return await editor.call(method, params, timeoutMs);
+        return await editor.call(method, params, timeoutMs, signal);
       } catch (err) {
         // On editor connection failure, re-read the registry. If the
         // port changed, retry once against the new channel.
         if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
           const changed = await rediscoverEditor();
-          if (changed) return editor.call(method, params, timeoutMs);
+          if (changed) return editor.call(method, params, timeoutMs, signal);
         }
         throw err;
       }
     },
-    async callRuntime(method, params, timeoutMs) {
+    async callRuntime(method, params, timeoutMs, signal) {
       // Static port override — same as explicit-port behaviour.
       if (opts?.explicitRuntimePort) {
         try {
-          return await runtimeChannel!.call(method, params, timeoutMs);
+          return await runtimeChannel!.call(method, params, timeoutMs, signal);
         } catch (err) {
           if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
             throw new BridgeError(
@@ -756,7 +782,7 @@ export function createBridge(
       }
 
       try {
-        return await runtimeChannel!.call(method, params, timeoutMs);
+        return await runtimeChannel!.call(method, params, timeoutMs, signal);
       } catch (err) {
         if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
           const failedPort = cachedRuntimePort;

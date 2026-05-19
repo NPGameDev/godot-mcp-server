@@ -9,8 +9,8 @@ import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 // ── Bridge interface ─────────────────────────────────────────────────
 
 export interface Bridge {
-  call(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
-  callRuntime(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
+  call(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
+  callRuntime(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
   close(): Promise<void>;
   /** Godot version string from the plugin auth handshake (e.g. "4.5.2"), or null if not yet connected / older plugin. */
   getGodotVersion(): string | null;
@@ -40,6 +40,7 @@ export interface Bridge {
 export type ErrorCode =
   | "ALREADY_EXISTS"
   | "ALREADY_PLAYING"
+  | "CANCELLED"
   | "CLOSED"
   | "COMPILATION_FAILED"
   | "CONNECT_FAILED"

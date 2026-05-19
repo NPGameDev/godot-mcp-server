@@ -171,12 +171,12 @@ export async function callAndWrap(
   bridge: Bridge,
   method: string,
   input: unknown,
-  opts: { runtime?: boolean; timeoutMs?: number; extensionTimeoutHint?: string } = {},
+  opts: { runtime?: boolean; timeoutMs?: number; extensionTimeoutHint?: string; signal?: AbortSignal } = {},
 ): Promise<ToolTextResult> {
   try {
     const result = opts.runtime
-      ? await bridge.callRuntime(method, input, opts.timeoutMs)
-      : await bridge.call(method, input, opts.timeoutMs);
+      ? await bridge.callRuntime(method, input, opts.timeoutMs, opts.signal)
+      : await bridge.call(method, input, opts.timeoutMs, opts.signal);
     const err = toolErrorFromPayload(result);
     if (err) return err;
     return { content: [{ type: "text", text: stableStringify(result) }] };
@@ -361,7 +361,7 @@ export function registerToolWrapped(
   name: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- McpServer.registerTool has complex overloaded types
   config: any,
-  handler: (input: Record<string, unknown>) => Promise<ToolTextResult>,
+  handler: (input: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolTextResult>,
   opts: { godotMinVersion?: number; hookPipeline?: HookPipeline } = {},
 ): void {
   // Convert raw JSON Schema (from extensions) to Zod shape for SDK compat.
@@ -372,7 +372,14 @@ export function registerToolWrapped(
     _versionMap.set(name, opts.godotMinVersion);
   }
 
-  const wrappedHandler = async (input: Record<string, unknown>): Promise<ToolTextResult> => {
+  // The SDK passes (args, extra) to tool handlers; extra.signal is an
+  // AbortSignal that fires when the MCP client sends notifications/cancelled.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK registerTool overloads don't match our 2-arg signature
+  const wrappedHandler = async (
+    input: Record<string, unknown>,
+    extra: { signal: AbortSignal },
+  ): Promise<ToolTextResult> => {
+    const signal = extra.signal;
     // Version gate check
     const minVer = _versionMap.get(name);
     if (minVer != null) {
@@ -389,12 +396,13 @@ export function registerToolWrapped(
     // Hook pipeline (explicit or global)
     const pipeline = opts.hookPipeline ?? _globalHookPipeline;
     if (pipeline) {
-      return pipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input));
+      return pipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input, signal));
     }
-    return handler(input);
+    return handler(input, signal);
   };
 
-  const ref = server.registerTool(name, config, wrappedHandler);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handler 2-arg shape doesn't match SDK overloads
+  const ref = server.registerTool(name, config, wrappedHandler as any);
   setToolRef(name, ref);
 }
 
@@ -412,7 +420,7 @@ export function registerTools(
   tools: readonly ToolDef[],
   allowedTools: Set<string> | null = null,
   opts: {
-    handlers?: Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>;
+    handlers?: Map<string, (input: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolTextResult>>;
     hookPipeline?: HookPipeline;
   } = {},
 ): void {
@@ -421,8 +429,10 @@ export function registerTools(
 
     let description = tool.description;
     const customHandler = opts.handlers?.get(tool.name);
-    let handler = (customHandler ?? ((input: unknown) => callAndWrap(bridge, tool.method, input))) as (
+    let handler = (customHandler ??
+      ((input: unknown, signal?: AbortSignal) => callAndWrap(bridge, tool.method, input, { signal }))) as (
       input: unknown,
+      signal?: AbortSignal,
     ) => Promise<ToolTextResult>;
 
     // Gated tools: register with full schema, check gate at call time.
@@ -434,7 +444,7 @@ export function registerTools(
         description = `${tool.description} [gate: ${envVar}]`;
       }
       const baseHandler = handler;
-      handler = async (input: unknown) => {
+      handler = async (input: unknown, signal?: AbortSignal) => {
         if (!isEnabled(tool.gate!)) {
           return toolError(
             "FEATURE_GATED",
@@ -442,7 +452,7 @@ export function registerTools(
             `Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
           );
         }
-        return baseHandler(input);
+        return baseHandler(input, signal);
       };
     }
 

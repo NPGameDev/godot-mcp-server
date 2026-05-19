@@ -399,8 +399,12 @@ async function discoverExtensions(): Promise<void> {
                 inputSchema: cmd.input_schema ?? {},
                 annotations,
               },
-              (input: unknown) =>
-                callAndWrap(bridge, cmd.method, input, { timeoutMs, extensionTimeoutHint }) as Promise<ToolTextResult>,
+              (input: unknown, signal?: AbortSignal) =>
+                callAndWrap(bridge, cmd.method, input, {
+                  timeoutMs,
+                  extensionTimeoutHint,
+                  signal,
+                }) as Promise<ToolTextResult>,
             );
             registered++;
           }
@@ -440,7 +444,8 @@ async function discoverExtensions(): Promise<void> {
           "Returns the updated list of extension commands.",
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
-      (input: unknown) => callAndWrap(bridge, "extensions.refresh", input) as Promise<ToolTextResult>,
+      (input: unknown, signal?: AbortSignal) =>
+        callAndWrap(bridge, "extensions.refresh", input, { signal }) as Promise<ToolTextResult>,
     );
   }
 }
@@ -539,8 +544,12 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
           inputSchema: cmd.input_schema ?? {},
           annotations,
         },
-        (input: unknown) =>
-          callAndWrap(bridge, cmd.method, input, { timeoutMs, extensionTimeoutHint }) as Promise<ToolTextResult>,
+        (input: unknown, signal?: AbortSignal) =>
+          callAndWrap(bridge, cmd.method, input, {
+            timeoutMs,
+            extensionTimeoutHint,
+            signal,
+          }) as Promise<ToolTextResult>,
       );
       knownExtensionTools.add(toolName);
       added++;
