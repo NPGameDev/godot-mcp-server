@@ -78,6 +78,10 @@ Source of truth: each tool's `annotations.readOnlyHint`, filtered by
 Source of truth: `src/groups.ts` — see `GROUPS` array for full list.
 Groups persist for the session. Gated groups require their env var.
 
+When activating tool groups via `discover_tools`, always pass
+`include_schemas: true` to receive full parameter schemas in the response.
+This avoids a separate tool lookup for each activated tool.
+
 ## Feature gates (iter 19)
 
 Three features are gated behind explicit opt-in via env vars. The TS side

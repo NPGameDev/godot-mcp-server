@@ -12,7 +12,9 @@ import {
   toolErrorFromException,
   registerToolWrapped,
   batchToolRegistration,
+  coercedBoolean,
 } from "./tool_helpers.js";
+import { enrichGroupResults, enrichCoreMatches, type ToolMeta, type GroupResult } from "./tool_meta.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
@@ -105,6 +107,7 @@ const GROUP_NAMES: readonly GroupName[] = [
 
 interface GroupDef {
   name: GroupName;
+  description: string;
   tools: string[];
   keywords: string[];
   gate?: string; // Feature gate required to load this group
@@ -114,6 +117,7 @@ interface GroupDef {
 export const GROUPS: GroupDef[] = [
   {
     name: "runtime_advanced",
+    description: "Inspect live node state and control AnimationPlayer during playtests",
     tools: ["runtime_get_node_state", "animation_player_control"],
     keywords: [
       "runtime",
@@ -128,6 +132,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "signals",
+    description: "List, connect, disconnect, and emit signals on scene nodes",
     tools: ["signal_list", "signal_manage", "signal_emit"],
     keywords: [
       "signal",
@@ -145,6 +150,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "animation_authoring",
+    description: "Author keyframes, edit tracks, and configure AnimationTree state machines",
     tools: ["animation_keyframe", "animation_get_keys", "animationtree_edit"],
     keywords: [
       "animation",
@@ -160,6 +166,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "input_map",
+    description: "Create and edit input actions and their key/controller bindings",
     tools: ["input_map_action", "input_map_event"],
     keywords: [
       "input",
@@ -176,21 +183,25 @@ export const GROUPS: GroupDef[] = [
   // FIX-3: asset_management (10 tools) split into 3 groups (2+2+6).
   {
     name: "resource_io",
+    description: "Load and write Godot resources (.tres/.res) programmatically",
     tools: ["resource_load", "resource_write"],
     keywords: ["resource", "load", "write", "save resource", "tres", "res"],
   },
   {
     name: "asset_ops",
+    description: "Query asset dependencies and import binary files into the project",
     tools: ["asset_get_dependencies", "asset_import"],
     keywords: ["asset", "import", "dependencies", "texture", "image"],
   },
   {
     name: "cleanup",
+    description: "Delete files, scripts, scenes, resources, and folders; close open scenes",
     tools: ["file_delete", "scene_delete", "script_delete", "resource_delete", "folder_delete", "scene_close"],
     keywords: ["delete", "cleanup", "close", "remove", "delete file", "delete scene", "delete script"],
   },
   {
     name: "user_data",
+    description: "Read, write, delete, and list user:// save files",
     tools: ["save_read", "save_write", "save_delete", "save_list"],
     keywords: ["save", "save file", "user data", "persistence", "save game", "load game", "savegame"],
     gate: "read_user_scope",
@@ -198,11 +209,13 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "scene_advanced",
+    description: "Diff scenes and batch-instantiate nodes from packed scenes",
     tools: ["scene_diff", "scene_instantiate"],
     keywords: ["instantiate", "instance", "scene diff", "compare", "prefab", "spawn", "batch instantiate"],
   },
   {
     name: "editor_advanced",
+    description: "Capture editor screenshots, refresh the filesystem, and wait for idle",
     tools: ["editor_screenshot", "editor_refresh", "editor_wait_for_idle"],
     keywords: [
       "screenshot",
@@ -218,21 +231,25 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "tilemap",
+    description: "Paint tilemap cells, create tilesets, and edit tileset properties",
     tools: ["tilemap_set_cells", "tileset_create", "tileset_edit"],
     keywords: ["tilemap", "tileset", "tile", "grid", "terrain", "cell", "layer"],
   },
   {
     name: "theme",
+    description: "Edit UI theme overrides: styleboxes, fonts, colors, and constants",
     tools: ["theme_edit"],
     keywords: ["theme", "style", "stylebox", "font", "color", "ui style", "control theme"],
   },
   {
     name: "layer_naming",
+    description: "Get and set physics, render, and navigation layer names",
     tools: ["layer_names_set", "layer_names_get"],
     keywords: ["layer", "layer name", "physics layer", "render layer", "collision layer", "collision mask", "mask"],
   },
   {
     name: "path_editing",
+    description: "Edit Path2D curves and generate collision shapes from sprite textures",
     tools: ["path2d_edit_curve", "collision_from_texture"],
     keywords: [
       "path",
@@ -253,6 +270,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "3d_tools",
+    description: "Create 3D primitives, lights, cameras, and environment setups",
     tools: ["3d_create_primitive", "3d_setup_environment", "3d_create_light", "3d_create_camera"],
     keywords: [
       "3d",
@@ -269,21 +287,25 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "procedural",
+    description: "Edit gradients, curves, and FastNoiseLite resources for procedural generation",
     tools: ["procedural_edit_gradient", "procedural_edit_curve", "procedural_edit_noise"],
     keywords: ["procedural", "generate", "gradient", "noise", "curve", "resource create", "fastnoiselite", "easing"],
   },
   {
     name: "scene_inheritance",
+    description: "Create inherited scenes (variants) from base scenes",
     tools: ["scene_create_inherited"],
     keywords: ["inheritance", "inherited scene", "prefab", "variant", "base scene", "scene extend", "inherit"],
   },
   {
     name: "audio",
+    description: "Configure audio buses, effects, and volume settings",
     tools: ["audiobus_edit"],
     keywords: ["audio", "audiobus", "sound", "music", "volume", "bus", "effect", "reverb", "sfx"],
   },
   {
     name: "spriteframes",
+    description: "Create and edit SpriteFrames animations and import from spritesheets",
     tools: ["spriteframes_create", "spriteframes_edit", "spriteframes_from_spritesheet"],
     keywords: [
       "sprite",
@@ -298,6 +320,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "particles",
+    description: "Create and configure GPU particle systems for visual effects",
     tools: ["particles_create"],
     keywords: [
       "particle",
@@ -318,6 +341,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "navigation",
+    description: "Set up navigation regions, meshes, and obstacle avoidance",
     tools: ["navigation_edit"],
     keywords: [
       "nav",
@@ -334,6 +358,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "lsp_code_analysis",
+    description: "GDScript diagnostics, symbols, and hover info via the language server",
     tools: ["lsp_diagnostics", "lsp_symbols", "lsp_hover"],
     keywords: [
       "lsp",
@@ -352,6 +377,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "lsp_code_navigation",
+    description: "Code completion, go-to-definition, and find references via the language server",
     tools: ["lsp_completion", "lsp_definition", "lsp_references"],
     keywords: [
       "completion",
@@ -366,6 +392,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "debugger",
+    description: "Inspect debugger state, manage breakpoints, and control execution flow",
     tools: ["debug_state", "debug_list_breakpoints", "debug_set_breakpoint", "debug_continue"],
     keywords: ["debug", "breakpoint", "pause", "continue", "step", "debugger", "state", "breaked"],
   },
@@ -815,7 +842,7 @@ function buildDiscoverToolsDesc(readOnly: boolean): string {
     else if (gateBlocked) state = "GATED";
     else state = "available";
 
-    let entry = `${group.name} [${state}] (${tools.join(", ")}`;
+    let entry = `${group.name} [${state}] "${group.description}" (${tools.join(", ")}`;
     if (group.gateEnvVar && gateBlocked) entry += ` — requires: ${group.gateEnvVar}=1`;
     entry += ")";
     parts.push(entry);
@@ -917,6 +944,13 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           .boolean()
           .optional()
           .describe("Auto-activate matching groups. Default true. Set false to browse without loading."),
+        include_schemas: coercedBoolean()
+          .optional()
+          .describe(
+            "Include full parameter schemas and annotations for activated tools. " +
+              "Default false. Set true when activated tools require a separate " +
+              "tool lookup to obtain schemas.",
+          ),
         reset: z
           .union([z.literal(true), z.array(z.string())])
           .optional()
@@ -933,17 +967,12 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         request?: string | string[];
         groups?: string[];
         activate?: boolean;
+        include_schemas?: boolean;
         reset?: true | string[];
       };
       const activate = parsed.activate !== false;
+      const includeSchemas = parsed.include_schemas === true;
 
-      type GroupResult = {
-        name: string;
-        status: "activated" | "available" | "already_loaded" | "gated";
-        tools: string[];
-        description?: string;
-        gate?: string;
-      };
       const groupResults: GroupResult[] = [];
       const deactivated: string[] = [];
 
@@ -992,13 +1021,21 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         }
       }
 
+      // Post-collection enrichment: replace bare {name} tool objects with
+      // full metadata for activated/already_loaded groups.
+      const extCmdLookup = new Map<string, ExtensionCmd>();
+      for (const [, ext] of extensionGroups) {
+        for (const cmd of ext.commands) extCmdLookup.set(cmd.toolName, cmd);
+      }
+      enrichGroupResults(groupResults, includeSchemas, allDefs, extCmdLookup);
+
       // Build response.
       const response: Record<string, unknown> = { success: true, groups: groupResults };
 
       // Core matches — only when request was given.
       if (parsed.request !== undefined) {
         const { core } = findMatchingGroups(parsed.request, readOnly);
-        if (core.length > 0) response.core_matches = core;
+        if (core.length > 0) response.core_matches = enrichCoreMatches(core, includeSchemas, allDefs);
       }
       if (deactivated.length > 0) {
         response.deactivated = deactivated;
@@ -1038,13 +1075,7 @@ function activateOrReportGroup(
   groupName: string,
   activate: boolean,
   readOnly: boolean,
-): {
-  name: string;
-  status: "activated" | "available" | "already_loaded" | "gated";
-  tools: string[];
-  description?: string;
-  gate?: string;
-} {
+): GroupResult {
   const group = GROUPS.find((g) => g.name === groupName);
   if (!group) {
     // Try extension groups.
@@ -1052,26 +1083,28 @@ function activateOrReportGroup(
   }
 
   // In read-only mode, filter tool lists to only show read-only tools.
-  const tools = readOnly
+  const toolNames = readOnly
     ? group.tools.filter((t) => {
         const d = allDefs.get(t);
         return d ? isAllowedInReadOnly(d.annotations) : false;
       })
     : group.tools;
+  const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
 
   if (loadedGroups.has(groupName)) {
-    return { name: groupName, status: "already_loaded", tools };
+    return { name: groupName, status: "already_loaded", tools, description: group.description };
   }
   if (group.gate && !isEnabled(group.gate)) {
     return {
       name: groupName,
       status: "gated",
       tools,
+      description: group.description,
       gate: group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate,
     };
   }
   if (!activate) {
-    return { name: groupName, status: "available", tools };
+    return { name: groupName, status: "available", tools, description: group.description };
   }
   const registered = registerGroupTools(server, bridge, group, readOnly);
   // In read-only mode, if all tools were filtered out, don't waste a group slot.
@@ -1084,7 +1117,12 @@ function activateOrReportGroup(
     };
   }
   loadedGroups.add(groupName);
-  return { name: groupName, status: "activated", tools: registered };
+  return {
+    name: groupName,
+    status: "activated",
+    tools: registered.map((t) => ({ name: t })),
+    description: group.description,
+  };
 }
 
 function activateOrReportExtGroup(
@@ -1093,19 +1131,15 @@ function activateOrReportExtGroup(
   name: string,
   activate: boolean,
   readOnly: boolean = false,
-): {
-  name: string;
-  status: "activated" | "available" | "already_loaded" | "gated";
-  tools: string[];
-  description?: string;
-} {
+): GroupResult {
   const ext = extensionGroups.get(name);
   if (!ext) {
     return { name, status: "available", tools: [], description: `Unknown group: ${name}` };
   }
-  const tools = readOnly
+  const toolNames = readOnly
     ? ext.commands.filter((c) => isAllowedInReadOnly(c.annotations)).map((c) => c.toolName)
     : ext.commands.map((c) => c.toolName);
+  const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
   if (loadedExtensionGroups.has(name)) {
     return { name, status: "already_loaded", tools, description: ext.description };
   }
@@ -1123,48 +1157,43 @@ function activateOrReportExtGroup(
     };
   }
   loadedExtensionGroups.add(name);
-  return { name, status: "activated", tools: registered, description: ext.description };
+  return {
+    name,
+    status: "activated",
+    tools: registered.map((t) => ({ name: t })),
+    description: ext.description,
+  };
 }
 
-function reportGroupStatus(
-  groupName: string,
-  readOnly: boolean,
-): {
-  name: string;
-  status: "activated" | "available" | "already_loaded" | "gated";
-  tools: string[];
-  gate?: string;
-} {
+function reportGroupStatus(groupName: string, readOnly: boolean): GroupResult {
   const group = GROUPS.find((g) => g.name === groupName);
   if (!group) return { name: groupName, status: "available", tools: [] };
   // In read-only mode, filter tool lists to only show read-only tools.
-  const tools = readOnly
+  const toolNames = readOnly
     ? group.tools.filter((t) => {
         const d = allDefs.get(t);
         return d ? isAllowedInReadOnly(d.annotations) : false;
       })
     : group.tools;
-  if (loadedGroups.has(groupName)) return { name: groupName, status: "already_loaded", tools };
+  const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
+  if (loadedGroups.has(groupName))
+    return { name: groupName, status: "already_loaded", tools, description: group.description };
   if (group.gate && !isEnabled(group.gate)) {
     return {
       name: groupName,
       status: "gated",
       tools,
+      description: group.description,
       gate: group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate,
     };
   }
-  return { name: groupName, status: "available", tools };
+  return { name: groupName, status: "available", tools, description: group.description };
 }
 
-function reportExtGroupStatus(name: string): {
-  name: string;
-  status: "activated" | "available" | "already_loaded" | "gated";
-  tools: string[];
-  description?: string;
-} {
+function reportExtGroupStatus(name: string): GroupResult {
   const ext = extensionGroups.get(name);
   if (!ext) return { name, status: "available", tools: [] };
-  const tools = ext.commands.map((c) => c.toolName);
+  const tools: ToolMeta[] = ext.commands.map((c) => ({ name: c.toolName }));
   if (loadedExtensionGroups.has(name)) return { name, status: "already_loaded", tools, description: ext.description };
   return { name, status: "available", tools, description: ext.description };
 }

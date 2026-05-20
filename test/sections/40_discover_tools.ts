@@ -36,6 +36,14 @@ export async function testDiscoverTools(ctx: TestCtx): Promise<void> {
     pass("discover_tools: all groups have keywords for discoverability");
   }
 
+  // ── Every group has a non-empty description ──
+  const noDesc = GROUPS.filter((g) => !g.description || g.description.length === 0);
+  if (noDesc.length > 0) {
+    fail(`discover_tools: groups without description: ${noDesc.map((g) => g.name).join(", ")}`);
+  } else {
+    pass("discover_tools: all groups have descriptions for LLM discoverability");
+  }
+
   // ── Every group has at least one tool ──
   const emptyTools = GROUPS.filter((g) => g.tools.length === 0);
   if (emptyTools.length > 0) {
