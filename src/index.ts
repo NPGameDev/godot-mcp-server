@@ -206,16 +206,49 @@ function registerGroups(): void {
   registerGroupSystem(server, bridge, readOnly);
 }
 
-function logStartup(): void {
+function registerExtensionsRefresh(): void {
+  if (!hasToolRef("extensions_refresh")) {
+    registerToolWrapped(
+      server,
+      bridge,
+      "extensions_refresh",
+      {
+        description:
+          "Force a filesystem rescan and re-discover extension scripts. " +
+          "Call after creating, modifying, or deleting extension files from outside the Godot editor. " +
+          "Returns the updated list of extension commands.",
+        annotations: { readOnlyHint: true, idempotentHint: true },
+      },
+      (input: unknown, signal?: AbortSignal) =>
+        callAndWrap(bridge, "extensions.refresh", input, { signal }) as Promise<ToolTextResult>,
+    );
+  }
+}
+
+function logStartup(extTimedOut = false): void {
+  const suffix = extTimedOut ? " (ext discovery timed out — extensions_refresh available)" : "";
   process.stderr.write(
-    `[godot-mcp] readOnly=${readOnly} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB\n`,
+    `[godot-mcp] readOnly=${readOnly} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB${suffix}\n`,
   );
 }
+
+// Generous for the editor-running case (<1s); protects against the rare
+// hanging-WebSocket-handshake scenario (editor partially started, port
+// open but not yet accepting). When the editor is fully down,
+// ECONNREFUSED fires in ~50ms — the deadline is irrelevant.
+const EXTENSION_DISCOVERY_DEADLINE_MS = 8000;
+
+// These must be declared before the module-level await (eager extension
+// discovery) to avoid Temporal Dead Zone errors — discoverExtensions()
+// and buildExtensionTimeoutHint() reference them during the await.
+const DEFAULT_EXTENSION_TIMEOUT_MS = 30_000;
+const knownExtensionTools = new Set<string>();
 
 // ── Initial registration ────────────────────────────────────────────
 
 registerModules(moduleAllowed);
 registerGroups();
+registerExtensionsRefresh(); // always in initial tools/list
 
 // ── Prompts, resources, roots ────────────────────────────────────────
 
@@ -224,7 +257,30 @@ registerResources(server, bridge);
 initRoots(projectPath);
 registerRoots(server);
 
-logStartup();
+// ── Eager extension discovery ──────────────────────────────────────
+// Discover extensions BEFORE transport connects so they're in the
+// initial tools/list. Deadline prevents blocking if editor is slow.
+// Note: bridge.onNotification is set up AFTER this await, so the
+// initial auth-delivered config_reloaded is silently ignored. This is
+// fine — env vars from .mcp.json are the authoritative gate source at
+// startup; plugin gates sync on subsequent reconnects.
+
+let extDiscoveryTimedOut = false;
+try {
+  await Promise.race([
+    discoverExtensions(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("extension discovery deadline")), EXTENSION_DISCOVERY_DEADLINE_MS),
+    ),
+  ]);
+} catch {
+  extDiscoveryTimedOut = true;
+  // Deadline or discovery error — if the bridge connects on a later
+  // tool call, config_reloaded re-triggers full discovery. LLM can
+  // also call extensions_refresh (always registered above).
+}
+
+logStartup(extDiscoveryTimedOut);
 
 // ── Live config reload ──────────────────────────────────────────────
 
@@ -330,8 +386,6 @@ bridge.onNotification((type, params) => {
 
 // ── Extension discovery ──────────────────────────────────────────────
 
-const DEFAULT_EXTENSION_TIMEOUT_MS = 30_000;
-
 /** Build a context-aware timeout hint for extension tools. */
 function buildExtensionTimeoutHint(method: string, timeoutMs?: number): string {
   const effectiveMs = timeoutMs ?? DEFAULT_EXTENSION_TIMEOUT_MS;
@@ -347,10 +401,9 @@ function buildExtensionTimeoutHint(method: string, timeoutMs?: number): string {
   );
 }
 
-// After the server starts, discover third-party extensions from the toolkit
-// and register them as MCP tools. Also registers discover_tools for
-// standard profile — deferred to here so the LLM only ever sees the
-// complete description (built-in + extension groups), avoiding stale schemas.
+// Discover third-party extensions from the toolkit and register them as
+// MCP tools. Called eagerly before transport (deadline-wrapped) at startup,
+// and again from handleConfigReload on gate/config changes.
 async function discoverExtensions(): Promise<void> {
   let registered = 0;
   let deferredCount = 0;
@@ -459,8 +512,9 @@ async function discoverExtensions(): Promise<void> {
     process.stderr.write(`[godot-mcp] extensions: ${parts.join(" + ")}\n`);
   }
 
-  // Always register extensions_refresh — lets the LLM trigger a filesystem
-  // rescan after creating/modifying extension files externally.
+  // Defensive re-registration: at startup, registerExtensionsRefresh()
+  // already registered this before the deadline-wrapped call. But on the
+  // handleConfigReload path, removeAllTools() clears it, so re-register.
   if (!hasToolRef("extensions_refresh")) {
     registerToolWrapped(
       server,
@@ -481,8 +535,8 @@ async function discoverExtensions(): Promise<void> {
 
 // ── Live extension reconciliation ───────────────────────────────────
 
-// Tracks currently known extension tool names (method-derived) for diff.
-const knownExtensionTools = new Set<string>();
+// Tracks currently known extension tool names — see declaration above
+// the initial-registration section (before the module-level await).
 
 /**
  * Handle "extensions.changed" push notification from the toolkit plugin.
@@ -669,8 +723,3 @@ process.on("uncaughtException", (err) => {
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-
-discoverExtensions().catch(() => {
-  // Swallowed — discoverExtensions already handles errors internally.
-  // This catch prevents Node's unhandledRejection for edge-case async throws.
-});
