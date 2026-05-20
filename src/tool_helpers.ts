@@ -374,12 +374,14 @@ export function registerToolWrapped(
 
   // The SDK passes (args, extra) to tool handlers; extra.signal is an
   // AbortSignal that fires when the MCP client sends notifications/cancelled.
+  // Defensive: extra may be undefined if the SDK omits it (observed with
+  // some client versions) — use optional chaining.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK registerTool overloads don't match our 2-arg signature
   const wrappedHandler = async (
     input: Record<string, unknown>,
-    extra: { signal: AbortSignal },
+    extra?: { signal?: AbortSignal },
   ): Promise<ToolTextResult> => {
-    const signal = extra.signal;
+    const signal = extra?.signal;
     // Version gate check
     const minVer = _versionMap.get(name);
     if (minVer != null) {
