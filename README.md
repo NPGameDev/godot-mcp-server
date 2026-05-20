@@ -74,7 +74,7 @@ Launch your MCP client from the project root. The server discovers the plugin au
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GODOT_MCP_PORT` | auto | Override the editor WebSocket port (default: auto-discovered from project registry) |
-| `GODOT_MCP_RUNTIME_PORT` | `6525` | Override the game runtime WebSocket port |
+| `GODOT_MCP_RUNTIME_PORT` | `6570` | Override the game runtime WebSocket port |
 | `GODOT_MCP_PROJECT_PATH` | `cwd` | Absolute path to the Godot project |
 | `GODOT_MCP_PROJECT_NAME` | from `project.godot` | Project name for token resolution |
 | `GODOT_MCP_TOKEN_PATH` | platform-specific | Override the auth token file path |
@@ -356,15 +356,15 @@ The toolkit implements defense-in-depth security. See the [plugin README](https:
 ```
 ┌─────────────┐          ┌─────────────────────┐          ┌────────────────────┐
 │  MCP client │─ stdio ─>│  godot-mcp-server   │─ ws ────>│  godot-mcp-toolkit │
-│  (AI agent) │          │  (this package)     │  :6505   │  (Godot plugin)    │
+│  (AI agent) │          │  (this package)     │  :6550   │  (Godot plugin)    │
 └─────────────┘          └─────────┬───────────┘          └─────────┬──────────┘
                                    │                                │
-                                   └──── ws :6525 (Mode B) ────────>│
+                                   └──── ws :6570 (Mode B) ────────>│
                                          (playtest runtime)        (autoload)
 ```
 
-- **Mode A** (editor, default port 6505) — operates on the edited scene via `EditorInterface`.
-- **Mode B** (runtime, default port 6525) — operates on the live `SceneTree` during playtests. Auto-connected when `game_start` runs with `wait_for_runtime: true`.
+- **Mode A** (editor, default port 6550) — operates on the edited scene via `EditorInterface`.
+- **Mode B** (runtime, default port 6570) — operates on the live `SceneTree` during playtests. Auto-connected when `game_start` runs with `wait_for_runtime: true`.
 
 Port discovery is automatic via a shared project registry; `GODOT_MCP_PORT` overrides if needed. Auth tokens are resolved per-project (and per-worktree for multi-instance setups).
 

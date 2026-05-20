@@ -13,7 +13,7 @@ import { BridgeError } from "../errors.js";
 import { stableStringify } from "../schema_min.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
-// 127.0.0.1:6525. Only works while the game is running in a debug build
+// 127.0.0.1:6570. Only works while the game is running in a debug build
 // (release exports never ship the autoload). Bridge.callRuntime maps the
 // connect failure to GAME_NOT_RUNNING for us.
 

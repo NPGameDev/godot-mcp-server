@@ -9,7 +9,7 @@ repo's `CLAUDE.md` (user-facing tool list + conventions).
 ## What this repo is
 
 The TypeScript MCP server that bridges Claude Code (stdio) to the `godot-mcp-toolkit`
-Godot editor plugin (WebSocket `127.0.0.1:6505`). Repo root IS the npm package
+Godot editor plugin (WebSocket `127.0.0.1:6550`). Repo root IS the npm package
 root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev/godot-mcp-server`
 (or `npx -y @npgamedev/godot-mcp-server`).
 
@@ -163,8 +163,8 @@ handler).
 
 | Variable                    | Default                 | Purpose |
 |-----------------------------|-------------------------|---------|
-| `GODOT_MCP_PORT`            | `6505`                  | Editor WebSocket port |
-| `GODOT_MCP_RUNTIME_PORT`    | `6525`                  | Game runtime WebSocket port |
+| `GODOT_MCP_PORT`            | `6550`                  | Editor WebSocket port |
+| `GODOT_MCP_RUNTIME_PORT`    | `6570`                  | Game runtime WebSocket port |
 | `GODOT_MCP_TOKEN_PATH`      | (resolved from project) | Absolute override for the session-token file |
 | `GODOT_MCP_PROJECT_NAME`    | (read from project.godot, else `[unnamed project]`) | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
 

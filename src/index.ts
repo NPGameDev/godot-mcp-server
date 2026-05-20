@@ -91,7 +91,7 @@ if (explicitPort) {
     editorPort = String(entry.port);
     process.stderr.write(`[godot-mcp] registry: ${projectPath} → port ${editorPort}\n`);
   } else {
-    editorPort = "6505";
+    editorPort = "6550";
     process.stderr.write(`[godot-mcp] registry: no entry for ${projectPath}; falling back to port ${editorPort}\n`);
   }
 }

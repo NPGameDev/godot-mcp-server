@@ -42,7 +42,7 @@ Open the toolkit repo root in Godot 4.4+, then enable the plugin:
 **Project Settings -> Plugins -> "Godot MCP Toolkit" -> Active**
 
 Leave the editor running. The server connects to the plugin's WebSocket on
-`127.0.0.1:6505`.
+`127.0.0.1:6550`.
 
 ### 3. Verify the connection
 
@@ -50,7 +50,7 @@ Leave the editor running. The server connects to the plugin's WebSocket on
 npm run smoke
 ```
 
-The smoke test port-checks `127.0.0.1:6505`. If nothing is listening, it prints
+The smoke test port-checks `127.0.0.1:6550`. If nothing is listening, it prints
 instructions and exits. Make sure the Godot editor is running with the plugin
 enabled.
 

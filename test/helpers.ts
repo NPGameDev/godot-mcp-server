@@ -6,8 +6,8 @@ import { createBridge } from "../src/bridge.js";
 
 // ─── Constants ───────────────────────────────────────────────────────────
 export const HOST = "127.0.0.1";
-export const PORT = Number(process.env.GODOT_MCP_PORT ?? "6505");
-export const RUNTIME_PORT = Number(process.env.GODOT_MCP_RUNTIME_PORT ?? "6525");
+export const PORT = Number(process.env.GODOT_MCP_PORT ?? "6550");
+export const RUNTIME_PORT = Number(process.env.GODOT_MCP_RUNTIME_PORT ?? "6570");
 export const PROBE_TIMEOUT_MS = 1000;
 export const MAIN_SCENE = "res://Main.tscn";
 export const CALL_TIMEOUT = 5000;
