@@ -14,7 +14,7 @@ import {
   batchToolRegistration,
 } from "./tool_helpers.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
-import { MUTATING_TOOLS } from "./profiles.js";
+import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
 
 // Import tool defs from all modules that contribute group tools.
@@ -626,9 +626,9 @@ function createHandler(bridge: Bridge, def: ToolDef) {
 function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, readOnly: boolean): string[] {
   const registered: string[] = [];
   for (const toolName of group.tools) {
-    if (readOnly && MUTATING_TOOLS.has(toolName)) continue;
     const def = allDefs.get(toolName);
     if (!def) continue;
+    if (isExcludedByReadOnly(readOnly, def.annotations)) continue;
     removeToolByName(toolName); // Remove stub if present
     registerToolWrapped(
       server,
@@ -707,7 +707,10 @@ function matchKeywords(query: string, keywords: string[]): number {
   return score;
 }
 
-function findMatchingGroups(rawRequest: string | string[]): {
+function findMatchingGroups(
+  rawRequest: string | string[],
+  readOnly: boolean,
+): {
   builtIn: GroupMatch[];
   extension: ExtGroupMatch[];
   core: CoreMatch[];
@@ -718,6 +721,14 @@ function findMatchingGroups(rawRequest: string | string[]): {
   const core: CoreMatch[] = [];
 
   for (const group of GROUPS) {
+    // In read-only mode, skip groups with zero read-only tools.
+    if (readOnly) {
+      const hasReadOnlyTool = group.tools.some((t) => {
+        const d = allDefs.get(t);
+        return d ? isAllowedInReadOnly(d.annotations) : false;
+      });
+      if (!hasReadOnlyTool) continue;
+    }
     let score = 0;
     for (const q of queries) {
       score += matchKeywords(q, group.keywords);
@@ -732,6 +743,11 @@ function findMatchingGroups(rawRequest: string | string[]): {
   builtIn.sort((a, b) => b.score - a.score);
 
   for (const [name, ext] of extensionGroups) {
+    // In read-only mode, skip extension groups with zero read-only tools.
+    if (readOnly) {
+      const hasReadOnly = ext.commands.some((c) => isAllowedInReadOnly(c.annotations));
+      if (!hasReadOnly) continue;
+    }
     let score = 0;
     for (const q of queries) {
       // Extension keywords (author-provided) — same scoring as built-in groups.
@@ -756,6 +772,11 @@ function findMatchingGroups(rawRequest: string | string[]): {
   // Core tool matching — surface already-available tools that match.
   const seen = new Set<string>();
   for (const [toolName, keywords] of CORE_TOOL_KEYWORDS) {
+    // In read-only mode, only surface read-only core tools.
+    if (readOnly) {
+      const def = allDefs.get(toolName);
+      if (!def || !isAllowedInReadOnly(def.annotations)) continue;
+    }
     for (const q of queries) {
       if (matchKeywords(q, keywords) > 0 && !seen.has(toolName)) {
         const def = allDefs.get(toolName);
@@ -775,9 +796,18 @@ function findMatchingGroups(rawRequest: string | string[]): {
 // I2 waiver: discover_tools description intentionally exceeds the 200-char
 // tool-description limit. As the gateway to 30+ hidden tools, discoverability
 // is more important than description brevity for this meta-tool.
-function buildDiscoverToolsDesc(): string {
+function buildDiscoverToolsDesc(readOnly: boolean): string {
   const parts: string[] = [];
   for (const group of GROUPS) {
+    // In read-only mode, filter to read-only tools and omit empty groups.
+    const tools = readOnly
+      ? group.tools.filter((t) => {
+          const d = allDefs.get(t);
+          return d ? isAllowedInReadOnly(d.annotations) : false;
+        })
+      : group.tools;
+    if (readOnly && tools.length === 0) continue;
+
     const loaded = loadedGroups.has(group.name);
     const gateBlocked = !!(group.gate && !isEnabled(group.gate));
     let state: string;
@@ -785,7 +815,7 @@ function buildDiscoverToolsDesc(): string {
     else if (gateBlocked) state = "GATED";
     else state = "available";
 
-    let entry = `${group.name} [${state}] (${group.tools.join(", ")}`;
+    let entry = `${group.name} [${state}] (${tools.join(", ")}`;
     if (group.gateEnvVar && gateBlocked) entry += ` — requires: ${group.gateEnvVar}=1`;
     entry += ")";
     parts.push(entry);
@@ -793,8 +823,11 @@ function buildDiscoverToolsDesc(): string {
 
   const extParts: string[] = [];
   for (const [name, ext] of extensionGroups) {
+    // In read-only mode, filter to read-only extension tools and omit empty groups.
+    const cmds = readOnly ? ext.commands.filter((c) => isAllowedInReadOnly(c.annotations)) : ext.commands;
+    if (readOnly && cmds.length === 0) continue;
     const loaded = loadedExtensionGroups.has(name);
-    const tools = ext.commands.map((c) => c.toolName).join(", ");
+    const tools = cmds.map((c) => c.toolName).join(", ");
     const desc = ext.description || name;
     extParts.push(`${name} [${loaded ? "LOADED" : "available"}] "${desc}" → ${tools}`);
   }
@@ -832,7 +865,8 @@ function deactivateGroups(names: string[] | true, readOnly: boolean): string[] {
     const group = GROUPS.find((g) => g.name === groupName);
     if (group && loadedGroups.has(groupName)) {
       for (const toolName of group.tools) {
-        if (readOnly && MUTATING_TOOLS.has(toolName)) continue;
+        const def = allDefs.get(toolName);
+        if (isExcludedByReadOnly(readOnly, def?.annotations)) continue;
         removeToolByName(toolName);
       }
       loadedGroups.delete(groupName);
@@ -860,7 +894,7 @@ function deactivateGroups(names: string[] | true, readOnly: boolean): string[] {
  */
 export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly: boolean): void {
   if (hasToolRef("discover_tools")) {
-    updateToolRef("discover_tools", { description: buildDiscoverToolsDesc() });
+    updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(readOnly) });
     return;
   }
   registerToolWrapped(
@@ -868,7 +902,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
     bridge,
     "discover_tools",
     {
-      description: buildDiscoverToolsDesc(),
+      description: buildDiscoverToolsDesc(readOnly),
       inputSchema: {
         request: z
           .union([z.string(), z.array(z.string())])
@@ -929,14 +963,14 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
         // Phase 3: keyword search.
         if (parsed.request !== undefined) {
-          const matches = findMatchingGroups(parsed.request);
+          const matches = findMatchingGroups(parsed.request, readOnly);
           for (const m of matches.builtIn) {
             if (groupResults.some((r) => r.name === m.group.name)) continue;
             groupResults.push(activateOrReportGroup(server, bridge, m.group.name, activate, readOnly));
           }
           for (const m of matches.extension) {
             if (groupResults.some((r) => r.name === m.name)) continue;
-            groupResults.push(activateOrReportExtGroup(server, bridge, m.name, activate));
+            groupResults.push(activateOrReportExtGroup(server, bridge, m.name, activate, readOnly));
           }
         }
 
@@ -945,13 +979,13 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         // registrations.  Previously this lived outside batchToolRegistration,
         // causing a split notification that left Claude Code's tool index
         // stale after groups: activation (FIX-C).
-        updateToolRef("discover_tools", { description: buildDiscoverToolsDesc() });
+        updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(readOnly) });
       });
 
       // No params → full catalog (no activation).
       if (parsed.request === undefined && !parsed.groups && parsed.reset === undefined) {
         for (const group of GROUPS) {
-          groupResults.push(reportGroupStatus(group.name));
+          groupResults.push(reportGroupStatus(group.name, readOnly));
         }
         for (const [name] of extensionGroups) {
           groupResults.push(reportExtGroupStatus(name));
@@ -963,7 +997,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
       // Core matches — only when request was given.
       if (parsed.request !== undefined) {
-        const { core } = findMatchingGroups(parsed.request);
+        const { core } = findMatchingGroups(parsed.request, readOnly);
         if (core.length > 0) response.core_matches = core;
       }
       if (deactivated.length > 0) {
@@ -1032,6 +1066,15 @@ function activateOrReportGroup(
     return { name: groupName, status: "available", tools: group.tools };
   }
   const registered = registerGroupTools(server, bridge, group, readOnly);
+  // In read-only mode, if all tools were filtered out, don't waste a group slot.
+  if (readOnly && registered.length === 0) {
+    return {
+      name: groupName,
+      status: "available",
+      tools: [],
+      description: `Group '${groupName}' has no tools available in read-only mode.`,
+    };
+  }
   loadedGroups.add(groupName);
   return { name: groupName, status: "activated", tools: registered };
 }
@@ -1041,6 +1084,7 @@ function activateOrReportExtGroup(
   bridge: Bridge,
   name: string,
   activate: boolean,
+  readOnly: boolean = false,
 ): {
   name: string;
   status: "activated" | "available" | "already_loaded" | "gated";
@@ -1051,19 +1095,33 @@ function activateOrReportExtGroup(
   if (!ext) {
     return { name, status: "available", tools: [], description: `Unknown group: ${name}` };
   }
-  const tools = ext.commands.map((c) => c.toolName);
+  const tools = readOnly
+    ? ext.commands.filter((c) => isAllowedInReadOnly(c.annotations)).map((c) => c.toolName)
+    : ext.commands.map((c) => c.toolName);
   if (loadedExtensionGroups.has(name)) {
     return { name, status: "already_loaded", tools, description: ext.description };
   }
   if (!activate) {
     return { name, status: "available", tools, description: ext.description };
   }
-  const registered = registerExtGroupTools(server, bridge, ext);
+  const registered = registerExtGroupTools(server, bridge, ext, readOnly);
+  // In read-only mode, if all tools were filtered out, don't waste a group slot.
+  if (readOnly && registered.length === 0) {
+    return {
+      name,
+      status: "available",
+      tools: [],
+      description: `Group '${name}' has no tools available in read-only mode.`,
+    };
+  }
   loadedExtensionGroups.add(name);
   return { name, status: "activated", tools: registered, description: ext.description };
 }
 
-function reportGroupStatus(groupName: string): {
+function reportGroupStatus(
+  groupName: string,
+  readOnly: boolean,
+): {
   name: string;
   status: "activated" | "available" | "already_loaded" | "gated";
   tools: string[];
@@ -1071,16 +1129,23 @@ function reportGroupStatus(groupName: string): {
 } {
   const group = GROUPS.find((g) => g.name === groupName);
   if (!group) return { name: groupName, status: "available", tools: [] };
-  if (loadedGroups.has(groupName)) return { name: groupName, status: "already_loaded", tools: group.tools };
+  // In read-only mode, filter tool lists to only show read-only tools.
+  const tools = readOnly
+    ? group.tools.filter((t) => {
+        const d = allDefs.get(t);
+        return d ? isAllowedInReadOnly(d.annotations) : false;
+      })
+    : group.tools;
+  if (loadedGroups.has(groupName)) return { name: groupName, status: "already_loaded", tools };
   if (group.gate && !isEnabled(group.gate)) {
     return {
       name: groupName,
       status: "gated",
-      tools: group.tools,
+      tools,
       gate: group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate,
     };
   }
-  return { name: groupName, status: "available", tools: group.tools };
+  return { name: groupName, status: "available", tools };
 }
 
 function reportExtGroupStatus(name: string): {
@@ -1097,9 +1162,15 @@ function reportExtGroupStatus(name: string): {
 }
 
 /** Register an extension group's tools (called from discover_tools handler). */
-function registerExtGroupTools(server: McpServer, bridge: Bridge, group: ExtensionGroupDef): string[] {
+function registerExtGroupTools(
+  server: McpServer,
+  bridge: Bridge,
+  group: ExtensionGroupDef,
+  readOnly: boolean = false,
+): string[] {
   const registered: string[] = [];
   for (const cmd of group.commands) {
+    if (isExcludedByReadOnly(readOnly, cmd.annotations)) continue;
     registerToolWrapped(
       server,
       bridge,
@@ -1125,11 +1196,11 @@ function registerExtGroupTools(server: McpServer, bridge: Bridge, group: Extensi
  * For power_user profile: register all extension group tools immediately.
  * Batches notifications so only 1 tools/list_changed fires regardless of tool count.
  */
-export function registerAllExtensionGroupTools(server: McpServer, bridge: Bridge): void {
+export function registerAllExtensionGroupTools(server: McpServer, bridge: Bridge, readOnly: boolean = false): void {
   batchToolRegistration(server, () => {
     for (const [name, group] of extensionGroups) {
       if (loadedExtensionGroups.has(name)) continue;
-      registerExtGroupTools(server, bridge, group);
+      registerExtGroupTools(server, bridge, group, readOnly);
       loadedExtensionGroups.add(name);
     }
   });

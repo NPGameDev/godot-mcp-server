@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { createBridge } from "./bridge.js";
 import { lookupProject } from "./registry.js";
-import { resolveAllowedTools, isReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
+import { resolveAllowedTools, isReadOnly, isExcludedByReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
 import {
   registerGroupSystem,
   GROUP_TOOL_NAMES,
@@ -62,7 +62,7 @@ warnDeprecatedEnvVars();
 let readOnly = isReadOnly();
 
 function buildAllowedTools(): Set<string> {
-  return resolveAllowedTools(readOnly);
+  return resolveAllowedTools();
 }
 
 /** Subtract group-managed tools → set used by module register(). */
@@ -416,7 +416,7 @@ async function discoverExtensions(): Promise<void> {
               idempotentHint: cmd.annotations?.idempotentHint ?? false,
             };
             // Read-only mode: skip extension tools that aren't read-only.
-            if (readOnly && !annotations.readOnlyHint) continue;
+            if (isExcludedByReadOnly(readOnly, annotations)) continue;
             const timeoutMs = cmd.timeout_ms ?? undefined;
             const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
             registerToolWrapped(
@@ -561,7 +561,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
         idempotentHint: cmd.annotations?.idempotentHint ?? false,
       };
       // Read-only mode: skip extension tools that aren't read-only.
-      if (readOnly && !annotations.readOnlyHint) continue;
+      if (isExcludedByReadOnly(readOnly, annotations)) continue;
       const timeoutMs = cmd.timeout_ms ?? undefined;
       const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
       registerToolWrapped(

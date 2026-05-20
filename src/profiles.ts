@@ -54,90 +54,36 @@ export const STANDARD_TOOLS: readonly string[] = [
   "node_call_method",
 ];
 
-/** Tools that modify state. Subtracted from catalogue when GODOT_MCP_READ_ONLY=1. */
-export const MUTATING_TOOLS = new Set([
-  // Scene mutations
-  "scene_create_node",
-  "scene_delete_node",
-  "scene_create",
-  "scene_delete",
-  "scene_instantiate",
-  "scene_close",
-  "scene_create_inherited",
-  // Node mutations
-  "node_set_property",
-  "node_set_script",
-  "node_call_method",
-  // Script mutations
-  "script_write",
-  "script_delete",
-  // Editor mutations
-  "editor_save_scene",
-  "editor_refresh",
-  // Resource/folder/file
-  "resource_write",
-  "resource_delete",
-  "folder_create",
-  "folder_delete",
-  "file_delete",
-  "asset_import",
-  // Playtest
-  "game_start",
-  "game_stop",
-  "execute_code",
-  // Settings
-  "project_set_setting",
-  "layer_names_set",
-  // Signals
-  "signal_manage",
-  "signal_emit",
-  // Input map
-  "input_map_action",
-  "input_map_event",
-  // Animation / tilemap / theme
-  "animation_keyframe",
-  "animationtree_edit",
-  "tilemap_set_cells",
-  "tileset_create",
-  "tileset_edit",
-  "theme_edit",
-  // Path editing
-  "path2d_edit_curve",
-  "collision_from_texture",
-  // User data
-  "save_write",
-  "save_delete",
-  // Runtime
-  "input_simulate",
-  "runtime_set_property",
-  "animation_player_control",
-  // Node management
-  "node_manage",
-  "node_groups",
-  "autoload_manage",
-  // 3D tools
-  "3d_create_primitive",
-  "3d_setup_environment",
-  "3d_create_light",
-  "3d_create_camera",
-  // Procedural resources
-  "procedural_edit_gradient",
-  "procedural_edit_curve",
-  "procedural_edit_noise",
-  // Audio
-  "audiobus_edit",
-  // SpriteFrames
-  "spriteframes_create",
-  "spriteframes_edit",
-  "spriteframes_from_spritesheet",
-  // Particles
-  "particles_create",
-  // Navigation
-  "navigation_edit",
-  // Debugger
-  "debug_set_breakpoint",
-  "debug_continue",
-]);
+/** Annotation shape used by the read-only predicate. */
+type ReadOnlyAnnotations = { readOnlyHint?: boolean; destructiveHint?: boolean };
+
+/**
+ * Centralized read-only predicate. A tool is allowed in read-only mode iff
+ * its annotations declare readOnlyHint: true. Strict inclusion — unannotated
+ * tools default to excluded (safe).
+ *
+ * Runtime invariant: readOnlyHint + destructiveHint is a contradiction.
+ * When detected, log a warning and treat the tool as mutating (never crash).
+ */
+export function isAllowedInReadOnly(annotations?: ReadOnlyAnnotations): boolean {
+  if (!annotations?.readOnlyHint) return false;
+  if (annotations.destructiveHint) {
+    process.stderr.write(
+      "[godot-mcp] WARNING: tool has both readOnlyHint and destructiveHint — treating as mutating\n",
+    );
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Combined read-only gate: returns true when a tool should be excluded.
+ * Wraps both the mode check and the annotation check into a single call
+ * so callers don't repeat `if (readOnly && !isAllowedInReadOnly(...))`.
+ */
+export function isExcludedByReadOnly(readOnly: boolean, annotations?: ReadOnlyAnnotations): boolean {
+  return readOnly && !isAllowedInReadOnly(annotations);
+}
 
 /** Whether read-only mode is active. */
 export function isReadOnly(): boolean {
@@ -146,14 +92,11 @@ export function isReadOnly(): boolean {
 
 /**
  * Build the allowed-tool set for initial registration.
- * Standard tools, minus mutating tools when read-only.
+ * Returns all standard tools. Read-only filtering happens at point-of-use
+ * via isAllowedInReadOnly() — no pre-computed subtraction needed.
  */
-export function resolveAllowedTools(readOnly: boolean): Set<string> {
-  const names = new Set(STANDARD_TOOLS);
-  if (readOnly) {
-    for (const name of MUTATING_TOOLS) names.delete(name);
-  }
-  return names;
+export function resolveAllowedTools(): Set<string> {
+  return new Set(STANDARD_TOOLS);
 }
 
 /** Emit a one-time deprecation warning if legacy env vars are set. */

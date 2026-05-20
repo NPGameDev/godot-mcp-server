@@ -8,6 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { stableStringify } from "./schema_min.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
+import { isReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import type { Bridge, ErrorCode, ToolDef, ToolTextResult, ToolRequest } from "./types.js";
 import { BridgeError } from "./errors.js";
 import { setToolRef } from "./tool_refs.js";
@@ -426,8 +427,10 @@ export function registerTools(
     hookPipeline?: HookPipeline;
   } = {},
 ): void {
+  const readOnly = isReadOnly();
   for (const tool of tools) {
     if (allowedTools && !allowedTools.has(tool.name)) continue;
+    if (isExcludedByReadOnly(readOnly, tool.annotations)) continue;
 
     let description = tool.description;
     const customHandler = opts.handlers?.get(tool.name);

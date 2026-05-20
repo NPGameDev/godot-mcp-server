@@ -20,7 +20,7 @@ process.env.GODOT_MCP_ALLOW_USER_SCOPE = "1";
 // tool registrations (isEnabled() checks at module load time) see them.
 const { z } = await import("zod");
 const { minifySchema } = await import("../src/schema_min.js");
-const { MINIMAL_TOOLS, STANDARD_TOOLS } = await import("../src/profiles.js");
+const { STANDARD_TOOLS, isAllowedInReadOnly } = await import("../src/profiles.js");
 const { GROUPS } = await import("../src/groups.js");
 
 const { animationTools } = await import("../src/tools/animation.js");
@@ -189,8 +189,8 @@ const STUB_ENTRIES: McpToolEntry[] = [
 
 // ── Build profile catalogues ─────────────────────────────────────────
 
-// Minimal: MINIMAL_TOOLS only
-const minimalDefs = MINIMAL_TOOLS.map((n) => byName.get(n)).filter(Boolean) as ToolDef[];
+// Read-only: tools with readOnlyHint: true (annotation-derived, no hardcoded list)
+const readOnlyDefs = ALL_DEFS.filter((t) => isAllowedInReadOnly(t.annotations));
 
 // Standard (default, gates closed): STANDARD_TOOLS + discover_tools + stubs
 const standardDefs = STANDARD_TOOLS.map((n) => byName.get(n)).filter(Boolean) as ToolDef[];
@@ -219,8 +219,8 @@ function profileCost(
   return { toolCount: all.length, totalBytes: b, estimatedTokens: tokens(b) };
 }
 
-const minimal = profileCost(minimalDefs);
-const minimalMin = profileCost(minimalDefs, [], true);
+const readOnly = profileCost(readOnlyDefs);
+const readOnlyMin = profileCost(readOnlyDefs, [], true);
 const standard = profileCost(standardDefs, [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES]);
 const standardMin = profileCost(standardDefs, [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES], true);
 const full = profileCost(fullDefs);
@@ -256,7 +256,7 @@ emit("");
 emit("| Profile | Tools | Bytes | Est. tokens | Minified bytes | Minified tokens | Savings |");
 emit("|---------|------:|------:|------------:|---------------:|----------------:|--------:|");
 emit(
-  `| Minimal | ${minimal.toolCount} | ${minimal.totalBytes.toLocaleString()} | ~${minimal.estimatedTokens.toLocaleString()} | ${minimalMin.totalBytes.toLocaleString()} | ~${minimalMin.estimatedTokens.toLocaleString()} | ${pct(minimal.totalBytes, minimalMin.totalBytes)} |`,
+  `| Read-only | ${readOnly.toolCount} | ${readOnly.totalBytes.toLocaleString()} | ~${readOnly.estimatedTokens.toLocaleString()} | ${readOnlyMin.totalBytes.toLocaleString()} | ~${readOnlyMin.estimatedTokens.toLocaleString()} | ${pct(readOnly.totalBytes, readOnlyMin.totalBytes)} |`,
 );
 emit(
   `| Standard | ${standard.toolCount} | ${standard.totalBytes.toLocaleString()} | ~${standard.estimatedTokens.toLocaleString()} | ${standardMin.totalBytes.toLocaleString()} | ~${standardMin.estimatedTokens.toLocaleString()} | ${pct(standard.totalBytes, standardMin.totalBytes)} |`,
@@ -275,7 +275,7 @@ emit("");
 emit("| Use case | Recommended profile | Why |");
 emit("|----------|--------------------:|-----|");
 emit(
-  `| Code review / exploration | Minimal (${minimalMin.estimatedTokens.toLocaleString()} tokens) | Read-only tools cover scene inspection, script reading, class lookup |`,
+  `| Code review / exploration | Read-only (${readOnlyMin.estimatedTokens.toLocaleString()} tokens) | Read-only tools cover scene inspection, script reading, class lookup |`,
 );
 emit(
   `| Day-to-day development | Standard (${standardMin.estimatedTokens.toLocaleString()} tokens) | Core editing tools + on-demand groups for specialized work |`,

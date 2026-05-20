@@ -23,8 +23,8 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - `src/errors.ts` — `BridgeError` runtime error class.
 - `src/tool_helpers.ts` — `callAndWrap` (uses `stableStringify` for deterministic
   output), `toolError*` helpers, `registerToolWrapped`/`registerTools`.
-- `src/profiles.ts` — tool visibility (`resolveAllowedTools`, `isReadOnly`).
-  Defines `STANDARD_TOOLS`, `MUTATING_TOOLS`.
+- `src/profiles.ts` — tool visibility (`resolveAllowedTools`, `isReadOnly`,
+  `isAllowedInReadOnly`, `isExcludedByReadOnly`). Defines `STANDARD_TOOLS`.
 - `src/groups.ts` — lazy-load group system. `registerGroupSystem` registers
   `discover_tools` meta-tool. `GROUP_TOOL_NAMES` tracks group membership.
 - `src/feature_gate.ts` — env-var-only gate checks (`isEnabled`, `envVarFor`).
@@ -64,8 +64,10 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 ## Tool catalogue
 
 Standard tools are always visible. Group tools are loaded on demand via
-`discover_tools`. `GODOT_MCP_READ_ONLY=1` hides all mutating tools.
-Source of truth: `src/profiles.ts` (`STANDARD_TOOLS`, `MUTATING_TOOLS`).
+`discover_tools`. `GODOT_MCP_READ_ONLY=1` hides all tools without
+`readOnlyHint: true` in their annotations (single source of truth).
+Source of truth: each tool's `annotations.readOnlyHint`, filtered by
+`isAllowedInReadOnly()` / `isExcludedByReadOnly()` in `src/profiles.ts`.
 
 ### Lazy-load groups
 

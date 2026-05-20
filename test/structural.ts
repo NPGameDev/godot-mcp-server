@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 import type { ToolDef } from "../src/types.js";
-import { MUTATING_TOOLS } from "../src/profiles.js";
+import { isAllowedInReadOnly } from "../src/profiles.js";
 
 // ── Import ALL tool arrays (eagerly-registered + group-loaded) ──────
 import { sceneTools } from "../src/tools/scene.js";
@@ -318,9 +318,14 @@ function checkAnnotations(tools: ToolDef[], pass: (msg: string) => void, fail: (
       fail(`annotations: ${t.name} — missing readOnlyHint`);
       failures++;
     }
-    // destructiveHint must be defined for MUTATING_TOOLS members
-    if (MUTATING_TOOLS.has(t.name) && ann?.destructiveHint === undefined) {
-      fail(`annotations: ${t.name} — in MUTATING_TOOLS but missing destructiveHint`);
+    // destructiveHint must be defined for mutating tools (readOnlyHint !== true)
+    if (!isAllowedInReadOnly(ann) && ann?.destructiveHint === undefined) {
+      fail(`annotations: ${t.name} — mutating tool missing destructiveHint`);
+      failures++;
+    }
+    // readOnlyHint + destructiveHint is a contradiction
+    if (ann?.readOnlyHint && ann?.destructiveHint) {
+      fail(`annotations: ${t.name} — has both readOnlyHint and destructiveHint`);
       failures++;
     }
     // idempotentHint — warn only
