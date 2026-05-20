@@ -127,6 +127,7 @@ function parseListArg(flag: string): number[] | undefined {
 const FROM_SECTION = parseIntArg("--from");
 const TO_SECTION = parseIntArg("--to");
 const ONLY_SECTIONS = parseListArg("--only");
+const SKIP_SECTIONS = parseListArg("--skip");
 
 // ─── Counters ────────────────────────────────────────────────────────────
 let passCount = 0;
@@ -282,6 +283,9 @@ function filterSections(): Section[] {
   if (ONLY_SECTIONS) {
     const set = new Set(ONLY_SECTIONS);
     filtered = ALL_SECTIONS.filter((s) => set.has(s.num));
+    if (SKIP_SECTIONS) {
+      console.log("[smoke] WARNING: --skip ignored when --only is set\n");
+    }
   } else if (FROM_SECTION !== undefined || TO_SECTION !== undefined) {
     const from = FROM_SECTION ?? 1;
     const to = TO_SECTION ?? Infinity;
@@ -294,6 +298,29 @@ function filterSections(): Section[] {
   if (filtered.some((s) => s.num === 11) && !filtered.some((s) => s.num === 1)) {
     filtered.unshift(ALL_SECTIONS[0]);
     console.log("[smoke] Auto-included section 01 (catalogue) — required by section 11\n");
+  }
+
+  // --skip post-filter: applied after base set + auto-include, so explicit
+  // skips always win (even over auto-included sections).
+  if (SKIP_SECTIONS && !ONLY_SECTIONS) {
+    const skipSet = new Set(SKIP_SECTIONS);
+    const skippedNums: number[] = [];
+    filtered = filtered.filter((s) => {
+      if (skipSet.has(s.num)) {
+        skippedNums.push(s.num);
+        return false;
+      }
+      return true;
+    });
+    if (skippedNums.length > 0) {
+      console.log(`[smoke] --skip: excluded sections ${skippedNums.join(", ")}`);
+    }
+    // Warn if skip removed auto-included section 01 while section 11 remains.
+    if (skipSet.has(1) && filtered.some((s) => s.num === 11)) {
+      console.log(
+        "[smoke] WARNING: section 01 skipped but section 11 is included — 11 may fail without catalogue data\n",
+      );
+    }
   }
 
   // Section 20 (reconnect) always runs last — it drops the connection
@@ -339,7 +366,7 @@ async function runFullMode(): Promise<void> {
 
   const sections = filterSections();
   const nums = sections.map((s) => s.num);
-  if (ONLY_SECTIONS || FROM_SECTION !== undefined || TO_SECTION !== undefined) {
+  if (ONLY_SECTIONS || FROM_SECTION !== undefined || TO_SECTION !== undefined || SKIP_SECTIONS) {
     console.log(`[smoke] Running sections: ${nums.join(", ")}\n`);
   }
   if (GATES_ON_SKIP) {

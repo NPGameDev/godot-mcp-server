@@ -17,7 +17,7 @@ import { allFeatures, envVarFor } from "../src/feature_gate.js";
 
 const PROJECT_NAME = process.env.GODOT_MCP_PROJECT_NAME ?? "Godot MCP Toolkit";
 
-// Forward CLI flags (--from, --to, --only, --ci) to each smoke.ts invocation.
+// Forward CLI flags (--from, --to, --only, --skip, --ci) to each smoke.ts invocation.
 const smokeArgs = process.argv.slice(2);
 
 function run(label: string, env: Record<string, string>, extraArgs: string[] = []): Promise<number> {
