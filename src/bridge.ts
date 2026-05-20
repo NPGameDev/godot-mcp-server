@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { Bridge } from "./types.js";
 import { BridgeError } from "./errors.js";
+import { getServerVersion, compareVersions } from "./version.js";
 import {
   discoverRuntime,
   lookupProject,
@@ -170,6 +171,7 @@ async function readToken(projectPath?: string): Promise<string> {
 export interface AuthResponse {
   godotVersion: string | null;
   gates?: Record<string, boolean>;
+  toolkitVersion: string | null;
 }
 
 /**
@@ -195,12 +197,14 @@ function authenticate(ws: WebSocket, token: string): Promise<AuthResponse> {
           authed?: boolean;
           godot_version?: string;
           gates?: Record<string, boolean>;
+          version?: string;
         };
         if (msg.authed === true) {
           cleanup();
           resolve({
             godotVersion: msg.godot_version ?? null,
             gates: msg.gates,
+            toolkitVersion: msg.version ?? null,
           });
         }
       } catch {
@@ -215,7 +219,7 @@ function authenticate(ws: WebSocket, token: string): Promise<AuthResponse> {
 
     ws.on("message", onMessage);
     ws.on("close", onClose);
-    ws.send(JSON.stringify({ auth: token }));
+    ws.send(JSON.stringify({ auth: token, version: getServerVersion() }));
   });
 }
 
@@ -327,6 +331,22 @@ function createChannel(
       if (authResp.godotVersion && onGodotVersion) onGodotVersion(authResp.godotVersion);
       const verNote = authResp.godotVersion ? ` (Godot ${authResp.godotVersion})` : "";
       process.stderr.write(`[bridge] ${url} authenticated${verNote}\n`);
+      // Version mismatch check — human-only (stderr), nothing on MCP wire.
+      const serverVer = getServerVersion();
+      const severity = compareVersions(serverVer, authResp.toolkitVersion);
+      if (severity === "major") {
+        process.stderr.write(
+          `[bridge] ERROR: major version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Update both to the same major version.\n`,
+        );
+      } else if (severity === "minor") {
+        process.stderr.write(
+          `[bridge] WARNING: version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Consider updating.\n`,
+        );
+      } else if (severity === "unknown") {
+        process.stderr.write(
+          `[bridge] WARNING: toolkit did not report version (pre-handshake build?). Consider updating the toolkit plugin.\n`,
+        );
+      }
       // Always notify with auth-delivered gate state so the server can
       // update its tool registration. On reconnect this replaces the
       // previous re-read-.mcp.json flow; on first connect it applies

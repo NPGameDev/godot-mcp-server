@@ -19,6 +19,7 @@ import type { ExtensionCmd } from "./groups.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
 import { removeAllToolRefs, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
+import { getServerVersion } from "./version.js";
 import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
@@ -132,10 +133,38 @@ const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
   wsBufferLimitBytes: wsBufferLimit,
 });
 
+// ── Config version check ────────────────────────────────────────────
+
+const EXPECTED_CONFIG_VERSION = 1;
+const rawConfigVersion = process.env.GODOT_MCP_CONFIG_VERSION;
+if (rawConfigVersion == null || rawConfigVersion === "") {
+  process.stderr.write(
+    "[godot-mcp] WARNING: no GODOT_MCP_CONFIG_VERSION in env. " +
+      "Config may be from a pre-release build — regenerate .mcp.json from the toolkit dock.\n",
+  );
+} else {
+  const configVersion = Number(rawConfigVersion);
+  if (!Number.isFinite(configVersion)) {
+    process.stderr.write(
+      `[godot-mcp] WARNING: GODOT_MCP_CONFIG_VERSION="${rawConfigVersion}" is not a valid number.\n`,
+    );
+  } else if (configVersion < EXPECTED_CONFIG_VERSION) {
+    process.stderr.write(
+      `[godot-mcp] WARNING: config version ${configVersion} is outdated (expected ${EXPECTED_CONFIG_VERSION}). ` +
+        `Regenerate .mcp.json from the toolkit dock.\n`,
+    );
+  } else if (configVersion > EXPECTED_CONFIG_VERSION) {
+    process.stderr.write(
+      `[godot-mcp] WARNING: config version ${configVersion} is newer than this server understands (max ${EXPECTED_CONFIG_VERSION}). ` +
+        `Consider updating the server (npm update).\n`,
+    );
+  }
+}
+
 // ── Server + hook pipeline ───────────────────────────────────────────
 
 const server = new McpServer(
-  { name: "godot-mcp-toolkit", version: "0.1.0" },
+  { name: "godot-mcp-toolkit", version: getServerVersion() },
   {
     capabilities: { tools: { listChanged: true } },
   },
