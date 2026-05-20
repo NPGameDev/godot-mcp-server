@@ -17,7 +17,7 @@ import type { ExtensionCmd } from "./groups.js";
 // feature_gate.ts provides isEnabled/envVarFor — used by groups.ts and tool_helpers.ts.
 // No direct import needed here after profile removal.
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
-import { removeAllToolRefs, toolRefCount, hasToolRef } from "./tool_refs.js";
+import { removeAllToolRefs, removeToolByName, updateToolRef, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
 import { getServerVersion } from "./version.js";
 import { registerPrompts } from "./prompts.js";
@@ -524,17 +524,69 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
       }
     }
 
-    // 2. Register new tools from the current command set.
+    // 2. Process current command set — register new tools, reconcile known ones.
     const ungrouped: typeof commands = [];
     for (const cmd of commands) {
       const toolName = cmd.method.replace(/\./g, "_");
-      if (knownExtensionTools.has(toolName)) continue; // Already registered.
-
       const annotations = {
         readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
         destructiveHint: cmd.annotations?.destructiveHint ?? false,
         idempotentHint: cmd.annotations?.idempotentHint ?? false,
       };
+
+      if (knownExtensionTools.has(toolName)) {
+        // Known tool — reconcile annotation/description changes in-place.
+        if (!cmd.group?.name) {
+          // Ungrouped: update or register/remove based on read-only eligibility.
+          const isRegistered = hasToolRef(toolName);
+          const shouldBeRegistered = !isExcludedByReadOnly(readOnly, annotations);
+
+          if (isRegistered && !shouldBeRegistered) {
+            // Was eligible, now excluded (e.g., readOnlyHint removed in read-only mode).
+            removeUngroupedExtensionTool(toolName);
+            removed++;
+          } else if (!isRegistered && shouldBeRegistered) {
+            // Was excluded, now eligible (e.g., readOnlyHint added in read-only mode).
+            // Feed into the ungrouped registration path below.
+            knownExtensionTools.delete(toolName);
+            ungrouped.push(cmd);
+          } else if (isRegistered) {
+            // Still registered — update description + annotations in-place.
+            updateToolRef(toolName, {
+              description: cmd.description || `Extension: ${cmd.method}`,
+              annotations,
+            });
+          }
+        }
+        // Grouped: addExtensionGroup replaces commands, so re-add to pick up changes.
+        // Already-loaded group tools are updated via updateToolRef if registered.
+        if (cmd.group?.name) {
+          const extCmd: ExtensionCmd = {
+            method: cmd.method,
+            toolName,
+            description: cmd.description || `Extension: ${cmd.method}`,
+            inputSchema: cmd.input_schema ?? {},
+            annotations,
+          };
+          addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
+          // If the group is loaded and the tool is registered, update in-place.
+          if (hasToolRef(toolName)) {
+            const shouldBeRegistered = !isExcludedByReadOnly(readOnly, annotations);
+            if (!shouldBeRegistered) {
+              removeToolByName(toolName);
+              removed++;
+            } else {
+              updateToolRef(toolName, {
+                description: cmd.description || `Extension: ${cmd.method}`,
+                annotations,
+              });
+            }
+          }
+        }
+        continue;
+      }
+
+      // New tool — partition into grouped/ungrouped.
       if (cmd.group?.name) {
         const extCmd: ExtensionCmd = {
           method: cmd.method,
@@ -551,7 +603,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
       }
     }
 
-    // Register ungrouped tools immediately (all profiles).
+    // Register ungrouped tools (new + newly-eligible from annotation changes).
     for (const cmd of ungrouped) {
       const toolName = cmd.method.replace(/\./g, "_");
       if (hasToolRef(toolName)) continue; // Dedup guard.
