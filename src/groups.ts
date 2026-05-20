@@ -1048,22 +1048,30 @@ function activateOrReportGroup(
   const group = GROUPS.find((g) => g.name === groupName);
   if (!group) {
     // Try extension groups.
-    return activateOrReportExtGroup(server, bridge, groupName, activate);
+    return activateOrReportExtGroup(server, bridge, groupName, activate, readOnly);
   }
 
+  // In read-only mode, filter tool lists to only show read-only tools.
+  const tools = readOnly
+    ? group.tools.filter((t) => {
+        const d = allDefs.get(t);
+        return d ? isAllowedInReadOnly(d.annotations) : false;
+      })
+    : group.tools;
+
   if (loadedGroups.has(groupName)) {
-    return { name: groupName, status: "already_loaded", tools: group.tools };
+    return { name: groupName, status: "already_loaded", tools };
   }
   if (group.gate && !isEnabled(group.gate)) {
     return {
       name: groupName,
       status: "gated",
-      tools: group.tools,
+      tools,
       gate: group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate,
     };
   }
   if (!activate) {
-    return { name: groupName, status: "available", tools: group.tools };
+    return { name: groupName, status: "available", tools };
   }
   const registered = registerGroupTools(server, bridge, group, readOnly);
   // In read-only mode, if all tools were filtered out, don't waste a group slot.
