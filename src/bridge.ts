@@ -44,6 +44,7 @@ type Pending = {
   resolve: (value: unknown) => void;
   reject: (reason: BridgeError) => void;
   timer: NodeJS.Timeout;
+  timeoutMs: number;
 };
 
 type Waiter = {
@@ -430,6 +431,25 @@ function createChannel(
           onNotification?.()?.(message.notification, message.params);
           return;
         }
+        // Mutation-queue notifications from the toolkit: reset the pending
+        // request's timeout so queued commands don't time out on the sidecar.
+        const method = (message as Record<string, unknown>).method as string | undefined;
+        if ((method === "_queued" || method === "_executing") && message.id == null) {
+          const reqId = String(
+            ((message as Record<string, unknown>).params as Record<string, unknown>)?.request_id ?? "",
+          );
+          const queuedPending = pending.get(reqId);
+          if (queuedPending) {
+            clearTimeout(queuedPending.timer);
+            queuedPending.timer = setTimeout(() => {
+              pending.delete(reqId);
+              queuedPending.reject(
+                new BridgeError("TIMEOUT", `call timed out after ${queuedPending.timeoutMs}ms (post-${method})`),
+              );
+            }, queuedPending.timeoutMs);
+          }
+          return;
+        }
         const id = message.id;
         if (id == null) return;
         const key = String(id);
@@ -492,7 +512,7 @@ function createChannel(
           pending.delete(id);
           reject(new BridgeError("TIMEOUT", `call to ${method} timed out after ${timeoutMs}ms`));
         }, timeoutMs);
-        pending.set(id, { resolve, reject, timer });
+        pending.set(id, { resolve, reject, timer, timeoutMs });
         // Wire up cooperative cancellation: when the MCP client cancels the
         // request, the SDK aborts this signal, which triggers cancelPending.
         signal?.addEventListener("abort", () => cancelPending(id), { once: true });
