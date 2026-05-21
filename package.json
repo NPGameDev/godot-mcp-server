@@ -36,7 +36,7 @@
     "smoke:single": "tsx test/smoke.ts",
     "smoke:ci": "tsx test/smoke.ts --ci",
     "eval": "tsx test/eval/eval-runner.ts",
-    "test:unit": "tsx test/unit/version.test.ts",
+    "test:unit": "tsx test/unit/version.test.ts && tsx test/unit/bridge-notifications.test.ts",
     "lint": "eslint src/ test/",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
@@ -51,7 +51,9 @@
   "author": "NPGameDev",
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@sinonjs/fake-timers": "^15.4.0",
     "@types/node": "25.6.0",
+    "@types/sinonjs__fake-timers": "^15.0.1",
     "@types/ws": "8.18.1",
     "eslint": "10.2.1",
     "eslint-config-prettier": "10.1.8",
