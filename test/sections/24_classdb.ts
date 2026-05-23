@@ -221,4 +221,88 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   // ─── classdb.search: unknown base_class → UNKNOWN_CLASS ────────────────
   const searchUnknown = await bridge.call("classdb.search", { base_class: "NoSuchClassEverXYZ999" }, CALL_TIMEOUT);
   assertError(ctx, "classdb.search unknown base_class", searchUnknown, "UNKNOWN_CLASS");
+
+  // ─── classdb.get_info: per-section total counts ──────────────────────────
+  const controlInherited = (await bridge.call(
+    "classdb.get_info",
+    { class_name: "Control", include_inherited: true, sections: ["methods"] },
+    CALL_TIMEOUT,
+  )) as {
+    success?: boolean;
+    methods?: unknown[];
+    methods_total?: number;
+    truncated?: boolean;
+  };
+
+  if (!controlInherited?.success) {
+    fail(`classdb.get_info Control inherited: expected success`);
+  } else {
+    if (typeof controlInherited.methods_total !== "number") {
+      fail(`classdb.get_info Control inherited: missing methods_total`);
+    } else {
+      pass(`classdb.get_info Control inherited has methods_total=${controlInherited.methods_total}`);
+    }
+    if (controlInherited.methods_total! > 200 && !controlInherited.truncated) {
+      fail(`classdb.get_info Control inherited: expected truncated=true when methods exceed 200`);
+    } else if (controlInherited.methods_total! > 200) {
+      pass(`classdb.get_info Control inherited truncated=true (methods_total=${controlInherited.methods_total})`);
+    }
+  }
+
+  // ─── classdb.get_info: offset pagination ─────────────────────────────────
+  const controlPage2 = (await bridge.call(
+    "classdb.get_info",
+    { class_name: "Control", include_inherited: true, sections: ["methods"], offset: 200 },
+    CALL_TIMEOUT,
+  )) as {
+    success?: boolean;
+    methods?: { name: string }[];
+    methods_total?: number;
+  };
+
+  if (!controlPage2?.success) {
+    fail(`classdb.get_info Control offset=200: expected success`);
+  } else {
+    const page2Methods = controlPage2.methods?.length ?? 0;
+    if (page2Methods < 1) {
+      fail(`classdb.get_info Control offset=200: expected >=1 further methods, got ${page2Methods}`);
+    } else {
+      pass(`classdb.get_info Control offset=200 returned ${page2Methods} further methods`);
+    }
+    if (controlPage2.methods_total !== controlInherited?.methods_total) {
+      fail(
+        `classdb.get_info Control offset=200: methods_total mismatch (${controlPage2.methods_total} vs ${controlInherited?.methods_total})`,
+      );
+    } else {
+      pass(`classdb.get_info Control offset=200 methods_total consistent`);
+    }
+  }
+
+  // ─── classdb.search: offset pagination ───────────────────────────────────
+  const searchNoOffset = (await bridge.call(
+    "classdb.search",
+    { base_class: "Node", pattern: "2D" },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; total?: number; count?: number };
+
+  const searchWithOffset = (await bridge.call(
+    "classdb.search",
+    { base_class: "Node", pattern: "2D", offset: 5 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; total?: number; count?: number };
+
+  if (!searchNoOffset?.success || !searchWithOffset?.success) {
+    fail(`classdb.search offset: expected success on both calls`);
+  } else {
+    if (searchWithOffset.total !== searchNoOffset.total) {
+      fail(`classdb.search offset=5: total changed (${searchNoOffset.total} -> ${searchWithOffset.total})`);
+    } else {
+      pass(`classdb.search offset=5 total unchanged (${searchWithOffset.total})`);
+    }
+    if ((searchWithOffset.count ?? 0) >= (searchNoOffset.count ?? 0)) {
+      fail(`classdb.search offset=5: count should decrease`);
+    } else {
+      pass(`classdb.search offset=5 count decreased (${searchNoOffset.count} -> ${searchWithOffset.count})`);
+    }
+  }
 }
