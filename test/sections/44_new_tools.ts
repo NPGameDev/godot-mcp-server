@@ -142,8 +142,7 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
     fail(`scene.create_node with properties: ${JSON.stringify(propNode)}`);
   }
 
-  // scene.create_node with unknown property — node still created, property silently ignored
-  // (GDScript set() succeeds for unknown property names — no properties_failed reported)
+  // scene.create_node with unknown property — node still created, property reported in failures
   const badPropNode = (await bridge.call(
     "scene.create_node",
     {
@@ -157,10 +156,13 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
     status?: string;
     path?: string;
     properties_set?: number;
+    properties_failed?: Array<{ name: string; error: string }>;
   };
 
   if (badPropNode?.status === "created" || badPropNode?.status === "returned") {
-    pass(`scene.create_node unknown prop -> node created (properties_set=${badPropNode.properties_set})`);
+    if (!badPropNode.properties_failed || badPropNode.properties_failed.length === 0)
+      fail(`scene.create_node bad prop: expected properties_failed: ${JSON.stringify(badPropNode)}`);
+    else pass(`scene.create_node bad prop -> node created, properties_failed reported`);
     await bridge.call("scene.delete_node", { node_path: badPropNode.path ?? "MCPSmokeBadProp" }, CALL_TIMEOUT);
   } else {
     fail(`scene.create_node with unknown property should still create node: ${JSON.stringify(badPropNode)}`);
