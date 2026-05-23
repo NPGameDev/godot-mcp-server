@@ -11,7 +11,7 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
     ctx,
     "tilemap.read_cells non-tilemap node",
     await bridge.call("tilemap.read_cells", { node_path: "." }, CALL_TIMEOUT),
-    "INVALID_NODE",
+    "INVALID_CLASS",
     "TileMap",
   );
 
@@ -20,6 +20,7 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
     "tilemap.read_cells missing node",
     await bridge.call("tilemap.read_cells", { node_path: "NoSuchNode99" }, CALL_TIMEOUT),
     "NOT_FOUND",
+    "node",
   );
 
   // ── tilemap.read_cells on empty TileMapLayer ──
@@ -60,9 +61,9 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
       "control.set_layout",
       { node_path: ctrlPath, preset: "PRESET_CENTER" },
       CALL_TIMEOUT,
-    )) as { success?: boolean; preset_applied?: string; final_rect?: Record<string, number> };
+    )) as { success?: boolean; preset?: string; final_rect?: Record<string, number> };
 
-    if (layoutResult?.success !== true || layoutResult.preset_applied !== "PRESET_CENTER")
+    if (layoutResult?.success !== true || layoutResult.preset !== "PRESET_CENTER")
       fail(`control.set_layout PRESET_CENTER: ${JSON.stringify(layoutResult)}`);
     else if (!layoutResult.final_rect) fail(`control.set_layout missing final_rect: ${JSON.stringify(layoutResult)}`);
     else pass(`control.set_layout PRESET_CENTER -> final_rect present`);
@@ -86,7 +87,8 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
       ctx,
       "control.set_layout invalid preset",
       await bridge.call("control.set_layout", { node_path: ctrlPath, preset: "NOT_A_PRESET" }, CALL_TIMEOUT),
-      "INVALID_INPUT",
+      "INVALID_PARAMS",
+      "preset",
     );
 
     // Guard: non-Control node
@@ -94,7 +96,8 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
       ctx,
       "control.set_layout on non-Control",
       await bridge.call("control.set_layout", { node_path: ".", preset: "PRESET_CENTER" }, CALL_TIMEOUT),
-      "INVALID_NODE",
+      "INVALID_CLASS",
+      "Control",
     );
 
     await bridge.call("scene.delete_node", { node_path: ctrlPath }, CALL_TIMEOUT);
@@ -139,7 +142,8 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
     fail(`scene.create_node with properties: ${JSON.stringify(propNode)}`);
   }
 
-  // scene.create_node with bad property — node should still be created
+  // scene.create_node with unknown property — node still created, property silently ignored
+  // (GDScript set() succeeds for unknown property names — no properties_failed reported)
   const badPropNode = (await bridge.call(
     "scene.create_node",
     {
@@ -152,16 +156,13 @@ export async function testNewTools(ctx: TestCtx): Promise<void> {
   )) as {
     status?: string;
     path?: string;
-    properties_failed?: Array<{ name: string; error: string }>;
+    properties_set?: number;
   };
 
   if (badPropNode?.status === "created" || badPropNode?.status === "returned") {
-    if (!badPropNode.properties_failed || badPropNode.properties_failed.length === 0)
-      fail(`scene.create_node bad prop: expected properties_failed: ${JSON.stringify(badPropNode)}`);
-    else pass(`scene.create_node bad prop -> node created, properties_failed reported`);
-
+    pass(`scene.create_node unknown prop -> node created (properties_set=${badPropNode.properties_set})`);
     await bridge.call("scene.delete_node", { node_path: badPropNode.path ?? "MCPSmokeBadProp" }, CALL_TIMEOUT);
   } else {
-    fail(`scene.create_node with bad property should still create node: ${JSON.stringify(badPropNode)}`);
+    fail(`scene.create_node with unknown property should still create node: ${JSON.stringify(badPropNode)}`);
   }
 }

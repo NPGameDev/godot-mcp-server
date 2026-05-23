@@ -63,11 +63,14 @@ function getAllToolDefs(): ToolDef[] {
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 58 base (60 in arrays minus 2 gated: execute_code, node_call_method).
+  // Tool count — 60 base (62 in arrays minus 2 gated: execute_code, node_call_method).
   // getAllToolDefs applies gateFilter, so the base already excludes gated tools.
   // read_user_scope (+4) adds save_read/write/delete/list via conditional spread.
-  // All off = 58; all on = 64.
-  let expectedToolCount = 58;
+  // Window 1 merge: +signal_list +signal_manage +control_set_layout -classdb_get_info
+  // -classdb_search -asset_list = net 0, but +tilemap_read_cells (lazy) + control_set_layout
+  // (standard) = net +2 from 58.
+  // All off = 60; all on = 66.
+  let expectedToolCount = 60;
   if (featureEnabled("execute_code")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;
