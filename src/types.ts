@@ -5,6 +5,7 @@
  */
 import type { ZodRawShape } from "zod";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import type { GodotVer } from "./version.js";
 
 // ── Bridge interface ─────────────────────────────────────────────────
 
@@ -13,9 +14,9 @@ export interface Bridge {
   callRuntime(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
   close(): Promise<void>;
   /** Godot version string from the plugin auth handshake (e.g. "4.5.2"), or null if not yet connected / older plugin. */
-  getGodotVersion(): string | null;
-  /** Godot minor version number (e.g. 5 for "4.5.2"), or null if unknown. */
-  getGodotMinor(): number | null;
+  getGodotVersionString(): string | null;
+  /** Parsed Godot version as [major, minor] tuple from the registry or auth, or null if unknown. */
+  getGodotVersion(): GodotVer | null;
   /** Wait for a runtime port to appear in the registry (game_start async gap).
    *  Resolves with {port} on discovery, null on timeout. Optional — only
    *  available when the bridge was created with a projectPath and registry
@@ -98,8 +99,10 @@ export type ToolDef = {
   description: string;
   inputSchema: ZodRawShape;
   annotations?: ToolAnnotations;
-  /** Minimum Godot minor version required (e.g. 5 for 4.5+). Omit for 4.3+ (baseline). */
-  godotMinVersion?: number;
+  /** Minimum Godot version required ("major.minor", e.g. "4.5"). Omit for 4.2+ (baseline). */
+  godotMinVersion?: string;
+  /** Maximum Godot version supported ("major.minor", e.g. "4.6"). Omit for no upper bound. */
+  godotMaxVersion?: string;
   /** Feature gate name. When set, the tool is only registered when isEnabled(gate) is true; otherwise a LOCKED stub is shown. */
   gate?: string;
 };

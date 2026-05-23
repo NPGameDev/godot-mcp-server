@@ -48,7 +48,8 @@ interface ToolDef {
   description: string;
   inputSchema: Record<string, unknown>;
   annotations?: Record<string, unknown>;
-  godotMinVersion?: number;
+  godotMinVersion?: string;
+  godotMaxVersion?: string;
 }
 
 interface McpToolEntry {
@@ -127,7 +128,7 @@ function measure(tool: ToolDef): ToolMeasurement {
     schemaBytes: bytes(entry.inputSchema),
     totalBytes: bytes(entry),
     totalBytesMinified: bytes(entryMin),
-    hasVersionAnnotation: tool.godotMinVersion != null,
+    hasVersionAnnotation: tool.godotMinVersion != null || tool.godotMaxVersion != null,
   };
 }
 
@@ -235,8 +236,8 @@ const standardWithGroupsMin = profileCost(
 );
 
 // Version annotation overhead: compare full catalogue with and without
-// godotMinVersion tools' extra annotation data
-const versionAnnotatedTools = ALL_DEFS.filter((t) => t.godotMinVersion != null);
+// version-gated tools' extra annotation data
+const versionAnnotatedTools = ALL_DEFS.filter((t) => t.godotMinVersion != null || t.godotMaxVersion != null);
 
 // ── Generate report ──────────────────────────────────────────────────
 
@@ -339,25 +340,24 @@ emit("");
 // Version annotation overhead
 emit("## Version annotation overhead");
 emit("");
-emit(`${versionAnnotatedTools.length} tool(s) carry \`godotMinVersion\` annotations:`);
+emit(`${versionAnnotatedTools.length} tool(s) carry version-gate annotations:`);
 emit("");
 for (const t of versionAnnotatedTools) {
-  emit(`- \`${t.name}\` — requires Godot 4.${t.godotMinVersion}+`);
+  const bounds: string[] = [];
+  if (t.godotMinVersion) bounds.push(`min ${t.godotMinVersion}`);
+  if (t.godotMaxVersion) bounds.push(`max ${t.godotMaxVersion}`);
+  emit(`- \`${t.name}\` — ${bounds.join(", ")}`);
 }
 emit("");
-// The version field is a single number in the ToolDef; it doesn't add
-// to the MCP wire format directly (the server gates at call time).
-// However, the tools/list response may include version info via
-// description text. Measure the description overhead.
+// Version fields are strings in the ToolDef ("major.minor" format).
+// The server filters at registration time — incompatible tools never
+// appear in tools/list.
 const vAnnotated = versionAnnotatedTools.map(measure);
 const totalVersionDescOverhead = vAnnotated.reduce((s, m) => {
-  // Compare description length to a hypothetical version without the version note
   return s + m.descriptionLen;
 }, 0);
 emit(`Total description bytes for version-annotated tools: ${totalVersionDescOverhead}`);
-emit(
-  `Version gating is done server-side at call time — no additional schema overhead in tools/list beyond description text.`,
-);
+emit(`Version gating is done at registration time — incompatible tools are excluded from tools/list entirely.`);
 emit("");
 
 // Minification detail

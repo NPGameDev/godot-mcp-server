@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { Bridge } from "./types.js";
 import { BridgeError } from "./errors.js";
-import { getServerVersion, compareVersions } from "./version.js";
+import { getServerVersion, compareVersions, parseGodotVer } from "./version.js";
+import type { GodotVer } from "./version.js";
 import {
   discoverRuntime,
   lookupProject,
@@ -573,6 +574,17 @@ export function createBridge(
   let godotVersion: string | null = null;
   let notificationHandler: NotificationHandler | null = null;
 
+  // Pre-populate version from registry entry (available before auth).
+  if (projectPath) {
+    const regEntry = lookupProject(projectPath);
+    if (regEntry) {
+      const regVer = regEntry.godot_version;
+      if (regVer != null && regVer.length > 0) {
+        godotVersion = regVer;
+      }
+    }
+  }
+
   // After auth, push server-side response caps to the plugin so it can
   // enforce them (server env var > dock UI ProjectSettings > defaults).
   function sendLimitsIfConfigured(channel: Channel): void {
@@ -848,13 +860,12 @@ export function createBridge(
       await editor.close();
       if (runtimeChannel) await runtimeChannel.close();
     },
-    getGodotVersion() {
+    getGodotVersionString() {
       return godotVersion;
     },
-    getGodotMinor() {
+    getGodotVersion(): GodotVer | null {
       if (!godotVersion) return null;
-      const parts = godotVersion.split(".");
-      return parts.length >= 2 ? Number(parts[1]) : null;
+      return parseGodotVer(godotVersion);
     },
     waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | null> {
       if (!projectPath) return Promise.resolve(null);

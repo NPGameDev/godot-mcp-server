@@ -667,7 +667,7 @@ function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, 
         annotations: def.annotations,
       },
       createHandler(bridge, def) as (input: Record<string, unknown>) => Promise<import("./types.js").ToolTextResult>,
-      { godotMinVersion: def.godotMinVersion },
+      { godotMinVersion: def.godotMinVersion, godotMaxVersion: def.godotMaxVersion },
     );
     registered.push(toolName);
   }

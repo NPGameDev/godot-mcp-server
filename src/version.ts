@@ -23,6 +23,30 @@ export function getServerVersion(): string {
   return cachedVersion;
 }
 
+// ── Godot version gating ────────────────────────────────────────────
+
+/** Parsed Godot version as [major, minor] tuple. */
+export type GodotVer = [major: number, minor: number];
+
+/** Parse a "major.minor" or "major.minor.patch" string to a [major, minor] tuple. */
+export function parseGodotVer(v: string): GodotVer {
+  const parts = v.split(".").map(Number);
+  return [parts[0] ?? 0, parts[1] ?? 0];
+}
+
+/** Compare two GodotVer tuples. Returns negative/0/positive like strcmp. */
+export function compareGodotVer(a: GodotVer, b: GodotVer): number {
+  if (a[0] !== b[0]) return a[0] - b[0];
+  return a[1] - b[1];
+}
+
+/** Check whether a connected Godot version falls within [min, max] bounds. */
+export function isVersionCompatible(connected: GodotVer, min?: string | null, max?: string | null): boolean {
+  if (min != null && compareGodotVer(connected, parseGodotVer(min)) < 0) return false;
+  if (max != null && compareGodotVer(connected, parseGodotVer(max)) > 0) return false;
+  return true;
+}
+
 // ── Version comparison ──────────────────────────────────────────────
 
 export type VersionSeverity = "ok" | "minor" | "major" | "unknown";

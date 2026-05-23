@@ -19,6 +19,7 @@ export interface RegistryEntry {
   started_at: number;
   runtime_port: number | null;
   runtime_pid: number | null;
+  godot_version?: string;
 }
 
 interface Registry {
