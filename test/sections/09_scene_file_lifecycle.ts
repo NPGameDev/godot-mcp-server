@@ -1,5 +1,6 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
+import { isVersionCompatible } from "../../src/version.js";
 
 export const TOOLS_TESTED: string[] = [
   "scene_create",
@@ -179,7 +180,7 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   // Version-branched: scene.delete of the active scene.
   // 4.5+: auto-closes tab, returns success + tab_closed:true.
   // 4.2-4.4: returns EDITED_SCENE (no close API for active tab).
-  const godotMinor = bridge.getGodotMinor();
+  const godotVer = bridge.getGodotVersion();
   const editedProbePath = "res://smoke_edited_probe.tscn";
   await bridge.call(
     "scene.create",
@@ -193,7 +194,7 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
     code?: string;
     warnings?: string[];
   };
-  if (godotMinor !== null && godotMinor >= 5) {
+  if (godotVer !== null && isVersionCompatible(godotVer, "4.5", null)) {
     // 4.5+: tab auto-closed, file deleted.
     if (editedSceneDelete?.success !== true || editedSceneDelete.tab_closed !== true)
       fail(
@@ -220,7 +221,7 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   }
 
   // scene.close: non-active tab (4.5+ only — requires close_scene API).
-  if (godotMinor !== null && godotMinor >= 5) {
+  if (godotVer !== null && isVersionCompatible(godotVer, "4.5", null)) {
     const closeProbeA = "res://smoke_close_a.tscn";
     const closeProbeB = "res://smoke_close_b.tscn";
     try {

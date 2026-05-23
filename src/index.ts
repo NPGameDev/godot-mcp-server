@@ -421,6 +421,8 @@ async function discoverExtensions(): Promise<void> {
         annotations?: Record<string, boolean>;
         group?: { name: string; description?: string; keywords?: string[] };
         timeout_ms?: number;
+        min_godot_version?: string;
+        max_godot_version?: string;
       }[];
     };
     let result: ExtResult;
@@ -487,6 +489,10 @@ async function discoverExtensions(): Promise<void> {
                   extensionTimeoutHint,
                   signal,
                 }) as Promise<ToolTextResult>,
+              {
+                godotMinVersion: cmd.min_godot_version,
+                godotMaxVersion: cmd.max_godot_version,
+              },
             );
             registered++;
           }
@@ -552,6 +558,8 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
         annotations?: Record<string, boolean>;
         group?: { name: string; description?: string; keywords?: string[] };
         timeout_ms?: number;
+        min_godot_version?: string;
+        max_godot_version?: string;
       }[]
     | undefined;
   const removedMethods = (params?.removed as string[]) ?? [];
@@ -685,6 +693,10 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
             extensionTimeoutHint,
             signal,
           }) as Promise<ToolTextResult>,
+        {
+          godotMinVersion: cmd.min_godot_version,
+          godotMaxVersion: cmd.max_godot_version,
+        },
       );
       knownExtensionTools.add(toolName);
       added++;

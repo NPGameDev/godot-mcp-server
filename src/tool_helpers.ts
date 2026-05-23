@@ -12,6 +12,7 @@ import { isReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import type { Bridge, ErrorCode, ToolDef, ToolTextResult, ToolRequest } from "./types.js";
 import { BridgeError } from "./errors.js";
 import { setToolRef } from "./tool_refs.js";
+import { isVersionCompatible } from "./version.js";
 
 // ── Error utilities ─────────────────────────────────────────────────
 
@@ -234,9 +235,9 @@ export function setGlobalHookPipeline(pipeline: HookPipeline): void {
 }
 
 /** Version gate map — populated by registerToolWrapped callers. */
-const _versionMap = new Map<string, number>();
+const _versionMap = new Map<string, { min?: string; max?: string }>();
 
-export function getVersionMap(): Map<string, number> {
+export function getVersionMap(): Map<string, { min?: string; max?: string }> {
   return _versionMap;
 }
 
@@ -411,14 +412,29 @@ export function registerToolWrapped(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- McpServer.registerTool has complex overloaded types
   config: any,
   handler: (input: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolTextResult>,
-  opts: { godotMinVersion?: number; hookPipeline?: HookPipeline } = {},
+  opts: { godotMinVersion?: string; godotMaxVersion?: string; hookPipeline?: HookPipeline } = {},
 ): void {
   // Convert raw JSON Schema (from extensions) to Zod shape for SDK compat.
   if (config.inputSchema && isRawJsonSchema(config.inputSchema)) {
     config = { ...config, inputSchema: jsonSchemaToZodShape(config.inputSchema) };
   }
-  if (opts.godotMinVersion != null) {
-    _versionMap.set(name, opts.godotMinVersion);
+  if (opts.godotMinVersion != null || opts.godotMaxVersion != null) {
+    _versionMap.set(name, { min: opts.godotMinVersion, max: opts.godotMaxVersion });
+  }
+
+  // Registration-time version filter: skip version-gated tools when the
+  // connected Godot version is known and incompatible.
+  if (opts.godotMinVersion != null || opts.godotMaxVersion != null) {
+    const connected = bridge.getGodotVersion();
+    if (connected == null) {
+      // Version unknown — skip the tool (don't register something we
+      // can't verify). It will be registered on reconnect when the
+      // version becomes known via handleConfigReload.
+      return;
+    }
+    if (!isVersionCompatible(connected, opts.godotMinVersion, opts.godotMaxVersion)) {
+      return;
+    }
   }
 
   // The SDK passes (args, extra) to tool handlers; extra.signal is an
@@ -431,14 +447,18 @@ export function registerToolWrapped(
     extra?: { signal?: AbortSignal },
   ): Promise<ToolTextResult> => {
     const signal = extra?.signal;
-    // Version gate check
-    const minVer = _versionMap.get(name);
-    if (minVer != null) {
-      const connected = bridge.getGodotMinor();
-      if (connected != null && connected < minVer) {
+    // Defence-in-depth: runtime version check for version-gated tools
+    // (catches reconnect to a different Godot version).
+    const verBounds = _versionMap.get(name);
+    if (verBounds != null) {
+      const connected = bridge.getGodotVersion();
+      if (connected != null && !isVersionCompatible(connected, verBounds.min, verBounds.max)) {
+        const parts: string[] = [];
+        if (verBounds.min) parts.push(`>= ${verBounds.min}`);
+        if (verBounds.max) parts.push(`<= ${verBounds.max}`);
         return toolError(
           "UNSUPPORTED",
-          `${name} requires Godot 4.${minVer}+ (connected: 4.${connected})`,
+          `${name} requires Godot ${parts.join(" and ")} (connected: ${connected[0]}.${connected[1]})`,
           "Check COMPATIBILITY.md or use classdb.get_info for alternatives.",
         );
       }
@@ -517,6 +537,7 @@ export function registerTools(
       handler as (input: Record<string, unknown>) => Promise<ToolTextResult>,
       {
         godotMinVersion: tool.godotMinVersion,
+        godotMaxVersion: tool.godotMaxVersion,
         hookPipeline: opts.hookPipeline,
       },
     );

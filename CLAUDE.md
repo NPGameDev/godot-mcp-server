@@ -174,25 +174,27 @@ handler).
 | `GODOT_MCP_TOKEN_PATH`      | (resolved from project) | Absolute override for the session-token file |
 | `GODOT_MCP_PROJECT_NAME`    | (read from project.godot, else `[unnamed project]`) | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
 
-## Version-aware tool catalog (iter 37)
+## Version-aware tool catalog (iters 37, 41l-undecies)
 
 The plugin sends its Godot version in the WebSocket auth handshake
-(`{ "authed": true, "godot_version": "4.5.2" }`). The bridge stores it
-and exposes `Bridge.getGodotVersion()` / `Bridge.getGodotMinor()`.
+(`{ "authed": true, "godot_version": "4.5.2" }`). The bridge also
+pre-populates the version from the registry entry's `godot_version` field
+(available before auth). The bridge exposes `Bridge.getGodotVersionString()`
+(raw string) and `Bridge.getGodotVersion()` (returns `GodotVer` tuple
+`[major, minor]` or `null`).
 
-**Runtime gating:** `src/index.ts` builds a `versionMap` from all module
-`ToolDef.godotMinVersion` declarations. The `registerTool` wrapper checks
-`bridge.getGodotMinor()` against each tool's minimum before hooks fire.
-If the connected Godot is too old, the tool returns `UNSUPPORTED` immediately.
-Unknown version (bridge not yet connected) passes through — the plugin
-returns `UNSUPPORTED` as defence-in-depth.
+**Registration-time gating:** `src/tool_helpers.ts` checks each tool's
+`godotMinVersion` / `godotMaxVersion` (string, `"major.minor"` format)
+against the connected Godot version at tool registration time. Incompatible
+tools are silently skipped — they never appear in `tools/list`. A runtime
+defence-in-depth check remains in the wrapped handler for reconnect scenarios.
 
-Currently only `scene_close` has `godotMinVersion: 5` (requires 4.5+).
-To version-gate a new tool, add `godotMinVersion: N` to its `ToolDef`.
+The toolkit side mirrors this: `command_registry.gd` checks version bounds
+in `add()` and blocks incompatible commands before registration.
 
-**`GODOT_MCP_HIDE_UNAVAILABLE`** env var (`src/profiles.ts`): reserved
-for future dynamic tool-list filtering. Currently the runtime gate is
-the enforcement mechanism.
+Currently only `scene_close` has `godotMinVersion: "4.5"` (requires 4.5+).
+To version-gate a new tool, add `godotMinVersion: "X.Y"` and/or
+`godotMaxVersion: "X.Y"` to its `ToolDef`.
 
 ## Linting & formatting
 
