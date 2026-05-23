@@ -19,6 +19,11 @@ export const classdbTools: ToolDef[] = [
         .array(z.enum(["properties", "methods", "signals", "constants"]))
         .optional()
         .describe("Which sections to return (default: all). Limit to reduce token cost."),
+      offset: z
+        .number()
+        .int()
+        .optional()
+        .describe("Skip the first N entries per section (for pagination when truncated). Default 0."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -32,6 +37,11 @@ export const classdbTools: ToolDef[] = [
       pattern: z.string().optional().describe("Case-insensitive substring match on class name."),
       instantiable_only: coercedBoolean().optional().describe("Exclude abstract classes (default: true)."),
       include_global: coercedBoolean().optional().describe("Include user class_name classes (default: true)."),
+      offset: z
+        .number()
+        .int()
+        .optional()
+        .describe("Skip the first N matching classes (for pagination when truncated). Default 0."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },

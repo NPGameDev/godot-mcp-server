@@ -37,6 +37,14 @@ export const sceneTools: ToolDef[] = [
         .describe(
           "Mark as scene-unique node for %Name access in scripts. Warns if name collides with existing unique node.",
         ),
+      properties: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          "Inline property values set after creation in the same UndoRedo action. " +
+            "Same coercion as node_set_property. Partial failure keeps the node — check properties_failed. " +
+            "Dict iteration order is not guaranteed.",
+        ),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
