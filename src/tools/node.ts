@@ -95,6 +95,37 @@ export const nodeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
+  {
+    name: "control_set_layout",
+    method: "control.set_layout",
+    description:
+      "Set anchor preset + optional margins on a Control node in one call. Uses set_anchors_and_offsets_preset(). Returns final_rect.",
+    inputSchema: {
+      node_path: z.string(),
+      preset: z
+        .string()
+        .describe(
+          "Layout preset: PRESET_TOP_LEFT, PRESET_TOP_RIGHT, PRESET_BOTTOM_LEFT, PRESET_BOTTOM_RIGHT, " +
+            "PRESET_CENTER_LEFT, PRESET_CENTER_TOP, PRESET_CENTER_RIGHT, PRESET_CENTER_BOTTOM, " +
+            "PRESET_CENTER, PRESET_LEFT_WIDE, PRESET_TOP_WIDE, PRESET_RIGHT_WIDE, PRESET_BOTTOM_WIDE, " +
+            "PRESET_VCENTER_WIDE, PRESET_HCENTER_WIDE, PRESET_FULL_RECT",
+        ),
+      resize_mode: z
+        .enum(["keep_size", "set_to_anchors"])
+        .optional()
+        .describe("keep_size (default) preserves size; set_to_anchors resizes to anchor region."),
+      margins: z
+        .object({
+          left: z.coerce.number().optional(),
+          right: z.coerce.number().optional(),
+          top: z.coerce.number().optional(),
+          bottom: z.coerce.number().optional(),
+        })
+        .optional()
+        .describe("Additive offsets applied after the preset (in pixels)."),
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+  },
   // node_call_method is feature-gated (single-gate: env OR PS). Plugin-side
   // FeatureGate performs the full check as defence-in-depth; the gate here
   // controls MCP catalogue visibility only.

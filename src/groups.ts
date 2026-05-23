@@ -49,6 +49,7 @@ import { particleTools } from "./tools/particles.js";
 import { navigationTools } from "./tools/navigation.js";
 import { lspAnalysisTools, lspNavigationTools, createLspHandler } from "./tools/lsp.js";
 import { debugTools } from "./tools/debug.js";
+import { classdbTools } from "./tools/classdb.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -76,7 +77,8 @@ export type GroupName =
   | "navigation"
   | "lsp_code_analysis"
   | "lsp_code_navigation"
-  | "debugger";
+  | "debugger"
+  | "classdb";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -103,6 +105,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "lsp_code_analysis",
   "lsp_code_navigation",
   "debugger",
+  "classdb",
 ];
 
 interface GroupDef {
@@ -132,20 +135,15 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "signals",
-    description: "List, connect, disconnect, and emit signals on scene nodes",
-    tools: ["signal_list", "signal_manage", "signal_emit"],
+    description: "Emit signals on scene nodes at editor-time or runtime",
+    tools: ["signal_emit"],
     keywords: [
       "signal",
-      "connect",
-      "disconnect",
       "emit",
       "observer",
       "event",
       "handler",
       "callback",
-      "editor signal",
-      "persisted connection",
-      "scene signal",
     ],
   },
   {
@@ -189,9 +187,9 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "asset_ops",
-    description: "Query asset dependencies and import binary files into the project",
-    tools: ["asset_get_dependencies", "asset_import"],
-    keywords: ["asset", "import", "dependencies", "texture", "image"],
+    description: "List assets, query dependencies, and import binary files into the project",
+    tools: ["asset_list", "asset_get_dependencies", "asset_import"],
+    keywords: ["asset", "import", "dependencies", "texture", "image", "list assets", "files", "browse"],
   },
   {
     name: "cleanup",
@@ -231,9 +229,9 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "tilemap",
-    description: "Paint tilemap cells, create tilesets, and edit tileset properties",
-    tools: ["tilemap_set_cells", "tileset_create", "tileset_edit"],
-    keywords: ["tilemap", "tileset", "tile", "grid", "terrain", "cell", "layer"],
+    description: "Read and paint tilemap cells, create tilesets, and edit tileset properties",
+    tools: ["tilemap_read_cells", "tilemap_set_cells", "tileset_create", "tileset_edit"],
+    keywords: ["tilemap", "tileset", "tile", "grid", "terrain", "cell", "layer", "read cells"],
   },
   {
     name: "theme",
@@ -396,6 +394,12 @@ export const GROUPS: GroupDef[] = [
     tools: ["debug_state", "debug_list_breakpoints", "debug_set_breakpoint", "debug_continue"],
     keywords: ["debug", "breakpoint", "pause", "continue", "step", "debugger", "state", "breaked"],
   },
+  {
+    name: "classdb",
+    description: "Inspect Godot class hierarchy — properties, methods, signals, inheritance",
+    tools: ["classdb_get_info", "classdb_search"],
+    keywords: ["class", "classdb", "api", "inheritance", "introspection"],
+  },
 ];
 
 /** All tool names that belong to groups (for filtering during standard profile registration). */
@@ -437,6 +441,7 @@ for (const tools of [
   lspAnalysisTools,
   lspNavigationTools,
   debugTools,
+  classdbTools,
 ]) {
   for (const t of tools) allDefs.set(t.name, t);
 }
@@ -708,9 +713,9 @@ const CORE_TOOL_KEYWORDS = new Map<string, string[]>([
   ["debugger_get_log", ["debug", "debugger", "log", "breakpoint", "stack"]],
   ["node_call_method", ["call method", "invoke", "method", "function call"]],
   ["folder_create", ["folder", "directory", "mkdir", "create folder"]],
-  ["asset_list", ["list assets", "files", "browse", "directory listing"]],
-  ["classdb_get_info", ["class", "classdb", "class info", "properties", "methods", "signals", "inheritance"]],
-  ["classdb_search", ["search class", "find class", "class lookup", "api"]],
+  ["signal_list", ["signals", "list signals", "node signals", "connections"]],
+  ["signal_manage", ["connect signal", "disconnect signal", "signal wiring", "signal management"]],
+  ["control_set_layout", ["layout", "anchor", "preset", "control layout", "anchors", "full rect"]],
   [
     "scene_query",
     ["query", "search", "find node", "filter", "class filter", "group filter", "node search", "scene query"],

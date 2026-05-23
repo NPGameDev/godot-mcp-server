@@ -11,9 +11,10 @@ export const STANDARD_TOOLS: readonly string[] = [
   "scene_delete_node",
   "scene_create",
   "scene_open",
-  // Node (7) — node_manage, node_groups, autoload_manage promoted from
+  // Node (8) — node_manage, node_groups, autoload_manage promoted from
   // node_management group: dynamic activation unreliable due to Claude Code
   // not processing tools/list_changed notifications (platform limitation).
+  // control_set_layout added as standard (all 3 validation agents needed layout).
   "node_get_property",
   "node_set_property",
   "node_get_property_list",
@@ -21,6 +22,7 @@ export const STANDARD_TOOLS: readonly string[] = [
   "node_manage",
   "node_groups",
   "autoload_manage",
+  "control_set_layout",
   // Script (2)
   "script_read",
   "script_write",
@@ -38,12 +40,12 @@ export const STANDARD_TOOLS: readonly string[] = [
   "runtime_get_script_vars",
   "runtime_set_property",
   "debugger_get_log",
-  // Assets (2)
+  // Signals (2) — promoted from signals group: all 3 validation agents
+  // independently needed signal wiring.
+  "signal_list",
+  "signal_manage",
+  // Assets (1) — asset_list demoted to asset_ops group (zero observed usage)
   "folder_create",
-  "asset_list",
-  // ClassDB (2)
-  "classdb_get_info",
-  "classdb_search",
   // Script diagnostics (1)
   "script_check",
   // Scene query (1)

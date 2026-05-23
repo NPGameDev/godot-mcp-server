@@ -6,6 +6,28 @@ import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
 
 export const tilemapTools: ToolDef[] = [
   {
+    name: "tilemap_read_cells",
+    method: "tilemap.read_cells",
+    description:
+      "Read placed tile data from a TileMapLayer (4.3+) or deprecated TileMap. " +
+      "Returns cell coords, source_id, atlas_coords. 500-cell cap with spatial pagination via region.",
+    inputSchema: {
+      node_path: z.string().describe("Path to TileMapLayer or TileMap node"),
+      region: z
+        .object({
+          x: z.coerce.number().int(),
+          y: z.coerce.number().int(),
+          width: z.coerce.number().int().positive(),
+          height: z.coerce.number().int().positive(),
+        })
+        .optional()
+        .describe("Spatial filter: only cells within {x, y, width, height}"),
+      source_id: z.coerce.number().int().optional().describe("Filter to cells from this atlas source"),
+      layer: z.coerce.number().int().optional().describe("Layer index for deprecated TileMap (default 0)"),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
     name: "tilemap_set_cells",
     method: "tilemap.set_cells",
     description:
