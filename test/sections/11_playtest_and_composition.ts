@@ -520,7 +520,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
       CALL_TIMEOUT,
     ),
     "LOAD_FAILED",
-    "resource.write",
+    "resource not found",
   );
 
   // ── Self-cleanup ──

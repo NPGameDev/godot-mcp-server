@@ -376,7 +376,8 @@ async function runFullMode(): Promise<void> {
   }
 
   try {
-    for (const section of sections) {
+    for (let i = 0; i < sections.length; i++) {
+      const section = sections[i];
       if (GATES_ON_SKIP && !section.gateAffected) {
         skipCount++;
         console.log(
@@ -384,6 +385,11 @@ async function runFullMode(): Promise<void> {
         );
         continue;
       }
+      // Brief pause between sections so the Godot editor can process
+      // deferred calls and free resources. Without this, 450+ rapid-fire
+      // tool calls can overwhelm the editor's _process() loop and cause
+      // crashes from accumulated deferred-call pressure.
+      if (i > 0) await new Promise((r) => setTimeout(r, 150));
       await section.run(ctx);
     }
   } catch (err) {
