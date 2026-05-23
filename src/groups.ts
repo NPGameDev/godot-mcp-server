@@ -137,14 +137,7 @@ export const GROUPS: GroupDef[] = [
     name: "signals",
     description: "Emit signals on scene nodes at editor-time or runtime",
     tools: ["signal_emit"],
-    keywords: [
-      "signal",
-      "emit",
-      "observer",
-      "event",
-      "handler",
-      "callback",
-    ],
+    keywords: ["signal", "emit", "observer", "event", "handler", "callback"],
   },
   {
     name: "animation_authoring",

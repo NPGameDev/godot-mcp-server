@@ -279,11 +279,11 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   }
 
   // ─── classdb.search: offset pagination ───────────────────────────────────
-  const searchNoOffset = (await bridge.call(
-    "classdb.search",
-    { base_class: "Node", pattern: "2D" },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; total?: number; count?: number };
+  const searchNoOffset = (await bridge.call("classdb.search", { base_class: "Node", pattern: "2D" }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    total?: number;
+    count?: number;
+  };
 
   const searchWithOffset = (await bridge.call(
     "classdb.search",
