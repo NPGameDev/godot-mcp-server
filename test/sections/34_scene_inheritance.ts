@@ -88,9 +88,9 @@ export async function testSceneInheritance(ctx: TestCtx): Promise<void> {
 
   // Cleanup: delete test scene files
   try {
-    await bridge.call("file.delete", { path: "res://mcp_smoke_inherited_scene.tscn" }, CALL_TIMEOUT);
-    await bridge.call("file.delete", { path: "res://mcp_smoke_inherited_custom.tscn" }, CALL_TIMEOUT);
-    await bridge.call("file.delete", { path: "res://mcp_smoke_base_scene.tscn" }, CALL_TIMEOUT);
+    await bridge.call("file.delete", { file_path: "res://mcp_smoke_inherited_scene.tscn" }, CALL_TIMEOUT);
+    await bridge.call("file.delete", { file_path: "res://mcp_smoke_inherited_custom.tscn" }, CALL_TIMEOUT);
+    await bridge.call("file.delete", { file_path: "res://mcp_smoke_base_scene.tscn" }, CALL_TIMEOUT);
   } catch {
     /* noop */
   }

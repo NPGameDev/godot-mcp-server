@@ -86,9 +86,9 @@ export async function testProcedural(ctx: TestCtx): Promise<void> {
 
   // ── Cleanup: delete created .tres files ──
   try {
-    await bridge.call("file.delete", { path: "res://mcp_smoke_gradient.tres" }, CALL_TIMEOUT);
-    await bridge.call("file.delete", { path: "res://mcp_smoke_curve.tres" }, CALL_TIMEOUT);
-    await bridge.call("file.delete", { path: "res://mcp_smoke_noise.tres" }, CALL_TIMEOUT);
+    await bridge.call("file.delete", { file_path: "res://mcp_smoke_gradient.tres" }, CALL_TIMEOUT);
+    await bridge.call("file.delete", { file_path: "res://mcp_smoke_curve.tres" }, CALL_TIMEOUT);
+    await bridge.call("file.delete", { file_path: "res://mcp_smoke_noise.tres" }, CALL_TIMEOUT);
   } catch {
     /* noop */
   }

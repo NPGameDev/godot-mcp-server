@@ -72,12 +72,13 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
     "non-empty",
   );
 
-  // Restore previous value.
+  // Restore previous value. Setting to null removes the key from project.godot
+  // (Godot's ProjectSettings.set_setting(key, null) deletes the entry).
   if (previousValue === null) {
     try {
-      await bridge.call("project.set_setting", { setting: settingKey, value: "" }, CALL_TIMEOUT);
+      await bridge.call("project.set_setting", { setting: settingKey, value: null }, CALL_TIMEOUT);
     } catch {
-      /* noop */
+      /* noop — if null isn't supported, the key stays as empty string */
     }
   } else {
     try {

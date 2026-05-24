@@ -53,7 +53,9 @@ export async function testAudiobus(ctx: TestCtx): Promise<void> {
     "Master",
   );
 
-  // Cleanup: remove the Music bus
+  // Cleanup: remove the Music bus (default_bus_layout.tres is engine-generated
+  // and should be in .gitignore — we don't delete it since it may belong to
+  // the project under test)
   try {
     await bridge.call("audiobus.edit", { action: "remove_bus", bus_name: "Music" }, CALL_TIMEOUT);
   } catch {
