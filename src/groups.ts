@@ -933,9 +933,9 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           .union([z.string(), z.array(z.string())])
           .optional()
           .describe(
-            "Search by keyword — a domain, task, or Godot concept. " +
-              "String for single ('animation') or array for multiple (['animation', 'tilemap']). " +
-              "Matching groups are auto-activated (set activate=false to browse).",
+            "Fuzzy keyword search — a domain, task, or Godot concept (e.g. 'animation'). " +
+              "Use this when you don't know the exact group name. " +
+              "If you already know the group name, use 'groups' instead (faster, no false matches).",
           ),
         groups: z.array(z.string()).optional().describe(buildGroupsDescribe()),
         activate: z
