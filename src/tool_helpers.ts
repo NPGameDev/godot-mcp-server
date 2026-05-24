@@ -275,7 +275,7 @@ export const jsonCoerce = (v: unknown) => {
 // This pre-validation pass tries JSON.parse on string values when the
 // schema expects array/object/number/boolean.
 
-function coerceStringValue(val: unknown): unknown {
+export function coerceStringValue(val: unknown): unknown {
   if (typeof val !== "string") return val;
   // Fast-reject: strings that clearly aren't JSON-encoded values
   const trimmed = val.trim();
@@ -288,7 +288,7 @@ function coerceStringValue(val: unknown): unknown {
     first !== "t" &&
     first !== "f" &&
     first !== "n" &&
-    !/^-?\d/.test(first)
+    !/^-?\d/.test(trimmed)
   ) {
     return val;
   }
@@ -300,7 +300,7 @@ function coerceStringValue(val: unknown): unknown {
 }
 
 /** Resolve the innermost Zod type name, unwrapping optional/nullable/default. */
-function innerZodType(schema: z.ZodTypeAny): string | undefined {
+export function innerZodType(schema: z.ZodTypeAny): string | undefined {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod v4 internal
   let s = schema as any;
   // Walk through wrappers: optional → ZodOptional._zod.def.innerType,
@@ -317,12 +317,14 @@ function innerZodType(schema: z.ZodTypeAny): string | undefined {
  * whose schema expects a string — a JSON-encoded string value passed
  * to a string param should not be unwrapped.
  */
-function addStringCoercion(shape: Record<string, z.ZodTypeAny>): Record<string, z.ZodTypeAny> {
+export function addStringCoercion(shape: Record<string, z.ZodTypeAny>): Record<string, z.ZodTypeAny> {
   const coerced: Record<string, z.ZodTypeAny> = {};
   for (const [key, schema] of Object.entries(shape)) {
     const inner = innerZodType(schema);
-    // Only coerce non-string schemas — string params keep their value as-is.
-    if (inner === "string" || inner === "enum") {
+    // Skip schemas that are string-typed (would unwrap intended JSON strings),
+    // enum-typed (discrete values, not JSON), or already preprocessed (pipe —
+    // e.g. coercedBoolean() already handles its own string coercion).
+    if (inner === "string" || inner === "enum" || inner === "pipe") {
       coerced[key] = schema;
     } else {
       coerced[key] = z.preprocess(coerceStringValue, schema);
