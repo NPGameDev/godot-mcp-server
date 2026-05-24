@@ -933,9 +933,8 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           .union([z.string(), z.array(z.string())])
           .optional()
           .describe(
-            "Fuzzy keyword search — a domain, task, or Godot concept (e.g. 'animation'). " +
-              "Use this when you don't know the exact group name. " +
-              "If you already know the group name, use 'groups' instead (faster, no false matches).",
+            "Fuzzy keyword search — ONLY use when you don't know the exact group name. " +
+              "Ignored if 'groups' is provided. Do NOT send both request and groups.",
           ),
         groups: z.array(z.string()).optional().describe(buildGroupsDescribe()),
         activate: z
@@ -988,8 +987,9 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           }
         }
 
-        // Phase 3: keyword search.
-        if (parsed.request !== undefined) {
+        // Phase 3: keyword search. Skipped when 'groups' is provided —
+        // direct activation is authoritative, request would add noise.
+        if (parsed.request !== undefined && !parsed.groups) {
           const matches = findMatchingGroups(parsed.request, readOnly);
           for (const m of matches.builtIn) {
             if (groupResults.some((r) => r.name === m.group.name)) continue;
