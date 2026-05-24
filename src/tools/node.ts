@@ -36,7 +36,7 @@ export const nodeTools: ToolDef[] = [
       "Unknown type tags are rejected with an error listing supported types.\n\n" +
       "Anchor presets: setting anchors_preset alone may not auto-apply underlying values. " +
       "For reliable layout, set anchor_left/top/right/bottom and offset_left/top/right/bottom explicitly.\n\n" +
-      "Batch mode: pass batch:[{node_path, property, value}, ...] to set multiple properties in one UndoRedo action.",
+      "Batch mode: pass batch:[{node_path, property, value, make_unique?}, ...] to set multiple properties at once.",
     inputSchema: {
       node_path: z.string().optional().describe("Single mode: path to target node"),
       property: z
@@ -46,18 +46,30 @@ export const nodeTools: ToolDef[] = [
           "Single mode: property name. Compound '/' paths supported. Use ':' for sub-resource chaining (e.g. 'material:shader_parameter/value').",
         ),
       value: z.unknown().optional(),
+      make_unique: z
+        .boolean()
+        .optional()
+        .describe(
+          "When true and the compound path targets an external (.tres) sub-resource, " +
+            "auto-duplicate it as an inline copy before setting. " +
+            "Equivalent to the Inspector's 'Make Unique'. Only needed for compound paths on external resources.",
+        ),
       batch: z
         .array(
           z.object({
             node_path: z.string(),
             property: z.string(),
             value: z.unknown(),
+            make_unique: z
+              .boolean()
+              .optional()
+              .describe("Per-entry make_unique — auto-duplicate external sub-resource as inline copy."),
           }),
         )
-        .min(1)
         .optional()
         .describe(
-          "Batch mode: array of {node_path, property, value}. All changes in a single UndoRedo action. " +
+          "Batch mode: array of {node_path, property, value, make_unique?}. " +
+            "Omit for single-property operations. " +
             "When present, top-level node_path/property/value are ignored.",
         ),
     },
