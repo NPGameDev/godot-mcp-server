@@ -118,6 +118,30 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     if (t.description.length >= 200) fail(`${t.name} description ${t.description.length} >= 200 chars`);
   }
   pass(`tool descriptions <200 chars (${descWaivers.size} waivers)`);
+
+  // Readonly tool count canary — catches accidental annotation drift.
+  // Count tools with readOnlyHint=true in the eagerly-registered catalogue.
+  // Base (gates off): 23 readonly. With read_user_scope: +2 (save_read, save_list).
+  let expectedReadonly = 23;
+  if (featureEnabled("read_user_scope")) expectedReadonly += 2;
+  const readonlyCount = allTools.filter((t: ToolDef) => t.annotations?.readOnlyHint === true).length;
+  if (readonlyCount !== expectedReadonly) fail(`readonly count: expected ${expectedReadonly}, got ${readonlyCount}`);
+  else pass(`readonly count == ${expectedReadonly} (readOnlyHint canary)`);
+
+  // Version-gate structural check — scene_close has godotMinVersion.
+  // Dynamic visibility (hidden on Godot < 4.5) is validated by unit tests
+  // (registry filtering logic in undecies-quinquies). Here we verify the
+  // metadata exists so version gating can function.
+  const sceneClose = editorTools.find((t: ToolDef) => t.name === "scene_close");
+  if (!sceneClose) {
+    fail("version-gate: scene_close not found in editorTools");
+  } else if (!(sceneClose as ToolDef & { godotMinVersion?: string }).godotMinVersion) {
+    fail("version-gate: scene_close missing godotMinVersion field");
+  } else {
+    pass(
+      `version-gate: scene_close has godotMinVersion=${(sceneClose as ToolDef & { godotMinVersion?: string }).godotMinVersion}`,
+    );
+  }
 }
 
 export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }> {

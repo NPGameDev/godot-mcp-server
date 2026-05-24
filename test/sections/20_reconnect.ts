@@ -30,6 +30,24 @@ export async function testReconnect(ctx: TestCtx): Promise<void> {
     } else {
       pass("reconnect: post-cycle echo round-trip via auto-reconnect");
     }
+
+    // Consecutive calls after reconnect — verify no stale state.
+    const secondCall = await fakeBridge.call("echo", { ping: "consistency" }, CALL_TIMEOUT);
+    if (!deepEqual(secondCall, { ping: "consistency" })) {
+      fail(`reconnect: consistency check: ${JSON.stringify(secondCall)}`);
+    } else {
+      pass("reconnect: consecutive call after reconnect consistent");
+    }
+
+    // Second drop+reconnect cycle — verify repeated resilience.
+    fake.dropAll();
+    await new Promise((res) => setTimeout(res, 100));
+    const thirdResult = await fakeBridge.call("echo", { ping: "cycle2" }, CALL_TIMEOUT);
+    if (!deepEqual(thirdResult, { ping: "cycle2" })) {
+      fail(`reconnect: second cycle echo: ${JSON.stringify(thirdResult)}`);
+    } else {
+      pass("reconnect: second drop+reconnect cycle succeeded");
+    }
   } finally {
     await fakeBridge.close();
     await fake.close();

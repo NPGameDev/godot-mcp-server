@@ -15,6 +15,8 @@ import {
 export const TOOLS_TESTED: string[] = [
   "runtime_screenshot",
   "runtime_get_node_state",
+  "runtime_get_script_vars",
+  "runtime_set_property",
   "debugger_get_log",
   "input_simulate",
   "animation_player_control",
@@ -34,6 +36,8 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       ["debugger.get_log", { limit: 50 }],
       ["input.simulate", { event_type: "action", event_data: { action: "ui_accept" } }],
       ["animation_player.control", { node_path: "/root/NoSuchAP", operation: "pause" }],
+      ["runtime.get_script_vars", { node_path: "/root" }],
+      ["runtime.set_property", { node_path: "/root", property: "process_mode", value: 0 }],
     ];
     if (gameEvalEnabled) modeBChecks.push(["execute.code", { code: "1+2" }]);
     for (const [method, params] of modeBChecks) {
@@ -97,6 +101,34 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     if (animPlayerMiss?.code !== "NOT_FOUND")
       fail(`animation_player.control bogus: expected NOT_FOUND, got ${JSON.stringify(animPlayerMiss)}`);
     else pass("animation_player.control bogus -> NOT_FOUND");
+
+    // runtime.get_script_vars — /root may have no script, but should return a valid response.
+    const scriptVars = (await bridge.callRuntime("runtime.get_script_vars", { node_path: "/root" }, CALL_TIMEOUT)) as {
+      variables?: Record<string, unknown>;
+      code?: string;
+    };
+    if (scriptVars?.code === "NOT_FOUND" || scriptVars?.code === "NO_SCRIPT") {
+      pass(`runtime.get_script_vars /root -> ${scriptVars.code} (no script attached — valid)`);
+    } else if (scriptVars?.variables && typeof scriptVars.variables === "object") {
+      pass(`runtime.get_script_vars /root -> ${Object.keys(scriptVars.variables).length} vars`);
+    } else {
+      fail(`runtime.get_script_vars /root: ${JSON.stringify(scriptVars)}`);
+    }
+
+    // runtime.set_property — set process_mode to its current value (safe idempotent write).
+    const setProp = (await bridge.callRuntime(
+      "runtime.set_property",
+      { node_path: "/root", property: "process_mode", value: 0 },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; code?: string };
+    if (setProp?.success === true) {
+      pass("runtime.set_property /root process_mode=0 ok");
+    } else if (setProp?.code) {
+      // Some builds restrict runtime property writes — accept coded refusal.
+      pass(`runtime.set_property /root -> ${setProp.code} (acceptable)`);
+    } else {
+      fail(`runtime.set_property /root: ${JSON.stringify(setProp)}`);
+    }
 
     if (gameEvalEnabled) {
       const gameEvalResult = (await bridge.callRuntime("execute.code", { code: "1+2" }, CALL_TIMEOUT)) as {

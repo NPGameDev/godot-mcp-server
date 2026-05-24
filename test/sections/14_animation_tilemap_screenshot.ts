@@ -6,7 +6,9 @@ export const TOOLS_TESTED: string[] = [
   "scene_delete_node",
   "node_set_property",
   "animation_keyframe",
+  "animation_get_keys",
   "tilemap_set_cells",
+  "tilemap_read_cells",
   "tileset_create",
   "tileset_edit",
   "editor_screenshot",
@@ -75,6 +77,34 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     ),
     "INVALID_PARAMS",
     "property",
+  );
+
+  // ── animation.get_keys guards ──
+
+  // Guard: non-AnimationPlayer node.
+  assertGuard(
+    ctx,
+    "animation.get_keys non-AP",
+    await bridge.call(
+      "animation.get_keys",
+      { player_path: animSpritePath, animation_name: "x", track_path: "y:position" },
+      CALL_TIMEOUT,
+    ),
+    "INVALID_CLASS",
+    "AnimationPlayer",
+  );
+
+  // Guard: nonexistent animation on a valid AnimationPlayer.
+  assertGuard(
+    ctx,
+    "animation.get_keys missing animation",
+    await bridge.call(
+      "animation.get_keys",
+      { player_path: animPlayerPath, animation_name: "no_such_anim", track_path: "MCPSmokeASprite:position" },
+      CALL_TIMEOUT,
+    ),
+    "NOT_FOUND",
+    "no_such_anim",
   );
 
   try {
@@ -331,5 +361,48 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     await bridge.call("scene.delete_node", { node_path: screenshotNodePath }, CALL_TIMEOUT);
   } catch {
     /* noop */
+  }
+
+  // ── tilemap.read_cells (redistributed from section 44) ──
+
+  // Guards.
+  assertGuard(
+    ctx,
+    "tilemap.read_cells non-tilemap node",
+    await bridge.call("tilemap.read_cells", { node_path: "." }, CALL_TIMEOUT),
+    "INVALID_CLASS",
+    "TileMap",
+  );
+
+  assertGuard(
+    ctx,
+    "tilemap.read_cells missing node",
+    await bridge.call("tilemap.read_cells", { node_path: "NoSuchNode99" }, CALL_TIMEOUT),
+    "NOT_FOUND",
+    "node",
+  );
+
+  // Happy path: empty TileMapLayer → cell_count=0.
+  const tmlNode = (await bridge.call(
+    "scene.create_node",
+    { class_name: "TileMapLayer", parent_path: ".", node_name: "MCPSmokeReadTML" },
+    CALL_TIMEOUT,
+  )) as { status?: string; path?: string };
+  const tmlPath = tmlNode?.path ?? "MCPSmokeReadTML";
+
+  if (tmlNode?.status === "created" || tmlNode?.status === "returned") {
+    const readEmpty = (await bridge.call("tilemap.read_cells", { node_path: tmlPath }, CALL_TIMEOUT)) as {
+      success?: boolean;
+      cell_count?: number;
+      cells_total?: number;
+      bounds?: Record<string, number>;
+    };
+    if (readEmpty?.success !== true || readEmpty.cell_count !== 0)
+      fail(`tilemap.read_cells empty: ${JSON.stringify(readEmpty)}`);
+    else pass(`tilemap.read_cells empty TileMapLayer -> cell_count=0`);
+
+    await bridge.call("scene.delete_node", { node_path: tmlPath }, CALL_TIMEOUT);
+  } else {
+    fail(`tilemap.read_cells: could not create TileMapLayer: ${JSON.stringify(tmlNode)}`);
   }
 }
