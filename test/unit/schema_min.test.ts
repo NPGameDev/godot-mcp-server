@@ -43,7 +43,10 @@ import { stableStringify } from "../../src/schema_min.js";
 
 // Arrays with objects — object keys sorted, array order preserved
 {
-  const arr = [{ z: 1, a: 2 }, { m: 3, b: 4 }];
+  const arr = [
+    { z: 1, a: 2 },
+    { m: 3, b: 4 },
+  ];
   assert.equal(stableStringify(arr), '[{"a":2,"z":1},{"b":4,"m":3}]');
 }
 

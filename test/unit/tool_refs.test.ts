@@ -19,7 +19,11 @@ assert.equal(toolRefCount(), 0);
 
 {
   let removed = false;
-  const mockRef = { remove: () => { removed = true; } };
+  const mockRef = {
+    remove: () => {
+      removed = true;
+    },
+  };
   setToolRef("test_tool", mockRef);
   assert.equal(hasToolRef("test_tool"), true);
   assert.equal(hasToolRef("nonexistent"), false);
@@ -33,7 +37,9 @@ assert.equal(toolRefCount(), 0);
   let updatedWith: Record<string, unknown> | null = null;
   const mockRef = {
     remove: () => {},
-    update: (u: Record<string, unknown>) => { updatedWith = u; },
+    update: (u: Record<string, unknown>) => {
+      updatedWith = u;
+    },
   };
   setToolRef("updatable", mockRef);
   const result = updateToolRef("updatable", { description: "new desc" });
@@ -59,7 +65,11 @@ assert.equal(toolRefCount(), 0);
 // Removes existing tool → true
 {
   let removed = false;
-  setToolRef("to_remove", { remove: () => { removed = true; } });
+  setToolRef("to_remove", {
+    remove: () => {
+      removed = true;
+    },
+  });
   assert.equal(hasToolRef("to_remove"), true);
   const result = removeToolByName("to_remove");
   assert.equal(result, true);
@@ -100,9 +110,21 @@ assert.equal(toolRefCount(), 0);
 {
   removeAllToolRefs(); // clean slate
   const removals: string[] = [];
-  setToolRef("bulk_a", { remove: () => { removals.push("a"); } });
-  setToolRef("bulk_b", { remove: () => { removals.push("b"); } });
-  setToolRef("bulk_c", { remove: () => { removals.push("c"); } });
+  setToolRef("bulk_a", {
+    remove: () => {
+      removals.push("a");
+    },
+  });
+  setToolRef("bulk_b", {
+    remove: () => {
+      removals.push("b");
+    },
+  });
+  setToolRef("bulk_c", {
+    remove: () => {
+      removals.push("c");
+    },
+  });
   assert.equal(toolRefCount(), 3);
 
   removeAllToolRefs();
@@ -115,7 +137,11 @@ assert.equal(toolRefCount(), 0);
 
 // removeAllToolRefs handles throws gracefully
 {
-  setToolRef("throwy", { remove: () => { throw new Error("boom"); } });
+  setToolRef("throwy", {
+    remove: () => {
+      throw new Error("boom");
+    },
+  });
   setToolRef("ok", { remove: () => {} });
   // Should not throw
   removeAllToolRefs();
@@ -142,7 +168,11 @@ assert.equal(toolRefCount(), 0);
 {
   removeAllToolRefs();
   let removedOld = false;
-  setToolRef("overwrite", { remove: () => { removedOld = true; } });
+  setToolRef("overwrite", {
+    remove: () => {
+      removedOld = true;
+    },
+  });
   setToolRef("overwrite", { remove: () => {} }); // Replace
   assert.equal(toolRefCount(), 1);
   // Old ref's remove was NOT called by setToolRef — only the map slot changed.
