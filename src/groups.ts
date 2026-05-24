@@ -950,12 +950,12 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
               "tool lookup to obtain schemas.",
           ),
         reset: z
-          .union([z.literal(true), z.array(z.string())])
+          .union([z.boolean(), z.array(z.string())])
           .optional()
           .describe(
             "Deactivate groups. true = reset ALL on-demand groups. " +
               'Array of group names = selectively deactivate only those groups (e.g. reset: ["tilemap", "audio"]). ' +
-              "Other loaded groups remain active.",
+              "false or omitted = keep current groups active.",
           ),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -966,7 +966,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         groups?: string[];
         activate?: boolean;
         include_schemas?: boolean;
-        reset?: true | string[];
+        reset?: boolean | string[];
       };
       const activate = parsed.activate !== false;
       const includeSchemas = parsed.include_schemas === true;
@@ -975,8 +975,8 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
       const deactivated: string[] = [];
 
       batchToolRegistration(server, () => {
-        // Phase 1: reset/deactivation.
-        if (parsed.reset !== undefined) {
+        // Phase 1: reset/deactivation (false is a no-op, same as omitting).
+        if (parsed.reset !== undefined && parsed.reset !== false) {
           const names = parsed.reset === true ? true : parsed.reset;
           deactivated.push(...deactivateGroups(names, readOnly));
         }
