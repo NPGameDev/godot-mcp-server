@@ -25,7 +25,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 
 ## Tool → Smoke Test Matrix
 
-### Scene Management (7 tools)
+### Scene Management (10 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
@@ -34,6 +34,9 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | scene_delete_node | 03, 07, 11, 38 | ✓ | — | — | — | |
 | scene_create | 09, 11, 15, 34 | ✓ | ✓ (09: ALREADY_EXISTS, INVALID_PATH) | ✓ (if_exists modes) | — | |
 | scene_open | 05, 11 | ✓ | ✓ (05: NOT_FOUND) | — | — | |
+| scene_close | 01 | — | — | — | ✓ (01: version-gate godotMinVersion=4.5) | 4.5+ only; tested structurally in catalogue |
+| scene_delete | 09 | ✓ | ✓ (09: NOT_FOUND) | — | — | Scene file deletion (distinct from scene_delete_node) |
+| scene_instantiate | 11 | ✓ | ✓ (11: PATH_DENIED, INVALID_PATH, NOT_FOUND) | ✓ (as_name, transform, FIX-K auto-rename, owner-set) | — | |
 | scene_query | 37 | ✓ | ✓ (INVALID_PARAMS: no filters) | ✓ (class_filter, name_pattern, property_filters, limit) | — | |
 | scene_create_inherited | 34 | ✓ | ✓ (NOT_FOUND: missing base) | ✓ (auto root name, custom root name, idempotency) | — | |
 
@@ -89,6 +92,13 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | layer_names_set | 29 | ✓ | ✓ (INVALID_PARAMS: invalid category) | ✓ (2d_physics, 2d_render, etc.) | — | |
 | layer_names_get | 29 | ✓ | — | — | — | |
 | autoload_manage | (see Node Management) | — | — | — | — | Listed above |
+
+### ClassDB Introspection (2 tools)
+
+| Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
+|---|---|---|---|---|---|---|
+| classdb_get_info | 24 | ✓ | ✓ (UNKNOWN_CLASS) | ✓ (sections filter, inherited props, offset pagination, global class) | — | |
+| classdb_search | 24 | ✓ | ✓ (UNKNOWN_CLASS) | ✓ (base_class, pattern, offset pagination) | — | |
 
 ### Asset Management (3 tools)
 
