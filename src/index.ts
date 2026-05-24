@@ -261,9 +261,9 @@ registerRoots(server);
 // Discover extensions BEFORE transport connects so they're in the
 // initial tools/list. Deadline prevents blocking if editor is slow.
 // Note: bridge.onNotification is set up AFTER this await, so the
-// initial auth-delivered config_reloaded is silently ignored. This is
-// fine — env vars from .mcp.json are the authoritative gate source at
-// startup; plugin gates sync on subsequent reconnects.
+// initial auth-delivered config_reloaded notification is missed.
+// We compensate below by reading bridge.getAuthGates() after wiring
+// up the notification handler.
 
 let extDiscoveryTimedOut = false;
 try {
@@ -383,6 +383,17 @@ bridge.onNotification((type, params) => {
     bridge.clearRuntime?.();
   }
 });
+
+// ── Compensate for missed initial auth gate delivery ──────────────────
+// Extension discovery (above) triggers bridge.connect() before
+// onNotification is wired up, so the auth-delivered config_reloaded is
+// silently dropped. Read the stored gate snapshot and apply it now.
+// This is a no-op if no auth has completed yet (editor not running).
+const missedGates = bridge.getAuthGates?.();
+if (missedGates) {
+  applyGateState(missedGates);
+  process.stderr.write(`[godot-mcp] applied missed auth gates: ${JSON.stringify(missedGates)}\n`);
+}
 
 // ── Extension discovery ──────────────────────────────────────────────
 

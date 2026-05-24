@@ -25,6 +25,9 @@ export interface Bridge {
   /** Proactively tear down the runtime channel (e.g. on game_stopped notification).
    *  Next callRuntime() will fail immediately with GAME_NOT_RUNNING. */
   clearRuntime?(): void;
+  /** Return the gate snapshot from the editor channel's most recent auth
+   *  handshake, or null if no auth has completed yet. */
+  getAuthGates?(): Record<string, boolean> | null;
 }
 
 // BridgeError lives in errors.ts (runtime class, not a pure type).

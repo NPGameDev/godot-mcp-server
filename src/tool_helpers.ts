@@ -269,6 +269,68 @@ export const jsonCoerce = (v: unknown) => {
   return v;
 };
 
+// ── LLM string coercion ────────────────────────────────────────────
+// LLM agents sometimes serialize complex params as JSON strings instead
+// of passing structured values (e.g. "[{...}]" instead of [{...}]).
+// This pre-validation pass tries JSON.parse on string values when the
+// schema expects array/object/number/boolean.
+
+function coerceStringValue(val: unknown): unknown {
+  if (typeof val !== "string") return val;
+  // Fast-reject: strings that clearly aren't JSON-encoded values
+  const trimmed = val.trim();
+  if (trimmed.length === 0) return val;
+  const first = trimmed[0];
+  if (
+    first !== "[" &&
+    first !== "{" &&
+    first !== '"' &&
+    first !== "t" &&
+    first !== "f" &&
+    first !== "n" &&
+    !/^-?\d/.test(first)
+  ) {
+    return val;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return val;
+  }
+}
+
+/** Resolve the innermost Zod type name, unwrapping optional/nullable/default. */
+function innerZodType(schema: z.ZodTypeAny): string | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod v4 internal
+  let s = schema as any;
+  // Walk through wrappers: optional → ZodOptional._zod.def.innerType,
+  // nullable → ZodNullable._zod.def.innerType, default → ZodDefault._zod.def.innerType.
+  while (s?._zod?.def?.innerType) {
+    s = s._zod.def.innerType;
+  }
+  return s?._zod?.def?.type as string | undefined;
+}
+
+/**
+ * Wrap each top-level key in a Zod shape with z.preprocess() so that
+ * JSON-encoded strings are parsed before Zod validation. Skips params
+ * whose schema expects a string — a JSON-encoded string value passed
+ * to a string param should not be unwrapped.
+ */
+function addStringCoercion(shape: Record<string, z.ZodTypeAny>): Record<string, z.ZodTypeAny> {
+  const coerced: Record<string, z.ZodTypeAny> = {};
+  for (const [key, schema] of Object.entries(shape)) {
+    const inner = innerZodType(schema);
+    // Only coerce non-string schemas — string params keep their value as-is.
+    if (inner === "string" || inner === "enum") {
+      coerced[key] = schema;
+    } else {
+      coerced[key] = z.preprocess(coerceStringValue, schema);
+    }
+  }
+  return coerced;
+}
+
 // ── JSON Schema → Zod conversion ────────────────────────────────────
 
 /**
@@ -417,6 +479,11 @@ export function registerToolWrapped(
   // Convert raw JSON Schema (from extensions) to Zod shape for SDK compat.
   if (config.inputSchema && isRawJsonSchema(config.inputSchema)) {
     config = { ...config, inputSchema: jsonSchemaToZodShape(config.inputSchema) };
+  }
+  // Add LLM string coercion to all Zod shapes — agents sometimes send
+  // JSON-encoded strings for array/object/number params.
+  if (config.inputSchema && !isRawJsonSchema(config.inputSchema)) {
+    config = { ...config, inputSchema: addStringCoercion(config.inputSchema) };
   }
   if (opts.godotMinVersion != null || opts.godotMaxVersion != null) {
     _versionMap.set(name, { min: opts.godotMinVersion, max: opts.godotMaxVersion });

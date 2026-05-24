@@ -10,10 +10,14 @@ export const playtestTools: ToolDef[] = [
     name: "game_start",
     method: "game.start",
     description:
-      "Start playtest. scene_path:'main'|'current'(default)|res://path. if_running:'return' for idempotent mode (default 'fail'). runtime_poll:true re-probes runtime (overrides if_running).",
+      "Start playtest. Use wait_for_runtime:true (recommended) to block until runtime tools are available. scene_path:'main'|'current'(default)|res://path. if_running:'return' for idempotent mode.",
     inputSchema: {
       scene_path: z.string().optional(),
-      wait_for_runtime: coercedBoolean().optional(),
+      wait_for_runtime: coercedBoolean()
+        .optional()
+        .describe(
+          "Recommended. Blocks until runtime connects or times out, so runtime tools are immediately available.",
+        ),
       runtime_poll: coercedBoolean().optional(),
       if_running: z.enum(["return", "fail"]).optional(),
     },
@@ -41,6 +45,22 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
           payload.group_hint =
             "Game started. To interact with the running game, call " +
             "discover_tools({request: 'runtime'}) to access runtime tools.";
+          result.content[0].text = JSON.stringify(payload);
+        }
+      } catch {
+        /* parse failure — pass through unchanged */
+      }
+    }
+    // Nudge: if game started but runtime isn't ready and agent didn't use
+    // wait_for_runtime, add a hint suggesting the recommended approach.
+    if (!input.wait_for_runtime && result.content?.[0]?.type === "text" && !result.isError) {
+      try {
+        const payload = JSON.parse(result.content[0].text);
+        if (payload.success && payload.runtime_ready === false) {
+          payload.hint =
+            "runtime_ready is false — runtime tools are not yet available. " +
+            "Call game_start with wait_for_runtime:true to block until ready, " +
+            "or poll with game_start(if_running:'return', runtime_poll:true).";
           result.content[0].text = JSON.stringify(payload);
         }
       } catch {
