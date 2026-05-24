@@ -1,0 +1,223 @@
+/**
+ * Unit tests for tool_meta.ts — metadata enrichment for discover_tools.
+ * Tests enrichGroupResults and enrichCoreMatches with mock data.
+ */
+import assert from "node:assert/strict";
+import { z } from "zod";
+import type { ToolDef } from "../../src/types.js";
+import type { ExtensionCmd } from "../../src/groups.js";
+import { enrichGroupResults, enrichCoreMatches, type GroupResult, type ToolMeta } from "../../src/tool_meta.js";
+
+// ── Test fixtures ────────────────────────────────────────────────────
+
+function makeToolDef(name: string, desc: string, schema: Record<string, z.ZodTypeAny> = {}): ToolDef {
+  return {
+    name,
+    method: `test.${name}`,
+    description: desc,
+    inputSchema: schema,
+    annotations: { readOnlyHint: true },
+  };
+}
+
+function makeExtCmd(name: string, desc: string): ExtensionCmd {
+  return {
+    method: `ext.${name}`,
+    toolName: name,
+    description: desc,
+    inputSchema: {
+      type: "object",
+      properties: { path: { type: "string", description: "File path" } },
+      required: ["path"],
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false },
+  };
+}
+
+const allDefs = new Map<string, ToolDef>([
+  ["scene_get_tree", makeToolDef("scene_get_tree", "Get scene tree", { path: z.string().optional() })],
+  ["script_read", makeToolDef("script_read", "Read a script", { path: z.string() })],
+]);
+
+const extGroupCommands = new Map<string, ExtensionCmd>([["ext_custom", makeExtCmd("ext_custom", "Custom extension")]]);
+
+// ── enrichGroupResults ───────────────────────────────────────────────
+
+// Activated group with include_schemas=true → enriched tools
+{
+  const results: GroupResult[] = [
+    {
+      name: "scene",
+      status: "activated",
+      tools: [{ name: "scene_get_tree" }],
+    },
+  ];
+
+  const enriched = enrichGroupResults(results, true, allDefs, extGroupCommands);
+  assert.equal(enriched.length, 1);
+  const tool = enriched[0].tools[0];
+  assert.equal(tool.name, "scene_get_tree");
+  assert.ok(tool.description, "Should have description");
+  assert.ok(tool.parameters, "Should have parameters");
+  assert.ok(tool.annotations, "Should have annotations");
+}
+
+// Activated group with include_schemas=false → name + description only
+{
+  const results: GroupResult[] = [
+    {
+      name: "scene",
+      status: "activated",
+      tools: [{ name: "scene_get_tree" }],
+    },
+  ];
+
+  const enriched = enrichGroupResults(results, false, allDefs, extGroupCommands);
+  const tool = enriched[0].tools[0];
+  assert.equal(tool.name, "scene_get_tree");
+  assert.ok(tool.description, "Should have description");
+  assert.equal(tool.parameters, undefined, "Should NOT have parameters");
+}
+
+// already_loaded group also gets enriched
+{
+  const results: GroupResult[] = [
+    {
+      name: "scene",
+      status: "already_loaded",
+      tools: [{ name: "scene_get_tree" }],
+    },
+  ];
+
+  const enriched = enrichGroupResults(results, true, allDefs, extGroupCommands);
+  assert.ok(enriched[0].tools[0].parameters, "already_loaded should be enriched");
+}
+
+// Available group → NOT enriched (tools stay as {name})
+{
+  const results: GroupResult[] = [
+    {
+      name: "scene",
+      status: "available",
+      tools: [{ name: "scene_get_tree" }],
+    },
+  ];
+
+  const enriched = enrichGroupResults(results, true, allDefs, extGroupCommands);
+  const tool = enriched[0].tools[0];
+  assert.equal(tool.name, "scene_get_tree");
+  assert.equal(tool.parameters, undefined, "Available tools should NOT have parameters");
+}
+
+// Gated group → NOT enriched
+{
+  const results: GroupResult[] = [
+    {
+      name: "gated_group",
+      status: "gated",
+      tools: [{ name: "some_tool" }],
+      gate: "execute_code",
+    },
+  ];
+
+  const enriched = enrichGroupResults(results, true, allDefs, extGroupCommands);
+  const tool = enriched[0].tools[0];
+  assert.equal(tool.parameters, undefined, "Gated tools should NOT have parameters");
+}
+
+// Extension command enrichment
+{
+  const results: GroupResult[] = [
+    {
+      name: "extensions",
+      status: "activated",
+      tools: [{ name: "ext_custom" }],
+    },
+  ];
+
+  const enriched = enrichGroupResults(results, true, allDefs, extGroupCommands);
+  const tool = enriched[0].tools[0];
+  assert.equal(tool.name, "ext_custom");
+  assert.ok(tool.description, "Extension should have description");
+  assert.ok(tool.parameters, "Extension should have parameters");
+  assert.ok(tool.parameters!.path, "Should have path parameter");
+  assert.equal(tool.parameters!.path.type, "string");
+  assert.equal(tool.parameters!.path.required, true);
+}
+
+// Unknown tool (not in allDefs or extGroupCommands) → fallback (unchanged)
+{
+  const results: GroupResult[] = [
+    {
+      name: "unknown",
+      status: "activated",
+      tools: [{ name: "mystery_tool" }],
+    },
+  ];
+
+  const enriched = enrichGroupResults(results, true, allDefs, extGroupCommands);
+  const tool = enriched[0].tools[0];
+  assert.equal(tool.name, "mystery_tool");
+  assert.equal(tool.parameters, undefined);
+}
+
+// Multiple groups with mixed statuses
+{
+  const results: GroupResult[] = [
+    {
+      name: "scene",
+      status: "activated",
+      tools: [{ name: "scene_get_tree" }, { name: "script_read" }],
+    },
+    {
+      name: "ext",
+      status: "available",
+      tools: [{ name: "ext_custom" }],
+    },
+  ];
+
+  const enriched = enrichGroupResults(results, true, allDefs, extGroupCommands);
+  // First group: enriched
+  assert.ok(enriched[0].tools[0].parameters);
+  assert.ok(enriched[0].tools[1].parameters);
+  // Second group: NOT enriched
+  assert.equal(enriched[1].tools[0].parameters, undefined);
+}
+
+// ── enrichCoreMatches ────────────────────────────────────────────────
+
+// include_schemas=false → passthrough (same objects)
+{
+  const matches = [{ name: "scene_get_tree", description: "Get..." }];
+  const result = enrichCoreMatches(matches, false, allDefs);
+  assert.deepEqual(result, matches);
+}
+
+// include_schemas=true → enriched with parameters and annotations
+{
+  const matches = [{ name: "scene_get_tree", description: "Get scene tree (truncated)" }];
+  const result = enrichCoreMatches(matches, true, allDefs);
+  assert.equal(result.length, 1);
+  const meta = result[0] as ToolMeta;
+  assert.equal(meta.name, "scene_get_tree");
+  assert.ok(meta.description, "Should have full description");
+  assert.ok(meta.parameters, "Should have parameters");
+  assert.ok(meta.annotations, "Should have annotations");
+}
+
+// Unknown tool in core matches → passthrough
+{
+  const matches = [{ name: "unknown_tool", description: "???" }];
+  const result = enrichCoreMatches(matches, true, allDefs);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].name, "unknown_tool");
+  assert.equal((result[0] as ToolMeta).parameters, undefined);
+}
+
+// Empty core matches
+{
+  const result = enrichCoreMatches([], true, allDefs);
+  assert.equal(result.length, 0);
+}
+
+console.log("All tool_meta tests passed.");

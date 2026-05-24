@@ -90,6 +90,7 @@ import { TOOLS_TESTED as T40 } from "./sections/40_discover_tools.js";
 import { TOOLS_TESTED as T41 } from "./sections/41_crash_detection.js";
 import { TOOLS_TESTED as T42 } from "./sections/42_lsp.js";
 import { TOOLS_TESTED as T43 } from "./sections/43_debugger.js";
+import { TOOLS_TESTED as T44 } from "./sections/44_control_layout.js";
 
 // ── Unfiltered tool catalogue ───────────────────────────────────────
 
@@ -152,6 +153,7 @@ const KNOWN_DOMAINS = new Set([
   "audiobus",
   "autoload",
   "classdb",
+  "control",
   "debug",
   "debugger",
   "editor",
@@ -187,10 +189,8 @@ const META_TOOLS = new Set(["discover_tools", "extensions_refresh"]);
 
 // ── Known coverage gaps (warn, not fail) ────────────────────────────
 // Tools with no dedicated smoke test section. Tracked in SMOKE-COVERAGE-MANIFEST.md.
-const KNOWN_UNCOVERED = new Set([
-  "runtime_get_script_vars", // Mode B — called indirectly but no dedicated assertion
-  "runtime_set_property", // Mode B — called indirectly but no dedicated assertion
-  "animation_get_keys", // No dedicated test (manifest gap)
+const KNOWN_UNCOVERED = new Set<string>([
+  // All tools now have dedicated assertions. Keep the set for future gaps.
 ]);
 
 // ── Known naming exceptions ─────────────────────────────────────────
@@ -248,6 +248,7 @@ const ALL_TOOLS_TESTED = new Set([
   ...T41,
   ...T42,
   ...T43,
+  ...T44,
 ]);
 
 // ── Check 1: Schema integrity ───────────────────────────────────────

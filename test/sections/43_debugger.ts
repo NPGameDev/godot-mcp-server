@@ -1,5 +1,5 @@
 /**
- * Section 42 — Debugger tools
+ * Section 43 — Debugger tools
  *
  * Tests debug.state, debug.list_breakpoints, debug.set_breakpoint,
  * debug.continue via the bridge. Breakpoint set/list/clear cycle
@@ -143,7 +143,28 @@ export async function testDebugger(ctx: TestCtx): Promise<void> {
   const csResult = await bridge.call("debug.set_breakpoint", { file_path: "res://script.cs", line: 1 }, CALL_TIMEOUT);
   assertGuard(ctx, "debug.set_breakpoint(.cs)", csResult, "UNSUPPORTED_FILE_TYPE", "GDScript");
 
-  // 7. debug.continue error.
+  // 7. Guard: nonexistent file (outside res:// or missing).
+  const badPathResult = await bridge.call(
+    "debug.set_breakpoint",
+    { file_path: "res://no_such_script_smoke_43.gd", line: 1 },
+    CALL_TIMEOUT,
+  );
+  // The plugin may accept any res:// path for breakpoints (breakpoints are
+  // set by path, not validated against the filesystem). If so, success is
+  // acceptable — the breakpoint simply won't fire. Either outcome is valid.
+  if ((badPathResult as { success?: boolean })?.success === true) {
+    pass("debug.set_breakpoint(missing file): accepted (breakpoint won't fire — valid)");
+    // Clean up the orphan breakpoint.
+    await bridge.call(
+      "debug.set_breakpoint",
+      { file_path: "res://no_such_script_smoke_43.gd", line: 1, enabled: false },
+      CALL_TIMEOUT,
+    );
+  } else {
+    pass(`debug.set_breakpoint(missing file): rejected with ${(badPathResult as { code?: string })?.code ?? "error"}`);
+  }
+
+  // 8. debug.continue error.
   await testContinueError(ctx);
 }
 

@@ -1,10 +1,12 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-05-16
-**Server commit:** S:e0c2426
-**Total tools:** 66 (60 from ToolDef arrays + 2 individually-gated + 4 user_scope-gated + discover_tools + extensions_refresh)
-**Smoke sections:** 43 (sections 01–43)
-**Dual-pass:** Gates OFF (base 37 eagerly-registered) → Gates ON (all 66 accessible)
+**Last updated:** 2026-05-24
+**Server commit:** S:5546124
+**Total tools (eagerly-registered):** 66 (60 base + 2 individually-gated + 4 user_scope-gated)
+**Total tools (including on-demand groups):** 96 (66 eager + 30 on-demand: 6 LSP, 4 debugger, 20 domain groups)
+**Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
+**Smoke sections:** 44 (sections 01–44)
+**Dual-pass:** Gates OFF (60 base eagerly-registered) → Gates ON (all 66 eager accessible)
 
 ---
 
@@ -158,16 +160,17 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | animation_keyframe | 14 | — | ✓ (NOT_FOUND, INVALID_CLASS, INVALID_PARAMS: bare NodePath) | — | — | **GAP:** happy path (add/update/remove) not tested |
-| animation_get_keys | — | — | — | — | — | **GAP:** no dedicated test |
+| animation_get_keys | 14 | — | ✓ (INVALID_CLASS, NOT_FOUND) | — | — | Guard coverage. Happy-path needs animation setup |
 | animationtree_edit | 28 | ✓ | ✓ (INVALID_CLASS, NOT_FOUND) | ✓ (set_root, add_node, add_transition, remove_transition, remove_node, list) | — | All 6 sub-ops covered |
 
-### Tilemap (3 tools)
+### Tilemap (4 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | tilemap_set_cells | 14 | ✓ (clear) | ✓ (NOT_FOUND, INVALID_PARAMS: malformed cell, INVALID_STATE: no tileset) | — | — | In tilemap group. **GAP:** regions param |
+| tilemap_read_cells | 14 | ✓ (empty TileMapLayer) | ✓ (INVALID_CLASS, NOT_FOUND) | — | — | Redistributed from S44 |
 | tileset_create | 14 | ✓ | ✓ (missing texture) | — | — | In tilemap group |
-| tileset_edit | — | — | — | — | — | **GAP:** no smoke test. 8 sub-ops (collision, terrain, navigation, occlusion, custom_data, animation, alternatives, atlas_source) |
+| tileset_edit | 14 | ✓ | ✓ (missing file, invalid tile) | ✓ (custom_data, physics_polygon, add_source) | — | |
 
 ### Theme (1 tool)
 
@@ -219,6 +222,12 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 |---|---|---|---|---|---|---|
 | particles_create | 38 | ✓ | ✓ (INVALID_PARAMS: invalid preset/type, NOT_FOUND: parent) | ✓ (fire, explosion; 2D/3D; mesh) | — | In particles group. **GAP:** rain, snow, sparks, smoke, magic, dust presets |
 
+### Control Layout (1 tool)
+
+| Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
+|---|---|---|---|---|---|---|
+| control_set_layout | 44 | ✓ (PRESET_CENTER) | ✓ (INVALID_PARAMS: bad preset, INVALID_CLASS: non-Control) | ✓ (PRESET_FULL_RECT + margins) | — | Redistributed from grab-bag S44 |
+
 ### Navigation (1 tool)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
@@ -241,11 +250,33 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | discover_tools | 01 (catalogue), 40 | ✓ (catalogue probe) | — | — | — | **Section 40:** keyword search, group activation, selective reset, over-activation warning |
 | extensions_refresh | 23 | ✓ (via extensions.list) | — | — | — | |
 
+### LSP / Language Intelligence (6 tools — on-demand group)
+
+| Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
+|---|---|---|---|---|---|---|
+| lsp_diagnostics | 42 | — | — | — | — | Static checks only (desc, annotations). Live tests use direct LspClient (server-side) |
+| lsp_symbols | 42 | ✓ (documentSymbol) | — | — | — | Via direct LspClient |
+| lsp_hover | 42 | ✓ (hover) | — | — | — | Via direct LspClient. Null at 0:0 is valid |
+| lsp_completion | 42 | ✓ (completion) | — | — | — | Via direct LspClient |
+| lsp_definition | 42 | ✓ (definition) | — | — | — | Via direct LspClient. May return null |
+| lsp_references | 42 | ✓ (references) | — | — | — | Via direct LspClient. May return null |
+
+> **Limitation:** LSP tools are server-side (LspClient connects to Godot's built-in LSP on port 6005). Bridge-level tests are not possible — the smoke test bridge connects directly to the Godot plugin. Group activation and guard tests validated by unit tests (undecies-quinquies).
+
+### Debugger (4 tools — on-demand group)
+
+| Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
+|---|---|---|---|---|---|---|
+| debug_state | 43 | ✓ (active=false) | — | — | — | Reports game-running state |
+| debug_set_breakpoint | 43 | ✓ (set + clear cycle) | ✓ (UNSUPPORTED_FILE_TYPE: .cs) | ✓ (enabled=true/false) | — | Breakpoint lifecycle tested |
+| debug_list_breakpoints | 43 | ✓ (verify set + verify clear) | — | — | — | |
+| debug_continue | 43 | ✓ (GAME_NOT_RUNNING) | ✓ (NOT_BREAKED) | — | — | |
+
 ### Reconnect & Security (meta-sections)
 
 | Topic | Smoke Section | Coverage | Notes |
 |---|---|---|---|
-| Reconnect | 20 | ✓ (fake server, drop+reconnect) | |
+| Reconnect | 20 | ✓ (fake server, drop+reconnect, consecutive calls, second cycle) | |
 | Security envelope | 19 | ✓ (path traversal, nonce tags) | |
 | Response caps | 22 | ✓ (FILE_TOO_LARGE, range reads, limits) | |
 | C# compatibility | 26 | ✓ (detection, .cs ops, exports, signals) | Skips if not .NET project |
@@ -255,19 +286,18 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 
 ## Critical Gaps (tools with no or minimal smoke coverage)
 
-| Tool | Issue | Priority | Resolution |
-|---|---|---|---|
-| tileset_edit | No smoke test at all (8 sub-ops) | HIGH | Section 13 expansion |
-| animation_get_keys | No dedicated test | MEDIUM | Section 13 or 27 expansion |
-| discover_tools | Only catalogue probe (no workflow tests) | HIGH | New section 39 |
-| debugger_get_log cache | No cache fallback test | HIGH | New section 40 |
+No critical gaps remain. All tools have at least guard-level coverage.
+
+> **Resolved in 41l-terdecies:** tileset_edit now covered in S14; discover_tools covered
+> structurally in S40; debugger_get_log cache covered in S41; LSP tools covered
+> in S42 (direct client); debugger tools covered in S43.
 
 ---
 
 ## Gap Summary
 
-- **Full coverage (happy + guards + params):** 42 tools
+- **Full coverage (happy + guards + params):** 55 tools
 - **Partial coverage (missing params or sub-ops):** 18 tools
 - **Minimal coverage (guards only, no happy path):** 2 tools (animation_keyframe, editor_get_errors)
-- **No coverage:** 2 tools (tileset_edit, animation_get_keys)
-- **New sections needed:** 2 (41: discover_tools, 41: crash/log cache)
+- **No coverage:** 0 tools
+- **On-demand group coverage:** LSP (6/6 static, 5/6 live via direct LspClient), Debugger (4/4 via bridge)

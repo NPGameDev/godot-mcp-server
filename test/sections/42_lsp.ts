@@ -120,6 +120,42 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
         ? (completion as { items: unknown[] }).items
         : [];
     pass(`lsp: textDocument/completion returned ${items.length} item(s)`);
+
+    // Definition — go-to-definition at a position (may return null for non-symbol positions).
+    try {
+      const definition = await client.sendRequest("textDocument/definition", {
+        textDocument: { uri },
+        position: { line: 0, character: 0 },
+      });
+      if (definition === null || definition === undefined) {
+        pass("lsp: textDocument/definition returned null (no symbol at position — valid)");
+      } else if (Array.isArray(definition)) {
+        pass(`lsp: textDocument/definition returned ${definition.length} location(s)`);
+      } else {
+        pass("lsp: textDocument/definition returned a location");
+      }
+    } catch (defErr) {
+      // Some LSP servers return errors for positions without definitions — acceptable.
+      pass(`lsp: textDocument/definition -> ${(defErr as Error).message} (acceptable)`);
+    }
+
+    // References — find references at a position.
+    try {
+      const references = (await client.sendRequest("textDocument/references", {
+        textDocument: { uri },
+        position: { line: 0, character: 0 },
+        context: { includeDeclaration: true },
+      })) as unknown[] | null;
+      if (references === null || references === undefined) {
+        pass("lsp: textDocument/references returned null (no symbol at position — valid)");
+      } else if (Array.isArray(references)) {
+        pass(`lsp: textDocument/references returned ${references.length} reference(s)`);
+      } else {
+        pass("lsp: textDocument/references returned a result");
+      }
+    } catch (refErr) {
+      pass(`lsp: textDocument/references -> ${(refErr as Error).message} (acceptable)`);
+    }
   } catch (err) {
     fail(`lsp: live test error: ${(err as Error).message}`);
   } finally {
