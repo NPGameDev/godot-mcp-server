@@ -224,7 +224,7 @@ export const GROUPS: GroupDef[] = [
     name: "tilemap",
     description: "Read and paint tilemap cells, create tilesets, and edit tileset properties",
     tools: ["tilemap_read_cells", "tilemap_set_cells", "tileset_create", "tileset_edit"],
-    keywords: ["tilemap", "tileset", "tile", "grid", "terrain", "cell", "layer", "read cells"],
+    keywords: ["tilemap", "tileset", "tile", "grid", "terrain", "cell", "layer", "read cells", "2d"],
   },
   {
     name: "theme",
@@ -251,6 +251,7 @@ export const GROUPS: GroupDef[] = [
       "follow path",
       "pathfollow",
       "curve2d",
+      "2d",
       "collision",
       "collision polygon",
       "sprite",
@@ -307,6 +308,7 @@ export const GROUPS: GroupDef[] = [
       "2d animation",
       "spritesheet",
       "atlas",
+      "2d",
     ],
   },
   {
@@ -673,6 +675,9 @@ function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, 
 
 // ── Keyword matching ────────────────────────────────────────────────
 
+// Substring matching requires query.length >= 3 to avoid noisy 1-2 char
+// matches. Short domain terms ("2d", "3d", "ui", "ai") must be added as
+// explicit exact-match keywords in the group definition.
 function matchKeywords(query: string, keywords: string[]): number {
   let score = 0;
   for (const kw of keywords) {
