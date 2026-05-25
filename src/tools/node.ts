@@ -36,8 +36,7 @@ export const nodeTools: ToolDef[] = [
       "Unknown type tags are rejected with an error listing supported types.\n\n" +
       "Anchor presets: setting anchors_preset alone may not auto-apply underlying values. " +
       "For reliable layout, set anchor_left/top/right/bottom and offset_left/top/right/bottom explicitly.\n\n" +
-      "Batch mode: pass batch:[{node_path, property, value, make_unique?}, ...] to set multiple properties at once. " +
-      "All operations (simple, compound, and make_unique) are undoable via Ctrl+Z as a single action.",
+      "Batch mode: pass batch:[{node_path, property, value, make_unique?}, ...] to set multiple properties at once.",
     inputSchema: {
       node_path: z.string().optional().describe("Single mode: path to target node"),
       property: z
