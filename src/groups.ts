@@ -944,6 +944,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
       };
       const activate = parsed.activate !== false;
       const includeSchemas = parsed.include_schemas === true;
+      const requestIsEmpty = Array.isArray(parsed.request) && parsed.request.length === 0;
 
       const groupResults: GroupResult[] = [];
       const deactivated: string[] = [];
@@ -958,7 +959,8 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
         // Phase 2: process request — exact names activate directly,
         // unrecognized elements trigger fuzzy keyword search.
-        if (parsed.request !== undefined) {
+        // Empty array is treated as "no request" (catalog trigger), not "zero elements".
+        if (parsed.request !== undefined && !requestIsEmpty) {
           const elements = coerceRequest(parsed.request);
           const allNames = new Set<string>([...(GROUP_NAMES as readonly string[]), ...extensionGroups.keys()]);
           const exactElements: string[] = [];
@@ -1003,14 +1005,22 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(readOnly) });
       });
 
-      // No params → full catalog (no activation).
-      if (parsed.request === undefined && parsed.reset === undefined) {
+      // No params (or empty array without reset) → full catalog (no activation).
+      // Empty array + reset → reset only; hint nudges a follow-up call for the catalog.
+      const catalogRequested = parsed.request === undefined || requestIsEmpty;
+      const resetActive = parsed.reset !== undefined && parsed.reset !== false;
+
+      if (catalogRequested && !resetActive) {
         for (const group of GROUPS) {
           groupResults.push(reportGroupStatus(group.name, readOnly));
         }
         for (const [name] of extensionGroups) {
           groupResults.push(reportExtGroupStatus(name));
         }
+      }
+
+      if (requestIsEmpty && resetActive && !fuzzyHint) {
+        fuzzyHint = "All groups have been reset. Call discover_tools() with no parameters to browse the full catalog.";
       }
 
       // Post-collection enrichment: replace bare {name} tool objects with
@@ -1028,6 +1038,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
       if (deactivated.length > 0) {
         response.deactivated = deactivated;
+        if (parsed.reset === true) response.reset_all = true;
         const deactivatedTools: string[] = [];
         for (const gName of deactivated) {
           const group = GROUPS.find((g) => g.name === gName);
