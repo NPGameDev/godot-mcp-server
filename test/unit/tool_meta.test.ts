@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import type { ToolDef } from "../../src/types.js";
 import type { ExtensionCmd } from "../../src/groups.js";
-import { enrichGroupResults, enrichCoreMatches, type GroupResult, type ToolMeta } from "../../src/tool_meta.js";
+import { enrichGroupResults, type GroupResult, type ToolMeta } from "../../src/tool_meta.js";
 
 // ── Test fixtures ────────────────────────────────────────────────────
 
@@ -182,42 +182,6 @@ const extGroupCommands = new Map<string, ExtensionCmd>([["ext_custom", makeExtCm
   assert.ok(enriched[0].tools[1].parameters);
   // Second group: NOT enriched
   assert.equal(enriched[1].tools[0].parameters, undefined);
-}
-
-// ── enrichCoreMatches ────────────────────────────────────────────────
-
-// include_schemas=false → passthrough (same objects)
-{
-  const matches = [{ name: "scene_get_tree", description: "Get..." }];
-  const result = enrichCoreMatches(matches, false, allDefs);
-  assert.deepEqual(result, matches);
-}
-
-// include_schemas=true → enriched with parameters and annotations
-{
-  const matches = [{ name: "scene_get_tree", description: "Get scene tree (truncated)" }];
-  const result = enrichCoreMatches(matches, true, allDefs);
-  assert.equal(result.length, 1);
-  const meta = result[0] as ToolMeta;
-  assert.equal(meta.name, "scene_get_tree");
-  assert.ok(meta.description, "Should have full description");
-  assert.ok(meta.parameters, "Should have parameters");
-  assert.ok(meta.annotations, "Should have annotations");
-}
-
-// Unknown tool in core matches → passthrough
-{
-  const matches = [{ name: "unknown_tool", description: "???" }];
-  const result = enrichCoreMatches(matches, true, allDefs);
-  assert.equal(result.length, 1);
-  assert.equal(result[0].name, "unknown_tool");
-  assert.equal((result[0] as ToolMeta).parameters, undefined);
-}
-
-// Empty core matches
-{
-  const result = enrichCoreMatches([], true, allDefs);
-  assert.equal(result.length, 0);
 }
 
 console.log("All tool_meta tests passed.");

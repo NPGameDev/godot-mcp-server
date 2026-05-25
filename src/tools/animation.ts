@@ -9,7 +9,7 @@ export const animationTools: ToolDef[] = [
     name: "animation_keyframe",
     method: "animation.keyframe",
     description:
-      "Add/remove a keyframe on an existing animation's track. animation must already exist; action='add' auto-creates the track only. UndoRedo-wrapped; idempotent on exact-time dup.",
+      "Add/remove a keyframe on an existing animation's track. animation must already exist; action='add' auto-creates the track only. Idempotent on exact-time dup.",
     inputSchema: {
       action: z.enum(["add", "remove"]),
       player_path: z.string(),
@@ -36,7 +36,7 @@ export const animationTools: ToolDef[] = [
     name: "animationtree_edit",
     method: "animationtree.edit",
     description:
-      "Configure AnimationTree state machines: set root, add/remove nodes and transitions, set properties, or list structure. UndoRedo-wrapped.",
+      "Configure AnimationTree state machines: set root, add/remove nodes and transitions, set properties, or list structure.",
     inputSchema: {
       node_path: z.string().describe("Path to an AnimationTree node in the edited scene."),
       action: z

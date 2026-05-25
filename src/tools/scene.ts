@@ -41,7 +41,7 @@ export const sceneTools: ToolDef[] = [
         .record(z.string(), z.unknown())
         .optional()
         .describe(
-          "Inline property values set after creation in the same UndoRedo action. " +
+          "Inline property values set after creation." +
             "Same coercion as node_set_property. Partial failure keeps the node — check properties_failed. " +
             "Dict iteration order is not guaranteed.",
         ),
@@ -80,7 +80,7 @@ export const sceneTools: ToolDef[] = [
     method: "scene.instantiate",
     description:
       "Instantiate PackedScene at scene_path under parent_path. Single mode: silent-return on name collision. " +
-      "Batch mode: pass instances array to spawn N copies with transforms in one UndoRedo action.\n\n" +
+      "Batch mode: pass instances array to spawn N copies with transforms.\n\n" +
       'Single: scene_path: "res://coin.tscn", parent_path: ".", as_name: "Coin"\n' +
       'Batch: scene_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200},properties:{coin_value:5}}, ...]',
     inputSchema: {
@@ -94,7 +94,7 @@ export const sceneTools: ToolDef[] = [
         .describe(
           "Batch mode: array of {name?, position?, rotation?, scale?, properties?}. " +
             "properties: arbitrary overrides applied after instantiation (e.g. {key_type: 'Gold'}). " +
-            "When present, spawns N instances in a single UndoRedo action. " +
+            "When present, spawns N instances as a batch." +
             "as_name and transform are ignored in batch mode.",
         ),
     },

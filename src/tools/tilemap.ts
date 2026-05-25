@@ -31,7 +31,7 @@ export const tilemapTools: ToolDef[] = [
     name: "tilemap_set_cells",
     method: "tilemap.set_cells",
     description:
-      "Batch-set cells on TileMap or TileMapLayer. Single UndoRedo action. Returns cells_written + cells_unchanged. " +
+      "Batch-set cells on TileMap or TileMapLayer. Returns cells_written + cells_unchanged. " +
       "source_id:-1 clears a cell. Use 'regions' for bulk rectangular fills (far more efficient than listing individual cells).",
     inputSchema: {
       tilemap_path: z.string(),

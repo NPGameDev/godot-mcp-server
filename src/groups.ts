@@ -14,7 +14,7 @@ import {
   batchToolRegistration,
   coercedBoolean,
 } from "./tool_helpers.js";
-import { enrichGroupResults, enrichCoreMatches, type ToolMeta, type GroupResult } from "./tool_meta.js";
+import { enrichGroupResults, type ToolMeta, type GroupResult } from "./tool_meta.js";
 import { isEnabled, envVarFor } from "./feature_gate.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
@@ -141,7 +141,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "animation_authoring",
-    description: "Author keyframes, edit tracks, and configure AnimationTree state machines",
+    description: "Inspect and author keyframes, edit tracks, and configure AnimationTree state machines",
     tools: ["animation_keyframe", "animation_get_keys", "animationtree_edit"],
     keywords: [
       "animation",
@@ -157,7 +157,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "input_map",
-    description: "Create and edit input actions and their key/controller bindings",
+    description: "List, create, and edit input actions and their key/controller bindings",
     tools: ["input_map_action", "input_map_event"],
     keywords: [
       "input",
@@ -290,13 +290,13 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "audio",
-    description: "Configure audio buses, effects, and volume settings",
+    description: "List and configure audio buses, effects, and volume settings",
     tools: ["audiobus_edit"],
     keywords: ["audio", "audiobus", "sound", "music", "volume", "bus", "effect", "reverb", "sfx"],
   },
   {
     name: "spriteframes",
-    description: "Create and edit SpriteFrames animations and import from spritesheets",
+    description: "List, create, and edit SpriteFrames animations and import from spritesheets",
     tools: ["spriteframes_create", "spriteframes_edit", "spriteframes_from_spritesheet"],
     keywords: [
       "sprite",
@@ -389,7 +389,7 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "classdb",
-    description: "Inspect Godot class hierarchy — properties, methods, signals, inheritance",
+    description: "Search and inspect Godot class hierarchy — properties, methods, signals, inheritance",
     tools: ["classdb_get_info", "classdb_search"],
     keywords: ["class", "classdb", "api", "inheritance", "introspection"],
   },
@@ -504,6 +504,10 @@ export function addExtensionGroup(
         existing.commands.push(cmd);
       }
     }
+    // Merge description if different.
+    if (description && description !== existing.description) {
+      existing.description = existing.description + "; " + description;
+    }
     // Merge keywords without duplicates.
     if (keywords) {
       for (const kw of keywords) {
@@ -554,11 +558,6 @@ export function removeUngroupedExtensionTool(toolName: string): boolean {
 /** Whether any extension groups exist (used to decide if refresh needed). */
 export function hasExtensionGroups(): boolean {
   return extensionGroups.size > 0;
-}
-
-/** Get all extension group names (for schema description). */
-export function getExtensionGroupNames(): string[] {
-  return [...extensionGroups.keys()];
 }
 
 // ── Special-case handlers ────────────────────────────────────────────
@@ -672,55 +671,7 @@ function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, 
   return registered;
 }
 
-// ── Core tool keywords (Standard profile tools) ─────────────────────
-// Maps standard-profile tool names to keyword arrays for discover_tools
-// core_matches. Kept here (not in types.ts) to avoid touching every tool file.
-
-const CORE_TOOL_KEYWORDS = new Map<string, string[]>([
-  ["scene_get_tree", ["scene", "tree", "hierarchy", "nodes", "scene tree"]],
-  ["scene_create_node", ["create node", "add node", "new node", "scene"]],
-  ["scene_delete_node", ["delete node", "remove node", "scene"]],
-  ["scene_create", ["new scene", "create scene", "packed scene"]],
-  ["scene_open", ["open scene", "load scene", "switch scene"]],
-  ["node_get_property", ["property", "get property", "inspect", "node"]],
-  ["node_set_property", ["set property", "change property", "modify", "node"]],
-  ["node_get_property_list", ["property list", "properties", "inspect", "node"]],
-  ["node_set_script", ["attach script", "set script", "node", "gdscript"]],
-  ["script_read", ["read script", "view script", "gdscript", "source"]],
-  ["script_write", ["write script", "create script", "edit script", "gdscript"]],
-  ["script_check", ["check script", "validate", "syntax", "diagnostics", "lint"]],
-  ["editor_save_scene", ["save", "save scene", "persist"]],
-  ["editor_get_console", ["console", "output", "log", "errors", "warnings"]],
-  ["project_get_settings", ["project settings", "config", "configuration"]],
-  ["project_set_setting", ["set setting", "change setting", "project config"]],
-  ["game_start", ["run", "play", "start game", "launch", "playtest"]],
-  ["game_stop", ["stop", "quit", "stop game", "end playtest"]],
-  [
-    "execute_code",
-    ["eval", "evaluate", "execute", "runtime code", "expression", "execute code", "editor eval", "editor expression"],
-  ],
-  ["runtime_screenshot", ["screenshot", "capture", "viewport", "screen"]],
-  ["input_simulate", ["input", "click", "key press", "mouse", "simulate"]],
-  ["runtime_get_script_vars", ["variables", "script vars", "inspect runtime", "debug"]],
-  ["runtime_set_property", ["runtime property", "set runtime", "live edit"]],
-  ["debugger_get_log", ["debug", "debugger", "log", "breakpoint", "stack"]],
-  ["node_call_method", ["call method", "invoke", "method", "function call"]],
-  ["folder_create", ["folder", "directory", "mkdir", "create folder"]],
-  ["signal_list", ["signals", "list signals", "node signals", "connections"]],
-  ["signal_manage", ["connect signal", "disconnect signal", "signal wiring", "signal management"]],
-  ["control_set_layout", ["layout", "anchor", "preset", "control layout", "anchors", "full rect"]],
-  [
-    "scene_query",
-    ["query", "search", "find node", "filter", "class filter", "group filter", "node search", "scene query"],
-  ],
-  ["extensions_refresh", ["extensions", "refresh", "reload extensions", "plugins"]],
-]);
-
 // ── Keyword matching ────────────────────────────────────────────────
-
-type GroupMatch = { group: GroupDef; score: number };
-type ExtGroupMatch = { name: string; ext: ExtensionGroupDef; score: number };
-type CoreMatch = { name: string; description: string };
 
 function matchKeywords(query: string, keywords: string[]): number {
   let score = 0;
@@ -732,21 +683,12 @@ function matchKeywords(query: string, keywords: string[]): number {
   return score;
 }
 
-function findMatchingGroups(
-  rawRequest: string | string[],
-  readOnly: boolean,
-): {
-  builtIn: GroupMatch[];
-  extension: ExtGroupMatch[];
-  core: CoreMatch[];
-} {
-  const queries = (Array.isArray(rawRequest) ? rawRequest : [rawRequest]).map((q) => q.toLowerCase());
-  const builtIn: GroupMatch[] = [];
-  const extension: ExtGroupMatch[] = [];
-  const core: CoreMatch[] = [];
+/** Score a single keyword against all groups. Returns {name, score} sorted desc. */
+function findMatchesSingle(keyword: string, readOnly: boolean): { name: string; score: number }[] {
+  const q = keyword.toLowerCase();
+  const matches: { name: string; score: number }[] = [];
 
   for (const group of GROUPS) {
-    // In read-only mode, skip groups with zero read-only tools.
     if (readOnly) {
       const hasReadOnlyTool = group.tools.some((t) => {
         const d = allDefs.get(t);
@@ -754,66 +696,105 @@ function findMatchingGroups(
       });
       if (!hasReadOnlyTool) continue;
     }
-    let score = 0;
-    for (const q of queries) {
-      score += matchKeywords(q, group.keywords);
-      // Also match against tool names (underscores → spaces).
-      for (const toolName of group.tools) {
-        const norm = toolName.replace(/_/g, " ");
-        if (norm.includes(q) && q.length >= 3) score += 1;
-      }
+    let score = matchKeywords(q, group.keywords);
+    for (const toolName of group.tools) {
+      const norm = toolName.replace(/_/g, " ");
+      if (norm.includes(q) && q.length >= 3) score += 1;
     }
-    if (score > 0) builtIn.push({ group, score });
+    if (score > 0) matches.push({ name: group.name, score });
   }
-  builtIn.sort((a, b) => b.score - a.score);
 
   for (const [name, ext] of extensionGroups) {
-    // In read-only mode, skip extension groups with zero read-only tools.
     if (readOnly) {
       const hasReadOnly = ext.commands.some((c) => isAllowedInReadOnly(c.annotations));
       if (!hasReadOnly) continue;
     }
     let score = 0;
-    for (const q of queries) {
-      // Extension keywords (author-provided) — same scoring as built-in groups.
-      if (ext.keywords.length > 0) {
-        score += matchKeywords(q, ext.keywords);
-      }
-      // Fallback: match against description tokens + tool names.
-      const descTokens = (ext.description || name).toLowerCase().split(/\s+/);
-      for (const tok of descTokens) {
-        if (q === tok) score += 2;
-        else if (tok.includes(q) && q.length >= 3) score += 1;
-      }
-      for (const cmd of ext.commands) {
-        const norm = cmd.toolName.replace(/_/g, " ");
-        if (norm.includes(q) && q.length >= 3) score += 1;
-      }
+    if (ext.keywords.length > 0) {
+      score += matchKeywords(q, ext.keywords);
     }
-    if (score > 0) extension.push({ name, ext, score });
-  }
-  extension.sort((a, b) => b.score - a.score);
-
-  // Core tool matching — surface already-available tools that match.
-  const seen = new Set<string>();
-  for (const [toolName, keywords] of CORE_TOOL_KEYWORDS) {
-    // In read-only mode, only surface read-only core tools.
-    if (readOnly) {
-      const def = allDefs.get(toolName);
-      if (!def || !isAllowedInReadOnly(def.annotations)) continue;
+    const descTokens = (ext.description || name).toLowerCase().split(/\s+/);
+    for (const tok of descTokens) {
+      if (q === tok) score += 2;
+      else if (tok.includes(q) && q.length >= 3) score += 1;
     }
-    for (const q of queries) {
-      if (matchKeywords(q, keywords) > 0 && !seen.has(toolName)) {
-        const def = allDefs.get(toolName);
-        if (def) {
-          core.push({ name: toolName, description: def.description.slice(0, 120) });
-          seen.add(toolName);
-        }
-      }
+    for (const cmd of ext.commands) {
+      const norm = cmd.toolName.replace(/_/g, " ");
+      if (norm.includes(q) && q.length >= 3) score += 1;
     }
+    if (score > 0) matches.push({ name, score });
   }
 
-  return { builtIn, extension, core };
+  matches.sort((a, b) => b.score - a.score);
+  return matches;
+}
+
+const FUZZY_PER_ELEMENT_CAP = 3;
+const FUZZY_TOTAL_CAP = 5;
+
+/**
+ * Cap fuzzy results: 3 per keyword, 5 total.
+ * Round-robin top-1 per keyword first (each keyword gets representation),
+ * then fill remaining slots by score.
+ */
+function capFuzzyResults(perKeyword: Map<string, { name: string; score: number }[]>): {
+  selected: string[];
+  additionalCount: number;
+} {
+  // Per-element cap: keep top-3 per keyword.
+  const cappedPerKeyword = new Map<string, { name: string; score: number }[]>();
+  for (const [keyword, matches] of perKeyword) {
+    cappedPerKeyword.set(keyword, matches.slice(0, FUZZY_PER_ELEMENT_CAP));
+  }
+
+  // Collect all unique candidates (for counting truncation).
+  const allUnique = new Set<string>();
+  for (const matches of perKeyword.values()) {
+    for (const m of matches) allUnique.add(m.name);
+  }
+
+  // Round 1: top-1 per keyword (round-robin ensures each keyword gets representation).
+  const selected = new Set<string>();
+  const selectedList: string[] = [];
+  for (const [, matches] of cappedPerKeyword) {
+    if (selectedList.length >= FUZZY_TOTAL_CAP) break;
+    const best = matches.find((m) => !selected.has(m.name));
+    if (best) {
+      selected.add(best.name);
+      selectedList.push(best.name);
+    }
+  }
+
+  // Round 2: fill remaining from all capped matches by aggregate score.
+  const remaining = new Map<string, number>();
+  for (const matches of cappedPerKeyword.values()) {
+    for (const m of matches) {
+      if (selected.has(m.name)) continue;
+      remaining.set(m.name, (remaining.get(m.name) ?? 0) + m.score);
+    }
+  }
+  const sorted = [...remaining.entries()].sort((a, b) => b[1] - a[1]);
+  for (const [name] of sorted) {
+    if (selectedList.length >= FUZZY_TOTAL_CAP) break;
+    selected.add(name);
+    selectedList.push(name);
+  }
+
+  return { selected: selectedList, additionalCount: allUnique.size - selected.size };
+}
+
+/** Coerce request param to string[]. Handles stringified JSON arrays. */
+function coerceRequest(raw: string | string[]): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch {
+      /* fall through */
+    }
+  }
+  return [raw];
 }
 
 // ── discover_tools description builder ──────────────────────────────
@@ -821,17 +802,19 @@ function findMatchingGroups(
 // I2 waiver: discover_tools description intentionally exceeds the 200-char
 // tool-description limit. As the gateway to 30+ hidden tools, discoverability
 // is more important than description brevity for this meta-tool.
+//
+// Strategy D: group name + one-line description + status tag. No tool lists —
+// agents see individual tools only after activation or via no-params catalog.
 function buildDiscoverToolsDesc(readOnly: boolean): string {
   const parts: string[] = [];
   for (const group of GROUPS) {
-    // In read-only mode, filter to read-only tools and omit empty groups.
-    const tools = readOnly
-      ? group.tools.filter((t) => {
-          const d = allDefs.get(t);
-          return d ? isAllowedInReadOnly(d.annotations) : false;
-        })
-      : group.tools;
-    if (readOnly && tools.length === 0) continue;
+    if (readOnly) {
+      const hasReadOnlyTool = group.tools.some((t) => {
+        const d = allDefs.get(t);
+        return d ? isAllowedInReadOnly(d.annotations) : false;
+      });
+      if (!hasReadOnlyTool) continue;
+    }
 
     const loaded = loadedGroups.has(group.name);
     const gateBlocked = !!(group.gate && !isEnabled(group.gate));
@@ -840,26 +823,24 @@ function buildDiscoverToolsDesc(readOnly: boolean): string {
     else if (gateBlocked) state = "GATED";
     else state = "available";
 
-    let entry = `${group.name} [${state}] "${group.description}" (${tools.join(", ")}`;
-    if (group.gateEnvVar && gateBlocked) entry += ` — requires: ${group.gateEnvVar}=1`;
-    entry += ")";
+    let entry = `${group.name} [${state}] — ${group.description}`;
+    if (group.gateEnvVar && gateBlocked) entry += ` (requires: ${group.gateEnvVar}=1)`;
     parts.push(entry);
   }
 
   const extParts: string[] = [];
   for (const [name, ext] of extensionGroups) {
-    // In read-only mode, filter to read-only extension tools and omit empty groups.
-    const cmds = readOnly ? ext.commands.filter((c) => isAllowedInReadOnly(c.annotations)) : ext.commands;
-    if (readOnly && cmds.length === 0) continue;
+    if (readOnly) {
+      const hasReadOnly = ext.commands.some((c) => isAllowedInReadOnly(c.annotations));
+      if (!hasReadOnly) continue;
+    }
     const loaded = loadedExtensionGroups.has(name);
-    const tools = cmds.map((c) => c.toolName).join(", ");
     const desc = ext.description || name;
-    extParts.push(`${name} [${loaded ? "LOADED" : "available"}] "${desc}" → ${tools}`);
+    extParts.push(`${name} [${loaded ? "LOADED" : "available"}] — ${desc}`);
   }
 
   let description =
-    "Search and activate tool groups by keyword or name. " +
-    "Pass request to search by domain ('animation', 'save game data') or groups to activate by name. " +
+    "Find and activate tool groups by name or domain keyword. " +
     "Activate only the groups needed for your current task (up to ~5) — loading many groups at once floods the tool list and degrades response quality. " +
     "No params → full catalog. reset: true → deactivate ALL groups; reset: ['group_a'] → deactivate only group_a. " +
     "Groups: " +
@@ -869,14 +850,6 @@ function buildDiscoverToolsDesc(readOnly: boolean): string {
   }
   description += ".";
   return description;
-}
-
-/** Build the describe text for the groups input schema. */
-function buildGroupsDescribe(): string {
-  const builtIn = GROUP_NAMES.join(", ");
-  const extNames = getExtensionGroupNames();
-  if (extNames.length === 0) return `Group names to activate: ${builtIn}`;
-  return `Group names to activate: ${builtIn}, ${extNames.join(", ")}`;
 }
 
 // ── Group deactivation ──────────────────────────────────────────────
@@ -933,12 +906,8 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           .union([z.string(), z.array(z.string())])
           .optional()
           .describe(
-            "Fuzzy keyword search by domain or Godot concept (e.g. 'animation', 'tilemap'). " +
-              "String for single or array for multiple. Matching groups are auto-activated. " +
-              "ONLY use when you don't know the exact group name — if you do, use 'groups' instead. " +
-              "Ignored when 'groups' is provided.",
+            "Names or keywords to find tool groups. Built-in: " + GROUP_NAMES.join(", ") + " (plus extension groups).",
           ),
-        groups: z.array(z.string()).optional().describe(buildGroupsDescribe()),
         activate: z
           .boolean()
           .optional()
@@ -964,7 +933,6 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
     async (input: Record<string, unknown>) => {
       const parsed = input as {
         request?: string | string[];
-        groups?: string[];
         activate?: boolean;
         include_schemas?: boolean;
         reset?: boolean | string[];
@@ -974,6 +942,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
       const groupResults: GroupResult[] = [];
       const deactivated: string[] = [];
+      let fuzzyHint: string | undefined;
 
       batchToolRegistration(server, () => {
         // Phase 1: reset/deactivation (false is a no-op, same as omitting).
@@ -982,37 +951,55 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           deactivated.push(...deactivateGroups(names, readOnly));
         }
 
-        // Phase 2: direct group activation.
-        if (parsed.groups) {
-          for (const groupName of parsed.groups) {
-            groupResults.push(activateOrReportGroup(server, bridge, groupName, activate, readOnly));
-          }
-        }
+        // Phase 2: process request — exact names activate directly,
+        // unrecognized elements trigger fuzzy keyword search.
+        if (parsed.request !== undefined) {
+          const elements = coerceRequest(parsed.request);
+          const allNames = new Set<string>([...(GROUP_NAMES as readonly string[]), ...extensionGroups.keys()]);
+          const exactElements: string[] = [];
+          const fuzzyElements: string[] = [];
 
-        // Phase 3: keyword search. Skipped when 'groups' is provided —
-        // direct activation is authoritative, request would add noise.
-        if (parsed.request !== undefined && !parsed.groups) {
-          const matches = findMatchingGroups(parsed.request, readOnly);
-          for (const m of matches.builtIn) {
-            if (groupResults.some((r) => r.name === m.group.name)) continue;
-            groupResults.push(activateOrReportGroup(server, bridge, m.group.name, activate, readOnly));
+          for (const el of elements) {
+            if (allNames.has(el)) exactElements.push(el);
+            else fuzzyElements.push(el);
           }
-          for (const m of matches.extension) {
-            if (groupResults.some((r) => r.name === m.name)) continue;
-            groupResults.push(activateOrReportExtGroup(server, bridge, m.name, activate, readOnly));
+
+          // Exact matches (uncapped — agent asked for these by name).
+          for (const name of exactElements) {
+            const result = activateOrReportGroup(server, bridge, name, activate, readOnly);
+            result.match = "exact_name";
+            groupResults.push(result);
+          }
+
+          // Fuzzy matches (capped: 3 per element, 5 total).
+          if (fuzzyElements.length > 0) {
+            const perKeyword = new Map<string, { name: string; score: number }[]>();
+            for (const keyword of fuzzyElements) {
+              perKeyword.set(keyword, findMatchesSingle(keyword, readOnly));
+            }
+            const { selected, additionalCount } = capFuzzyResults(perKeyword);
+
+            for (const name of selected) {
+              if (groupResults.some((r) => r.name === name)) continue;
+              const result = activateOrReportGroup(server, bridge, name, activate, readOnly);
+              result.match = "loose_keyword";
+              groupResults.push(result);
+            }
+
+            if (additionalCount > 0) {
+              fuzzyHint = `${additionalCount} additional group(s) matched but were not activated — refine your request or pass exact group names.`;
+            }
           }
         }
 
         // Update discover_tools description inside the batch so the
         // tools/list_changed notification fires atomically with all
-        // registrations.  Previously this lived outside batchToolRegistration,
-        // causing a split notification that left Claude Code's tool index
-        // stale after groups: activation (FIX-C).
+        // registrations (FIX-C).
         updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(readOnly) });
       });
 
       // No params → full catalog (no activation).
-      if (parsed.request === undefined && !parsed.groups && parsed.reset === undefined) {
+      if (parsed.request === undefined && parsed.reset === undefined) {
         for (const group of GROUPS) {
           groupResults.push(reportGroupStatus(group.name, readOnly));
         }
@@ -1032,14 +1019,10 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
       // Build response.
       const response: Record<string, unknown> = { success: true, groups: groupResults };
 
-      // Core matches — only when request was given.
-      if (parsed.request !== undefined) {
-        const { core } = findMatchingGroups(parsed.request, readOnly);
-        if (core.length > 0) response.core_matches = enrichCoreMatches(core, includeSchemas, allDefs);
-      }
+      if (fuzzyHint) response.hint = fuzzyHint;
+
       if (deactivated.length > 0) {
         response.deactivated = deactivated;
-        // List individual tool names so the agent knows exactly what's gone.
         const deactivatedTools: string[] = [];
         for (const gName of deactivated) {
           const group = GROUPS.find((g) => g.name === gName);
@@ -1048,16 +1031,18 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           if (ext) deactivatedTools.push(...ext.commands.map((c) => c.toolName));
         }
         if (deactivatedTools.length > 0) response.deactivated_tools = deactivatedTools;
-        response.hint =
-          "Deactivated tools are no longer callable. " +
-          "Call discover_tools(groups=[...]) to re-activate before using them.";
+        if (!response.hint) {
+          response.hint =
+            "Deactivated tools are no longer callable. " +
+            "Call discover_tools(request=[...]) to re-activate before using them.";
+        }
       }
 
-      // Warn when too many groups are activated at once — context flood degrades agent quality.
-      const justActivated = groupResults.filter((r) => r.status === "activated");
-      if (justActivated.length > 5) {
+      // Cumulative >5 warning — checks total loaded groups across all calls.
+      const totalLoaded = loadedGroups.size + loadedExtensionGroups.size;
+      if (totalLoaded > 5) {
         response.warning =
-          `${justActivated.length} groups activated at once. ` +
+          `${totalLoaded} groups currently loaded. ` +
           "This adds many tools to your context and may degrade response quality. " +
           "Prefer activating only the groups needed for your current task. " +
           "Use reset to deactivate groups you no longer need.";

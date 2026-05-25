@@ -11,7 +11,7 @@ export const nodeManagementTools: ToolDef[] = [
     name: "node_manage",
     method: "node.manage",
     description:
-      "Structural node operations on the edited scene tree. UndoRedo-wrapped.\n\n" +
+      "Structural node operations on the edited scene tree.\n\n" +
       "action: rename — requires new_name.\n" +
       "action: reparent — requires new_parent_path, optional keep_global_transform (default true).\n" +
       "action: reorder — requires new_index (0-based sibling index).\n" +
@@ -38,8 +38,8 @@ export const nodeManagementTools: ToolDef[] = [
     method: "node.groups",
     description:
       "Manage node group membership. Groups are the idiomatic Godot way to tag and query game objects " +
-      "(e.g. 'coins', 'enemies'). UndoRedo-wrapped.\n\n" +
-      "Single: node_path + group. Batch: entries array of {node_path, group} — one UndoRedo action.\n\n" +
+      "(e.g. 'coins', 'enemies').\n\n" +
+      "Single: node_path + group. Batch: entries array of {node_path, group}.\n\n" +
       "action: add — requires group. action: remove — requires group. action: list — returns all groups (single only).",
     inputSchema: {
       action: z.enum(["add", "remove", "list"]),
@@ -51,7 +51,7 @@ export const nodeManagementTools: ToolDef[] = [
         .optional()
         .describe(
           "Batch mode (add/remove only): array of {node_path, group}. " +
-            "When present, processes all entries in a single UndoRedo action. " +
+            "When present, processes all entries as a batch." +
             "node_path and group params are ignored in batch mode.",
         ),
     },

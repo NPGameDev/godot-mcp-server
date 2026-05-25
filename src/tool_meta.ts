@@ -30,6 +30,7 @@ export interface GroupResult {
   tools: ToolMeta[];
   description?: string;
   gate?: string;
+  match?: "exact_name" | "loose_keyword";
 }
 
 // ── Enrichment helpers ───────────────────────────────────────────────
@@ -92,23 +93,4 @@ export function enrichGroupResults(
     });
   }
   return results;
-}
-
-/**
- * Enrich core_matches when include_schemas is true.
- * Core matches are standard (always-loaded) tools that matched a keyword.
- * Default: {name, description} with truncated description.
- * With include_schemas: full description + parameters + annotations.
- */
-export function enrichCoreMatches(
-  coreMatches: { name: string; description: string }[],
-  includeSchemas: boolean,
-  allDefs: Map<string, ToolDef>,
-): ToolMeta[] {
-  if (!includeSchemas) return coreMatches;
-  return coreMatches.map((match) => {
-    const def = allDefs.get(match.name);
-    if (!def) return match;
-    return enrichBuiltinTool(def, true);
-  });
 }
