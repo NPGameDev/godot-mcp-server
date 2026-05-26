@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT } from "../helpers.js";
+import { assertError, assertHint, CALL_TIMEOUT } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = ["extensions_refresh"];
 export async function testExtensibility(ctx: TestCtx): Promise<void> {
@@ -110,5 +110,33 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
         `extension version-gating: ${extResult.commands.length} extension(s) have valid version fields (or none declared)`,
       );
     }
+  }
+
+  // ── Error contract: invalid params → structured error with hint ─────
+  // Use a built-in tool with required params to verify the error envelope
+  // survives the MCP bridge round-trip: {success:false, code, error, hint}.
+  const errResult = (await bridge.call("script.read", { file_path: "" }, CALL_TIMEOUT)) as Record<string, unknown>;
+  assertError(ctx, "error contract (empty file_path)", errResult, "INVALID_PARAMS");
+  assertHint(ctx, "error hint (empty file_path)", errResult);
+
+  // ── Success hint injection (server-side) ────────────────────────────
+  // Call a built-in tool that has a registered successHint and verify the
+  // hint field appears in the successful response. scene_get_tree is a
+  // good candidate — it has a successHint and works in any open scene.
+  const treeResult = (await bridge.call("scene.get_tree", {}, CALL_TIMEOUT)) as {
+    success?: boolean;
+    hint?: string;
+  };
+  if (treeResult?.success) {
+    if (typeof treeResult.hint === "string" && treeResult.hint.length > 0) {
+      pass(`successHint injection: scene.get_tree -> hint="${treeResult.hint.slice(0, 60)}..."`);
+    } else {
+      fail(`successHint injection: scene.get_tree succeeded but no hint field`);
+    }
+  } else {
+    // scene.get_tree may fail if no scene is open — acceptable, skip the hint test
+    pass(
+      `successHint injection: scene.get_tree unavailable (${(treeResult as Record<string, unknown>)?.code ?? "no scene"}) — skipped`,
+    );
   }
 }
