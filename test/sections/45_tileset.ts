@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, assertGuard, assertHint } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = [
   "tileset_create",
@@ -32,6 +32,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
     return; // can't test anything else without a tileset
   }
   pass(`tileset_create -> source_id=${createResult.source_id} tiles=${createResult.tiles_created}`);
+  assertHint(ctx, "tileset_create hint", createResult, "TileMap");
   const srcId = createResult.source_id ?? 0;
 
   // ── tileset_create guard: bad texture ──
@@ -63,6 +64,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean };
   if (layersResult?.success === true) {
     pass("tileset_setup_layers happy");
+    assertHint(ctx, "tileset_setup_layers hint", layersResult, "tileset.edit_");
   } else {
     fail(`tileset_setup_layers: ${JSON.stringify(layersResult)}`);
   }
@@ -82,6 +84,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; tiles_modified?: number; errors?: unknown[] };
   if (physicsResult?.success === true && (physicsResult.tiles_modified ?? 0) >= 2) {
     pass(`tileset_edit_physics -> tiles_modified=${physicsResult.tiles_modified}`);
+    assertHint(ctx, "tileset_edit_physics hint", physicsResult, "tilemap.set_cells");
   } else {
     fail(`tileset_edit_physics: ${JSON.stringify(physicsResult)}`);
   }
@@ -110,6 +113,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; tiles_modified?: number };
   if (terrainResult?.success === true && (terrainResult.tiles_modified ?? 0) >= 1) {
     pass(`tileset_edit_terrain -> tiles_modified=${terrainResult.tiles_modified}`);
+    assertHint(ctx, "tileset_edit_terrain hint", terrainResult, "tilemap.set_cells");
   } else {
     fail(`tileset_edit_terrain: ${JSON.stringify(terrainResult)}`);
   }
@@ -126,6 +130,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; tiles_modified?: number };
   if (navResult?.success === true && (navResult.tiles_modified ?? 0) >= 1) {
     pass(`tileset_edit_navigation -> tiles_modified=${navResult.tiles_modified}`);
+    assertHint(ctx, "tileset_edit_navigation hint", navResult, "tilemap.set_cells");
   } else {
     fail(`tileset_edit_navigation: ${JSON.stringify(navResult)}`);
   }
@@ -142,6 +147,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; tiles_modified?: number };
   if (visualResult?.success === true && (visualResult.tiles_modified ?? 0) >= 1) {
     pass(`tileset_edit_visuals -> tiles_modified=${visualResult.tiles_modified}`);
+    assertHint(ctx, "tileset_edit_visuals hint", visualResult, "tilemap.set_cells");
   } else {
     fail(`tileset_edit_visuals: ${JSON.stringify(visualResult)}`);
   }
@@ -158,6 +164,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; tiles_modified?: number };
   if (cdResult?.success === true && (cdResult.tiles_modified ?? 0) >= 1) {
     pass(`tileset_edit_custom_data -> tiles_modified=${cdResult.tiles_modified}`);
+    assertHint(ctx, "tileset_edit_custom_data hint", cdResult, "tilemap.set_cells");
   } else {
     fail(`tileset_edit_custom_data: ${JSON.stringify(cdResult)}`);
   }
@@ -170,6 +177,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; new_source_id?: number };
   if (addSrcResult?.success === true && typeof addSrcResult.new_source_id === "number") {
     pass(`tileset_add_source -> new_source_id=${addSrcResult.new_source_id}`);
+    assertHint(ctx, "tileset_add_source hint", addSrcResult, "tilemap.set_cells");
   } else {
     fail(`tileset_add_source: ${JSON.stringify(addSrcResult)}`);
   }
@@ -184,6 +192,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
     )) as { success?: boolean; removed_source_id?: number };
     if (rmSrcResult?.success === true && rmSrcResult.removed_source_id === addedSourceId) {
       pass(`tileset_remove_source -> removed_source_id=${rmSrcResult.removed_source_id}`);
+      assertHint(ctx, "tileset_remove_source hint", rmSrcResult, "tilemap.read_cells");
     } else {
       fail(`tileset_remove_source: ${JSON.stringify(rmSrcResult)}`);
     }
@@ -208,6 +217,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; tile?: { atlas_x: number; atlas_y: number } };
   if (addAltResult?.success === true) {
     pass("tileset_add_alternative happy");
+    assertHint(ctx, "tileset_add_alternative hint", addAltResult, "tileset.edit_");
   } else {
     fail(`tileset_add_alternative: ${JSON.stringify(addAltResult)}`);
   }
@@ -221,6 +231,7 @@ export async function testTileset(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; removed_alternative_id?: number };
   if (rmAltResult?.success === true && rmAltResult.removed_alternative_id === 1) {
     pass(`tileset_remove_alternative -> removed_alternative_id=${rmAltResult.removed_alternative_id}`);
+    assertHint(ctx, "tileset_remove_alternative hint", rmAltResult, "tilemap.read_cells");
   } else {
     fail(`tileset_remove_alternative: ${JSON.stringify(rmAltResult)}`);
   }

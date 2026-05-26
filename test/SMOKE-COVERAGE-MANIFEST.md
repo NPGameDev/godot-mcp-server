@@ -1,11 +1,11 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-05-24
+**Last updated:** 2026-05-26
 **Server commit:** S:5546124
 **Total tools (eagerly-registered):** 66 (60 base + 2 individually-gated + 4 user_scope-gated)
 **Total tools (including on-demand groups):** 96 (66 eager + 30 on-demand: 6 LSP, 4 debugger, 20 domain groups)
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
-**Smoke sections:** 44 (sections 01–44)
+**Smoke sections:** 45 (sections 01–45)
 **Dual-pass:** Gates OFF (60 base eagerly-registered) → Gates ON (all 66 eager accessible)
 
 ---
@@ -173,14 +173,23 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | animation_get_keys | 14 | — | ✓ (INVALID_CLASS, NOT_FOUND) | — | — | Guard coverage. Happy-path needs animation setup |
 | animationtree_edit | 28 | ✓ | ✓ (INVALID_CLASS, NOT_FOUND) | ✓ (set_root, add_node, add_transition, remove_transition, remove_node, list) | — | All 6 sub-ops covered |
 
-### Tilemap (4 tools)
+### Tilemap & Tileset (13 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | tilemap_set_cells | 14 | ✓ (clear) | ✓ (NOT_FOUND, INVALID_PARAMS: malformed cell, INVALID_STATE: no tileset) | — | — | In tilemap group. **GAP:** regions param |
 | tilemap_read_cells | 14 | ✓ (empty TileMapLayer) | ✓ (INVALID_CLASS, NOT_FOUND) | — | — | Redistributed from S44 |
-| tileset_create | 14 | ✓ | ✓ (missing texture) | — | — | In tilemap group |
-| tileset_edit | 14 | ✓ | ✓ (missing file, invalid tile) | ✓ (custom_data, physics_polygon, add_source) | — | |
+| tileset_create | 14, 45 | ✓ | ✓ (missing texture) | — | ✓ (S45: "TileMap") | In tilemap group |
+| tileset_add_source | 45 | ✓ | — | — | ✓ ("tilemap.set_cells") | |
+| tileset_remove_source | 45 | ✓ | ✓ (NOT_FOUND: invalid source) | — | ✓ ("tilemap.read_cells") | |
+| tileset_add_alternative | 45 | ✓ | — | — | ✓ ("tileset.edit_") | new_alternative_id in response |
+| tileset_remove_alternative | 45 | ✓ | ✓ (NOT_FOUND: invalid alt) | — | ✓ ("tilemap.read_cells") | |
+| tileset_setup_layers | 45 | ✓ | — | ✓ (terrain_sets, custom_data, navigation_layers) | ✓ ("tileset.edit_") | |
+| tileset_edit_physics | 45 | ✓ | ✓ (invalid tile → errors array, NOT_FOUND: missing file) | ✓ (none, one_way) | ✓ ("tilemap.set_cells") | |
+| tileset_edit_terrain | 45 | ✓ | — | — | ✓ ("tilemap.set_cells") | |
+| tileset_edit_navigation | 45 | ✓ | — | ✓ (full polygon) | ✓ ("tilemap.set_cells") | |
+| tileset_edit_visuals | 45 | ✓ | — | ✓ (probability) | ✓ ("tilemap.set_cells") | |
+| tileset_edit_custom_data | 45 | ✓ | — | ✓ (multiple fields) | ✓ ("tilemap.set_cells") | |
 
 ### Theme (1 tool)
 
