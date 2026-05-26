@@ -24,13 +24,17 @@ export const inputMapTools: ToolDef[] = [
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     successHint: "Bind events with input_map_event after creating the action.",
   },
+  // I2 waiver: input_map_event description exceeds 200-char limit.
+  // All 4 event types (key, mouse_button, joypad_button, joypad_motion)
+  // need inline examples to avoid agent guesswork.
   {
     name: "input_map_event",
     method: "input_map.event",
     description:
       "Bind/unbind an input event to an action. " +
       "action: 'bind' or 'unbind' (the operation). " +
-      "event: object — {type:'key', keycode:'Space'}, {type:'mouse_button', button_index:1}. " +
+      "event: object — {type:'key', keycode:'Space'}, {type:'mouse_button', button_index:1}, " +
+      "{type:'joypad_button', button_index:0}, {type:'joypad_motion', axis:0, axis_value:1.0}. " +
       "action='bind' is idempotent.",
     inputSchema: {
       action: z.enum(["bind", "unbind"]),

@@ -9,7 +9,7 @@ export const audioTools: ToolDef[] = [
     name: "audiobus_edit",
     method: "audiobus.edit",
     description:
-      "Manage audio buses: add/remove buses, set volume/send/solo/mute, add/remove effects (Reverb, Delay, Compressor). 'list' shows full bus layout.",
+      "Manage audio buses: add/remove buses, set volume/send/solo/mute, add/remove effects. bus_name takes priority over bus_index. Effect type: full class (AudioEffectReverb) or suffix (Reverb). 'list' shows full bus layout.",
     inputSchema: {
       action: z
         .enum(["add_bus", "remove_bus", "set_bus", "add_effect", "remove_effect", "list"])
