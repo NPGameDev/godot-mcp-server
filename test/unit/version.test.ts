@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { compareVersions, parseGodotVer, compareGodotVer, isVersionCompatible } from "../../src/version.js";
+import {
+  compareVersions,
+  parseGodotVer,
+  compareGodotVer,
+  isVersionCompatible,
+  isVersionAtLeast,
+  isVersionAtMost,
+} from "../../src/version.js";
 
 // ── compareVersions tests ───────────────────────────────────────────
 
@@ -86,5 +93,21 @@ assert.equal(isVersionCompatible([5, 2], "5.0", "5.1"), false);
 // 5.x against a 4.x range (above max)
 assert.equal(isVersionCompatible([5, 0], "4.2", "4.4"), false);
 assert.equal(isVersionCompatible([5, 1], "4.2", "4.6"), false);
+
+// ── isVersionAtLeast tests ───────────────────────────────────────────
+
+assert.equal(isVersionAtLeast([4, 5], "4.5"), true);
+assert.equal(isVersionAtLeast([4, 6], "4.5"), true);
+assert.equal(isVersionAtLeast([4, 4], "4.5"), false);
+assert.equal(isVersionAtLeast([5, 0], "4.5"), true); // 5.x >= 4.x
+assert.equal(isVersionAtLeast([5, 0], "5.1"), false);
+
+// ── isVersionAtMost tests ────────────────────────────────────────────
+
+assert.equal(isVersionAtMost([4, 4], "4.4"), true);
+assert.equal(isVersionAtMost([4, 3], "4.4"), true);
+assert.equal(isVersionAtMost([4, 5], "4.4"), false);
+assert.equal(isVersionAtMost([5, 0], "4.6"), false); // 5.x > 4.x
+assert.equal(isVersionAtMost([5, 0], "5.0"), true);
 
 console.log("All version tests passed.");

@@ -40,6 +40,16 @@ export function compareGodotVer(a: GodotVer, b: GodotVer): number {
   return a[1] - b[1];
 }
 
+/** Check whether a connected Godot version is >= the given minimum. */
+export function isVersionAtLeast(connected: GodotVer, min: string): boolean {
+  return compareGodotVer(connected, parseGodotVer(min)) >= 0;
+}
+
+/** Check whether a connected Godot version is <= the given maximum. */
+export function isVersionAtMost(connected: GodotVer, max: string): boolean {
+  return compareGodotVer(connected, parseGodotVer(max)) <= 0;
+}
+
 /** Check whether a connected Godot version falls within [min, max] bounds. */
 export function isVersionCompatible(connected: GodotVer, min?: string | null, max?: string | null): boolean {
   if (min != null && compareGodotVer(connected, parseGodotVer(min)) < 0) return false;
