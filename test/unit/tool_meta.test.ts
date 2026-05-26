@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import type { ToolDef } from "../../src/types.js";
 import type { ExtensionCmd } from "../../src/groups.js";
-import { enrichGroupResults, type GroupResult, type ToolMeta } from "../../src/tool_meta.js";
+import { enrichGroupResults, type GroupResult } from "../../src/tool_meta.js";
 
 // ── Test fixtures ────────────────────────────────────────────────────
 

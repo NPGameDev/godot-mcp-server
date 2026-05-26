@@ -18,10 +18,10 @@ assert.equal(toolRefCount(), 0);
 // ── setToolRef + hasToolRef ──────────────────────────────────────────
 
 {
-  let removed = false;
+  let _removed = false;
   const mockRef = {
     remove: () => {
-      removed = true;
+      _removed = true;
     },
   };
   setToolRef("test_tool", mockRef);

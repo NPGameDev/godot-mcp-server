@@ -520,7 +520,6 @@ export function registerToolWrapped(
   // AbortSignal that fires when the MCP client sends notifications/cancelled.
   // Defensive: extra may be undefined if the SDK omits it (observed with
   // some client versions) — use optional chaining.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK registerTool overloads don't match our 2-arg signature
   const wrappedHandler = async (
     input: Record<string, unknown>,
     extra?: { signal?: AbortSignal },
