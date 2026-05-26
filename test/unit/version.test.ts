@@ -67,4 +67,24 @@ assert.equal(isVersionCompatible([4, 4], "4.2", "4.4"), true);
 assert.equal(isVersionCompatible([4, 5], null, null), true);
 assert.equal(isVersionCompatible([3, 0], null, null), true);
 
+// ── Godot 5.x compatibility ──────────────────────────────────────────
+
+// 5.x satisfies a 4.x minimum (5.0 >= 4.5)
+assert.equal(isVersionCompatible([5, 0], "4.5", null), true);
+assert.equal(isVersionCompatible([5, 2], "4.2", null), true);
+
+// 5.x exceeds a 4.x maximum (5.0 > 4.4)
+assert.equal(isVersionCompatible([5, 0], null, "4.4"), false);
+assert.equal(isVersionCompatible([5, 1], null, "4.6"), false);
+
+// 5.x within 5.x range
+assert.equal(isVersionCompatible([5, 0], "5.0", null), true);
+assert.equal(isVersionCompatible([5, 0], "5.1", null), false);
+assert.equal(isVersionCompatible([5, 2], "5.0", "5.3"), true);
+assert.equal(isVersionCompatible([5, 2], "5.0", "5.1"), false);
+
+// 5.x against a 4.x range (above max)
+assert.equal(isVersionCompatible([5, 0], "4.2", "4.4"), false);
+assert.equal(isVersionCompatible([5, 1], "4.2", "4.6"), false);
+
 console.log("All version tests passed.");
