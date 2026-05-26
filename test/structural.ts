@@ -390,6 +390,19 @@ function checkNamingConvention(tools: ToolDef[], pass: (msg: string) => void, fa
   if (failures === 0) pass(`naming: all ${tools.length} tools follow <domain>.<action> snake_case convention`);
 }
 
+// ── Check 5: successHint canary ────────────────────────────────────
+
+function checkSuccessHints(tools: ToolDef[], pass: (msg: string) => void, fail: (msg: string) => void): void {
+  const EXPECTED_HINT_COUNT = 35;
+  const hinted = tools.filter((t) => typeof t.successHint === "string" && t.successHint.length > 0);
+  if (hinted.length < EXPECTED_HINT_COUNT) {
+    const missing = EXPECTED_HINT_COUNT - hinted.length;
+    fail(`successHint: expected >= ${EXPECTED_HINT_COUNT}, got ${hinted.length} (${missing} removed?)`);
+  } else {
+    pass(`successHint: ${hinted.length} tools have response hints (canary >= ${EXPECTED_HINT_COUNT})`);
+  }
+}
+
 // ── Entry point ─────────────────────────────────────────────────────
 
 export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
@@ -401,4 +414,5 @@ export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (m
   checkToolCoverage(tools, pass, fail);
   checkAnnotations(tools, pass, fail);
   checkNamingConvention(tools, pass, fail);
+  checkSuccessHints(tools, pass, fail);
 }
