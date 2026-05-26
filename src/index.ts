@@ -42,6 +42,7 @@ import * as script from "./tools/script.js";
 import * as signal from "./tools/signals.js";
 import * as save from "./tools/save.js";
 import * as tilemap from "./tools/tilemap.js";
+import * as tileset from "./tools/tileset.js";
 import * as classdb from "./tools/classdb.js";
 import * as nodeManagement from "./tools/node_management.js";
 import * as sceneQuery from "./tools/scene_query.js";
@@ -185,6 +186,7 @@ function registerModules(ma: Set<string>): void {
   diff.register(server, bridge, ma);
   playtest.register(server, bridge, ma);
   tilemap.register(server, bridge, ma);
+  tileset.register(server, bridge, ma);
   asset.register(server, bridge, ma);
   runtime.register(server, bridge, ma);
   signal.register(server, bridge, ma);

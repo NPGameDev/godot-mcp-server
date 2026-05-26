@@ -26,6 +26,7 @@ import { playtestTools } from "../src/tools/playtest.js";
 import { inputMapTools } from "../src/tools/input_map.js";
 import { animationTools } from "../src/tools/animation.js";
 import { tilemapTools } from "../src/tools/tilemap.js";
+import { tilesetTools } from "../src/tools/tileset.js";
 import { assetTools } from "../src/tools/asset.js";
 import { fileTools } from "../src/tools/file.js";
 import { saveTools } from "../src/tools/save.js";
@@ -91,6 +92,7 @@ import { TOOLS_TESTED as T41 } from "./sections/41_crash_detection.js";
 import { TOOLS_TESTED as T42 } from "./sections/42_lsp.js";
 import { TOOLS_TESTED as T43 } from "./sections/43_debugger.js";
 import { TOOLS_TESTED as T44 } from "./sections/44_control_layout.js";
+import { TOOLS_TESTED as T45 } from "./sections/45_tileset.js";
 
 // ── Unfiltered tool catalogue ───────────────────────────────────────
 
@@ -109,6 +111,7 @@ function getAllToolDefsUnfiltered(): ToolDef[] {
     inputMapTools,
     animationTools,
     tilemapTools,
+    tilesetTools,
     assetTools,
     fileTools,
     saveTools,
@@ -249,6 +252,7 @@ const ALL_TOOLS_TESTED = new Set([
   ...T42,
   ...T43,
   ...T44,
+  ...T45,
 ]);
 
 // ── Check 1: Schema integrity ───────────────────────────────────────
@@ -393,7 +397,7 @@ function checkNamingConvention(tools: ToolDef[], pass: (msg: string) => void, fa
 // ── Check 5: successHint canary ────────────────────────────────────
 
 function checkSuccessHints(tools: ToolDef[], pass: (msg: string) => void, fail: (msg: string) => void): void {
-  const EXPECTED_HINT_COUNT = 35;
+  const EXPECTED_HINT_COUNT = 43;
   const hinted = tools.filter((t) => typeof t.successHint === "string" && t.successHint.length > 0);
   if (hinted.length < EXPECTED_HINT_COUNT) {
     const missing = EXPECTED_HINT_COUNT - hinted.length;

@@ -9,8 +9,6 @@ export const TOOLS_TESTED: string[] = [
   "animation_get_keys",
   "tilemap_set_cells",
   "tilemap_read_cells",
-  "tileset_create",
-  "tileset_edit",
   "editor_screenshot",
   "file_delete",
 ];
@@ -225,81 +223,6 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     "NOT_FOUND",
     "texture",
   );
-
-  // ── tileset.edit ──
-  const editTilesetPath = "res://mcp_smoke_tileset_edit_13.tres";
-  // Create a TileSet to edit
-  const editBase = (await bridge.call(
-    "tileset.create",
-    { file_path: editTilesetPath, texture_path: "res://icon.svg", tile_size: { x: 32, y: 32 }, physics: true },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; source_id?: number };
-
-  if (editBase?.success === true) {
-    // Happy path: set custom collision + custom data on tile (0,0)
-    const editResult = (await bridge.call(
-      "tileset.edit",
-      {
-        file_path: editTilesetPath,
-        source_id: editBase.source_id ?? 0,
-        layers: { custom_data: [{ name: "damage", type: "int" }] },
-        tiles: [
-          { atlas_x: 0, atlas_y: 0, physics_polygon: "none", custom_data: { damage: 10 } },
-          { atlas_x: 1, atlas_y: 0, physics_polygon: "one_way" },
-        ],
-      },
-      CALL_TIMEOUT,
-    )) as { success?: boolean; tiles_modified?: number; errors?: unknown[] };
-    if (editResult?.success === true && (editResult.tiles_modified ?? 0) >= 2) {
-      pass(
-        `tileset.edit happy -> tiles_modified=${editResult.tiles_modified} errors=${(editResult.errors ?? []).length}`,
-      );
-    } else {
-      fail(`tileset.edit happy: ${JSON.stringify(editResult)}`);
-    }
-
-    // Guard: invalid tile coords → per-tile error (not full failure)
-    const editBadTile = (await bridge.call(
-      "tileset.edit",
-      { file_path: editTilesetPath, tiles: [{ atlas_x: 99, atlas_y: 99, probability: 0.5 }] },
-      CALL_TIMEOUT,
-    )) as { success?: boolean; errors?: string[] };
-    if (editBadTile?.success === true && (editBadTile.errors ?? []).length > 0) {
-      pass(`tileset.edit invalid tile -> success with ${editBadTile.errors!.length} error(s)`);
-    } else {
-      fail(`tileset.edit invalid tile: ${JSON.stringify(editBadTile)}`);
-    }
-
-    // add_source: add second atlas from same icon.svg
-    const editAddSrc = (await bridge.call(
-      "tileset.edit",
-      { file_path: editTilesetPath, add_source: { texture_path: "res://icon.svg", tile_size: { x: 64, y: 64 } } },
-      CALL_TIMEOUT,
-    )) as { success?: boolean; new_source_id?: number };
-    if (editAddSrc?.success === true && typeof editAddSrc.new_source_id === "number") {
-      pass(`tileset.edit add_source -> new_source_id=${editAddSrc.new_source_id}`);
-    } else {
-      fail(`tileset.edit add_source: ${JSON.stringify(editAddSrc)}`);
-    }
-  } else {
-    pass("tileset.edit: base tileset creation failed, skipping edit tests");
-  }
-
-  // Guard: missing file
-  assertGuard(
-    ctx,
-    "tileset.edit missing file",
-    await bridge.call("tileset.edit", { file_path: "res://no_such_tileset.tres" }, CALL_TIMEOUT),
-    "NOT_FOUND",
-    "TileSet",
-  );
-
-  // Cleanup
-  try {
-    await bridge.call("file.delete", { file_path: editTilesetPath }, CALL_TIMEOUT);
-  } catch {
-    /* noop */
-  }
 
   // ── editor.screenshot with node_path (node-focused capture) ──
   // editor.screenshot_node was merged into editor.screenshot via the

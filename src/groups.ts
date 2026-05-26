@@ -34,6 +34,7 @@ import { scriptTools } from "./tools/script.js";
 import { folderTools } from "./tools/folder.js";
 import { diffTools } from "./tools/diff.js";
 import { tilemapTools } from "./tools/tilemap.js";
+import { tilesetStructuralTools, tilesetEditTools } from "./tools/tileset.js";
 import { themeTools } from "./tools/theme.js";
 import { nodeManagementTools } from "./tools/node_management.js";
 import { layerNameTools } from "./tools/layer_names.js";
@@ -65,6 +66,8 @@ export type GroupName =
   | "scene_advanced"
   | "editor_advanced"
   | "tilemap"
+  | "tileset"
+  | "tileset_edit"
   | "theme"
   | "layer_naming"
   | "path_editing"
@@ -92,6 +95,8 @@ const GROUP_NAMES: readonly GroupName[] = [
   "scene_advanced",
   "editor_advanced",
   "tilemap",
+  "tileset",
+  "tileset_edit",
   "theme",
   "layer_naming",
   "path_editing",
@@ -222,9 +227,52 @@ export const GROUPS: GroupDef[] = [
   },
   {
     name: "tilemap",
-    description: "Read and paint tilemap cells, create tilesets, and edit tileset properties",
-    tools: ["tilemap_read_cells", "tilemap_set_cells", "tileset_create", "tileset_edit"],
-    keywords: ["tilemap", "tileset", "tile", "grid", "terrain", "cell", "layer", "read cells", "2d"],
+    description: "Read and paint cells on TileMap/TileMapLayer nodes — cell queries, bulk fills, and region operations",
+    tools: ["tilemap_read_cells", "tilemap_set_cells"],
+    keywords: ["tilemap", "tile", "grid", "cell", "read cells", "paint cells", "2d"],
+  },
+  {
+    name: "tileset",
+    description: "Create TileSet resources, add atlas sources, configure layers, and manage tile alternatives",
+    tools: [
+      "tileset_create",
+      "tileset_add_source",
+      "tileset_remove_source",
+      "tileset_add_alternative",
+      "tileset_remove_alternative",
+      "tileset_setup_layers",
+    ],
+    keywords: [
+      "tileset",
+      "atlas",
+      "tile source",
+      "tile layer",
+      "terrain set",
+      "tile alternative",
+      "tile variant",
+      "create tileset",
+    ],
+  },
+  {
+    name: "tileset_edit",
+    description: "Edit per-tile properties: physics, terrain, navigation, visuals, and custom data",
+    tools: [
+      "tileset_edit_physics",
+      "tileset_edit_terrain",
+      "tileset_edit_navigation",
+      "tileset_edit_visuals",
+      "tileset_edit_custom_data",
+    ],
+    keywords: [
+      "tileset collision",
+      "tile physics",
+      "tile terrain",
+      "tile navigation",
+      "tile occlusion",
+      "tile animation",
+      "tile custom data",
+      "peering bits",
+    ],
   },
   {
     name: "theme",
@@ -420,6 +468,8 @@ for (const tools of [
   folderTools,
   diffTools,
   tilemapTools,
+  tilesetStructuralTools,
+  tilesetEditTools,
   themeTools,
   nodeManagementTools,
   layerNameTools,

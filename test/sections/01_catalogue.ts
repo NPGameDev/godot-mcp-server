@@ -14,6 +14,7 @@ import { sceneTools } from "../../src/tools/scene.js";
 import { scriptTools } from "../../src/tools/script.js";
 import { signalTools } from "../../src/tools/signals.js";
 import { tilemapTools } from "../../src/tools/tilemap.js";
+import { tilesetTools } from "../../src/tools/tileset.js";
 import { classdbTools } from "../../src/tools/classdb.js";
 import { nodeManagementTools } from "../../src/tools/node_management.js";
 import type { ToolDef } from "../../src/types.js";
@@ -47,6 +48,7 @@ function getAllToolDefs(): ToolDef[] {
     ...inputMapTools,
     ...animationTools,
     ...tilemapTools,
+    ...tilesetTools,
     ...assetTools,
     ...fileTools,
     ...(featureEnabled("read_user_scope") ? saveTools : []),
@@ -63,14 +65,13 @@ function getAllToolDefs(): ToolDef[] {
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 60 base (62 in arrays minus 2 gated: execute_code, node_call_method).
+  // Tool count — 69 base (71 in arrays minus 2 gated: execute_code, node_call_method).
   // getAllToolDefs applies gateFilter, so the base already excludes gated tools.
   // read_user_scope (+4) adds save_read/write/delete/list via conditional spread.
-  // Window 1 merge: +signal_list +signal_manage +control_set_layout -classdb_get_info
-  // -classdb_search -asset_list = net 0, but +tilemap_read_cells (lazy) + control_set_layout
-  // (standard) = net +2 from 58.
-  // All off = 60; all on = 66.
-  let expectedToolCount = 60;
+  // tileset-edit-split: tileset_edit (1) → 10 focused tools + tileset_create moved
+  // to tilesetTools = net +9 from 60.
+  // All off = 69; all on = 75.
+  let expectedToolCount = 69;
   if (featureEnabled("execute_code")) expectedToolCount += 1;
   if (featureEnabled("node_call_method")) expectedToolCount += 1;
   if (featureEnabled("read_user_scope")) expectedToolCount += 4;

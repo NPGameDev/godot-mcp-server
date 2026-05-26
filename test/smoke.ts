@@ -76,6 +76,7 @@ import * as sec41 from "./sections/41_crash_detection.js";
 import * as sec42 from "./sections/42_lsp.js";
 import * as sec43 from "./sections/43_debugger.js";
 import * as sec44 from "./sections/44_control_layout.js";
+import * as sec45 from "./sections/45_tileset.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -277,6 +278,7 @@ const ALL_SECTIONS: Section[] = [
   { num: 42, name: "lsp", run: sec42.testLsp },
   { num: 43, name: "debugger", run: sec43.testDebugger },
   { num: 44, name: "control_layout", run: sec44.testControlLayout },
+  { num: 45, name: "tileset", run: sec45.testTileset },
 ];
 
 function filterSections(): Section[] {
