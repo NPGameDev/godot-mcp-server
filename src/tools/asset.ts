@@ -44,6 +44,7 @@ export const assetTools: ToolDef[] = [
       wait_for_scan_ms: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    successHint: "Verify import with resource_load. Check file system with asset_list.",
   },
 ];
 

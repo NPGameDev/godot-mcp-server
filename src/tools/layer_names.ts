@@ -17,6 +17,7 @@ export const layerNameTools: ToolDef[] = [
       layers: z.preprocess(jsonCoerce, z.record(z.string(), z.string())).describe("Layer number (1-32) to name"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Set layer masks on nodes via node_set_property with LayerMask type tag.",
   },
   {
     name: "layer_names_get",

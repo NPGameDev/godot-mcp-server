@@ -36,6 +36,7 @@ export const themeTools: ToolDef[] = [
         .describe("Array of theme property edits to apply"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Apply theme to Control via node_set_property (theme property with Resource type tag).",
   },
 ];
 

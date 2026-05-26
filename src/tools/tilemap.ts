@@ -83,6 +83,7 @@ export const tilemapTools: ToolDef[] = [
         ),
     },
     annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Customize tiles with tileset_edit. Apply to map with tilemap_set_cells.",
   },
   {
     name: "tileset_edit",

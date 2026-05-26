@@ -108,6 +108,8 @@ export type ToolDef = {
   godotMaxVersion?: string;
   /** Feature gate name. When set, the tool is only registered when isEnabled(gate) is true; otherwise a LOCKED stub is shown. */
   gate?: string;
+  /** Brief guidance appended to successful responses — next steps, related tools, common pitfalls. Omit for terminal actions or self-evident results. Does not overwrite toolkit-provided hints. */
+  successHint?: string;
 };
 
 export type ToolTextResult = {

@@ -46,6 +46,7 @@ export const threeDTools: ToolDef[] = [
       position: z.preprocess(jsonCoerce, vec3Schema).optional().describe("World position {x,y,z}"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Set material via node_set_property. Add lighting with 3d_create_light, camera with 3d_create_camera.",
   },
   {
     name: "3d_setup_environment",
@@ -94,6 +95,7 @@ export const threeDTools: ToolDef[] = [
         .describe("Fog settings: {enabled?, color?, density?}"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Add lights with 3d_create_light, camera with 3d_create_camera.",
   },
   {
     name: "3d_create_light",

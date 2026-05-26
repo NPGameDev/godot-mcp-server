@@ -20,6 +20,7 @@ export const animationTools: ToolDef[] = [
       track_type: z.string().optional(),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    successHint: "Verify keys with animation_get_keys. Configure AnimationTree with animationtree_edit.",
   },
   {
     name: "animation_get_keys",

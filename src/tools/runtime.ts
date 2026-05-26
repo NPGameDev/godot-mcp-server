@@ -27,6 +27,7 @@ export const runtimeTools: ToolDef[] = [
       "Capture the running game window. Requires an active playtest (game_start). Use editor_screenshot for the editor viewport. Returns inline PNG.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint: "For editor viewport use editor_screenshot. Only available while game is running.",
   },
   {
     name: "runtime_get_node_state",

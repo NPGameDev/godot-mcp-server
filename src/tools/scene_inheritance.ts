@@ -16,6 +16,7 @@ export const sceneInheritanceTools: ToolDef[] = [
       root_name: z.string().optional().describe("Root node name override (default: base scene's root name)"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Add overrides with scene_create_node / node_set_property. Save with editor_save_scene.",
   },
 ];
 

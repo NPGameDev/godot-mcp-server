@@ -16,6 +16,8 @@ export const nodeTools: ToolDef[] = [
         .describe("Property name. Use ':' to chain into sub-resources (e.g. 'material:shader_parameter/value')."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint:
+      "For available properties use node_get_property_list. For tree-wide overview use scene_get_tree with include_properties.",
   },
   // I2 waiver: node_set_property description exceeds 200-char limit.
   // Editor-time vs runtime distinction (F21/F33) and anchors-preset
@@ -74,6 +76,7 @@ export const nodeTools: ToolDef[] = [
         ),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Save changes with editor_save_scene. For batch edits, use the batch array in a single call.",
   },
   {
     name: "node_get_property_list",
@@ -95,6 +98,7 @@ export const nodeTools: ToolDef[] = [
         .describe("Filter for mask='script'. 'public' = no _ prefix, 'private' = _ prefix, 'all' = both."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint: "For specific values use node_get_property. Filter with mask parameter (common/all/groups/script).",
   },
   {
     name: "node_set_script",
@@ -106,6 +110,7 @@ export const nodeTools: ToolDef[] = [
       script_path: z.string(),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Write script content with script_write. View @export properties in the returned property list.",
   },
   {
     name: "control_set_layout",
@@ -137,6 +142,7 @@ export const nodeTools: ToolDef[] = [
         .describe("Additive offsets applied after the preset (in pixels)."),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Margins are applied AFTER the preset. For Container children, layout is overridden by the parent.",
   },
   // node_call_method is feature-gated (single-gate: env OR PS). Plugin-side
   // FeatureGate performs the full check as defence-in-depth; the gate here

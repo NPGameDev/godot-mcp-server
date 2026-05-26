@@ -173,7 +173,13 @@ export async function callAndWrap(
   bridge: Bridge,
   method: string,
   input: unknown,
-  opts: { runtime?: boolean; timeoutMs?: number; extensionTimeoutHint?: string; signal?: AbortSignal } = {},
+  opts: {
+    runtime?: boolean;
+    timeoutMs?: number;
+    extensionTimeoutHint?: string;
+    signal?: AbortSignal;
+    successHint?: string;
+  } = {},
 ): Promise<ToolTextResult> {
   try {
     const result = opts.runtime
@@ -181,6 +187,10 @@ export async function callAndWrap(
       : await bridge.call(method, input, opts.timeoutMs, opts.signal);
     const err = toolErrorFromPayload(result);
     if (err) return err;
+    // Inject success hint if provided and toolkit didn't already set one
+    if (opts.successHint && result && typeof result === "object" && !(result as Record<string, unknown>).hint) {
+      (result as Record<string, unknown>).hint = opts.successHint;
+    }
     return { content: [{ type: "text", text: stableStringify(result) }] };
   } catch (err) {
     if (opts.runtime) return runtimeErrorWithCrashContext(bridge, err);
@@ -546,6 +556,25 @@ export function registerToolWrapped(
   setToolRef(name, ref);
 }
 
+/** Inject a success hint into the first JSON text block of a ToolTextResult.
+ *  Skips if the payload already has a toolkit-provided hint. */
+function injectSuccessHint(result: ToolTextResult, hint: string): void {
+  for (const block of result.content) {
+    if (block.type === "text") {
+      try {
+        const payload = JSON.parse(block.text);
+        if (typeof payload === "object" && payload !== null && !payload.hint) {
+          payload.hint = hint;
+          block.text = JSON.stringify(payload);
+          return;
+        }
+      } catch {
+        /* non-JSON text content — skip */
+      }
+    }
+  }
+}
+
 /**
  * Register an array of tool definitions with the standard callAndWrap
  * handler. Used by tool modules whose tools all follow the default
@@ -572,10 +601,22 @@ export function registerTools(
     let description = tool.description;
     const customHandler = opts.handlers?.get(tool.name);
     let handler = (customHandler ??
-      ((input: unknown, signal?: AbortSignal) => callAndWrap(bridge, tool.method, input, { signal }))) as (
+      ((input: unknown, signal?: AbortSignal) =>
+        callAndWrap(bridge, tool.method, input, { signal, successHint: tool.successHint }))) as (
       input: unknown,
       signal?: AbortSignal,
     ) => Promise<ToolTextResult>;
+
+    // Custom handlers bypass callAndWrap, so inject successHint via wrapper.
+    if (customHandler && tool.successHint) {
+      const baseHandler = handler;
+      const hintText = tool.successHint;
+      handler = (async (input: unknown, signal?: AbortSignal) => {
+        const result = await baseHandler(input, signal);
+        if (!result.isError) injectSuccessHint(result, hintText);
+        return result;
+      }) as typeof handler;
+    }
 
     // Gated tools: register with full schema, check gate at call time.
     // Description only mentions the gate when disabled — when enabled the

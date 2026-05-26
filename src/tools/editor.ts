@@ -35,6 +35,7 @@ export const editorTools: ToolDef[] = [
         .describe("Output size when capturing a specific node (default 1280x720)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint: "For running game visuals use runtime_screenshot. Pass node_path for focused capture.",
   },
   {
     // I2 waiver: editor_refresh description exceeds 200-char limit.
@@ -59,6 +60,7 @@ export const editorTools: ToolDef[] = [
       "Open a scene (.tscn / .scn) as the active edited scene. res:// only; NOT_FOUND if the file doesn't exist.",
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint: "View structure with scene_get_tree. Query specific nodes with scene_query.",
   },
   {
     name: "scene_close",
@@ -105,6 +107,7 @@ export const editorTools: ToolDef[] = [
         ),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint: "For runtime crash logs use debugger_get_log. Use since_id for incremental reads.",
   },
   {
     name: "editor_wait_for_idle",

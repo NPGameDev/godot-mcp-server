@@ -15,6 +15,7 @@ export const sceneTools: ToolDef[] = [
       include_properties: coercedBoolean().optional().describe("Embed property snapshot per node. Default false."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint: "For filtered node search use scene_query. For specific node details use node_get_property.",
   },
   // I2 waiver: param examples in scene_create_node and scene_instantiate
   // fix parameter naming confusion (F2/F15/F20).
@@ -47,6 +48,7 @@ export const sceneTools: ToolDef[] = [
         ),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    successHint: "Configure with node_set_property. Attach script with node_set_script. Save with editor_save_scene.",
   },
   {
     name: "scene_delete_node",
@@ -66,6 +68,7 @@ export const sceneTools: ToolDef[] = [
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    successHint: "Open with scene_open to make it the active scene, then add nodes with scene_create_node.",
   },
   {
     name: "scene_delete",
@@ -74,6 +77,8 @@ export const sceneTools: ToolDef[] = [
       "Delete .tscn at path and .uid companion. Auto-closes editor tab on 4.5+ (tab_closed:true). 4.2-4.4: blocks active scene (EDITED_SCENE); non-active tabs get phantom warnings. Refuses non-.tscn.",
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    successHint:
+      "Only for .tscn/.scn files. Scripts: script_delete. Resources: resource_delete. Other files: file_delete.",
   },
   {
     name: "scene_instantiate",
@@ -99,6 +104,7 @@ export const sceneTools: ToolDef[] = [
         ),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    successHint: "Configure instance properties with node_set_property. Save with editor_save_scene.",
   },
 ];
 

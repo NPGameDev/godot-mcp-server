@@ -84,5 +84,7 @@ export const particleTools: ToolDef[] = [
       position: z.union([vec2, vec3]).optional().describe("Node position"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint:
+      "Customize with procedural_edit_curve (velocity/emission), procedural_edit_gradient (color over lifetime).",
   },
 ];

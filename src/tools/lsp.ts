@@ -117,6 +117,7 @@ export const lspAnalysisTools: ToolDef[] = [
         ),
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    successHint: "For quick validation use script_check. For runtime errors use editor_get_console.",
   },
   {
     name: "lsp_symbols",

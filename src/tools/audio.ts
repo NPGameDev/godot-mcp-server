@@ -31,6 +31,7 @@ export const audioTools: ToolDef[] = [
         .describe("Effect to add/remove"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Effect types must be full class names (e.g., AudioEffectReverb not Reverb).",
   },
 ];
 

@@ -26,6 +26,7 @@ export const scriptTools: ToolDef[] = [
       "Not idempotent. Use script.delete to remove; resource.create for .tres; scene.create for .tscn.",
     inputSchema: { file_path: z.string(), content: z.string() },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Validate with script_check or lsp_diagnostics. Errors also appear in editor_get_console.",
   },
   {
     name: "script_delete",
@@ -34,6 +35,7 @@ export const scriptTools: ToolDef[] = [
       "Delete .gd/.cs/.gdshader/.gdshaderinc at file_path (and .uid companion). Refuses non-script paths (INVALID_PATH). No open-in-editor guard.",
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    successHint: "For scenes use scene_delete. For resources use resource_delete.",
   },
   {
     name: "script_check",
@@ -43,6 +45,7 @@ export const scriptTools: ToolDef[] = [
       "For richer diagnostics, activate lsp_code_analysis group.",
     inputSchema: { file_path: z.string().describe("res:// path to a .gd file") },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint: "For detailed diagnostics use lsp_diagnostics. For runtime errors use editor_get_console.",
   },
 ];
 

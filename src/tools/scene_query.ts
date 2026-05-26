@@ -33,6 +33,7 @@ export const sceneQueryTools: ToolDef[] = [
       limit: z.number().int().optional().describe("Max results (default 50)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint: "For full tree structure use scene_get_tree. For specific properties use node_get_property.",
   },
 ];
 

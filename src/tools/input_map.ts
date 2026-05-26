@@ -22,6 +22,7 @@ export const inputMapTools: ToolDef[] = [
       deadzone: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    successHint: "Bind events with input_map_event after creating the action.",
   },
   {
     name: "input_map_event",

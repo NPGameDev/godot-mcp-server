@@ -20,6 +20,7 @@ export const collisionTools: ToolDef[] = [
         .describe("Polygon simplification epsilon 0.0-10.0 (default 2.0, higher=fewer points)"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Assign the generated polygon to a CollisionPolygon2D via node_set_property.",
   },
 ];
 

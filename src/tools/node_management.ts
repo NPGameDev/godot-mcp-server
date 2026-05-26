@@ -32,6 +32,8 @@ export const nodeManagementTools: ToolDef[] = [
         .describe("For duplicate: property overrides on the copy (e.g. {position:{x:100,y:200}})."),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint:
+      "After rename/reparent/reorder, scripts using $Path, get_node() paths, or %UniqueNames referencing the affected node may break. Check scripts on the moved node and its immediate neighbors.",
   },
   {
     name: "node_groups",

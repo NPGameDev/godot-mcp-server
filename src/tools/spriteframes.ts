@@ -33,6 +33,7 @@ export const spriteframesTools: ToolDef[] = [
       animations: z.array(animationSchema).min(1).describe("Animations with their frames"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint: "Add/modify frames with spriteframes_edit. For spritesheets use spriteframes_from_spritesheet.",
   },
   {
     name: "spriteframes_edit",

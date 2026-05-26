@@ -30,6 +30,7 @@ export const resourceTools: ToolDef[] = [
       type: z.string().optional().describe("Resource class name. Required when creating a new resource."),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    successHint: "Verify with resource_load. Assign to node via node_set_property with Resource type tag.",
   },
   {
     name: "resource_delete",
@@ -38,6 +39,7 @@ export const resourceTools: ToolDef[] = [
       "Delete the .tres/.res and its .uid companion at file_path. No active-use guard (Godot refs survive file deletion; detect orphans via editor_get_console).",
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    successHint: "For scenes use scene_delete. For scripts use script_delete. Non-resource files: file_delete.",
   },
 ];
 
