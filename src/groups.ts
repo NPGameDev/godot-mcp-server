@@ -960,9 +960,9 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         include_schemas: coercedBoolean()
           .optional()
           .describe(
-            "Include full parameter schemas and annotations for activated tools. " +
-              "Default false. Set true when activated tools require a separate " +
-              "tool lookup to obtain schemas.",
+            "Include full parameter schemas and annotations in the response. " +
+              "Default false. Only needed when you activated a group but the " +
+              "new tools are missing from your tool list.",
           ),
         reset: z
           .union([z.boolean(), z.array(z.string())])
