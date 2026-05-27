@@ -269,7 +269,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | discover_tools | 01 (catalogue), 40 | ✓ (catalogue probe) | — | — | — | **Section 40:** keyword search, group activation, selective reset, over-activation warning |
 | extensions_refresh | 23 | ✓ (via extensions.list) | — | — | — | |
 | *(error contract)* | 23 | — | ✓ (empty file_path) | — | ✓ (error hint) | Bridge round-trip of MCPToolkitError shape (41l-vicies-ter) |
-| *(successHint)* | 23 | ✓ (scene.get_tree) | — | — | ✓ (server-side hint) | Bridge round-trip of successHint injection (41l-vicies-ter) |
+| *(success contract)* | 23 | ✓ (scene.get_tree) | — | — | — | Verifies ADR 0004 success:true at bridge level (hints are server-side via callAndWrap) |
 
 ### LSP / Language Intelligence (6 tools — on-demand group)
 

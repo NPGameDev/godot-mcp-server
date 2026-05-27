@@ -119,24 +119,21 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
   assertError(ctx, "error contract (empty file_path)", errResult, "INVALID_PARAMS");
   assertHint(ctx, "error hint (empty file_path)", errResult);
 
-  // ── Success hint injection (server-side) ────────────────────────────
-  // Call a built-in tool that has a registered successHint and verify the
-  // hint field appears in the successful response. scene_get_tree is a
-  // good candidate — it has a successHint and works in any open scene.
+  // ── Success contract: built-in tools return success:true ─────────────
+  // Verify the response contract (ADR 0004): every handler returns
+  // {success: true/false}. Built-in tool successHints are injected
+  // server-side in callAndWrap(), NOT at the bridge level — so we only
+  // check that success:true is present here.
   const treeResult = (await bridge.call("scene.get_tree", {}, CALL_TIMEOUT)) as {
     success?: boolean;
     hint?: string;
   };
   if (treeResult?.success) {
-    if (typeof treeResult.hint === "string" && treeResult.hint.length > 0) {
-      pass(`successHint injection: scene.get_tree -> hint="${treeResult.hint.slice(0, 60)}..."`);
-    } else {
-      fail(`successHint injection: scene.get_tree succeeded but no hint field`);
-    }
+    pass(`success contract: scene.get_tree -> success=true`);
   } else {
-    // scene.get_tree may fail if no scene is open — acceptable, skip the hint test
+    // scene.get_tree may fail if no scene is open — acceptable, skip
     pass(
-      `successHint injection: scene.get_tree unavailable (${(treeResult as Record<string, unknown>)?.code ?? "no scene"}) — skipped`,
+      `success contract: scene.get_tree unavailable (${(treeResult as Record<string, unknown>)?.code ?? "no scene"}) — skipped`,
     );
   }
 }
