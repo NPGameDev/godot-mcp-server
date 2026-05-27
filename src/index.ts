@@ -14,8 +14,6 @@ import {
   removeUngroupedExtensionTool,
 } from "./groups.js";
 import type { ExtensionCmd } from "./groups.js";
-// feature_gate.ts provides isEnabled/envVarFor — used by groups.ts and tool_helpers.ts.
-// No direct import needed here after profile removal.
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
 import { removeAllToolRefs, removeToolByName, updateToolRef, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
@@ -291,20 +289,10 @@ function removeAllTools(): void {
   resetLoadedGroups();
 }
 
-function handleConfigReload(params?: Record<string, unknown>): void {
-  const pluginGates = params?.gates as Record<string, boolean> | undefined;
-
-  if (pluginGates) {
-    // Gates delivered directly from plugin auth/notification — apply to
-    // process.env without re-reading .mcp.json (which may be stale).
-    applyGateState(pluginGates);
-  } else {
-    // Fallback: re-read .mcp.json (old plugin version or manual edit).
-    const newEnv = readMcpJsonEnv(projectPath);
-    if (!newEnv) {
-      process.stderr.write("[godot-mcp] config_reloaded: could not read .mcp.json env — skipping reload\n");
-      return;
-    }
+function handleConfigReload(): void {
+  // Re-read .mcp.json for env changes (READ_ONLY, limits, etc.).
+  const newEnv = readMcpJsonEnv(projectPath);
+  if (newEnv) {
     applyEnvUpdate(newEnv);
   }
 
@@ -316,10 +304,6 @@ function handleConfigReload(params?: Record<string, unknown>): void {
   registerModules(moduleAllowed);
   registerGroups();
 
-  if (pluginGates) {
-    process.stderr.write(`[godot-mcp] gate states from plugin: ${JSON.stringify(pluginGates)}\n`);
-  }
-
   process.stderr.write(`[godot-mcp] config reloaded — ${toolRefCount()} tools registered\n`);
 
   // Re-discover extensions + register discover_tools (the MCP SDK
@@ -327,25 +311,11 @@ function handleConfigReload(params?: Record<string, unknown>): void {
   discoverExtensions().catch(() => {});
 }
 
-/**
- * Apply gate state delivered by the plugin (auth response or notification).
- * Maps boolean gates to process.env GODOT_MCP_* vars so isEnabled() works.
- */
-function applyGateState(gates: Record<string, boolean>): void {
-  for (const [envVar, enabled] of Object.entries(gates)) {
-    if (enabled) {
-      process.env[envVar] = "1";
-    } else {
-      delete process.env[envVar];
-    }
-  }
-}
-
-// Debounce config_reloaded to prevent rapid gate toggles from causing
+// Debounce config_reloaded to prevent rapid config changes from causing
 // overlapping remove+rebuild cycles that leave the tool list empty.
 let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
 // The first auth-delivered config_reloaded (reconnect=false) is the initial
-// gate sync.  Suppress tools/list_changed for it — Claude Code may restart
+// config sync.  Suppress tools/list_changed for it — Claude Code may restart
 // the MCP server when it receives the notification within the first second.
 let initialAuthSyncDone = false;
 
@@ -357,24 +327,17 @@ bridge.onNotification((type, params) => {
 
     if (isInitialAuth) {
       // On the very first auth of a new bridge process, tools were JUST
-      // registered at startup from the same env vars.  A full
-      // handleConfigReload would call registerTool() for every tool, and
-      // the tools/list_changed notification would reach Claude Code within the
-      // first second — causing it to kill and restart the bridge.
-      // Instead, just sync env vars so subsequent operations see the
-      // plugin's gate state, and skip tool re-registration entirely.
-      const pluginGates = params?.gates as Record<string, boolean> | undefined;
-      if (pluginGates) applyGateState(pluginGates);
-      process.stderr.write(
-        "[godot-mcp] initial auth sync — env applied, skipping tool reload to avoid connection bounce\n",
-      );
+      // registered at startup from the same env vars.  Skip tool
+      // re-registration to avoid a tools/list_changed notification that
+      // would cause Claude Code to restart the bridge.
+      process.stderr.write("[godot-mcp] initial auth sync — skipping tool reload to avoid connection bounce\n");
       return;
     }
 
     if (configReloadTimer) clearTimeout(configReloadTimer);
     configReloadTimer = setTimeout(() => {
       configReloadTimer = null;
-      handleConfigReload(params);
+      handleConfigReload();
     }, 300);
   } else if (type === "extensions.changed") {
     handleExtensionsChanged(params);
@@ -385,17 +348,6 @@ bridge.onNotification((type, params) => {
     bridge.clearRuntime?.();
   }
 });
-
-// ── Compensate for missed initial auth gate delivery ──────────────────
-// Extension discovery (above) triggers bridge.connect() before
-// onNotification is wired up, so the auth-delivered config_reloaded is
-// silently dropped. Read the stored gate snapshot and apply it now.
-// This is a no-op if no auth has completed yet (editor not running).
-const missedGates = bridge.getAuthGates?.();
-if (missedGates) {
-  applyGateState(missedGates);
-  process.stderr.write(`[godot-mcp] applied missed auth gates: ${JSON.stringify(missedGates)}\n`);
-}
 
 // ── Extension discovery ──────────────────────────────────────────────
 
@@ -416,7 +368,7 @@ function buildExtensionTimeoutHint(method: string, timeoutMs?: number): string {
 
 // Discover third-party extensions from the toolkit and register them as
 // MCP tools. Called eagerly before transport (deadline-wrapped) at startup,
-// and again from handleConfigReload on gate/config changes.
+// and again from handleConfigReload on config changes.
 async function discoverExtensions(): Promise<void> {
   let registered = 0;
   let deferredCount = 0;

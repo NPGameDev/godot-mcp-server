@@ -144,9 +144,9 @@ export const nodeTools: ToolDef[] = [
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     successHint: "Margins are applied AFTER the preset. For Container children, layout is overridden by the parent.",
   },
-  // node_call_method is feature-gated (single-gate: env OR PS). Plugin-side
-  // FeatureGate performs the full check as defence-in-depth; the gate here
-  // controls MCP catalogue visibility only.
+  // node_call_method can call arbitrary methods — risk communicated via
+  // destructiveHint annotation. Agent-side filtering recommended for
+  // untrusted contexts (see security-recommendations.md).
   {
     name: "node_call_method",
     method: "node.call_method",
@@ -156,8 +156,7 @@ export const nodeTools: ToolDef[] = [
       method_name: z.string(),
       args: z.array(z.unknown()).optional(),
     },
-    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
-    gate: "node_call_method",
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
   },
 ];
 

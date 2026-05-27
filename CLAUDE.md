@@ -27,7 +27,6 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   `isAllowedInReadOnly`, `isExcludedByReadOnly`). Defines `STANDARD_TOOLS`.
 - `src/groups.ts` — lazy-load group system. `registerGroupSystem` registers
   `discover_tools` meta-tool. `GROUP_TOOL_NAMES` tracks group membership.
-- `src/feature_gate.ts` — env-var-only gate checks (`isEnabled`, `envVarFor`).
 - `src/schema_min.ts` — `minifySchema` + `stableStringify` (sorted-key JSON for
   prompt-cache hits).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
@@ -76,56 +75,11 @@ Source of truth: each tool's `annotations.readOnlyHint`, filtered by
 (Claude Code does not process `tools/list_changed` notifications).
 
 Source of truth: `src/groups.ts` — see `GROUPS` array for full list.
-Groups persist for the session. Gated groups require their env var.
+Groups persist for the session.
 
 When activating tool groups via `discover_tools`, always pass
 `include_schemas: true` to receive full parameter schemas in the response.
 This avoids a separate tool lookup for each activated tool.
-
-## Feature gates (iter 19)
-
-Three features are gated behind explicit opt-in via env vars. The TS side
-controls MCP catalogue visibility only (env-var check at registration
-time); the plugin side performs the full deny → sidecar check as
-defence-in-depth.
-
-| Feature               | Env var                                  | Tools affected |
-|-----------------------|------------------------------------------|----------------|
-| `execute_code`        | `GODOT_MCP_ALLOW_EXECUTE_CODE`           | `execute_code` |
-| `node_call_method`    | `GODOT_MCP_ALLOW_NODE_CALL_METHOD`       | `node_call_method` |
-| `read_user_scope`     | `GODOT_MCP_ALLOW_USER_SCOPE`             | `save_read`, `save_write`, `save_delete`, `save_list` |
-
-Gate logic lives in `src/feature_gate.ts`.
-
-### Dual-pass smoke runner (`npm run smoke`)
-
-`test/run-smoke.ts` runs `test/smoke.ts` twice in child processes:
-
-1. **Pass 1 — ALL GATES OFF**: no `GODOT_MCP_ALLOW_*` env vars.
-   Verifies the base catalogue (50 tools), gated sections skip gracefully.
-2. **Pass 2 — ALL GATES ON**: all gate env vars set to `"1"` plus
-   `MCP_ENABLE_USER_SCOPE=1`. Verifies the expanded catalogue (up to 61).
-   Sections that hit a Godot-side dual-gate rejection (`FEATURE_DISABLED`)
-   skip rather than fail — the TS-side gate is confirmed, but the
-   ProjectSettings side may not be configured in this editor instance.
-
-Both passes set `GODOT_MCP_PROJECT_NAME` so token resolution works when
-CWD is the server repo (not the Godot project root).
-
-Use `npm run smoke:single` for a single pass that inherits whatever
-env vars the caller provides (useful for debugging a specific gate
-configuration).
-
-### Conditional smoke for user-scope tools
-
-The smoke test exercises `save.*` round-trips only when
-`MCP_ENABLE_USER_SCOPE=1` is set. This env var is intentionally distinct
-from `GODOT_MCP_ALLOW_USER_SCOPE` — running the gate'd tests requires
-both: (a) Godot launched with the gate enabled AND (b) the smoke harness
-told to exercise them. Without `MCP_ENABLE_USER_SCOPE=1`, the smoke test
-logs a skip message and proceeds. Even with both env vars set, the
-Godot-side dual gate or a missing whitelist file may reject — the test
-detects `FEATURE_DISABLED` / `USER_SCOPE_DISABLED` and skips gracefully.
 
 ## Idempotency — status discriminator (iter 15 / 15b)
 
@@ -165,7 +119,7 @@ param, copy this shape (zod `z.enum(["return","fail","replace"]).optional()`,
 toolkit-side default `"return"`, three-branch switch in the GDScript
 handler).
 
-## Environment variables (non-gate)
+## Environment variables
 
 | Variable                    | Default                 | Purpose |
 |-----------------------------|-------------------------|---------|
@@ -247,7 +201,7 @@ npm run build        # tsc -> dist/, postbuild adds shebang
 npm run lint         # ESLint check
 npm run format       # Prettier check (format:fix to auto-fix)
 npm run eval         # accuracy eval (correctness + efficiency, editor must be up)
-npm run smoke        # dual-pass: gates-off then gates-on (editor must be up)
+npm run smoke        # full smoke suite (editor must be up)
 npm run smoke:single # single-pass (inherits env vars from caller)
 npm run smoke:ci     # static catalogue validation only (no Godot required)
 npm link             # dogfood: global `godot-mcp-server` resolves to this dist/
@@ -268,13 +222,13 @@ for end users with no further edits. See iter 13b + iter 20 in the plan repo.
 2. Keep `description` ≤ 200 chars (I2).
 3. Decide placement: add the tool's name to `STANDARD_TOOLS` (always visible),
    or to a group's `tools` array in `src/groups.ts` (lazy-loaded via
-   `discover_tools`). Gated tools go in their module's conditional push block.
+   `discover_tools`).
 4. If the tool returns non-text content (images, binary), handle it explicitly
    in the module's `register()` function — see `runtime.ts` `runtime_screenshot`
    for the image path. Group tools with custom handlers go in `createHandler`
    in `src/groups.ts`.
-5. Add a smoke-test round-trip assertion under the existing ones in
-   `test/smoke.ts`, appended (never re-ordered — port-check must stay first).
+5. Add a smoke-test section in `test/sections/` following the section naming
+   convention, then import and register it in `test/smoke.ts`.
 6. Update tool counts and the toolkit-repo `CLAUDE.md` tool table.
 
 ## Error code reference (I1)
@@ -296,7 +250,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `DISCONNECTED`     | bridge           | Socket closed mid-call or no reconnect within `CALL_AWAIT_RECONNECT_MS`.      |
 | `EDITED_SCENE`     | plugin (iter 15) | `scene_delete` / `file_delete` against the active scene on 4.2-4.4 (no tab-close API). On 4.5+ the tab is auto-closed first. |
 | `EXECUTE_FAILED`   | plugin (Mode B)  | `game.eval` Expression.execute returned an error.                             |
-| `FEATURE_DISABLED` | both (iter 19+)  | Tool gated off by FeatureGate; reserved.                                      |
+| `FEATURE_DISABLED` | both (iter 19+)  | Reserved — feature gate system removed; may be reused for future gating.      |
 | `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |
 | `FILESYSTEM_NOT_READY` | plugin (iter 15e) | `EditorFileSystem.is_scanning()` true when `asset_list` or `asset_get_dependencies` called. Agent should retry in 500-2000ms. |
 | `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
@@ -328,7 +282,7 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `UNSUPPORTED`      | both (iter 37)   | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
 | `UNKNOWN_CLASS`    | plugin (iter 26)   | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |
 | `USER_PATH_NOT_WHITELISTED` | plugin (iter 19c) | `user://` path not in the plugin author's whitelist for the requested mode (read/write/delete). Message lists allowed entries. |
-| `USER_SCOPE_DISABLED` | plugin (iter 19c) | `read_user_scope` feature gate is off or `user_scope_whitelist.json` is missing/malformed. |
+| `USER_SCOPE_DISABLED` | plugin (iter 19c) | `GODOT_MCP_ENABLE_USER_SCOPE` is not set or `user_scope_whitelist.json` is missing/malformed. |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |
 
 ## Version sync policy

@@ -9,15 +9,7 @@
  * Rerun after adding or modifying tools to check impact.
  */
 
-// ── Enable all feature gates before tool modules load ────────────────
-process.env.GODOT_MCP_ALLOW_GAME_EVAL = "1";
-process.env.GODOT_MCP_ALLOW_NODE_CALL_METHOD = "1";
-process.env.GODOT_MCP_ALLOW_PROJECT_SET_SETTING = "1";
-process.env.GODOT_MCP_ALLOW_INPUT_MAP_WRITE = "1";
-process.env.GODOT_MCP_ALLOW_USER_SCOPE = "1";
-
-// Dynamic imports — must run AFTER env vars are set so conditional
-// tool registrations (isEnabled() checks at module load time) see them.
+// Dynamic imports.
 const { z } = await import("zod");
 const { minifySchema } = await import("../src/schema_min.js");
 const { STANDARD_TOOLS, isAllowedInReadOnly } = await import("../src/profiles.js");
@@ -132,9 +124,9 @@ function measure(tool: ToolDef): ToolMeasurement {
   };
 }
 
-// ── Synthetic entries (discover_tools + stubs) ──────────────────────
-// These are defined inline in groups.ts / stubs.ts and don't appear in
-// the ToolDef arrays. We define them here for accurate standard-profile
+// ── Synthetic entry (discover_tools) ────────────────────────────────
+// discover_tools is defined inline in groups.ts and doesn't appear in
+// the ToolDef arrays. We define it here for accurate standard-profile
 // measurement.
 
 const DISCOVER_TOOLS_ENTRY: McpToolEntry = {
@@ -165,38 +157,15 @@ const DISCOVER_TOOLS_ENTRY: McpToolEntry = {
   annotations: { readOnlyHint: true, openWorldHint: false },
 };
 
-const STUB_ENTRIES: McpToolEntry[] = [
-  {
-    name: "game_eval",
-    description:
-      "LOCKED — evaluate GDScript in running game. Enable: set GODOT_MCP_ALLOW_GAME_EVAL=1 in .mcp.json env.",
-    inputSchema: { type: "object", properties: {} },
-    annotations: { openWorldHint: false },
-  },
-  {
-    name: "node_call_method",
-    description:
-      "LOCKED — call arbitrary method on scene node. Enable: set GODOT_MCP_ALLOW_NODE_CALL_METHOD=1 in .mcp.json env.",
-    inputSchema: { type: "object", properties: {} },
-    annotations: { openWorldHint: false },
-  },
-  {
-    name: "project_set_setting",
-    description: "LOCKED — write ProjectSettings. Enable: set GODOT_MCP_ALLOW_PROJECT_SET_SETTING=1 in .mcp.json env.",
-    inputSchema: { type: "object", properties: {} },
-    annotations: { openWorldHint: false },
-  },
-];
-
 // ── Build profile catalogues ─────────────────────────────────────────
 
 // Read-only: tools with readOnlyHint: true (annotation-derived, no hardcoded list)
 const readOnlyDefs = ALL_DEFS.filter((t) => isAllowedInReadOnly(t.annotations));
 
-// Standard (default, gates closed): STANDARD_TOOLS + discover_tools + stubs
+// Standard (default): STANDARD_TOOLS + discover_tools
 const standardDefs = STANDARD_TOOLS.map((n) => byName.get(n)).filter(Boolean) as ToolDef[];
 
-// Power User (all gates open): every tool from every module
+// Full: every tool from every module
 const fullDefs = ALL_DEFS;
 
 // Group tools available on-demand in standard profile
@@ -222,18 +191,14 @@ function profileCost(
 
 const readOnly = profileCost(readOnlyDefs);
 const readOnlyMin = profileCost(readOnlyDefs, [], true);
-const standard = profileCost(standardDefs, [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES]);
-const standardMin = profileCost(standardDefs, [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES], true);
+const standard = profileCost(standardDefs, [DISCOVER_TOOLS_ENTRY]);
+const standardMin = profileCost(standardDefs, [DISCOVER_TOOLS_ENTRY], true);
 const full = profileCost(fullDefs);
 const fullMin = profileCost(fullDefs, [], true);
 
 // Standard + all groups loaded
-const standardWithGroups = profileCost([...standardDefs, ...groupDefs], [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES]);
-const standardWithGroupsMin = profileCost(
-  [...standardDefs, ...groupDefs],
-  [DISCOVER_TOOLS_ENTRY, ...STUB_ENTRIES],
-  true,
-);
+const standardWithGroups = profileCost([...standardDefs, ...groupDefs], [DISCOVER_TOOLS_ENTRY]);
+const standardWithGroupsMin = profileCost([...standardDefs, ...groupDefs], [DISCOVER_TOOLS_ENTRY], true);
 
 // Version annotation overhead: compare full catalogue with and without
 // version-gated tools' extra annotation data
@@ -372,7 +337,7 @@ emit("");
 emit("| Profile | Before | After | Saved | Reduction |");
 emit("|---------|-------:|------:|------:|----------:|");
 emit(
-  `| Minimal | ${minimal.totalBytes.toLocaleString()} | ${minimalMin.totalBytes.toLocaleString()} | ${(minimal.totalBytes - minimalMin.totalBytes).toLocaleString()} | ${pct(minimal.totalBytes, minimalMin.totalBytes)} |`,
+  `| Read-only | ${readOnly.totalBytes.toLocaleString()} | ${readOnlyMin.totalBytes.toLocaleString()} | ${(readOnly.totalBytes - readOnlyMin.totalBytes).toLocaleString()} | ${pct(readOnly.totalBytes, readOnlyMin.totalBytes)} |`,
 );
 emit(
   `| Standard | ${standard.totalBytes.toLocaleString()} | ${standardMin.totalBytes.toLocaleString()} | ${(standard.totalBytes - standardMin.totalBytes).toLocaleString()} | ${pct(standard.totalBytes, standardMin.totalBytes)} |`,
@@ -389,9 +354,6 @@ emit("- **Schema conversion:** Zod schemas → JSON Schema via `z.toJSONSchema()
 emit("- **Byte measurement:** UTF-8 encoded `JSON.stringify()` of the tools array");
 emit("- **Token estimate:** bytes / 4 (standard heuristic; actual tokenization varies by model)");
 emit("- **Minification:** `minifySchema()` from `src/schema_min.ts` applied to inputSchema objects");
-emit(
-  "- **Feature gates:** All gates enabled for Power User measurement; gates closed for standard profile (stubs shown)",
-);
 emit(
   "- **Measurement scope:** MCP `tools/list` response payload only (excludes JSON-RPC envelope, prompts, resources)",
 );

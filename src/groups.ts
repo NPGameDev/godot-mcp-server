@@ -15,7 +15,6 @@ import {
   coercedBoolean,
 } from "./tool_helpers.js";
 import { enrichGroupResults, type ToolMeta, type GroupResult } from "./tool_meta.js";
-import { isEnabled, envVarFor } from "./feature_gate.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
 
@@ -118,8 +117,6 @@ interface GroupDef {
   description: string;
   tools: string[];
   keywords: string[];
-  gate?: string; // Feature gate required to load this group
-  gateEnvVar?: string;
 }
 
 export const GROUPS: GroupDef[] = [
@@ -200,8 +197,6 @@ export const GROUPS: GroupDef[] = [
     description: "Read, write, delete, and list user:// save files",
     tools: ["save_read", "save_write", "save_delete", "save_list"],
     keywords: ["save", "save file", "user data", "persistence", "save game", "load game", "savegame"],
-    gate: "read_user_scope",
-    gateEnvVar: "GODOT_MCP_ALLOW_USER_SCOPE",
   },
   {
     name: "scene_advanced",
@@ -872,14 +867,9 @@ function buildDiscoverToolsDesc(readOnly: boolean): string {
     }
 
     const loaded = loadedGroups.has(group.name);
-    const gateBlocked = !!(group.gate && !isEnabled(group.gate));
-    let state: string;
-    if (loaded) state = "LOADED";
-    else if (gateBlocked) state = "GATED";
-    else state = "available";
+    const state = loaded ? "LOADED" : "available";
 
-    let entry = `${group.name} [${state}] — ${group.description}`;
-    if (group.gateEnvVar && gateBlocked) entry += ` (requires: ${group.gateEnvVar}=1)`;
+    const entry = `${group.name} [${state}] — ${group.description}`;
     parts.push(entry);
   }
 
@@ -1145,15 +1135,6 @@ function activateOrReportGroup(
   if (loadedGroups.has(groupName)) {
     return { name: groupName, status: "already_loaded", tools, description: group.description };
   }
-  if (group.gate && !isEnabled(group.gate)) {
-    return {
-      name: groupName,
-      status: "gated",
-      tools,
-      description: group.description,
-      gate: group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate,
-    };
-  }
   if (!activate) {
     return { name: groupName, status: "available", tools, description: group.description };
   }
@@ -1229,15 +1210,6 @@ function reportGroupStatus(groupName: string, readOnly: boolean): GroupResult {
   const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
   if (loadedGroups.has(groupName))
     return { name: groupName, status: "already_loaded", tools, description: group.description };
-  if (group.gate && !isEnabled(group.gate)) {
-    return {
-      name: groupName,
-      status: "gated",
-      tools,
-      description: group.description,
-      gate: group.gateEnvVar ?? envVarFor(group.gate) ?? group.gate,
-    };
-  }
   return { name: groupName, status: "available", tools, description: group.description };
 }
 

@@ -1,5 +1,4 @@
 import { BridgeError } from "../../src/errors.js";
-import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 
 import type { TestCtx } from "../helpers.js";
 import {
@@ -22,11 +21,9 @@ export const TOOLS_TESTED: string[] = [
   "animation_player_control",
   "execute_code",
 ];
-export const isAffectedByGates = true;
 
 export async function testModeB(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
-  const gameEvalEnabled = featureEnabled("execute_code");
 
   const runtimeReachable = await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS);
   if (!runtimeReachable) {
@@ -39,7 +36,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       ["runtime.get_script_vars", { node_path: "/root" }],
       ["runtime.set_property", { node_path: "/root", property: "process_mode", value: 0 }],
     ];
-    if (gameEvalEnabled) modeBChecks.push(["execute.code", { code: "1+2" }]);
+    modeBChecks.push(["execute.code", { code: "1+2" }]);
     for (const [method, params] of modeBChecks) {
       try {
         await bridge.callRuntime(method, params, 3000);
@@ -130,16 +127,14 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       fail(`runtime.set_property /root: ${JSON.stringify(setProp)}`);
     }
 
-    if (gameEvalEnabled) {
+    {
       const gameEvalResult = (await bridge.callRuntime("execute.code", { code: "1+2" }, CALL_TIMEOUT)) as {
         result?: unknown;
         code?: string;
         success?: boolean;
         hint?: string;
       };
-      if (gameEvalResult?.code === "FEATURE_DISABLED") {
-        pass("execute.code -> FEATURE_DISABLED (Godot-side dual gate off; skipping)");
-      } else if (gameEvalResult?.result !== 3) {
+      if (gameEvalResult?.result !== 3) {
         fail(`execute.code 1+2: expected 3, got ${JSON.stringify(gameEvalResult)}`);
       } else {
         pass("execute.code 1+2 -> 3");
@@ -152,13 +147,9 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
         { code: 'load("res://icon.svg")' },
         CALL_TIMEOUT,
       )) as { success?: boolean; hint?: string; error?: string; code?: string };
-      if (loadAttempt?.code === "FEATURE_DISABLED") {
-        pass("execute.code load() hint -> FEATURE_DISABLED (skipped)");
-      } else {
-        // The load() call may fail or succeed depending on runtime context.
-        // What matters is that the response includes context-aware guidance.
-        assertHint(ctx, "REGRESSION execute_code load() hint", loadAttempt, "load");
-      }
+      // The load() call may fail or succeed depending on runtime context.
+      // What matters is that the response includes context-aware guidance.
+      assertHint(ctx, "REGRESSION execute_code load() hint", loadAttempt, "load");
     }
 
     // Hint assertion: input_simulate with world_position should include coordinate hint.

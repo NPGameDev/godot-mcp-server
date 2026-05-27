@@ -2,7 +2,7 @@
  * Structural validation checks for the tool catalogue.
  * Runs in CI mode (no Godot required). Validates schema integrity,
  * test coverage, annotation completeness, and naming conventions
- * across the UNFILTERED tool catalogue (all tools regardless of gate state).
+ * across the full tool catalogue.
  *
  * Grilling decision (2026-05-19): 4 checks, standalone module.
  * See Plan/ExecutionPlan/41l-sexies-bis-ci-static-smoke-expansion.md.
@@ -47,52 +47,51 @@ import { navigationTools } from "../src/tools/navigation.js";
 import { lspTools } from "../src/tools/lsp.js";
 import { debugTools } from "../src/tools/debug.js";
 
-// ── Import TOOLS_TESTED from all 43 sections ────────────────────────
+// ── Import TOOLS_TESTED from all 44 sections ────────────────────────
 import { TOOLS_TESTED as T01 } from "./sections/01_catalogue.js";
-import { TOOLS_TESTED as T02 } from "./sections/02_gate_enforcement.js";
-import { TOOLS_TESTED as T03 } from "./sections/03_scene_node_basics.js";
-import { TOOLS_TESTED as T04 } from "./sections/04_script_ops.js";
-import { TOOLS_TESTED as T05 } from "./sections/05_editor_and_scene_nav.js";
-import { TOOLS_TESTED as T06 } from "./sections/06_signals_and_introspection.js";
-import { TOOLS_TESTED as T07 } from "./sections/07_scene_diff.js";
-import { TOOLS_TESTED as T08 } from "./sections/08_error_contract.js";
-import { TOOLS_TESTED as T09 } from "./sections/09_scene_file_lifecycle.js";
-import { TOOLS_TESTED as T10 } from "./sections/10_resource_folder_shader.js";
-import { TOOLS_TESTED as T11 } from "./sections/11_playtest_and_composition.js";
-import { TOOLS_TESTED as T12 } from "./sections/12_project_set_setting.js";
-import { TOOLS_TESTED as T13 } from "./sections/13_input_map.js";
-import { TOOLS_TESTED as T14 } from "./sections/14_animation_tilemap_screenshot.js";
-import { TOOLS_TESTED as T15 } from "./sections/15_asset_discovery_and_console.js";
-import { TOOLS_TESTED as T16 } from "./sections/16_asset_import.js";
-import { TOOLS_TESTED as T17 } from "./sections/17_custom_class_and_file_ops.js";
-import { TOOLS_TESTED as T18 } from "./sections/18_mode_b.js";
-import { TOOLS_TESTED as T19 } from "./sections/19_security.js";
-import { TOOLS_TESTED as T20 } from "./sections/20_reconnect.js";
-import { TOOLS_TESTED as T21 } from "./sections/21_user_scope.js";
-import { TOOLS_TESTED as T22 } from "./sections/22_response_caps.js";
-import { TOOLS_TESTED as T23 } from "./sections/23_extensibility.js";
-import { TOOLS_TESTED as T24 } from "./sections/24_classdb.js";
-import { TOOLS_TESTED as T25 } from "./sections/25_script_check.js";
-import { TOOLS_TESTED as T26 } from "./sections/26_csharp_compat.js";
-import { TOOLS_TESTED as T27 } from "./sections/27_theme.js";
-import { TOOLS_TESTED as T28 } from "./sections/28_animationtree.js";
-import { TOOLS_TESTED as T29 } from "./sections/29_layer_names.js";
-import { TOOLS_TESTED as T30 } from "./sections/30_path2d.js";
-import { TOOLS_TESTED as T31 } from "./sections/31_3d_tools.js";
-import { TOOLS_TESTED as T32 } from "./sections/32_collision.js";
-import { TOOLS_TESTED as T33 } from "./sections/33_procedural.js";
-import { TOOLS_TESTED as T34 } from "./sections/34_scene_inheritance.js";
-import { TOOLS_TESTED as T35 } from "./sections/35_audiobus.js";
-import { TOOLS_TESTED as T36 } from "./sections/36_spriteframes.js";
-import { TOOLS_TESTED as T37 } from "./sections/37_scene_query.js";
-import { TOOLS_TESTED as T38 } from "./sections/38_particles.js";
-import { TOOLS_TESTED as T39 } from "./sections/39_navigation.js";
-import { TOOLS_TESTED as T40 } from "./sections/40_discover_tools.js";
-import { TOOLS_TESTED as T41 } from "./sections/41_crash_detection.js";
-import { TOOLS_TESTED as T42 } from "./sections/42_lsp.js";
-import { TOOLS_TESTED as T43 } from "./sections/43_debugger.js";
-import { TOOLS_TESTED as T44 } from "./sections/44_control_layout.js";
-import { TOOLS_TESTED as T45 } from "./sections/45_tileset.js";
+import { TOOLS_TESTED as T02 } from "./sections/02_scene_node_basics.js";
+import { TOOLS_TESTED as T03 } from "./sections/03_script_ops.js";
+import { TOOLS_TESTED as T04 } from "./sections/04_editor_and_scene_nav.js";
+import { TOOLS_TESTED as T05 } from "./sections/05_signals_and_introspection.js";
+import { TOOLS_TESTED as T06 } from "./sections/06_scene_diff.js";
+import { TOOLS_TESTED as T07 } from "./sections/07_error_contract.js";
+import { TOOLS_TESTED as T08 } from "./sections/08_scene_file_lifecycle.js";
+import { TOOLS_TESTED as T09 } from "./sections/09_resource_folder_shader.js";
+import { TOOLS_TESTED as T10 } from "./sections/10_playtest_and_composition.js";
+import { TOOLS_TESTED as T11 } from "./sections/11_project_set_setting.js";
+import { TOOLS_TESTED as T12 } from "./sections/12_input_map.js";
+import { TOOLS_TESTED as T13 } from "./sections/13_animation_tilemap_screenshot.js";
+import { TOOLS_TESTED as T14 } from "./sections/14_asset_discovery_and_console.js";
+import { TOOLS_TESTED as T15 } from "./sections/15_asset_import.js";
+import { TOOLS_TESTED as T16 } from "./sections/16_custom_class_and_file_ops.js";
+import { TOOLS_TESTED as T17 } from "./sections/17_mode_b.js";
+import { TOOLS_TESTED as T18 } from "./sections/18_security.js";
+import { TOOLS_TESTED as T19 } from "./sections/19_reconnect.js";
+import { TOOLS_TESTED as T20 } from "./sections/20_user_scope.js";
+import { TOOLS_TESTED as T21 } from "./sections/21_response_caps.js";
+import { TOOLS_TESTED as T22 } from "./sections/22_extensibility.js";
+import { TOOLS_TESTED as T23 } from "./sections/23_classdb.js";
+import { TOOLS_TESTED as T24 } from "./sections/24_script_check.js";
+import { TOOLS_TESTED as T25 } from "./sections/25_csharp_compat.js";
+import { TOOLS_TESTED as T26 } from "./sections/26_theme.js";
+import { TOOLS_TESTED as T27 } from "./sections/27_animationtree.js";
+import { TOOLS_TESTED as T28 } from "./sections/28_layer_names.js";
+import { TOOLS_TESTED as T29 } from "./sections/29_path2d.js";
+import { TOOLS_TESTED as T30 } from "./sections/30_3d_tools.js";
+import { TOOLS_TESTED as T31 } from "./sections/31_collision.js";
+import { TOOLS_TESTED as T32 } from "./sections/32_procedural.js";
+import { TOOLS_TESTED as T33 } from "./sections/33_scene_inheritance.js";
+import { TOOLS_TESTED as T34 } from "./sections/34_audiobus.js";
+import { TOOLS_TESTED as T35 } from "./sections/35_spriteframes.js";
+import { TOOLS_TESTED as T36 } from "./sections/36_scene_query.js";
+import { TOOLS_TESTED as T37 } from "./sections/37_particles.js";
+import { TOOLS_TESTED as T38 } from "./sections/38_navigation.js";
+import { TOOLS_TESTED as T39 } from "./sections/39_discover_tools.js";
+import { TOOLS_TESTED as T40 } from "./sections/40_crash_detection.js";
+import { TOOLS_TESTED as T41 } from "./sections/41_lsp.js";
+import { TOOLS_TESTED as T42 } from "./sections/42_debugger.js";
+import { TOOLS_TESTED as T43 } from "./sections/43_control_layout.js";
+import { TOOLS_TESTED as T44 } from "./sections/44_tileset.js";
 
 // ── Unfiltered tool catalogue ───────────────────────────────────────
 
@@ -252,7 +251,6 @@ const ALL_TOOLS_TESTED = new Set([
   ...T42,
   ...T43,
   ...T44,
-  ...T45,
 ]);
 
 // ── Check 1: Schema integrity ───────────────────────────────────────

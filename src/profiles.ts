@@ -50,8 +50,8 @@ export const STANDARD_TOOLS: readonly string[] = [
   "script_check",
   // Scene query (1)
   "scene_query",
-  // Gated tools — included so they register on Standard when gate is open
-  // (prevents the vanishing-tools bug where neither stub nor real tool appears).
+  // High-risk tools — always available on Standard profile. Risk communicated
+  // via MCP annotations (destructiveHint); agent-side filtering recommended.
   "execute_code",
   "node_call_method",
 ];
@@ -79,7 +79,7 @@ export function isAllowedInReadOnly(annotations?: ReadOnlyAnnotations): boolean 
 }
 
 /**
- * Combined read-only gate: returns true when a tool should be excluded.
+ * Combined read-only check: returns true when a tool should be excluded.
  * Wraps both the mode check and the annotation check into a single call
  * so callers don't repeat `if (readOnly && !isAllowedInReadOnly(...))`.
  */

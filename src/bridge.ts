@@ -39,7 +39,6 @@ const CALL_AWAIT_RECONNECT_MS = 10_000;
 interface Channel {
   call(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
   close(): Promise<void>;
-  getAuthGates(): Record<string, boolean> | null;
 }
 
 type Pending = {
@@ -173,13 +172,12 @@ async function readToken(projectPath?: string): Promise<string> {
 /** Parsed auth response from the Godot plugin. */
 export interface AuthResponse {
   godotVersion: string | null;
-  gates?: Record<string, boolean>;
   toolkitVersion: string | null;
 }
 
 /**
  * Send the auth handshake and wait for {"authed": true} or a close frame.
- * Resolves with the full auth response including optional gate state.
+ * Resolves with the full auth response.
  */
 function authenticate(ws: WebSocket, token: string): Promise<AuthResponse> {
   return new Promise<AuthResponse>((resolve, reject) => {
@@ -199,14 +197,12 @@ function authenticate(ws: WebSocket, token: string): Promise<AuthResponse> {
         const msg = JSON.parse(String(data)) as {
           authed?: boolean;
           godot_version?: string;
-          gates?: Record<string, boolean>;
           version?: string;
         };
         if (msg.authed === true) {
           cleanup();
           resolve({
             godotVersion: msg.godot_version ?? null,
-            gates: msg.gates,
             toolkitVersion: msg.version ?? null,
           });
         }
@@ -251,11 +247,6 @@ function createChannel(
   // assume the peer exists and ride out transient drops with backoff.
   // When noReconnect is set (runtime channels), disconnect is always terminal.
   let hasConnectedOnce = false;
-  /** Gate state from the most recent auth handshake. Stored so callers
-   *  that wire up onNotification after the first connect can still read
-   *  the initial gate snapshot (which the notification would have delivered
-   *  but was missed because the callback wasn't set up yet). */
-  let lastAuthGates: Record<string, boolean> | null = null;
 
   /** Send a fire-and-forget JSON-RPC notification to the toolkit (no id, no response). */
   function sendNotification(method: string, params: Record<string, unknown>): void {
@@ -355,17 +346,9 @@ function createChannel(
           `[bridge] WARNING: toolkit did not report version (pre-handshake build?). Consider updating the toolkit plugin.\n`,
         );
       }
-      // Store gate state for callers that wire up onNotification late.
-      if (authResp.gates) lastAuthGates = authResp.gates;
-      // Always notify with auth-delivered gate state so the server can
-      // update its tool registration. On reconnect this replaces the
-      // previous re-read-.mcp.json flow; on first connect it applies
-      // the plugin's current gates (which may differ from env vars).
-      if (wasReconnect || authResp.gates) {
-        onNotification?.()?.("config_reloaded", {
-          reconnect: wasReconnect,
-          ...(authResp.gates != null && { gates: authResp.gates }),
-        });
+      // Notify on reconnect so the server can re-read config.
+      if (wasReconnect) {
+        onNotification?.()?.("config_reloaded", { reconnect: true });
       }
       resolveAllWaiters(socket);
       resolve(socket);
@@ -552,12 +535,6 @@ function createChannel(
         });
       }
       ws = null;
-    },
-    /** Return the gate snapshot from the most recent auth handshake, or null
-     *  if no auth has completed yet. Used to apply gates when the notification
-     *  callback was set up after the first connect. */
-    getAuthGates(): Record<string, boolean> | null {
-      return lastAuthGates;
     },
   };
 }
@@ -909,12 +886,6 @@ export function createBridge(
     },
     onNotification(handler: NotificationHandler) {
       notificationHandler = handler;
-    },
-    /** Return the gate snapshot from the editor channel's most recent auth
-     *  handshake. Used to apply gate state when onNotification was set up
-     *  after the initial connect (extension discovery triggers connect). */
-    getAuthGates(): Record<string, boolean> | null {
-      return editor.getAuthGates();
     },
   };
 }

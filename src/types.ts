@@ -25,9 +25,6 @@ export interface Bridge {
   /** Proactively tear down the runtime channel (e.g. on game_stopped notification).
    *  Next callRuntime() will fail immediately with GAME_NOT_RUNNING. */
   clearRuntime?(): void;
-  /** Return the gate snapshot from the editor channel's most recent auth
-   *  handshake, or null if no auth has completed yet. */
-  getAuthGates?(): Record<string, boolean> | null;
 }
 
 // BridgeError lives in errors.ts (runtime class, not a pure type).
@@ -106,8 +103,6 @@ export type ToolDef = {
   godotMinVersion?: string;
   /** Maximum Godot version supported ("major.minor", e.g. "4.6"). Omit for no upper bound. */
   godotMaxVersion?: string;
-  /** Feature gate name. When set, the tool is only registered when isEnabled(gate) is true; otherwise a LOCKED stub is shown. */
-  gate?: string;
   /** Brief guidance appended to successful responses — next steps, related tools, common pitfalls. Omit for terminal actions or self-evident results. Does not overwrite toolkit-provided hints. */
   successHint?: string;
 };

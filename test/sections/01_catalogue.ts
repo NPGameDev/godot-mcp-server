@@ -18,28 +18,22 @@ import { tilesetTools } from "../../src/tools/tileset.js";
 import { classdbTools } from "../../src/tools/classdb.js";
 import { nodeManagementTools } from "../../src/tools/node_management.js";
 import type { ToolDef } from "../../src/types.js";
-import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, deepEqual } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = ["discover_tools"];
-export const isAffectedByGates = true;
 
 /**
- * Collect all ToolDef arrays into a single flat list, filtering by gate
- * state to mirror registration-time behavior. Module-level gated tools
- * (with a `gate` field) are filtered individually; group-level gated
- * tools (input_map, save) are included/excluded as a block.
+ * Collect all ToolDef arrays into a single flat list.
  */
 function getAllToolDefs(): ToolDef[] {
-  const gateFilter = (t: ToolDef) => !t.gate || featureEnabled(t.gate);
   return [
     ...sceneTools,
-    ...nodeTools.filter(gateFilter),
+    ...nodeTools,
     ...scriptTools,
-    ...editorTools.filter(gateFilter),
-    ...runtimeTools.filter(gateFilter),
+    ...editorTools,
+    ...runtimeTools,
     ...signalTools,
     ...resourceTools,
     ...folderTools,
@@ -51,7 +45,7 @@ function getAllToolDefs(): ToolDef[] {
     ...tilesetTools,
     ...assetTools,
     ...fileTools,
-    ...(featureEnabled("read_user_scope") ? saveTools : []),
+    ...saveTools,
     ...classdbTools,
     ...nodeManagementTools,
   ];
@@ -59,43 +53,17 @@ function getAllToolDefs(): ToolDef[] {
 
 /**
  * CI-mode catalogue validation — static checks only, no bridge required.
- * Validates tool count, feature-gate catalogue membership, and description
- * length constraints. Safe to run without a Godot editor.
+ * Validates tool count, description length constraints, readonly canary,
+ * and version-gate metadata. Safe to run without a Godot editor.
  */
 export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
   const { pass, fail } = ctx;
 
-  // Tool count — 69 base (71 in arrays minus 2 gated: execute_code, node_call_method).
-  // getAllToolDefs applies gateFilter, so the base already excludes gated tools.
-  // read_user_scope (+4) adds save_read/write/delete/list via conditional spread.
-  // tileset-edit-split: tileset_edit (1) → 10 focused tools + tileset_create moved
-  // to tilesetTools = net +9 from 60.
-  // All off = 69; all on = 75.
-  let expectedToolCount = 69;
-  if (featureEnabled("execute_code")) expectedToolCount += 1;
-  if (featureEnabled("node_call_method")) expectedToolCount += 1;
-  if (featureEnabled("read_user_scope")) expectedToolCount += 4;
+  // Tool count — 75 tools total (all always present, no feature gates).
+  const expectedToolCount = 75;
   const allTools = getAllToolDefs();
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
-  else
-    pass(
-      `tool count == ${expectedToolCount} (gates: execute_code=${featureEnabled("execute_code")}, node_call_method=${featureEnabled("node_call_method")}, read_user_scope=${featureEnabled("read_user_scope")})`,
-    );
-
-  // Feature gate catalogue checks — verify gated tools are present/absent
-  // based on gate state. Uses filtered allTools (mirrors registration logic).
-  const gateChecks: [string, string][] = [
-    ["execute_code", "execute_code"],
-    ["node_call_method", "node_call_method"],
-    ["read_user_scope", "save_read"],
-  ];
-  for (const [feature, toolName] of gateChecks) {
-    const present = allTools.some((t: ToolDef) => t.name === toolName);
-    const enabled = featureEnabled(feature);
-    if (enabled && !present) fail(`${toolName} expected in catalogue when ${feature} enabled`);
-    else if (!enabled && present) fail(`${toolName} expected ABSENT from catalogue when ${feature} disabled`);
-    else pass(`${feature} gate -> catalogue ${present ? "includes" : "omits"} ${toolName}`);
-  }
+  else pass(`tool count == ${expectedToolCount}`);
 
   // Tool description length (I2: <= 200 chars, with explicit waivers).
   const descWaivers = new Set([
@@ -122,10 +90,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   pass(`tool descriptions <200 chars (${descWaivers.size} waivers)`);
 
   // Readonly tool count canary — catches accidental annotation drift.
-  // Count tools with readOnlyHint=true in the eagerly-registered catalogue.
-  // Base (gates off): 23 readonly. With read_user_scope: +2 (save_read, save_list).
-  let expectedReadonly = 23;
-  if (featureEnabled("read_user_scope")) expectedReadonly += 2;
+  // Count tools with readOnlyHint=true in the catalogue.
+  // 25 readonly tools (23 base + save_read + save_list).
+  const expectedReadonly = 25;
   const readonlyCount = allTools.filter((t: ToolDef) => t.annotations?.readOnlyHint === true).length;
   if (readonlyCount !== expectedReadonly) fail(`readonly count: expected ${expectedReadonly}, got ${readonlyCount}`);
   else pass(`readonly count == ${expectedReadonly} (readOnlyHint canary)`);
@@ -146,7 +113,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   }
 }
 
-export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }> {
+export async function testCatalogue(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
   // Echo round-trip (verifies bridge is alive).
@@ -158,9 +125,4 @@ export async function testCatalogue(ctx: TestCtx): Promise<{ ncmGated: boolean }
 
   // Static catalogue checks (shared with CI mode).
   testCatalogueStatic(ctx);
-
-  // ncmGated: derive from env var (defence-in-depth probing moved to section 02).
-  const ncmGated = !featureEnabled("node_call_method");
-
-  return { ncmGated };
 }

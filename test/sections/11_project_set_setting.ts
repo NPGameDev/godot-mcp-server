@@ -2,7 +2,6 @@ import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = ["project_set_setting", "project_get_settings"];
-export const isAffectedByGates = true;
 
 export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   const { bridge, pass } = ctx;
@@ -20,12 +19,6 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
     value?: unknown;
     code?: string;
   };
-  const isGated = setSettingResult?.code === "FEATURE_DISABLED";
-
-  if (isGated) {
-    pass("project.set_setting -> FEATURE_DISABLED (skipping functional tests)");
-    return;
-  }
 
   // Happy path: write + read back.
   const preGetRaw = (await bridge.call("project.get_settings", { prefix: "application/config" }, CALL_TIMEOUT)) as {
@@ -49,11 +42,7 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   assertGuard(
     ctx,
     "project.set_setting mcp_toolkit/*",
-    await bridge.call(
-      "project.set_setting",
-      { setting: "mcp_toolkit/feature_gates/allow_execute_code", value: true },
-      CALL_TIMEOUT,
-    ),
+    await bridge.call("project.set_setting", { setting: "mcp_toolkit/internal/test_key", value: true }, CALL_TIMEOUT),
     "INVALID_PATH",
     "toolkit",
   );

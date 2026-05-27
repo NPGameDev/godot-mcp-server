@@ -89,19 +89,6 @@ export async function testDiscoverTools(ctx: TestCtx): Promise<void> {
     pass("discover_tools: all group names unique");
   }
 
-  // ── Gated groups have gate info ──
-  const gatedGroups = GROUPS.filter((g) => g.gate);
-  if (gatedGroups.length > 0) {
-    const missingEnv = gatedGroups.filter((g) => !g.gateEnvVar);
-    if (missingEnv.length > 0) {
-      fail(`discover_tools: gated groups missing gateEnvVar: ${missingEnv.map((g) => g.name).join(", ")}`);
-    } else {
-      pass(`discover_tools: ${gatedGroups.length} gated group(s) have env var info`);
-    }
-  } else {
-    pass("discover_tools: no gated groups (all available without env vars)");
-  }
-
   // ── Over-activation threshold ──
   // The server warns when >5 groups are activated at once. Verify the
   // group count makes this threshold meaningful (enough groups exist).

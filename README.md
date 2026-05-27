@@ -81,16 +81,6 @@ Launch your MCP client from the project root. The server discovers the plugin au
 | `GODOT_MCP_READ_ONLY` | `0` | Set to `1` to remove all mutating tools |
 | `GODOT_MCP_RATE_LIMIT` | `0` | Max tool calls per second (`0` = unlimited) |
 
-### Feature gate variables
-
-These enable individually gated capabilities. Most require opt-in on **both** the server (env var) and the plugin (Project Settings).
-
-| Variable | Enables |
-|----------|---------|
-| `GODOT_MCP_ALLOW_EXECUTE_CODE` | `execute_code` — arbitrary GDScript via Expression |
-| `GODOT_MCP_ALLOW_NODE_CALL_METHOD` | `node_call_method` — call methods on editor nodes |
-| `GODOT_MCP_ALLOW_USER_SCOPE` | `save_*` tools — read/write whitelisted `user://` paths |
-
 ## Read-only mode
 
 For supervised environments (classrooms, CI, demos), set `GODOT_MCP_READ_ONLY=1` in `.mcp.json` env to restrict to read-only tools. All mutating tools are hidden.
@@ -104,9 +94,9 @@ The `discover_tools` meta-tool lets the AI assistant search for and unlock addit
 | `runtime_advanced` | 2 | Live node state inspection, animation player control |
 | `signals` | 3 | Signal connect/disconnect, emit |
 | `animation_authoring` | 2 | Keyframe editing, key inspection |
-| `input_map` | 2 | InputMap action/event management (feature-gated) |
+| `input_map` | 2 | InputMap action/event management |
 | `asset_management` | 10 | Asset import/dependencies, resource/scene/file/folder deletion, scene close, resource load/write |
-| `user_data` | 4 | `user://` file read/write/delete/list (feature-gated) |
+| `user_data` | 4 | `user://` file read/write/delete/list |
 | `scene_advanced` | 2 | Scene diff, scene instantiation (single + batch) |
 | `editor_advanced` | 3 | Editor screenshot, script reload, wait-for-idle |
 | `tilemap` | 3 | TileMap cell painting, TileSet creation and per-tile editing |
@@ -139,7 +129,7 @@ The `discover_tools` meta-tool lets the AI assistant search for and unlock addit
 | `node_set_property` | Set a property on a node |
 | `node_get_property_list` | List inspector-visible properties |
 | `node_set_script` | Attach a script to a node |
-| `node_call_method` | Call a method on a node (feature-gated) |
+| `node_call_method` | Call a method on a node |
 
 </details>
 
@@ -224,7 +214,7 @@ The `discover_tools` meta-tool lets the AI assistant search for and unlock addit
 | `debugger_get_log` | Read recent game log lines |
 | `input_simulate` | Inject input events into the running game |
 | `animation_player_control` | Drive an AnimationPlayer at runtime |
-| `game_eval` | Evaluate GDScript via Expression (feature-gated) |
+| `game_eval` | Evaluate GDScript via Expression |
 
 </details>
 
@@ -250,7 +240,7 @@ The `discover_tools` meta-tool lets the AI assistant search for and unlock addit
 </details>
 
 <details>
-<summary><strong>Input map tools</strong> (2, feature-gated)</summary>
+<summary><strong>Input map tools</strong> (2)</summary>
 
 | Tool | Description |
 |------|-------------|
@@ -260,7 +250,7 @@ The `discover_tools` meta-tool lets the AI assistant search for and unlock addit
 </details>
 
 <details>
-<summary><strong>User data tools</strong> (4, feature-gated)</summary>
+<summary><strong>User data tools</strong> (4)</summary>
 
 | Tool | Description |
 |------|-------------|
@@ -316,7 +306,7 @@ Run `npx tsx scripts/measure-tokens.ts` to regenerate measurements after adding 
 
 ## CI coverage
 
-CI runs `npm run smoke:ci` which validates the static tool catalogue without a Godot editor. Checks include tool count, gate membership, description length, JSON Schema integrity, per-section test coverage, annotation completeness, and naming conventions. Full interactive smoke tests (43 sections, 250+ assertions) require a local Godot 4.x editor with the toolkit plugin enabled — run `npm run smoke` locally after changes that touch tool behavior.
+CI runs `npm run smoke:ci` which validates the static tool catalogue without a Godot editor. Checks include tool count, description length, JSON Schema integrity, per-section test coverage, annotation completeness, and naming conventions. Full interactive smoke tests (44 sections, 250+ assertions) require a local Godot 4.x editor with the toolkit plugin enabled — run `npm run smoke` locally after changes that touch tool behavior.
 
 ## Accuracy eval
 
@@ -343,7 +333,6 @@ The toolkit implements defense-in-depth security. See the [plugin README](https:
 
 - **Session auth** — random 64-char hex token per plugin start; unauthorized connections rejected
 - **Filesystem sandbox** — `res://` only by default; path traversal and symlink escapes blocked
-- **Feature gates** — dangerous tools require dual opt-in (env var + project setting)
 - **Audit log** — every tool call logged with timestamp and parameter hash
 - **Response caps** — size-limited reads prevent accidental data exfiltration
 - **Untrusted envelopes** — per-call nonce-tagged wrappers mitigate prompt injection

@@ -109,22 +109,6 @@ const extGroupCommands = new Map<string, ExtensionCmd>([["ext_custom", makeExtCm
   assert.equal(tool.parameters, undefined, "Available tools should NOT have parameters");
 }
 
-// Gated group → NOT enriched
-{
-  const results: GroupResult[] = [
-    {
-      name: "gated_group",
-      status: "gated",
-      tools: [{ name: "some_tool" }],
-      gate: "execute_code",
-    },
-  ];
-
-  const enriched = enrichGroupResults(results, true, allDefs, extGroupCommands);
-  const tool = enriched[0].tools[0];
-  assert.equal(tool.parameters, undefined, "Gated tools should NOT have parameters");
-}
-
 // Extension command enrichment
 {
   const results: GroupResult[] = [

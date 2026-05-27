@@ -4,17 +4,14 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools } from "../tool_helpers.js";
 
-// save.* tools are gated behind read_user_scope (dual gate: env AND PS).
-// Plugin-side FeatureGate + whitelist performs the full check as
-// defence-in-depth; the gate here controls MCP catalogue visibility only.
-// Defs are always in the array so groups.ts allDefs is populated after
-// config_reloaded; the group-level gate check prevents registration when closed.
+// save.* tools access user:// paths filtered by the plugin-side whitelist
+// at addons/godot_mcp_toolkit/user_scope_whitelist.json.
 export const saveTools: ToolDef[] = [
   {
     name: "save_read",
     method: "save.read",
     description:
-      "Read whitelisted user:// file (default 64 KB cap; max 256 KB). Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8. USER_SCOPE_DISABLED without gate.",
+      "Read whitelisted user:// file (default 64 KB cap; max 256 KB). Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8. USER_SCOPE_DISABLED if whitelist missing.",
     inputSchema: {
       path: z.string(),
       max_bytes: z.coerce.number().int().positive().max(262144).optional(),
@@ -25,7 +22,7 @@ export const saveTools: ToolDef[] = [
     name: "save_write",
     method: "save.write",
     description:
-      "Write to whitelisted user:// file (default whitelist: saves/ prefix). Gated by GODOT_MCP_ALLOW_USER_SCOPE + whitelist. Not idempotent. Creates parent dirs.",
+      "Write to whitelisted user:// file (default whitelist: saves/ prefix). Paths validated by user_scope_whitelist.json. Not idempotent. Creates parent dirs.",
     inputSchema: {
       path: z.string(),
       content: z.string(),
@@ -36,7 +33,7 @@ export const saveTools: ToolDef[] = [
     name: "save_delete",
     method: "save.delete",
     description:
-      "Delete whitelisted user:// file. NOT_FOUND if missing. Gated via read_user_scope feature; delete paths configured separately in user_scope_whitelist.json.",
+      "Delete whitelisted user:// file. NOT_FOUND if missing. Delete paths configured in user_scope_whitelist.json.",
     inputSchema: {
       path: z.string(),
     },

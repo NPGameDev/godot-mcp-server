@@ -78,8 +78,7 @@ Prettier config: 2-space indent, double quotes, semicolons, trailing commas,
 ### Smoke test
 
 ```bash
-npm run smoke        # dual-pass: gates-off then gates-on
-npm run smoke:single # single pass (inherits your env vars)
+npm run smoke        # single-pass: all tools always available
 ```
 
 The Godot editor must be running with the plugin enabled for smoke tests to pass.

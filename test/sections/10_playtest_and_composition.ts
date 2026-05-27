@@ -23,9 +23,7 @@ export const TOOLS_TESTED: string[] = [
   "script_write",
   "script_delete",
 ];
-export const isAffectedByGates = true;
-
-export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean): Promise<void> {
+export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
   const instChildPath = "res://smoke_inst_child.tscn";
@@ -334,10 +332,8 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
     "parent_path",
   );
 
-  // ── node.call_method (feature-gated) ──
-  if (ncmGated) {
-    pass("node.call_method -> FEATURE_DISABLED (skipping functional tests)");
-  } else {
+  // ── node.call_method ──
+  {
     const callGetName = (await bridge.call(
       "node.call_method",
       { node_path: ".", method_name: "get_name" },
@@ -474,7 +470,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx, ncmGated: boolean
     );
   } else pass(`node.get_property texture -> {type:Resource,class:GradientTexture2D} round-trip`);
 
-  if (!ncmGated) {
+  {
     const callSetTexture = (await bridge.call(
       "node.call_method",
       { node_path: coercionSpritePath, method_name: "set_texture", args: [{ type: "Resource", path: smokeTexPath }] },

@@ -1,40 +1,23 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard, assertError } from "../helpers.js";
-import { isEnabled as featureEnabled } from "../../src/feature_gate.js";
 
 export const TOOLS_TESTED: string[] = ["save_write", "save_read", "save_list", "save_delete"];
-export const isAffectedByGates = true;
 
 export async function testUserScope(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
-  // Gate-off path: save_* tools should surface USER_SCOPE_DISABLED from
-  // the plugin handler (defence-in-depth) even if the TS catalogue gate
-  // happens to be off. When the env var IS set but ProjectSettings is
-  // off, the TS catalogue has the tools but the plugin rejects them.
-  // When the env var is NOT set, the TS catalogue omits the tools
-  // entirely — the bridge.call lands as Method not found (JSON-RPC -32601).
-  // Both are correct; we only exercise the full round-trip when
-  // MCP_ENABLE_USER_SCOPE=1 is set (see gate-on path below).
+  // The save_* tools require a user_scope_whitelist.json in the Godot
+  // project. MCP_ENABLE_USER_SCOPE=1 opts into the full round-trip tests;
+  // without it, we skip to avoid false failures on projects without the
+  // whitelist configured.
 
   if (process.env.MCP_ENABLE_USER_SCOPE !== "1") {
-    // Verify catalogue omits save_* when gate env var is unset.
-    if (!featureEnabled("read_user_scope")) {
-      pass(
-        "[skip] user-scope smoke requires MCP_ENABLE_USER_SCOPE=1 AND Godot launched with GODOT_MCP_ALLOW_USER_SCOPE=1 + mcp/unsafe/allow_user_scope=true",
-      );
-    } else {
-      // Gate env is set but MCP_ENABLE_USER_SCOPE is not — partial gate
-      // scenario. Still skip the round-trip tests.
-      pass("[skip] user-scope round-trip tests require MCP_ENABLE_USER_SCOPE=1");
-    }
+    pass("[skip] user-scope smoke requires MCP_ENABLE_USER_SCOPE=1");
     return;
   }
 
-  // ─── Gate-on path ──────────────────────────────────────────────────────
-
-  // Probe: even with env vars set, the Godot-side dual gate or missing
-  // whitelist may reject. Detect early and skip to avoid false failures.
+  // Probe: the Godot-side whitelist may be missing or misconfigured.
+  // Detect early and skip to avoid false failures.
   const writeResult = (await bridge.call(
     "save.write",
     {
@@ -43,8 +26,8 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
     },
     CALL_TIMEOUT,
   )) as { success?: boolean; bytes_written?: number; code?: string };
-  if (writeResult?.code === "FEATURE_DISABLED" || writeResult?.code === "USER_SCOPE_DISABLED") {
-    pass(`[skip] save.* -> ${writeResult.code} (Godot-side gate off or whitelist missing; skipping round-trip tests)`);
+  if (writeResult?.code === "USER_SCOPE_DISABLED") {
+    pass(`[skip] save.* -> ${writeResult.code} (whitelist missing; skipping round-trip tests)`);
     return;
   }
 

@@ -38,7 +38,7 @@ jobs:
         run: npm run format
 
       # CI smoke tests validate the static tool catalogue WITHOUT a running
-      # Godot editor. Checks: tool count, gate membership, description length,
+      # Godot editor. Checks: tool count, description length,
       # echo round-trip, schema integrity, tool coverage, annotation
       # completeness, naming conventions.
       #

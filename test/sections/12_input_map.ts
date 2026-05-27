@@ -2,7 +2,6 @@ import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = ["input_map_action", "input_map_event"];
-export const isAffectedByGates = true;
 
 export async function testInputMap(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;

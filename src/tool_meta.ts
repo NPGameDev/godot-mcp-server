@@ -26,10 +26,9 @@ export interface ToolMeta {
 /** Group result with enriched tool metadata. */
 export interface GroupResult {
   name: string;
-  status: "activated" | "available" | "already_loaded" | "gated";
+  status: "activated" | "available" | "already_loaded";
   tools: ToolMeta[];
   description?: string;
-  gate?: string;
   match?: "exact_name" | "loose_keyword";
 }
 
@@ -67,8 +66,8 @@ function enrichExtensionTool(cmd: ExtensionCmd, includeSchemas: boolean): ToolMe
 
 /**
  * Enrich group results after collection. For activated/already_loaded
- * groups, replace bare tool names with full metadata. For available/gated,
- * tools stay as {name} only.
+ * groups, replace bare tool names with full metadata. For available
+ * groups, tools stay as {name} only.
  *
  * @param results - Raw group results from activateOrReportGroup()
  * @param includeSchemas - Whether to include parameters + annotations

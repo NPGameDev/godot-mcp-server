@@ -58,4 +58,4 @@ Rerun the measurement script after adding or modifying tools:
 npx tsx scripts/measure-tokens.ts
 ```
 
-The script imports all tool definitions, converts their Zod schemas to JSON Schema (matching the MCP wire format), and measures catalogue sizes with and without minification. Feature gates are temporarily enabled during measurement to capture the complete catalogue.
+The script imports all tool definitions, converts their Zod schemas to JSON Schema (matching the MCP wire format), and measures catalogue sizes with and without minification.

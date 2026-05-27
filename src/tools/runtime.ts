@@ -142,9 +142,8 @@ export const runtimeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
-  // execute_code is RCE-equivalent — gated via feature_gate. Plugin-side
-  // FeatureGate (feature_gate.gd) performs the full dual-gate check as
-  // defence-in-depth; the gate here only controls MCP-catalogue exposure.
+  // execute_code is RCE-equivalent — risk communicated via destructiveHint
+  // annotation. Agent-side tool filtering recommended (see security-recommendations.md).
   // I2 waiver: expression-only examples are the fix for F23/F32 — agents
   // repeatedly tried `score = 100` (assignment) and hit parse errors.
   {
@@ -173,7 +172,6 @@ export const runtimeTools: ToolDef[] = [
         .describe("Execution context: 'game' for running game (default), 'editor' for editor process"),
     },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
-    gate: "execute_code",
   },
 ];
 

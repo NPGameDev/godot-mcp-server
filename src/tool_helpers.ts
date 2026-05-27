@@ -7,7 +7,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { stableStringify } from "./schema_min.js";
-import { isEnabled, envVarFor } from "./feature_gate.js";
 import { isReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import type { Bridge, ErrorCode, ToolDef, ToolTextResult, ToolRequest } from "./types.js";
 import { BridgeError } from "./errors.js";
@@ -68,10 +67,7 @@ const EXCEPTION_HINTS: Record<string, string> = {
     "Transient file lock during log flush — retry in 1-2 seconds, or use source='buffer' (default) which reads from an in-memory ring buffer with no file I/O.",
   LOG_UNAVAILABLE:
     "Log file not available. Enable file logging in ProjectSettings → Debug → File Logging → Enable File Logging, then restart the editor. Or use source='buffer' (default) which captures all output in real-time.",
-  FEATURE_GATED:
-    "Toggle the feature gate in the Godot editor dock or set the env var in .mcp.json. Changes are applied live.",
-  FEATURE_DISABLED:
-    "This tool is disabled. Use discover_tools to load it dynamically, or enable its feature gate in the Godot editor dock.",
+  FEATURE_DISABLED: "This tool is disabled. Use discover_tools to load it dynamically.",
 };
 
 /**
@@ -597,7 +593,7 @@ export function registerTools(
     if (allowedTools && !allowedTools.has(tool.name)) continue;
     if (isExcludedByReadOnly(readOnly, tool.annotations)) continue;
 
-    let description = tool.description;
+    const description = tool.description;
     const customHandler = opts.handlers?.get(tool.name);
     let handler = (customHandler ??
       ((input: unknown, signal?: AbortSignal) =>
@@ -615,27 +611,6 @@ export function registerTools(
         if (!result.isError) injectSuccessHint(result, hintText);
         return result;
       }) as typeof handler;
-    }
-
-    // Gated tools: register with full schema, check gate at call time.
-    // Description only mentions the gate when disabled — when enabled the
-    // tool looks like any other tool so agents don't hesitate to use it.
-    if (tool.gate) {
-      const envVar = envVarFor(tool.gate) ?? tool.gate;
-      if (!isEnabled(tool.gate)) {
-        description = `${tool.description} [gate: ${envVar}]`;
-      }
-      const baseHandler = handler;
-      handler = async (input: unknown, signal?: AbortSignal) => {
-        if (!isEnabled(tool.gate!)) {
-          return toolError(
-            "FEATURE_GATED",
-            `Feature gated — ${envVar} is not enabled.`,
-            `Enable via the Feature Gates panel in the Godot editor, or set ${envVar}=1 in .mcp.json env.`,
-          );
-        }
-        return baseHandler(input, signal);
-      };
     }
 
     registerToolWrapped(

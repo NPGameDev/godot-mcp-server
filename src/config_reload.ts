@@ -3,7 +3,7 @@
  * tool list without restarting the server process.
  *
  * Triggered by a WebSocket notification from the Godot plugin when the
- * user changes profile or feature gates in the editor UI.
+ * user changes settings in the editor UI.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
