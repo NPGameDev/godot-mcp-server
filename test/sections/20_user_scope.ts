@@ -103,15 +103,11 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
     "ending with /",
   );
 
-  // Plugin internals deny — token/audit path blocked.
+  // Plugin internals deny — entire user://addons/godot_mcp_toolkit/ dir blocked.
   assertGuard(
     ctx,
-    "plugin internals deny (read token path)",
-    await bridge.call(
-      "save.read",
-      { path: "user://addons/godot_mcp_toolkit/project_instance_abc/mcp_token" },
-      CALL_TIMEOUT,
-    ),
+    "plugin internals deny (directory prefix)",
+    await bridge.call("save.read", { path: "user://addons/godot_mcp_toolkit/anything" }, CALL_TIMEOUT),
     "PATH_DENIED",
     "plugin internals",
   );
