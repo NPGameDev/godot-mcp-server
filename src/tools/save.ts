@@ -4,14 +4,14 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools } from "../tool_helpers.js";
 
-// save.* tools access user:// paths filtered by the plugin-side whitelist
-// at addons/godot_mcp_toolkit/user_scope_whitelist.json.
+// save.* tools access user:// paths. The plugin-side file guard rejects
+// traversal, non-user:// prefixes, and the toolkit's own internal paths.
 export const saveTools: ToolDef[] = [
   {
     name: "save_read",
     method: "save.read",
     description:
-      "Read whitelisted user:// file (default 64 KB cap; max 256 KB). Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8. USER_SCOPE_DISABLED if whitelist missing.",
+      "Read user:// file (default 64 KB cap; max 256 KB). Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8.",
     inputSchema: {
       path: z.string(),
       max_bytes: z.coerce.number().int().positive().max(262144).optional(),
@@ -21,8 +21,7 @@ export const saveTools: ToolDef[] = [
   {
     name: "save_write",
     method: "save.write",
-    description:
-      "Write to whitelisted user:// file (default whitelist: saves/ prefix). Paths validated by user_scope_whitelist.json. Not idempotent. Creates parent dirs.",
+    description: "Write to user:// file. Not idempotent. Creates parent dirs. Plugin internals path denied.",
     inputSchema: {
       path: z.string(),
       content: z.string(),
@@ -32,8 +31,7 @@ export const saveTools: ToolDef[] = [
   {
     name: "save_delete",
     method: "save.delete",
-    description:
-      "Delete whitelisted user:// file. NOT_FOUND if missing. Delete paths configured in user_scope_whitelist.json.",
+    description: "Delete user:// file. NOT_FOUND if missing. Plugin internals path denied.",
     inputSchema: {
       path: z.string(),
     },
@@ -43,7 +41,7 @@ export const saveTools: ToolDef[] = [
     name: "save_list",
     method: "save.list",
     description:
-      "List files + subdirs in a whitelisted user:// directory (path must end /). Names only — agent issues follow-up save.list for recursion.",
+      "List files + subdirs in a user:// directory (path must end /). Names only — agent issues follow-up save.list for recursion.",
     inputSchema: {
       path: z.string(),
     },

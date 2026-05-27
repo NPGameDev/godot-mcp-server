@@ -256,7 +256,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| save_write | 20 | ✓ | ✓ (20: USER_SCOPE_DISABLED, USER_PATH_NOT_WHITELISTED, INVALID_PATH) | — | — | |
+| save_write | 20 | ✓ | ✓ (20: PATH_DENIED, INVALID_PATH, INVALID_PARAMS) | — | — | |
 | save_read | 20 | ✓ | — | ✓ (envelope wrapping, truncation) | — | |
 | save_list | 20 | ✓ | — | ✓ (prefix filtering) | — | |
 | save_delete | 20 | ✓ | — | — | — | |

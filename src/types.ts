@@ -85,8 +85,6 @@ export type ErrorCode =
   | "UNSUPPORTED"
   | "NOT_BREAKED"
   | "UNSUPPORTED_FILE_TYPE"
-  | "USER_PATH_NOT_WHITELISTED"
-  | "USER_SCOPE_DISABLED"
   | "WRITE_FAILED";
 
 // ── Tool definition ──────────────────────────────────────────────────

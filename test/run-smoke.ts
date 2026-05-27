@@ -1,9 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Smoke runner — executes test/smoke.ts with user-scope tests enabled.
+// Smoke runner — executes test/smoke.ts.
 //
-// Both GODOT_MCP_PROJECT_NAME and MCP_ENABLE_USER_SCOPE are set so token
-// resolution and save_* round-trip tests work when the smoke harness runs
-// from the server repo (cwd != Godot project root).
+// GODOT_MCP_PROJECT_NAME is set so token resolution works when the smoke
+// harness runs from the server repo (cwd != Godot project root).
 //
 // Exit codes:
 //   0 — all tests passed
@@ -29,7 +28,6 @@ async function main(): Promise<void> {
       env: {
         ...process.env,
         GODOT_MCP_PROJECT_NAME: PROJECT_NAME,
-        MCP_ENABLE_USER_SCOPE: "1",
       },
       stdio: "inherit",
     });

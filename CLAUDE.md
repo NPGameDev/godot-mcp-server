@@ -281,8 +281,6 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
 | `UNSUPPORTED`      | both (iter 37)   | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
 | `UNKNOWN_CLASS`    | plugin (iter 26)   | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |
-| `USER_PATH_NOT_WHITELISTED` | plugin (iter 19c) | `user://` path not in the plugin author's whitelist for the requested mode (read/write/delete). Message lists allowed entries. |
-| `USER_SCOPE_DISABLED` | plugin (iter 19c) | `user_scope_whitelist.json` is missing or malformed in the plugin directory.                    |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |
 
 ## Version sync policy

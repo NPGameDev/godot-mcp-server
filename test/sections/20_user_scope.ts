@@ -6,18 +6,7 @@ export const TOOLS_TESTED: string[] = ["save_write", "save_read", "save_list", "
 export async function testUserScope(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
-  // The save_* tools require a user_scope_whitelist.json in the Godot
-  // project. MCP_ENABLE_USER_SCOPE=1 opts into the full round-trip tests;
-  // without it, we skip to avoid false failures on projects without the
-  // whitelist configured.
-
-  if (process.env.MCP_ENABLE_USER_SCOPE !== "1") {
-    pass("[skip] user-scope smoke requires MCP_ENABLE_USER_SCOPE=1");
-    return;
-  }
-
-  // Probe: the Godot-side whitelist may be missing or misconfigured.
-  // Detect early and skip to avoid false failures.
+  // save.write happy path.
   const writeResult = (await bridge.call(
     "save.write",
     {
@@ -26,12 +15,6 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
     },
     CALL_TIMEOUT,
   )) as { success?: boolean; bytes_written?: number; code?: string };
-  if (writeResult?.code === "USER_SCOPE_DISABLED") {
-    pass(`[skip] save.* -> ${writeResult.code} (whitelist missing; skipping round-trip tests)`);
-    return;
-  }
-
-  // save.write happy path.
   if (writeResult?.success !== true || writeResult.bytes_written !== 11) {
     fail(`save.write happy: ${JSON.stringify(writeResult)}`);
   } else {
@@ -120,31 +103,17 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
     "ending with /",
   );
 
-  // Whitelist rejection (read mode, unwhitelisted subpath).
+  // Plugin internals deny — token/audit path blocked.
   assertGuard(
     ctx,
-    "whitelist rejection (read, unwhitelisted)",
-    await bridge.call("save.read", { path: "user://secret/config.dat" }, CALL_TIMEOUT),
-    "USER_PATH_NOT_WHITELISTED",
-    ["saves/", "logs/"],
-  );
-
-  // Whitelist rejection (write mode, read-only path).
-  assertGuard(
-    ctx,
-    "whitelist rejection (write to logs/)",
-    await bridge.call("save.write", { path: "user://logs/a.log", content: "x" }, CALL_TIMEOUT),
-    "USER_PATH_NOT_WHITELISTED",
-    "saves/",
-  );
-
-  // Whitelist rejection (delete mode, read-only path).
-  assertGuard(
-    ctx,
-    "whitelist rejection (delete logs/)",
-    await bridge.call("save.delete", { path: "user://logs/a.log" }, CALL_TIMEOUT),
-    "USER_PATH_NOT_WHITELISTED",
-    "saves/",
+    "plugin internals deny (read token path)",
+    await bridge.call(
+      "save.read",
+      { path: "user://addons/godot_mcp_toolkit/project_instance_abc/mcp_token" },
+      CALL_TIMEOUT,
+    ),
+    "PATH_DENIED",
+    "plugin internals",
   );
 
   // Prefix-strip injection attempt.
@@ -157,8 +126,8 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; code?: string };
   if (escapeResult?.success === true) {
     fail(`prefix-strip escape: should have been rejected but got success`);
-  } else if (escapeResult?.code === "USER_PATH_NOT_WHITELISTED") {
-    pass(`prefix-strip escape -> USER_PATH_NOT_WHITELISTED (traversal blocked)`);
+  } else if (escapeResult?.code === "INVALID_PATH") {
+    pass(`prefix-strip escape -> INVALID_PATH (traversal blocked)`);
   } else {
     // PATH_DENIED from the base resolve_safe path check is also acceptable.
     pass(`prefix-strip escape -> ${escapeResult?.code} (blocked)`);
