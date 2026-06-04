@@ -7,6 +7,18 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
   const { bridge, pass } = ctx;
 
   const settingKey = "application/config/mcp_smoke_15d";
+
+  // Capture the TRUE previous value BEFORE writing the marker, so the cleanup
+  // at the end restores/removes correctly. Reading it after the write would
+  // capture the marker itself, and the "restore" branch would re-apply it —
+  // leaving a stray key in project.godot.
+  const preGetRaw = (await bridge.call("project.get_settings", { prefix: "application/config" }, CALL_TIMEOUT)) as {
+    settings?: unknown;
+  };
+  const preSettings = (unwrapUntrusted(preGetRaw?.settings) ?? {}) as Record<string, unknown>;
+  const previousValue = preSettings[settingKey] ?? null;
+
+  // Happy path: write + read back.
   const setSettingResult = (await bridge.call(
     "project.set_setting",
     { setting: settingKey, value: "smoke-15d-marker" },
@@ -19,13 +31,6 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
     value?: unknown;
     code?: string;
   };
-
-  // Happy path: write + read back.
-  const preGetRaw = (await bridge.call("project.get_settings", { prefix: "application/config" }, CALL_TIMEOUT)) as {
-    settings?: unknown;
-  };
-  const preSettings = (unwrapUntrusted(preGetRaw?.settings) ?? {}) as Record<string, unknown>;
-  const previousValue = preSettings[settingKey] ?? null;
 
   if (setSettingResult?.success !== true) ctx.fail(`project.set_setting: ${JSON.stringify(setSettingResult)}`);
   else pass(`project.set_setting ${settingKey} -> success (was_set_before=${setSettingResult.was_set_before})`);
@@ -76,4 +81,16 @@ export async function testProjectSetSetting(ctx: TestCtx): Promise<void> {
       /* noop */
     }
   }
+
+  // Verify cleanup left no residue in project.godot (guards against the
+  // capture-order leak regressing).
+  const cleanGetRaw = (await bridge.call("project.get_settings", { prefix: "application/config" }, CALL_TIMEOUT)) as {
+    settings?: unknown;
+  };
+  const cleanSettings = (unwrapUntrusted(cleanGetRaw?.settings) ?? {}) as Record<string, unknown>;
+  if (previousValue === null && cleanSettings[settingKey] !== undefined)
+    ctx.fail(
+      `project.set_setting cleanup leaked ${settingKey}=${JSON.stringify(cleanSettings[settingKey])} (should be removed)`,
+    );
+  else pass(`project.set_setting cleanup -> no project.godot residue`);
 }
