@@ -1,6 +1,6 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * discover_tools. 23 groups, 57 group tools.
+ * discover_tools. 27 groups, 72 group tools (live: godot-mcp-server --tools-count).
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -18,38 +18,12 @@ import { enrichGroupResults, type ToolMeta, type GroupResult } from "./tool_meta
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
 
-// Import tool defs from all modules that contribute group tools.
-import { signalTools } from "./tools/signals.js";
-import { animationTools } from "./tools/animation.js";
-import { inputMapTools } from "./tools/input_map.js";
-import { runtimeTools } from "./tools/runtime.js";
-import { assetTools } from "./tools/asset.js";
-import { saveTools } from "./tools/save.js";
-import { sceneTools } from "./tools/scene.js";
-import { fileTools } from "./tools/file.js";
-import { resourceTools } from "./tools/resource.js";
-import { editorTools } from "./tools/editor.js";
-import { scriptTools } from "./tools/script.js";
-import { folderTools } from "./tools/folder.js";
-import { diffTools } from "./tools/diff.js";
-import { tilemapTools } from "./tools/tilemap.js";
-import { tilesetStructuralTools, tilesetEditTools } from "./tools/tileset.js";
-import { themeTools } from "./tools/theme.js";
-import { nodeManagementTools } from "./tools/node_management.js";
-import { layerNameTools } from "./tools/layer_names.js";
-import { pathTools } from "./tools/path.js";
-import { collisionTools } from "./tools/collision.js";
-import { threeDTools } from "./tools/three_d.js";
-import { proceduralTools } from "./tools/procedural.js";
-import { sceneInheritanceTools } from "./tools/scene_inheritance.js";
-import { audioTools } from "./tools/audio.js";
-import { spriteframesTools } from "./tools/spriteframes.js";
-import { sceneQueryTools } from "./tools/scene_query.js";
-import { particleTools } from "./tools/particles.js";
-import { navigationTools } from "./tools/navigation.js";
-import { lspAnalysisTools, lspNavigationTools, createLspHandler } from "./tools/lsp.js";
-import { debugTools } from "./tools/debug.js";
-import { classdbTools } from "./tools/classdb.js";
+// Canonical tool inventory (single source of truth for counting + lookup)
+// and group-loaded state. Both are leaf modules that do NOT import groups.ts,
+// so tool-def modules never cycle back here via catalogue.ts.
+import { ALL_TOOL_DEFS } from "./catalogue.js";
+import { loadedGroups } from "./group_state.js";
+import { createLspHandler } from "./tools/lsp.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
@@ -445,55 +419,26 @@ export const GROUP_TOOL_NAMES = new Set(GROUPS.flatMap((g) => g.tools));
 
 // ── Tool lookup ──────────────────────────────────────────────────────
 
-// Master lookup of all ToolDefs by name, built from modules that
-// contribute group tools.
-const allDefs = new Map<string, ToolDef>();
-for (const tools of [
-  signalTools,
-  animationTools,
-  inputMapTools,
-  runtimeTools,
-  assetTools,
-  saveTools,
-  sceneTools,
-  fileTools,
-  resourceTools,
-  editorTools,
-  scriptTools,
-  folderTools,
-  diffTools,
-  tilemapTools,
-  tilesetStructuralTools,
-  tilesetEditTools,
-  themeTools,
-  nodeManagementTools,
-  layerNameTools,
-  pathTools,
-  collisionTools,
-  threeDTools,
-  proceduralTools,
-  sceneInheritanceTools,
-  audioTools,
-  spriteframesTools,
-  sceneQueryTools,
-  particleTools,
-  navigationTools,
-  lspAnalysisTools,
-  lspNavigationTools,
-  debugTools,
-  classdbTools,
-]) {
-  for (const t of tools) allDefs.set(t.name, t);
-}
+// Master lookup of every ToolDef by name, derived from the canonical
+// ALL_TOOL_DEFS (src/catalogue.ts) so the lookup can never drift from the
+// counted set. Eager const — no cycle, because catalogue.ts does not import
+// groups.ts (group-loaded state lives in the leaf group_state.ts). This map
+// is a superset of the group tools (it also holds eager-only tools like
+// node/playtest); group code only ever looks up names it knows are group
+// tools, so the extra entries are inert.
+const allDefs = new Map<string, ToolDef>(ALL_TOOL_DEFS.map((t) => [t.name, t]));
 
 // Tools that route through the runtime (Mode B) bridge — only the 2
 // remaining runtime_advanced group tools. The 4 promoted tools
 // (runtime_screenshot, input_simulate, runtime_get_script_vars,
 // debugger_get_log) are now standard and handled by runtime.ts.
-const RUNTIME_TOOLS = new Set(["runtime_get_node_state", "animation_player_control"]);
+// Exported for the catalogue completeness guard (01_catalogue.ts): every
+// runtime-bridge tool must resolve in ALL_TOOL_NAMES.
+export const RUNTIME_TOOLS = new Set(["runtime_get_node_state", "animation_player_control"]);
 
 // LSP tools — use their own TCP client, not the bridge.
-const LSP_TOOLS = new Set([
+// Exported for the catalogue completeness guard (01_catalogue.ts).
+export const LSP_TOOLS = new Set([
   "lsp_diagnostics",
   "lsp_hover",
   "lsp_completion",
@@ -502,13 +447,9 @@ const LSP_TOOLS = new Set([
   "lsp_references",
 ]);
 
-// Tracks loaded groups for the session.
-const loadedGroups = new Set<string>();
-
-/** Check whether a group has been loaded this session. */
-export function isGroupLoaded(name: string): boolean {
-  return loadedGroups.has(name);
-}
+// loadedGroups (session group-load state) + isGroupLoaded() moved to the leaf
+// module group_state.ts (imported above) — lets tool-def modules read load
+// state without importing groups.ts. resetLoadedGroups() below still clears it.
 
 /** Clear loaded-group tracking (used by config reload). */
 export function resetLoadedGroups(): void {

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
 import { callAndWrap, registerTools, coercedBoolean } from "../tool_helpers.js";
-import { isGroupLoaded } from "../groups.js";
+import { isGroupLoaded } from "../group_state.js";
 
 export const playtestTools: ToolDef[] = [
   {

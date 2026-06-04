@@ -7,6 +7,7 @@ import { lookupProject } from "./registry.js";
 import { resolveAllowedTools, isReadOnly, isExcludedByReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
 import {
   registerGroupSystem,
+  GROUPS,
   GROUP_TOOL_NAMES,
   resetLoadedGroups,
   addExtensionGroup,
@@ -14,6 +15,7 @@ import {
   removeUngroupedExtensionTool,
 } from "./groups.js";
 import type { ExtensionCmd } from "./groups.js";
+import { ALL_TOOL_DEFS, META_TOOL_NAMES } from "./catalogue.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
 import { removeAllToolRefs, removeToolByName, updateToolRef, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
@@ -53,6 +55,25 @@ if (nodeMajor < 20) {
       `Download the latest LTS from https://nodejs.org\n`,
   );
   process.exit(1);
+}
+
+// ── --tools-count diagnostic (early exit; no MCP connection or editor) ──
+// Static count of the tools the server ships, derived from the canonical
+// ALL_TOOL_DEFS. Excludes per-project extension tools (dynamic). Runs before
+// any bridge/WebSocket/transport setup so it is editor-independent.
+if (process.argv.includes("--tools-count")) {
+  const total = ALL_TOOL_DEFS.length;
+  const onDemand = GROUP_TOOL_NAMES.size;
+  const eager = total - onDemand;
+  process.stdout.write(
+    `Total tools:  ${total}\n` +
+      `  Eager:      ${eager}\n` +
+      `  On-demand:  ${onDemand}\n` +
+      `Meta:         ${META_TOOL_NAMES.length} (also eager — always in tools/list)\n` +
+      `Groups:       ${GROUPS.length}\n` +
+      `Startup surface (eager + meta): ${eager + META_TOOL_NAMES.length}\n`,
+  );
+  process.exit(0);
 }
 
 // ── Mode resolution ─────────────────────────────────────────────────

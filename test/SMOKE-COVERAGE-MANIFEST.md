@@ -1,9 +1,9 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-05-27
-**Server commit:** S:5546124
-**Total tools (eagerly-registered):** 66
-**Total tools (including on-demand groups):** 96 (66 eager + 30 on-demand: 6 LSP, 4 debugger, 20 domain groups)
+**Last updated:** 2026-06-05
+**Server commit:** 41l-vicies-novies (see plan repo `00-index.md` for the SHA)
+**Total tools (eagerly-registered):** 33
+**Total tools (including on-demand groups):** 105 (33 eager + 72 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
 **Smoke sections:** 44 (sections 01–44)
 
@@ -66,13 +66,12 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | script_delete | 08, 09, 24, 25 | ✓ | — | — | — | In cleanup group |
 | script_check | 24, 25 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: .cs) | ✓ (valid/invalid scripts, diagnostics) | — | |
 
-### Editor Core (5 tools)
+### Editor Core (4 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | editor_save_scene | 04, 07, 10, 14 | ✓ | — | — | — | |
 | editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id) | — | **GAP:** clear_buffer param |
-| editor_get_errors | 03, 14 | ✓ | — | — | — | **GAP:** no dedicated guard tests |
 | editor_screenshot | 04, 18 | ✓ (inline + save_path) | ✓ (18: PATH_DENIED) | — | — | In editor_advanced group |
 | editor_refresh | 03, 14, 16, 23 | ✓ | — | — | — | Renamed from editor_reload_scripts (S:6964946) |
 
@@ -318,6 +317,6 @@ No critical gaps remain. All tools have at least guard-level coverage.
 
 - **Full coverage (happy + guards + params):** 55 tools
 - **Partial coverage (missing params or sub-ops):** 18 tools
-- **Minimal coverage (guards only, no happy path):** 2 tools (animation_keyframe, editor_get_errors)
+- **Minimal coverage (guards only, no happy path):** 1 tool (animation_keyframe)
 - **No coverage:** 0 tools
 - **On-demand group coverage:** LSP (6/6 static, 5/6 live via direct LspClient), Debugger (4/4 via bridge)

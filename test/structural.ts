@@ -12,40 +12,8 @@ import { z } from "zod";
 import type { ToolDef } from "../src/types.js";
 import { isAllowedInReadOnly } from "../src/profiles.js";
 
-// ── Import ALL tool arrays (eagerly-registered + group-loaded) ──────
-import { sceneTools } from "../src/tools/scene.js";
-import { nodeTools } from "../src/tools/node.js";
-import { scriptTools } from "../src/tools/script.js";
-import { editorTools } from "../src/tools/editor.js";
-import { runtimeTools } from "../src/tools/runtime.js";
-import { signalTools } from "../src/tools/signals.js";
-import { resourceTools } from "../src/tools/resource.js";
-import { folderTools } from "../src/tools/folder.js";
-import { diffTools } from "../src/tools/diff.js";
-import { playtestTools } from "../src/tools/playtest.js";
-import { inputMapTools } from "../src/tools/input_map.js";
-import { animationTools } from "../src/tools/animation.js";
-import { tilemapTools } from "../src/tools/tilemap.js";
-import { tilesetTools } from "../src/tools/tileset.js";
-import { assetTools } from "../src/tools/asset.js";
-import { fileTools } from "../src/tools/file.js";
-import { saveTools } from "../src/tools/save.js";
-import { classdbTools } from "../src/tools/classdb.js";
-import { nodeManagementTools } from "../src/tools/node_management.js";
-import { themeTools } from "../src/tools/theme.js";
-import { layerNameTools } from "../src/tools/layer_names.js";
-import { pathTools } from "../src/tools/path.js";
-import { collisionTools } from "../src/tools/collision.js";
-import { threeDTools } from "../src/tools/three_d.js";
-import { proceduralTools } from "../src/tools/procedural.js";
-import { sceneInheritanceTools } from "../src/tools/scene_inheritance.js";
-import { audioTools } from "../src/tools/audio.js";
-import { spriteframesTools } from "../src/tools/spriteframes.js";
-import { sceneQueryTools } from "../src/tools/scene_query.js";
-import { particleTools } from "../src/tools/particles.js";
-import { navigationTools } from "../src/tools/navigation.js";
-import { lspTools } from "../src/tools/lsp.js";
-import { debugTools } from "../src/tools/debug.js";
+// ── Canonical tool inventory (single source of truth) ───────────────
+import { ALL_TOOL_DEFS } from "../src/catalogue.js";
 
 // ── Import TOOLS_TESTED from all 44 sections ────────────────────────
 import { TOOLS_TESTED as T01 } from "./sections/01_catalogue.js";
@@ -96,52 +64,9 @@ import { TOOLS_TESTED as T44 } from "./sections/44_tileset.js";
 // ── Unfiltered tool catalogue ───────────────────────────────────────
 
 function getAllToolDefsUnfiltered(): ToolDef[] {
-  const allArrays: ToolDef[][] = [
-    sceneTools,
-    nodeTools,
-    scriptTools,
-    editorTools,
-    runtimeTools,
-    signalTools,
-    resourceTools,
-    folderTools,
-    diffTools,
-    playtestTools,
-    inputMapTools,
-    animationTools,
-    tilemapTools,
-    tilesetTools,
-    assetTools,
-    fileTools,
-    saveTools,
-    classdbTools,
-    nodeManagementTools,
-    themeTools,
-    layerNameTools,
-    pathTools,
-    collisionTools,
-    threeDTools,
-    proceduralTools,
-    sceneInheritanceTools,
-    audioTools,
-    spriteframesTools,
-    sceneQueryTools,
-    particleTools,
-    navigationTools,
-    lspTools,
-    debugTools,
-  ];
-  const seen = new Set<string>();
-  const result: ToolDef[] = [];
-  for (const arr of allArrays) {
-    for (const t of arr) {
-      if (!seen.has(t.name)) {
-        seen.add(t.name);
-        result.push(t);
-      }
-    }
-  }
-  return result;
+  // Single-sourced from src/catalogue.ts — no manual array list, no dedup
+  // (ALL_TOOL_DEFS is already unique; 01_catalogue asserts no duplicate names).
+  return ALL_TOOL_DEFS;
 }
 
 // ── Known domains (derived from existing tool methods) ──────────────
