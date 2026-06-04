@@ -1,7 +1,7 @@
 # Smoke Coverage Manifest
 
 **Last updated:** 2026-06-05
-**Server commit:** 41l-vicies-novies (see plan repo `00-index.md` for the SHA)
+**Server commit:** S:6fa6143
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 105 (33 eager + 72 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
