@@ -61,8 +61,8 @@
 //   GODOT_MCP_TOKEN=<token> npx tsx test/integration/dispatch-safety-stress.ts [flags]
 //   GODOT_MCP_TOKEN=<token> npm run stress:dispatch -- [flags]
 //
-//   --scenario <name>      refresh-storm | smoke-storm | rapid-save | multi-save |
-//                          scan-collision | all                            (default: all)
+//   --scenario <name>      refresh-storm | smoke-storm | rapid-save | concurrent-save |
+//                          multi-save | scan-collision | all               (default: all)
 //   --iterations <N>       loop count per scenario                          (default: 200)
 //   --node-count <N>       nodes in the heavy active scene (save weight)     (default: 250)
 //   --open-scripts <N>     temp .gd scripts to create + open in the IN-EDITOR
@@ -91,6 +91,11 @@
 //                     (bypass the mutation lock at dispatch ~L510) and
 //                     scene.get_tree reads — a re-entrant poll during a save
 //                     dispatches a scene switch / read mid-serialization.
+//     concurrent-save C1 (multi-client): two peers race a heavy save's
+//                     Main::iteration() re-entry — the lease holder pumps
+//                     editor.save_scene + switches its scene away mid-save while a
+//                     second peer floods reads/mutations. Surfaced the
+//                     overlapping-save EditorProgress collision (41l-tricies).
 //     multi-save      Raw-open drain (#75669): repeated rounds where peer A
 //                     takes scene A's lease, peer B queues a scene command on
 //                     scene B, then A disconnects → the drain calls the raw
@@ -154,7 +159,15 @@ type Args = {
   cleanup: boolean;
 };
 
-const SCENARIOS = ["refresh-storm", "smoke-storm", "rapid-save", "multi-save", "scan-collision", "all"];
+const SCENARIOS = [
+  "refresh-storm",
+  "smoke-storm",
+  "rapid-save",
+  "concurrent-save",
+  "multi-save",
+  "scan-collision",
+  "all",
+];
 
 function parseArgs(argv: string[]): Args {
   const args: Args = {
@@ -621,6 +634,49 @@ async function scenarioScanCollision(port: number, token: string, args: Args, cr
   }
 }
 
+// C1 (MULTI-CLIENT): two peers race a heavy save's ProgressDialog re-entry. Peer A
+// holds the lease on the heavy active scene and pumps editor.save_scene; peer B
+// floods reads + scene.open + mutations so the packet buffer is never empty when
+// A's save re-enters Main::iteration(). A re-entrant _poll_connections then
+// dispatches a buffered command MID-SAVE — reads + scene.open bypass the mutation
+// lock, so they execute immediately even while the save is in flight, the exact
+// mid-save dispatch Fix 2's is_dispatching() guard must block. A also switches its
+// own active scene mid-save (the single-client vector), amplified by B's pressure.
+// Pre-fix: mid-save dispatch corrupts editor state (RED). Fixed: the guard skips
+// the re-entrant tick (GREEN).
+async function scenarioConcurrentSave(port: number, token: string, args: Args, crash: CrashState): Promise<void> {
+  console.log(`\n[stress] ── concurrent-save (C1: multi-client save re-entry) — ${args.iterations} rounds ──`);
+  const a = await connectAndAuth(port, token);
+  const b = await connectAndAuth(port, token);
+  const { state: liveA } = watch(a);
+  const { state: liveB } = watch(b);
+  try {
+    const idOpen = sendRequest(a.ws, "scene.open", { file_path: SCENE_A });
+    await a.collector.waitForResponse(idOpen).catch(() => {});
+
+    let sent = 0;
+    for (let i = 0; i < args.iterations && liveA.alive && liveB.alive && !crash.crashed; i++) {
+      // A (lease holder): heavy save, then IMMEDIATELY switch its own active scene
+      // AWAY — when that buffered switch dispatches during the save's re-entrant
+      // poll, it swaps the edited scene out from under the in-flight save (the C1
+      // corruption). B floods so the buffer is never empty when the save re-enters.
+      if (safeSend(a, "editor.save_scene")) sent++; // heavy save → ProgressDialog re-entry
+      if (safeSend(a, "scene.open", { file_path: SCENE_B })) sent++; // switch AWAY mid-save (C1 vector)
+      if (safeSend(b, "scene.get_tree")) sent++; // read — bypasses the mutation lock
+      if (safeSend(b, "scene.create_node", { class_name: "Node", node_name: `_cc_${i}` })) sent++;
+      if (safeSend(b, "project.get_settings", { prefix: "application/config" })) sent++;
+      if (safeSend(a, "scene.open", { file_path: SCENE_A })) sent++; // A back on the heavy scene
+      if (safeSend(a, "editor.save_scene")) sent++; // and saves it again
+      if (i % 3 === 2) await sleep(8); // leave a backlog buffered during saves
+    }
+    await settle(8000, liveA, crash); // drain — do NOT close early
+    report("concurrent-save", sent, a, liveA.alive);
+  } finally {
+    await closeWs(a.ws).catch(() => {});
+    await closeWs(b.ws).catch(() => {});
+  }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 function printBanner(args: Args, port: number): void {
@@ -719,6 +775,7 @@ Then run (ONE editor version at a time):
     ["refresh-storm", scenarioRefreshStorm],
     ["smoke-storm", scenarioSmokeStorm],
     ["rapid-save", scenarioRapidSave],
+    ["concurrent-save", scenarioConcurrentSave],
     ["multi-save", scenarioMultiSave],
     ["scan-collision", scenarioScanCollision],
   ];
