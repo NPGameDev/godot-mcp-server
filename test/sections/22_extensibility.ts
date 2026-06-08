@@ -47,6 +47,22 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
     fail(`extensions.refresh: unexpected response ${JSON.stringify(refreshResult)}`);
   }
 
+  // ── Godot 4.2 vs 4.3+ extension hot-reload contract (documented) ─────
+  // Adding and removing extensions apply live on ALL supported versions. EDITING
+  // an existing extension's tools in-session diverges by editor version:
+  //   • Godot 4.3+ : the edit is applied live (loader re-reads the script fresh via
+  //                  CACHE_MODE_IGNORE and re-registers).
+  //   • Godot 4.2  : the edit is NOT applied in-session. Loading a freshly-edited
+  //                  @tool script fresh while the 4.2 editor is reimporting it
+  //                  crashes the editor (CACHE_MODE_IGNORE reimport reentrancy — see
+  //                  COMPATIBILITY.md / P-056), so the 4.2 loader reads through the
+  //                  editor cache (CACHE_MODE_REUSE) and cannot see the edit.
+  //                  extensions.refresh then returns a `hint` naming the extension and
+  //                  telling the user to restart the editor.
+  // The full live add/edit/remove lifecycle — including the 4.2 restart-nudge hint —
+  // is exercised by the interactive tool sweep (Section 24 E5), not here: this
+  // structural pass intentionally does not create extension scripts.
+
   // ── Reserved namespace rejection ─────────────────────────────────────
   // Verify that the extensions endpoint doesn't list any commands under
   // reserved namespaces (the loader rejects these at load time).
