@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import type { ToolDef, ToolTextResult } from "../types.js";
 import { toolError } from "../tool_helpers.js";
-import { LspClient } from "../lsp_client.js";
+import { LspClient, LspResolutionError } from "../lsp_client.js";
 import { untrustedWrap } from "../untrusted.js";
 
 // ── URI / path helpers ───────��───────────────────────────────────────
@@ -216,8 +216,8 @@ export const lspTools: ToolDef[] = [...lspAnalysisTools, ...lspNavigationTools];
 /** Singleton LSP client (lazy, shared across all LSP tool calls). */
 let _lspClient: LspClient | null = null;
 
-function getLspClient(): LspClient {
-  if (!_lspClient) _lspClient = new LspClient();
+function getLspClient(projectPath: string): LspClient {
+  if (!_lspClient) _lspClient = new LspClient(projectPath);
   return _lspClient;
 }
 
@@ -258,12 +258,17 @@ export function createLspHandler(toolName: string, projectPath: string): (input:
 
 // ── Individual handlers ──────────────────────────────────────────────
 
-async function ensureLsp(): Promise<ToolTextResult | LspClient> {
-  const client = getLspClient();
+async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClient> {
+  const client = getLspClient(projectPath);
   try {
     await client.ensureConnected();
     return client;
   } catch (err) {
+    // Resolution errors carry a specific code + hint (LSP_PORT_CONFLICT /
+    // LSP_UNAVAILABLE); a raw connect failure is a generic LSP_UNAVAILABLE.
+    if (err instanceof LspResolutionError) {
+      return toolError(err.code, err.message, err.hint);
+    }
     return toolError(
       "LSP_UNAVAILABLE",
       `GDScript LSP unavailable: ${(err as Error).message}. Ensure the Godot editor is running.`,
@@ -299,7 +304,7 @@ async function handleDiagnostics(input: unknown, projectPath: string): Promise<T
   const pathErr = validateGdscriptPath(file_path);
   if (pathErr) return pathErr;
 
-  const clientOrErr = await ensureLsp();
+  const clientOrErr = await ensureLsp(projectPath);
   if ("content" in clientOrErr) return clientOrErr;
   const client = clientOrErr;
 
@@ -332,7 +337,7 @@ async function handleHover(input: unknown, projectPath: string): Promise<ToolTex
   const pathErr = validateGdscriptPath(file_path);
   if (pathErr) return pathErr;
 
-  const clientOrErr = await ensureLsp();
+  const clientOrErr = await ensureLsp(projectPath);
   if ("content" in clientOrErr) return clientOrErr;
   const client = clientOrErr;
 
@@ -394,7 +399,7 @@ async function handleCompletion(input: unknown, projectPath: string): Promise<To
   const pathErr = validateGdscriptPath(file_path);
   if (pathErr) return pathErr;
 
-  const clientOrErr = await ensureLsp();
+  const clientOrErr = await ensureLsp(projectPath);
   if ("content" in clientOrErr) return clientOrErr;
   const client = clientOrErr;
 
@@ -455,7 +460,7 @@ async function handleDefinition(input: unknown, projectPath: string): Promise<To
   const pathErr = validateGdscriptPath(file_path);
   if (pathErr) return pathErr;
 
-  const clientOrErr = await ensureLsp();
+  const clientOrErr = await ensureLsp(projectPath);
   if ("content" in clientOrErr) return clientOrErr;
   const client = clientOrErr;
 
@@ -516,7 +521,7 @@ async function handleSymbols(input: unknown, projectPath: string): Promise<ToolT
   const pathErr = validateGdscriptPath(file_path);
   if (pathErr) return pathErr;
 
-  const clientOrErr = await ensureLsp();
+  const clientOrErr = await ensureLsp(projectPath);
   if ("content" in clientOrErr) return clientOrErr;
   const client = clientOrErr;
 
@@ -550,7 +555,7 @@ async function handleReferences(input: unknown, projectPath: string): Promise<To
   const pathErr = validateGdscriptPath(file_path);
   if (pathErr) return pathErr;
 
-  const clientOrErr = await ensureLsp();
+  const clientOrErr = await ensureLsp(projectPath);
   if ("content" in clientOrErr) return clientOrErr;
   const client = clientOrErr;
 

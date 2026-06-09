@@ -1,9 +1,13 @@
 /**
  * Unit tests for lsp_client.ts — pure logic tests with no mock LSP server.
- * Tests URI normalization, singleton guard, and state management.
+ * Construction is inert; the endpoint is resolved at connect time
+ * (resolveLspEndpoint, exercised in discover_lsp.test.ts). Here we cover the
+ * singleton guard, connect-failure handling, and state management.
  */
 import assert from "node:assert/strict";
 import { LspClient } from "../../src/lsp_client.js";
+
+const TEST_PROJECT = "/tmp/godot-mcp-test-project";
 
 // ── URI normalization (internal function — tested via public API) ────
 //
@@ -18,7 +22,7 @@ import { LspClient } from "../../src/lsp_client.js";
   const saved = process.env.GODOT_MCP_LSP_PORT;
   try {
     delete process.env.GODOT_MCP_LSP_PORT;
-    const client = new LspClient();
+    const client = new LspClient(TEST_PROJECT);
     assert.equal(client.isConnected(), false);
   } finally {
     if (saved !== undefined) process.env.GODOT_MCP_LSP_PORT = saved;
@@ -31,7 +35,7 @@ import { LspClient } from "../../src/lsp_client.js";
   const saved = process.env.GODOT_MCP_LSP_PORT;
   try {
     process.env.GODOT_MCP_LSP_PORT = "7005";
-    const client = new LspClient();
+    const client = new LspClient(TEST_PROJECT);
     assert.equal(client.isConnected(), false);
   } finally {
     if (saved !== undefined) process.env.GODOT_MCP_LSP_PORT = saved;
@@ -44,7 +48,7 @@ import { LspClient } from "../../src/lsp_client.js";
   const saved = process.env.GODOT_MCP_LSP_PORT;
   try {
     process.env.GODOT_MCP_LSP_PORT = "not_a_number";
-    const client = new LspClient();
+    const client = new LspClient(TEST_PROJECT);
     assert.equal(client.isConnected(), false);
   } finally {
     if (saved !== undefined) process.env.GODOT_MCP_LSP_PORT = saved;
@@ -55,14 +59,14 @@ import { LspClient } from "../../src/lsp_client.js";
 // ── isConnected — starts false ───────────────────────────────────────
 
 {
-  const client = new LspClient();
+  const client = new LspClient(TEST_PROJECT);
   assert.equal(client.isConnected(), false);
 }
 
 // ── sendNotification — no-op when not connected ─────────────────────
 
 {
-  const client = new LspClient();
+  const client = new LspClient(TEST_PROJECT);
   // Should not throw even when not connected
   client.sendNotification("test/method", { data: "test" });
 }
@@ -70,7 +74,7 @@ import { LspClient } from "../../src/lsp_client.js";
 // ── sendRequest — rejects when not connected ────────────────────────
 
 {
-  const client = new LspClient();
+  const client = new LspClient(TEST_PROJECT);
   await assert.rejects(
     () => client.sendRequest("test/method", {}),
     (err: Error) => {
@@ -83,7 +87,7 @@ import { LspClient } from "../../src/lsp_client.js";
 // ── close — safe to call when never connected ───────────────────────
 
 {
-  const client = new LspClient();
+  const client = new LspClient(TEST_PROJECT);
   // Should not throw
   await client.close();
   assert.equal(client.isConnected(), false);
@@ -92,7 +96,7 @@ import { LspClient } from "../../src/lsp_client.js";
 // ── close — safe to call multiple times ─────────────────────────────
 
 {
-  const client = new LspClient();
+  const client = new LspClient(TEST_PROJECT);
   await client.close();
   await client.close();
   assert.equal(client.isConnected(), false);
@@ -105,7 +109,7 @@ import { LspClient } from "../../src/lsp_client.js";
   try {
     // Use a port that's almost certainly not listening
     process.env.GODOT_MCP_LSP_PORT = "19999";
-    const client = new LspClient();
+    const client = new LspClient(TEST_PROJECT);
     await assert.rejects(
       () => client.ensureConnected(),
       (err: Error) => {
@@ -131,7 +135,7 @@ import { LspClient } from "../../src/lsp_client.js";
   const saved = process.env.GODOT_MCP_LSP_PORT;
   try {
     process.env.GODOT_MCP_LSP_PORT = "19998";
-    const client = new LspClient();
+    const client = new LspClient(TEST_PROJECT);
     const p1 = client.ensureConnected().catch(() => "err1");
     const p2 = client.ensureConnected().catch(() => "err2");
     // Both should resolve/reject (they hit ECONNREFUSED)

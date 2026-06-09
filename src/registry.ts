@@ -20,6 +20,10 @@ export interface RegistryEntry {
   runtime_port: number | null;
   runtime_pid: number | null;
   godot_version?: string;
+  // GDScript LSP endpoint this editor's setting points at (published by the
+  // toolkit; null when no editor resolved it — e.g. a runtime-only self-heal entry).
+  lsp_port?: number | null;
+  lsp_host?: string;
 }
 
 interface Registry {
@@ -130,6 +134,51 @@ export function discoverRuntime(projectPath: string): number | null {
   const port = entry.runtime_port;
   if (port == null || !Number.isInteger(port) || port < 1024 || port > 65535) return null;
   return port;
+}
+
+// -- LSP endpoint discovery --------------------------------------------------
+//
+// Godot's GDScript LSP binds one machine-wide port (default 6005); the toolkit
+// publishes each editor's setting-derived endpoint into its registry entry.
+// We resolve per-project and detect collisions server-side (the toolkit can't
+// read whether its own bind won). See ADR 0008 (toolkit) / lsp_client.ts.
+
+/**
+ * Every LIVE editor claiming a given LSP port. Mirrors lookupByPort but matches
+ * entry.lsp_port and returns all claimants (not just the newest). Dead PIDs are
+ * filtered via process.kill(pid, 0) — reliable on Windows, unlike the toolkit's
+ * OS.is_process_running.
+ */
+export function liveLspClaimants(port: number): Array<{ path: string; entry: RegistryEntry }> {
+  const registry = readRegistry();
+  const out: Array<{ path: string; entry: RegistryEntry }> = [];
+  for (const [path, entry] of Object.entries(registry.by_path)) {
+    if (entry.lsp_port !== port) continue;
+    if (!isPidAlive(entry.pid)) continue;
+    out.push({ path, entry });
+  }
+  return out;
+}
+
+/**
+ * Resolve this project's published LSP endpoint, with conservative ownership.
+ *   { host, port } — we own it: connect (then verify rootUri on 4.5+).
+ *   { conflict, port } — a live peer started at-or-before us holds the port.
+ *   null — no usable entry; the caller applies the miss rule (conditional 6005).
+ *
+ * Connect only if strictly the EARLIEST live claimant: the engine gives the port
+ * to whoever listen()s first, and started_at is a safe proxy for starts >~1s
+ * apart. A genuine same-second tie fails BOTH sides — never wrong data.
+ */
+export function discoverLspEndpoint(
+  projectPath: string,
+): { host: string; port: number } | { conflict: true; port: number } | null {
+  const entry = lookupProject(projectPath);
+  if (!entry || entry.lsp_port == null) return null;
+  const port = entry.lsp_port;
+  const peers = liveLspClaimants(port).filter((c) => c.entry.pid !== entry.pid);
+  if (peers.some((c) => c.entry.started_at <= entry.started_at)) return { conflict: true, port };
+  return { host: entry.lsp_host ?? "127.0.0.1", port };
 }
 
 // -- Registry watcher ----------------------------------------------------------

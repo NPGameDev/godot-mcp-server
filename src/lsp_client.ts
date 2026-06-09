@@ -1,10 +1,13 @@
 /**
  * Lightweight LSP client for Godot's built-in GDScript language server.
- * Connects via TCP to localhost:6005 (configurable via GODOT_MCP_LSP_PORT).
- * Lazy connection — first request triggers connect + initialize handshake.
- * Graceful degradation — returns LSP_UNAVAILABLE on connection failure.
+ * The endpoint is discovered PER PROJECT from the registry at connect time
+ * (GODOT_MCP_LSP_PORT/_HOST override it); a collision fails visibly rather than
+ * silently reaching the wrong editor. See ADR 0008 (toolkit). Lazy connection —
+ * first request triggers connect + initialize handshake.
  */
 import { createConnection, type Socket } from "node:net";
+
+import { discoverLspEndpoint, liveLspClaimants } from "./registry.js";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -12,6 +15,75 @@ const DEFAULT_LSP_PORT = 6005;
 const CONNECT_TIMEOUT_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 10_000;
 const HEADER_SEPARATOR = "\r\n\r\n";
+
+// Substring of the GDScript LSP's workspace-root-mismatch warning (window/
+// showMessage), shipped in Godot 4.5+ (PR #104401). Engine-verified against
+// gdscript_language_protocol.cpp on 4.5/4.6; absent 4.2-4.4. We send our real
+// rootUri in initialize, so this fires only when we reached the WRONG editor.
+const ROOT_MISMATCH_SUBSTRING = "might not work correctly with other projects";
+
+const LSP_CONFLICT_HINT =
+  "Another editor holds this project's GDScript LSP port. Running LSP in more " +
+  "than one editor needs a distinct --lsp-port + GODOT_MCP_LSP_PORT per editor — " +
+  "see docs/multi-instance.md. On Godot 4.2-4.4 this is always required.";
+
+const LSP_UNAVAILABLE_HINT =
+  "GDScript LSP not reachable. Ensure the Godot editor is running with the toolkit " +
+  "plugin enabled. With multiple editors open, give each a distinct --lsp-port + " +
+  "GODOT_MCP_LSP_PORT (docs/multi-instance.md).";
+
+/** Resolution failure carrying a specific tool error code + actionable hint. */
+export class LspResolutionError extends Error {
+  constructor(
+    public readonly code: "LSP_PORT_CONFLICT" | "LSP_UNAVAILABLE",
+    message: string,
+    public readonly hint: string,
+  ) {
+    super(message);
+    this.name = "LspResolutionError";
+  }
+}
+
+export type LspEndpoint = { host: string; port: number };
+
+/**
+ * Resolve a project's LSP endpoint at connect time. Priority:
+ *   1. GODOT_MCP_LSP_PORT (+ GODOT_MCP_LSP_HOST) — explicit override, top
+ *      priority, bypasses the registry (the documented multi-instance lever).
+ *   2. discoverLspEndpoint(projectPath) — registry hit (with conflict guard).
+ *   3. miss → 6005 ONLY if no live editor holds it; else unavailable.
+ * Throws LspResolutionError on a conflict or an ambiguous miss — never a blind
+ * 6005 fallback (that is what kept comparable tools returning the wrong project).
+ */
+export function resolveLspEndpoint(projectPath: string): LspEndpoint {
+  const envPort = process.env.GODOT_MCP_LSP_PORT;
+  if (envPort) {
+    const port = parseInt(envPort, 10);
+    if (Number.isInteger(port) && port > 0) {
+      return { host: process.env.GODOT_MCP_LSP_HOST || "127.0.0.1", port };
+    }
+  }
+  const disc = discoverLspEndpoint(projectPath);
+  if (disc) {
+    if ("conflict" in disc) {
+      throw new LspResolutionError(
+        "LSP_PORT_CONFLICT",
+        `Another live editor owns GDScript LSP port ${disc.port}; refusing to return its results.`,
+        LSP_CONFLICT_HINT,
+      );
+    }
+    return disc;
+  }
+  // Registry miss — fall back to 6005 only when no live editor holds it.
+  if (liveLspClaimants(DEFAULT_LSP_PORT).length === 0) {
+    return { host: "127.0.0.1", port: DEFAULT_LSP_PORT };
+  }
+  throw new LspResolutionError(
+    "LSP_UNAVAILABLE",
+    `No registry LSP endpoint for this project and port ${DEFAULT_LSP_PORT} is held by another editor.`,
+    LSP_UNAVAILABLE_HINT,
+  );
+}
 
 /**
  * Normalize a file URI for map lookups. Godot's LSP may return URIs
@@ -71,7 +143,12 @@ export class LspClient {
   private buffer = "";
   private initialized = false;
   private connecting: Promise<void> | null = null;
-  private port: number;
+  private host = "127.0.0.1";
+  private port = DEFAULT_LSP_PORT;
+  private readonly projectPath: string;
+  // Set when the LSP emits the 4.5+ root-mismatch warning during initialize —
+  // means we reached an editor open on a different project. Reset each connect.
+  private rootMismatch = false;
 
   // Document tracking — which files have been opened via didOpen.
   private openDocuments = new Set<string>();
@@ -80,9 +157,16 @@ export class LspClient {
   private diagnosticsByUri = new Map<string, DiagnosticEntry[]>();
   private diagnosticWaiters = new Map<string, { resolve: () => void; timer: NodeJS.Timeout }>();
 
-  constructor() {
-    const envPort = process.env.GODOT_MCP_LSP_PORT;
-    this.port = envPort ? parseInt(envPort, 10) || DEFAULT_LSP_PORT : DEFAULT_LSP_PORT;
+  constructor(projectPath: string) {
+    this.projectPath = projectPath;
+  }
+
+  /** file:// URI for the project root — sent as rootUri so the 4.5+ LSP can
+   *  warn (window/showMessage) when we reached an editor open on a different
+   *  project, i.e. a port collision reached the wrong editor. */
+  private projectRootUri(): string {
+    const norm = this.projectPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    return /^[A-Za-z]:/.test(norm) ? `file:///${norm}` : `file://${norm}`;
   }
 
   /** Ensure connection is established. Lazy — connects on first call. */
@@ -100,14 +184,21 @@ export class LspClient {
   private async doConnect(): Promise<void> {
     // Reset state from any previous connection.
     this.cleanup();
+    this.rootMismatch = false;
+
+    // Resolve fresh each connect so a reconnect picks up a changed port/host.
+    // Throws LspResolutionError on a conflict / ambiguous miss (no blind 6005).
+    const endpoint = resolveLspEndpoint(this.projectPath);
+    this.host = endpoint.host;
+    this.port = endpoint.port;
 
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         socket.destroy();
-        reject(new Error(`LSP connect timeout (port ${this.port})`));
+        reject(new Error(`LSP connect timeout (${this.host}:${this.port})`));
       }, CONNECT_TIMEOUT_MS);
 
-      const socket = createConnection({ host: "127.0.0.1", port: this.port }, () => {
+      const socket = createConnection({ host: this.host, port: this.port }, () => {
         clearTimeout(timer);
         this.socket = socket;
         resolve();
@@ -115,23 +206,37 @@ export class LspClient {
 
       socket.on("error", (err) => {
         clearTimeout(timer);
-        reject(new Error(`LSP connect failed (port ${this.port}): ${err.message}`));
+        reject(new Error(`LSP connect failed (${this.host}:${this.port}): ${err.message}`));
       });
 
       socket.on("data", (chunk) => this.onData(chunk.toString("utf-8")));
       socket.on("close", () => this.onClose());
     });
 
-    // LSP initialize handshake.
+    // LSP initialize handshake. Send our REAL rootUri (not null): on Godot 4.5+
+    // the server emits a window/showMessage root-mismatch warning when the URI
+    // resolves to a different open project — i.e. we reached the wrong editor.
+    // The engine sends that warning BEFORE the initialize response
+    // (gdscript_language_protocol.cpp), so rootMismatch is already set when this
+    // await resolves.
     const initResult = await this.sendRequest("initialize", {
       processId: process.pid,
       capabilities: {},
-      rootUri: null,
+      rootUri: this.projectRootUri(),
       clientInfo: { name: "godot-mcp-server", version: "0.1.0" },
     });
 
     if (!initResult || typeof initResult !== "object") {
       throw new Error("LSP initialize failed: no capabilities returned");
+    }
+
+    if (this.rootMismatch) {
+      this.cleanup();
+      throw new LspResolutionError(
+        "LSP_PORT_CONFLICT",
+        `Reached an editor open on a different project on LSP port ${this.port} (root mismatch).`,
+        LSP_CONFLICT_HINT,
+      );
     }
 
     // Send initialized notification.
@@ -307,6 +412,15 @@ export class LspClient {
   }
 
   private handleNotification(notification: { method: string; params?: unknown }): void {
+    if (notification.method === "window/showMessage") {
+      // Godot 4.5+ root-mismatch warning → we reached an editor open on a
+      // different project (port collision). doConnect checks this after init.
+      const params = notification.params as { message?: string } | undefined;
+      if (params?.message && params.message.includes(ROOT_MISMATCH_SUBSTRING)) {
+        this.rootMismatch = true;
+      }
+      return;
+    }
     if (notification.method === "textDocument/publishDiagnostics") {
       const params = notification.params as { uri?: string; diagnostics?: unknown[] } | undefined;
       if (!params?.uri) return;
