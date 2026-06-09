@@ -3,7 +3,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { createBridge } from "./bridge.js";
-import { getLspStatus } from "./lsp_client.js";
+import { getLspStatus, setGodotVersionGetter, type LspStatus } from "./lsp_client.js";
+import { setLspStatusReporter } from "./tools/lsp.js";
 import { lookupProject } from "./registry.js";
 import { resolveAllowedTools, isReadOnly, isExcludedByReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
 import {
@@ -341,15 +342,35 @@ let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
 // the MCP server when it receives the notification within the first second.
 let initialAuthSyncDone = false;
 
-/** Push the authoritative GDScript LSP verdict to the editor dock. Best-effort:
- *  the editor can't read its own LSP bind status, so the server (reliable
- *  process.kill liveness) tells it via editor.set_lsp_status (ADR 0008). */
-function reportLspStatus(): void {
+// Push the GDScript LSP verdict to the editor dock (editor.set_lsp_status, ADR
+// 0008) — the editor can't read its own LSP bind status, so the server reports it.
+function sendLspStatus(s: LspStatus): void {
   try {
-    void bridge.call("editor.set_lsp_status", getLspStatus(projectPath), 3000).catch(() => {});
+    void bridge.call("editor.set_lsp_status", s, 3000).catch(() => {});
   } catch {
     /* never let UI status reporting disrupt the bridge */
   }
+}
+
+// Verified verdicts from actual LSP tool calls (the real connection result —
+// accurate across versions), de-duped so frequent LSP calls don't spam the bridge.
+let lastLspKey = "";
+setLspStatusReporter((s: LspStatus) => {
+  const key = `${s.state}:${s.host}:${s.port}`;
+  if (key === lastLspKey) return;
+  lastLspKey = key;
+  sendLspStatus(s);
+});
+// Version-tailored LSP conflict hints (4.5+ auto-rebind vs 4.2-4.4 distinct-port).
+setGodotVersionGetter(() => bridge.getGodotVersion());
+
+/** On bridge connect/reconnect: push the registry verdict (fast, no LSP
+ *  connection) so a freshly-connected editor gets the current status; later LSP
+ *  tool calls refine it with the verified result. */
+function reportLspStatus(): void {
+  const s = getLspStatus(projectPath);
+  lastLspKey = `${s.state}:${s.host}:${s.port}`;
+  sendLspStatus(s);
 }
 
 bridge.onNotification((type, params) => {

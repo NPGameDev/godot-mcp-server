@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import type { ToolDef, ToolTextResult } from "../types.js";
 import { toolError } from "../tool_helpers.js";
-import { LspClient, LspResolutionError } from "../lsp_client.js";
+import { LspClient, LspResolutionError, type LspStatus } from "../lsp_client.js";
 import { untrustedWrap } from "../untrusted.js";
 
 // ── URI / path helpers ───────��───────────────────────────────────────
@@ -221,6 +221,15 @@ function getLspClient(projectPath: string): LspClient {
   return _lspClient;
 }
 
+/** Set by index.ts to push the VERIFIED LSP verdict (the actual connection
+ *  result) to the editor dock after each connection attempt — so the dock
+ *  reflects reality on actual use: it flips to active once a closed editor frees
+ *  the port and this LSP rebinds (4.5+), or to unavailable on 4.2-4.4 (no retry). */
+let _statusReporter: ((s: LspStatus) => void) | null = null;
+export function setLspStatusReporter(cb: (s: LspStatus) => void): void {
+  _statusReporter = cb;
+}
+
 /** Reset the LSP client (for config reload). */
 export function resetLspClient(): void {
   if (_lspClient) {
@@ -262,13 +271,24 @@ async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClien
   const client = getLspClient(projectPath);
   try {
     await client.ensureConnected();
+    const ep = client.getEndpoint();
+    _statusReporter?.({ state: "active", host: ep.host, port: ep.port, detail: "Connected and verified." });
     return client;
   } catch (err) {
     // Resolution errors carry a specific code + hint (LSP_PORT_CONFLICT /
     // LSP_UNAVAILABLE); a raw connect failure is a generic LSP_UNAVAILABLE.
     if (err instanceof LspResolutionError) {
+      _statusReporter?.({
+        state: err.code === "LSP_PORT_CONFLICT" ? "conflict" : "unavailable",
+        host: "127.0.0.1",
+        port: err.port,
+        detail: err.message,
+      });
       return toolError(err.code, err.message, err.hint);
     }
+    // Connect failure (e.g. ECONNREFUSED) — report the endpoint we actually tried.
+    const ep = client.getEndpoint();
+    _statusReporter?.({ state: "unavailable", host: ep.host, port: ep.port, detail: (err as Error).message });
     return toolError(
       "LSP_UNAVAILABLE",
       `GDScript LSP unavailable: ${(err as Error).message}. Ensure the Godot editor is running.`,

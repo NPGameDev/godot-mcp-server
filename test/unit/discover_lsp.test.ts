@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { normalizePath, discoverLspEndpoint, liveLspClaimants } from "../../src/registry.js";
-import { resolveLspEndpoint, LspResolutionError, getLspStatus } from "../../src/lsp_client.js";
+import { resolveLspEndpoint, LspResolutionError, getLspStatus, setGodotVersionGetter } from "../../src/lsp_client.js";
 
 const ALIVE = process.pid; // this test process — always alive
 const ALIVE2 = process.ppid; // the runner (parent) — also alive, distinct PID
@@ -274,5 +274,60 @@ withRegistry({ [keyB]: entry({ lsp_port: 6005, pid: ALIVE }) }, () => {
   assert.equal(s.state, "unavailable", "getLspStatus: ambiguous miss → unavailable");
   assert.equal(s.port, 6005, "getLspStatus: unavailable carries the port");
 });
+
+// ── lspConflictHint — version-tailored recovery (via resolveLspEndpoint) ──
+// 4.5+ auto-rebinds when the other editor closes; 4.2-4.4 has no LSP bind retry,
+// so it must use distinct ports. The hint must offer only the applicable path.
+
+function conflictHint(): string {
+  let hint = "";
+  withRegistry(
+    {
+      [keyA]: entry({ lsp_port: 6005, started_at: 2000, pid: ALIVE }),
+      [keyB]: entry({ lsp_port: 6005, started_at: 1000, pid: ALIVE2 }),
+    },
+    () => {
+      try {
+        resolveLspEndpoint(projA);
+      } catch (e) {
+        if (e instanceof LspResolutionError) hint = e.hint;
+      }
+    },
+  );
+  return hint;
+}
+
+setGodotVersionGetter(() => [4, 5]);
+{
+  const h = conflictHint();
+  assert.ok(h.includes("rebinds the port automatically"), "hint(4.5) → offers auto-rebind recovery");
+  assert.ok(!h.includes("won't recover"), "hint(4.5) → omits the 4.2-4.4 no-recovery caveat");
+}
+
+setGodotVersionGetter(() => [4, 6]);
+assert.ok(conflictHint().includes("rebinds the port automatically"), "hint(4.6) → auto-rebind recovery");
+
+setGodotVersionGetter(() => [4, 2]);
+{
+  const h = conflictHint();
+  assert.ok(h.includes("won't recover this LSP without restarting"), "hint(4.2) → distinct-port, no auto-rebind");
+  assert.ok(!h.includes("rebinds the port automatically"), "hint(4.2) → omits the 4.5+ auto-rebind claim");
+}
+
+setGodotVersionGetter(() => [4, 4]);
+assert.ok(
+  conflictHint().includes("won't recover this LSP without restarting"),
+  "hint(4.4) → distinct-port (4.4 is pre-retry)",
+);
+
+setGodotVersionGetter(() => null);
+{
+  const h = conflictHint();
+  assert.ok(
+    h.includes("4.5+ rebinds automatically") && h.includes("4.2-4.4 restart this editor after"),
+    "hint(unknown) → covers both version ranges",
+  );
+}
+setGodotVersionGetter(() => null); // reset module-level state
 
 console.log("All discover_lsp tests passed.");

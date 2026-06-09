@@ -8,6 +8,7 @@
 import { createConnection, type Socket } from "node:net";
 
 import { discoverLspEndpoint, liveLspClaimants } from "./registry.js";
+import { isVersionAtLeast, type GodotVer } from "./version.js";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -22,10 +23,39 @@ const HEADER_SEPARATOR = "\r\n\r\n";
 // rootUri in initialize, so this fires only when we reached the WRONG editor.
 const ROOT_MISMATCH_SUBSTRING = "might not work correctly with other projects";
 
-const LSP_CONFLICT_HINT =
-  "Another editor holds this project's GDScript LSP port. Running LSP in more " +
-  "than one editor needs a distinct --lsp-port + GODOT_MCP_LSP_PORT per editor — " +
-  "see docs/multi-instance.md. On Godot 4.2-4.4 this is always required.";
+// Conflict hint, tailored to the connected Godot version (set by index.ts via
+// setGodotVersionGetter). The recovery differs by version: 4.5+ auto-rebinds the
+// port when the other editor closes; 4.2-4.4 has no LSP bind retry, so it needs
+// distinct ports. Giving the LLM only the applicable path keeps the hint actionable.
+let _godotVersionGetter: (() => GodotVer | null) | null = null;
+export function setGodotVersionGetter(cb: () => GodotVer | null): void {
+  _godotVersionGetter = cb;
+}
+
+function lspConflictHint(): string {
+  const v = _godotVersionGetter?.() ?? null;
+  if (v != null && isVersionAtLeast(v, "4.5")) {
+    return (
+      "Another editor holds this project's GDScript LSP port. Close the other editor — " +
+      "this editor's LSP then rebinds the port automatically — or give each editor a " +
+      "distinct --lsp-port + GODOT_MCP_LSP_PORT (docs/multi-instance.md)."
+    );
+  }
+  if (v != null) {
+    // 4.2-4.4: no LSP bind retry, so closing the other editor won't recover this one.
+    return (
+      "Another editor holds this project's GDScript LSP port. On this Godot version, give " +
+      "each editor a distinct --lsp-port + GODOT_MCP_LSP_PORT (docs/multi-instance.md) — " +
+      "closing the other editor won't recover this LSP without restarting this editor."
+    );
+  }
+  // Version unknown — cover both ranges.
+  return (
+    "Another editor holds this project's GDScript LSP port. Either give each editor a " +
+    "distinct --lsp-port + GODOT_MCP_LSP_PORT (docs/multi-instance.md), or close the other " +
+    "editor (Godot 4.5+ rebinds automatically; 4.2-4.4 restart this editor after)."
+  );
+}
 
 const LSP_UNAVAILABLE_HINT =
   "GDScript LSP not reachable. Ensure the Godot editor is running with the toolkit " +
@@ -70,7 +100,7 @@ export function resolveLspEndpoint(projectPath: string): LspEndpoint {
       throw new LspResolutionError(
         "LSP_PORT_CONFLICT",
         `Another live editor owns GDScript LSP port ${disc.port}; refusing to return its results.`,
-        LSP_CONFLICT_HINT,
+        lspConflictHint(),
         disc.port,
       );
     }
@@ -270,7 +300,7 @@ export class LspClient {
       throw new LspResolutionError(
         "LSP_PORT_CONFLICT",
         `Reached an editor open on a different project on LSP port ${this.port} (root mismatch).`,
-        LSP_CONFLICT_HINT,
+        lspConflictHint(),
         this.port,
       );
     }
@@ -361,6 +391,12 @@ export class LspClient {
   /** Check if the client is currently connected. */
   isConnected(): boolean {
     return this.initialized && !!this.socket && !this.socket.destroyed;
+  }
+
+  /** The host:port resolved for the most recent connect attempt (valid after
+   *  doConnect set it — i.e. when a connect was attempted, success or failure). */
+  getEndpoint(): { host: string; port: number } {
+    return { host: this.host, port: this.port };
   }
 
   /** Graceful shutdown. */
