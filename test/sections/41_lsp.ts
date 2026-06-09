@@ -1,12 +1,12 @@
 /**
- * Section 42 — LSP tools (conditional)
+ * Section 41 — LSP tools (conditional)
  *
  * Tests GDScript language intelligence via the Godot LSP connection.
- * Conditionally skips if port 6005 is not reachable (editor not running
+ * Conditionally skips if the LSP port is not reachable (editor not running
  * or LSP disabled). This avoids false failures in CI or headless runs.
  */
 import { probePort, HOST } from "../helpers.js";
-import { LspClient } from "../../src/lsp_client.js";
+import { LspClient, resolveLspEndpoint } from "../../src/lsp_client.js";
 import { lspTools } from "../../src/tools/lsp.js";
 
 import type { TestCtx } from "../helpers.js";
@@ -58,8 +58,22 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
   }
 
   // ── Live LSP tests (only when port is reachable) ──
+  // Resolution + collision detection (env > registry > conditional miss) and the
+  // LSP_PORT_CONFLICT path are unit-tested in discover_lsp.test.ts; here we
+  // exercise the happy path end-to-end against the running editor.
 
-  const client = new LspClient();
+  const projectPath = ctx.projectPath ?? process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
+
+  // Per-project endpoint discovery must resolve (registry hit, or 6005 when free).
+  try {
+    const ep = resolveLspEndpoint(projectPath);
+    pass(`lsp: resolveLspEndpoint → ${ep.host}:${ep.port}`);
+  } catch (err) {
+    fail(`lsp: resolveLspEndpoint threw: ${(err as Error).message}`);
+    return;
+  }
+
+  const client = new LspClient(projectPath);
   try {
     await client.ensureConnected();
     pass("lsp: TCP connection + initialize handshake succeeded");
@@ -70,7 +84,6 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
 
   try {
     // Test documentSymbol on a known file (Main.gd exists in the toolkit project).
-    const projectPath = ctx.projectPath ?? process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
     const testFile = "res://Main.gd";
     const absPath = testFile.replace(/^res:\/\//, "");
     const fullPath = `${projectPath.replace(/\\/g, "/")}/${absPath}`;
