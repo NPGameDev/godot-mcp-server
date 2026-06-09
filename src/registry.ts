@@ -82,16 +82,30 @@ function readRegistry(): Registry {
 }
 
 /**
- * Check if a process is still alive. Returns false if provably dead.
- * Uses signal 0 (no-op) — reliable on all platforms including Windows.
+ * Check if a process is still alive. Returns false only if provably dead.
+ *
+ * Signal 0 is a no-op "existence probe" — never delivered, it only tests whether
+ * the process exists and is signalable. Reliable on Linux, macOS AND Windows
+ * (Node/libuv maps it to OpenProcess on Windows, not the unreliable mechanism
+ * behind GDScript's OS.is_process_running). Outcomes:
+ *   - success            → the process exists                          → ALIVE
+ *   - throw ESRCH        → no such process                             → dead
+ *   - throw EPERM/EACCES → the process EXISTS but we may not signal it
+ *                          (another user / elevated / protected)       → ALIVE
+ *
+ * Treating EPERM/EACCES as alive is the POSIX-standard robust check (`kill(pid,0)`
+ * sets EPERM precisely *because* the target exists). It never triggers for our
+ * same-user sibling editors, but it keeps a cross-user/elevated peer from being
+ * mis-counted as dead on any platform.
  */
 function isPidAlive(pid: number): boolean {
   if (!pid || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return code === "EPERM" || code === "EACCES";
   }
 }
 
