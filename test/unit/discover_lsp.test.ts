@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { normalizePath, discoverLspEndpoint, liveLspClaimants } from "../../src/registry.js";
-import { resolveLspEndpoint, LspResolutionError } from "../../src/lsp_client.js";
+import { resolveLspEndpoint, LspResolutionError, getLspStatus } from "../../src/lsp_client.js";
 
 const ALIVE = process.pid; // this test process — always alive
 const ALIVE2 = process.ppid; // the runner (parent) — also alive, distinct PID
@@ -242,6 +242,37 @@ withRegistry({ [keyB]: entry({ lsp_port: 6005, pid: DEAD }) }, () => {
     { host: "127.0.0.1", port: 6005 },
     "resolve: miss + dead 6005 holder → 6005",
   );
+});
+
+// ── getLspStatus (verdict the server reports to the dock) ────────────
+
+// Owner → active, with host/port.
+withRegistry({ [keyA]: entry({ lsp_port: 6005, lsp_host: "127.0.0.1" }) }, () => {
+  assert.deepEqual(
+    getLspStatus(projA),
+    { state: "active", host: "127.0.0.1", port: 6005, detail: "Owns the GDScript LSP port." },
+    "getLspStatus: owner → active",
+  );
+});
+
+// Earlier live peer → conflict, carrying the contested port.
+withRegistry(
+  {
+    [keyA]: entry({ lsp_port: 6005, started_at: 2000, pid: ALIVE }),
+    [keyB]: entry({ lsp_port: 6005, started_at: 1000, pid: ALIVE2 }),
+  },
+  () => {
+    const s = getLspStatus(projA);
+    assert.equal(s.state, "conflict", "getLspStatus: earlier peer → conflict");
+    assert.equal(s.port, 6005, "getLspStatus: conflict carries the port");
+  },
+);
+
+// Ambiguous miss (6005 held by a live editor) → unavailable.
+withRegistry({ [keyB]: entry({ lsp_port: 6005, pid: ALIVE }) }, () => {
+  const s = getLspStatus(projA);
+  assert.equal(s.state, "unavailable", "getLspStatus: ambiguous miss → unavailable");
+  assert.equal(s.port, 6005, "getLspStatus: unavailable carries the port");
 });
 
 console.log("All discover_lsp tests passed.");

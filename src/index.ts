@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { createBridge } from "./bridge.js";
+import { getLspStatus } from "./lsp_client.js";
 import { lookupProject } from "./registry.js";
 import { resolveAllowedTools, isReadOnly, isExcludedByReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
 import {
@@ -340,8 +341,21 @@ let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
 // the MCP server when it receives the notification within the first second.
 let initialAuthSyncDone = false;
 
+/** Push the authoritative GDScript LSP verdict to the editor dock. Best-effort:
+ *  the editor can't read its own LSP bind status, so the server (reliable
+ *  process.kill liveness) tells it via editor.set_lsp_status (ADR 0008). */
+function reportLspStatus(): void {
+  try {
+    void bridge.call("editor.set_lsp_status", getLspStatus(projectPath), 3000).catch(() => {});
+  } catch {
+    /* never let UI status reporting disrupt the bridge */
+  }
+}
+
 bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
+    // Push the authoritative LSP verdict to the editor dock (ADR 0008).
+    reportLspStatus();
     // Auth-sourced notifications include `reconnect`; plugin-sent ones don't.
     const isInitialAuth = !initialAuthSyncDone && params?.reconnect === false;
     if (params?.reconnect !== undefined) initialAuthSyncDone = true;

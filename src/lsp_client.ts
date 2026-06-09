@@ -38,6 +38,7 @@ export class LspResolutionError extends Error {
     public readonly code: "LSP_PORT_CONFLICT" | "LSP_UNAVAILABLE",
     message: string,
     public readonly hint: string,
+    public readonly port: number,
   ) {
     super(message);
     this.name = "LspResolutionError";
@@ -70,6 +71,7 @@ export function resolveLspEndpoint(projectPath: string): LspEndpoint {
         "LSP_PORT_CONFLICT",
         `Another live editor owns GDScript LSP port ${disc.port}; refusing to return its results.`,
         LSP_CONFLICT_HINT,
+        disc.port,
       );
     }
     return disc;
@@ -82,7 +84,40 @@ export function resolveLspEndpoint(projectPath: string): LspEndpoint {
     "LSP_UNAVAILABLE",
     `No registry LSP endpoint for this project and port ${DEFAULT_LSP_PORT} is held by another editor.`,
     LSP_UNAVAILABLE_HINT,
+    DEFAULT_LSP_PORT,
   );
+}
+
+export type LspStatus = {
+  state: "active" | "conflict" | "unavailable";
+  host: string;
+  port: number;
+  detail: string;
+};
+
+/**
+ * The authoritative LSP verdict for a project, computed without opening a
+ * connection (resolution + registry ownership only — reliable cross-platform
+ * liveness via process.kill). The toolkit can't determine this itself (no engine
+ * API for its own LSP bind status), so the server reports it to the editor dock
+ * via editor.set_lsp_status. "active" = this editor owns the port (per registry /
+ * env override); a later editor or a non-registry holder → conflict / unavailable.
+ */
+export function getLspStatus(projectPath: string): LspStatus {
+  try {
+    const ep = resolveLspEndpoint(projectPath);
+    return { state: "active", host: ep.host, port: ep.port, detail: "Owns the GDScript LSP port." };
+  } catch (err) {
+    if (err instanceof LspResolutionError) {
+      return {
+        state: err.code === "LSP_PORT_CONFLICT" ? "conflict" : "unavailable",
+        host: "127.0.0.1",
+        port: err.port,
+        detail: err.message,
+      };
+    }
+    return { state: "unavailable", host: "127.0.0.1", port: DEFAULT_LSP_PORT, detail: String(err) };
+  }
 }
 
 /**
@@ -236,6 +271,7 @@ export class LspClient {
         "LSP_PORT_CONFLICT",
         `Reached an editor open on a different project on LSP port ${this.port} (root mismatch).`,
         LSP_CONFLICT_HINT,
+        this.port,
       );
     }
 
