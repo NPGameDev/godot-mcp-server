@@ -115,15 +115,18 @@ export async function probePort(host: string, port: number, timeoutMs: number): 
   });
 }
 
-export function printUnreachable(): void {
-  console.error(`[smoke] ERROR: nothing listening on ${HOST}:${PORT}.
+// `label` drives the log prefix and the re-run hint so the shared harness can
+// say "npm run flows" when the flow suite is what hit the closed port. Defaults
+// keep every existing caller (smoke, eval, csharp-audit) byte-identical.
+export function printUnreachable(label = "smoke"): void {
+  console.error(`[${label}] ERROR: nothing listening on ${HOST}:${PORT}.
 
 The Godot toolkit editor must be running with the plugin enabled:
   1. Open the toolkit repo (see memory/reference_repo_paths.md §2) in Godot 4.x
   2. Project -> Project Settings -> Plugins -> "Godot MCP Toolkit" -> Active
-  3. Re-run \`npm run smoke\`.
+  3. Re-run \`npm run ${label}\`.
 
-The smoke test does not launch Godot; it only verifies the plugin is reachable.`);
+The ${label} suite does not launch Godot; it only verifies the plugin is reachable.`);
 }
 
 // Fake echo server for the iter-13 reconnect smoke. Echoes JSON-RPC

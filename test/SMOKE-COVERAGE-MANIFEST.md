@@ -1,11 +1,12 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-06-05
+**Last updated:** 2026-06-10 (41m-bis — added the Flow Suite section)
 **Server commit:** S:6fa6143
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 105 (33 eager + 72 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
 **Smoke sections:** 44 (sections 01–44)
+**Flow suite:** 3 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
 
 ---
 
@@ -320,3 +321,53 @@ No critical gaps remain. All tools have at least guard-level coverage.
 - **Minimal coverage (guards only, no happy path):** 1 tool (animation_keyframe)
 - **No coverage:** 0 tools
 - **On-demand group coverage:** LSP (6/6 static, 5/6 live via direct LspClient), Debugger (4/4 via bridge)
+
+---
+
+## Flow Suite (deterministic cross-tool flows — `npm run flows`, added 41m-bis)
+
+The **flow suite** (`test/flows.ts` + `test/flows/`) is the deterministic
+counterpart to the LLM **sweep**. It covers the **cross-tool, stateful flows
+smoke structurally cannot express** — smoke tests each tool in isolation
+(happy/guard/hint, one call at a time). The flow suite shares smoke's harness
+(`test/harness.ts` + `test/helpers.ts`; **not** the dispatch raw-WS helpers) so
+the per-step report, exit codes, and `--only/--from/--to` come for free. It is
+editor-required and **local-only** (no CI mode — see
+SMOKE-MAINTENANCE-PROTOCOL.md). Run: `npm run flows` /
+`npm run flows:single -- --only N`. See `CONTEXT.md` "Validation vocabulary"
+(plan repo) for the Smoke / Flow suite / Sweep glossary.
+
+| Flow | File | Covers | Why smoke can't | Version branch |
+|---|---|---|---|---|
+| 1 — Extension lifecycle | `flows/01_extension_lifecycle.ts` | create→discovered→call / re-entrancy / update-existing / remove→gone (sweep S24) | Smoke §22 "intentionally does not create extension scripts" — the **Finding #1** regression (`extensions.refresh` → `commands:[]`) hid here while smoke passed 437/0 | update-existing: 4.3+ live, 4.2 deferred restart-hint (regression-guards the 41l-tricies-ter REUSE gate) |
+| 2 — Hot-reload reachability | `flows/02_hot_reload_reachability.ts` | live-instance method reachability after a script edit; absent-method → `INVALID_METHOD` contract; characterises the stale-live-instance hazard (feeds the research step → 41m-bis-bis) | Edit-then-call-new-method on a live instance is multi-step + cross-state | characterisation logs the per-version A/B/C outcome |
+| 3 — Combo chains | `flows/03_combo_chains.ts` | C4 signal persistence across save/reopen; C8 node-management pipeline (duplicate→rename→reparent→groups) (sweep S22) | Smoke §05 checks the connect *hint* only, never the connection surviving save+reopen; the node pipeline chains state across ops | — |
+
+### Dedup triage (decisions #3/#4 — gap-only, never duplicate)
+
+The flow suite covers ONLY what smoke can't. Items deliberately **left in
+smoke** (not ported):
+
+- **Single-call regression-watch items** (the bulk of the sweep's ~43 markers):
+  coercion type-tags (Resource/ResourceRef/LayerMask/PackedVector2Array),
+  param-name guards, error envelopes, field presence (`valid`, `indexed`,
+  diagnostics), enum/idempotency — all observable from one tool call → smoke's
+  domain. Add new ones to smoke, not flows.
+- **S22 combos already sequenced by smoke:** C3 scene build round-trip (§02/
+  §08/§10), C6 tilemap paint (§13/§44), C7/C11 script-write→check-without-refresh
+  (§24), **C12 folder.delete with open scene tabs** (§09 already exercises the
+  open-tab auto-switch).
+- **Server-side / non-bridge:** C10/C27 `discover_tools` group activation +
+  version-gate visibility (smoke §39 + server unit tests); FIX-C
+  split-notification canary (not deterministically reproducible).
+- **Game-runtime + C#:** C5 full game lifecycle, S20/S21 runtime/debugger flows
+  (need a running game), S23 C# combos (need a .NET editor) — out of the default
+  flow run.
+
+### LLM-confirm protocol (report-only / manual — decision #10)
+
+A flow **FAILURE** is not auto-classified. The operator hands the failing
+flow/step to a **targeted LLM sweep re-run** (`Validations/tool-sweep.md`,
+toolkit) to distinguish a **stale script** (update the flow) from a **real
+regression** (fix the code). No auto-invocation from the `.ts` harness (matches
+the "interactive tests = separate session" rule).

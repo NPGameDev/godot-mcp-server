@@ -35,6 +35,8 @@
     "smoke": "tsx test/run-smoke.ts",
     "smoke:single": "tsx test/smoke.ts",
     "smoke:ci": "tsx test/smoke.ts --ci",
+    "flows": "tsx test/run-flows.ts",
+    "flows:single": "tsx test/flows.ts",
     "eval": "tsx test/eval/eval-runner.ts",
     "test:unit": "tsx test/unit/run-all.ts",
     "test:integration:dispatch": "tsx test/integration/dispatch/run.ts",

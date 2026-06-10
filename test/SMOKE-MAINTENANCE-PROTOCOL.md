@@ -1,5 +1,19 @@
 # Smoke Test Maintenance Protocol
 
+> **Standing rule (41m-bis): new tools/params → update sweep + smoke + flows.**
+> Three validation layers now share maintenance (see `CONTEXT.md` "Validation
+> vocabulary", plan repo):
+> - **Smoke** (`test/sections/`) — every tool in **isolation** (this file).
+> - **Flow suite** (`test/flows/`) — **cross-tool, stateful** flows smoke can't
+>   express (see "Flow suite maintenance" below + the Flow Suite section of
+>   `SMOKE-COVERAGE-MANIFEST.md`).
+> - **Sweep** (toolkit `Validations/`) — the LLM-driven layer; also **confirms
+>   flow-suite failures** (stale script vs real regression).
+>
+> **Dedup rule:** a check observable from a **single tool call** → smoke; a check
+> that needs **cross-tool state or a multi-step sequence** → the flow suite.
+> Never duplicate an assertion across the two.
+
 ## Last Known Good SHA
 
 The smoke suite currently covers all behavior up to and including:
@@ -111,3 +125,45 @@ Before committing smoke test changes:
 2. `npm run smoke` (full suite — requires Godot editor running)
 3. `npm run format` (Prettier formatting)
 4. Verify no leftover probe files in the toolkit repo (check `git status` there)
+
+---
+
+## Flow suite maintenance (`test/flows/`, added 41m-bis)
+
+The flow suite is the **deterministic cross-tool layer**. It shares this suite's
+infrastructure but runs as its own command.
+
+**Shared harness.** Orchestrator scaffolding (port-probe, ctx build, section
+loop, counters, summary, exit codes, flag parsing, project-path discovery) lives
+in `test/harness.ts` and is consumed by **both** `smoke.ts` and `flows.ts`.
+Assertion helpers + `TestCtx` come from `test/helpers.ts`. The flow suite does
+**not** use the dispatch raw-WS helpers (`test/integration/dispatch/helpers.ts`)
+— those bypass the bridge to watch `_queued`/`_executing`; flows are tool-level.
+
+**When to update flows.** When an iteration changes a **cross-tool or stateful**
+behaviour:
+1. Extension discovery / hot-reload / lifecycle → `flows/01_extension_lifecycle.ts`.
+2. Live-instance method reachability after a script edit → `flows/02_hot_reload_reachability.ts`.
+3. Multi-tool workflows where state carries across tools (signal persistence,
+   node pipelines, save/reopen round-trips) → `flows/03_combo_chains.ts`.
+
+Single-call checks stay in smoke (dedup rule above).
+
+**Running.** `npm run flows` / `npm run flows:single -- --only N`. Editor
+required. **No CI mode** (decision #8): the flow suite is local-only — same tier
+as full smoke + dispatch integration. The deterministic+version-gated payload
+feeds forward to `41n-quater`'s cross-version matrix (which runs real editors).
+
+**Probe hygiene.** Flows write real files under `res://flow_probes/` in the
+dogfood project (same as smoke's `res://smoke_*` probes). Every flow is
+self-cleaning (try/finally) and the orchestrator does a final recursive
+`folder.delete`. **Verify `git status` in the toolkit repo is clean after a run**
+— no leftover `flow_*` probes.
+
+**LLM-confirm (report-only / manual).** A flow FAILURE is NOT auto-classified.
+Hand the failing flow/step to a **targeted LLM sweep re-run** (toolkit
+`Validations/tool-sweep.md`) to tell a stale script from a real regression. No
+auto-invocation from the `.ts` harness.
+
+**Flow-suite pre-commit:** `npm run build` → `npm run flows` (editor up) →
+`npm run format` → confirm clean toolkit `git status`.

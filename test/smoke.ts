@@ -2,6 +2,12 @@
 // Smoke test orchestrator — imports and runs numbered test sections
 // sequentially. Each section lives in test/sections/.
 //
+// The orchestrator scaffolding (port-probe, ctx build, section loop, counters,
+// summary, exit codes, flag parsing, project-path discovery) lives in the
+// shared test/harness.ts module so the flow suite (test/flows.ts) reuses it
+// (41m-bis). This file keeps only the smoke-specific pieces: the section list,
+// CI mode (static catalogue validation, no Godot), and the reconnect-last rule.
+//
 // Port-check first: if the editor plugin isn't reachable, print
 // instructions and exit before any assertions.
 //
@@ -20,12 +26,8 @@
 // connection.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { createBridge } from "../src/bridge.js";
-import { registryPath } from "../src/registry.js";
-import { readFileSync } from "node:fs";
-
-import { HOST, PORT, RUNTIME_PORT, PROBE_TIMEOUT_MS, probePort, printUnreachable } from "./helpers.js";
-import type { TestCtx } from "./helpers.js";
+import { makeCounters, parseFilterFlags, runFullSuite } from "./harness.js";
+import type { Section } from "./harness.js";
 
 import { runStructuralChecks } from "./structural.js";
 import * as sec01 from "./sections/01_catalogue.js";
@@ -101,94 +103,12 @@ import * as sec44 from "./sections/44_tileset.js";
 //       the tab via scene.close before deleting the backing file. If
 //       scene.close breaks, stale probe files may persist in the toolkit repo.
 
-// ─── CLI flag parsing ────────────────────────────────────────────────────
+// ─── CLI flags + counters ──────────────────────────────────────────────────
 const CI_MODE = process.argv.includes("--ci");
-
-function parseIntArg(flag: string): number | undefined {
-  const idx = process.argv.indexOf(flag);
-  if (idx === -1 || idx + 1 >= process.argv.length) return undefined;
-  const val = parseInt(process.argv[idx + 1], 10);
-  return isNaN(val) ? undefined : val;
-}
-
-function parseListArg(flag: string): number[] | undefined {
-  const idx = process.argv.indexOf(flag);
-  if (idx === -1 || idx + 1 >= process.argv.length) return undefined;
-  return process.argv[idx + 1]
-    .split(",")
-    .map((s) => parseInt(s.trim(), 10))
-    .filter((n) => !isNaN(n));
-}
-
-const FROM_SECTION = parseIntArg("--from");
-const TO_SECTION = parseIntArg("--to");
-const ONLY_SECTIONS = parseListArg("--only");
-const SKIP_SECTIONS = parseListArg("--skip");
-
-// ─── Counters ────────────────────────────────────────────────────────────
-let passCount = 0;
-let failCount = 0;
-
-function passFn(msg: string): void {
-  passCount++;
-  console.log(`[smoke] PASS  ${msg}`);
-}
-
-function failFn(msg: string): void {
-  failCount++;
-  console.error(`[smoke] FAIL  ${msg}`);
-}
-
-function printSummary(): void {
-  const total = passCount + failCount;
-  const bar = "-".repeat(50);
-  console.log(`\n${bar}`);
-  console.log(`Smoke: ${passCount} passed, ${failCount} failed, ${total} total`);
-  console.log(bar);
-}
-
-// Discover the project path for the editor listening on PORT so the bridge
-// can derive the per-worktree token filename. Prefers env var, then
-// searches the registry for a matching port entry.  When multiple entries
-// share the same port (stale leftover from a dead editor), prefer the one
-// with the highest started_at timestamp and filter out dead PIDs.
-function discoverProjectPath(): string | undefined {
-  const envPath = process.env.GODOT_MCP_PROJECT_PATH;
-  if (envPath) return envPath;
-  try {
-    const data = JSON.parse(readFileSync(registryPath(), "utf-8")) as {
-      by_path?: Record<string, { port?: number; started_at?: number; pid?: number }>;
-    };
-    let best: { path: string; startedAt: number } | undefined;
-    for (const [path, entry] of Object.entries(data.by_path ?? {})) {
-      if (entry.port !== PORT) continue;
-      // Filter out entries whose PID is provably dead.
-      if (entry.pid != null && entry.pid > 0) {
-        try {
-          process.kill(entry.pid, 0);
-        } catch {
-          continue; // PID dead — skip stale entry.
-        }
-      }
-      const ts = entry.started_at ?? 0;
-      if (!best || ts > best.startedAt) {
-        best = { path, startedAt: ts };
-      }
-    }
-    return best?.path;
-  } catch {
-    // Registry unreadable — fall through.
-  }
-  return undefined;
-}
+const counters = makeCounters("smoke");
+const flags = parseFilterFlags();
 
 // ─── Section registry ────────────────────────────────────────────────────
-
-interface Section {
-  num: number;
-  name: string;
-  run: (ctx: TestCtx) => Promise<void> | void;
-}
 
 const ALL_SECTIONS: Section[] = [
   { num: 1, name: "catalogue", run: sec01.testCatalogue },
@@ -237,104 +157,15 @@ const ALL_SECTIONS: Section[] = [
   { num: 44, name: "tileset", run: sec44.testTileset },
 ];
 
-function filterSections(): Section[] {
-  let filtered: Section[];
-
-  if (ONLY_SECTIONS) {
-    const set = new Set(ONLY_SECTIONS);
-    filtered = ALL_SECTIONS.filter((s) => set.has(s.num));
-    if (SKIP_SECTIONS) {
-      console.log("[smoke] WARNING: --skip ignored when --only is set\n");
-    }
-  } else if (FROM_SECTION !== undefined || TO_SECTION !== undefined) {
-    const from = FROM_SECTION ?? 1;
-    const to = TO_SECTION ?? Infinity;
-    filtered = ALL_SECTIONS.filter((s) => s.num >= from && s.num <= to);
-  } else {
-    filtered = [...ALL_SECTIONS];
-  }
-
-  // --skip post-filter
-  if (SKIP_SECTIONS && !ONLY_SECTIONS) {
-    const skipSet = new Set(SKIP_SECTIONS);
-    const skippedNums: number[] = [];
-    filtered = filtered.filter((s) => {
-      if (skipSet.has(s.num)) {
-        skippedNums.push(s.num);
-        return false;
-      }
-      return true;
-    });
-    if (skippedNums.length > 0) {
-      console.log(`[smoke] --skip: excluded sections ${skippedNums.join(", ")}`);
-    }
-  }
-
-  // Section 19 (reconnect) always runs last — it drops the connection
-  const reconnectIdx = filtered.findIndex((s) => s.num === 19);
-  if (reconnectIdx !== -1 && reconnectIdx !== filtered.length - 1) {
-    const [reconnect] = filtered.splice(reconnectIdx, 1);
-    filtered.push(reconnect);
-  }
-
-  return filtered;
-}
-
 // ─── CI mode: static catalogue validation only ───────────────────────────
 async function runCiMode(): Promise<void> {
   console.log("[smoke] CI mode — running static catalogue validation (no Godot required)\n");
 
-  sec01.testCatalogueStatic({ pass: passFn, fail: failFn });
-  runStructuralChecks({ pass: passFn, fail: failFn });
+  sec01.testCatalogueStatic({ pass: counters.pass, fail: counters.fail });
+  runStructuralChecks({ pass: counters.pass, fail: counters.fail });
 
-  printSummary();
-  process.exit(failCount > 0 ? 1 : 0);
-}
-
-// ─── Full mode: port probe + filtered test sections ─────────────────────
-async function runFullMode(): Promise<void> {
-  const reachable = await probePort(HOST, PORT, PROBE_TIMEOUT_MS);
-  if (!reachable) {
-    printUnreachable();
-    process.exit(2);
-  }
-
-  const projectPath = discoverProjectPath();
-  const bridge = createBridge(`ws://${HOST}:${PORT}`, {
-    projectPath,
-    explicitRuntimePort: String(RUNTIME_PORT),
-  });
-  const ctx: TestCtx = {
-    bridge,
-    fail: failFn,
-    pass: passFn,
-    projectPath,
-  };
-
-  const sections = filterSections();
-  const nums = sections.map((s) => s.num);
-  if (ONLY_SECTIONS || FROM_SECTION !== undefined || TO_SECTION !== undefined || SKIP_SECTIONS) {
-    console.log(`[smoke] Running sections: ${nums.join(", ")}\n`);
-  }
-
-  try {
-    for (let i = 0; i < sections.length; i++) {
-      const section = sections[i];
-      // Brief pause between sections so the Godot editor can process
-      // deferred calls and free resources. Without this, 450+ rapid-fire
-      // tool calls can overwhelm the editor's _process() loop and cause
-      // crashes from accumulated deferred-call pressure.
-      if (i > 0) await new Promise((r) => setTimeout(r, 150));
-      await section.run(ctx);
-    }
-  } catch (err) {
-    failFn(`unexpected error: ${(err as Error).message}`);
-  } finally {
-    await bridge.close();
-  }
-
-  printSummary();
-  process.exit(failCount > 0 ? 1 : 0);
+  counters.printSummary();
+  process.exit(counters.failCount() > 0 ? 1 : 0);
 }
 
 // ─── Entry ───────────────────────────────────────────────────────────────
@@ -342,7 +173,17 @@ async function main(): Promise<void> {
   if (CI_MODE) {
     await runCiMode();
   } else {
-    await runFullMode();
+    await runFullSuite({
+      label: "smoke",
+      counters,
+      sections: ALL_SECTIONS,
+      flags,
+      // Inter-section pace guarding cumulative deferred-call back-pressure
+      // across a 450-call run. 41m-bis strips this (evidence-gated on 4.5 +
+      // 4.2); see decision #6. Set to 0 here once the strip run is green.
+      interSectionDelayMs: 150,
+      reorderLast: 19,
+    });
   }
 }
 
