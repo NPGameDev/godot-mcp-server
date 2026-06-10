@@ -95,6 +95,14 @@ import * as sec44 from "./sections/44_tileset.js";
 //      save+reload cycle (`scene.instantiate owner-set survives
 //      save+reload`). The commit still lands and assertions still pass.
 //
+//   4. `WARNING: IDAT: incorrect data check` (png_driver_common.cpp) followed
+//      by `Error loading image / Error importing 'res://smoke_import_b64.png'`.
+//      Section 15 (asset_import) writes a minimal 1×1 base64 PNG to exercise
+//      `asset.import`; Godot's libpng reimport is stricter than most decoders
+//      and flags that tiny PNG's IDAT zlib/adler32 check. The MCP tool itself
+//      succeeds — the warning is downstream of the tool and affects no
+//      assertion (section 15 passes). Expected, benign noise.
+//
 // If a "Could not save one or more scenes!" popup reappears, suspect one of:
 //   (a) The playtest-and-composition cleanup block — every PackedScene
 //       instance of `instChildPath` must be detached from Main BEFORE
@@ -179,8 +187,18 @@ async function main(): Promise<void> {
       sections: ALL_SECTIONS,
       flags,
       // Inter-section pace guarding cumulative deferred-call back-pressure
-      // across a 450-call run. 41m-bis strips this (evidence-gated on 4.5 +
-      // 4.2); see decision #6. Set to 0 here once the strip run is green.
+      // across the ~450-call run. 41m-bis (decision #6) evidence-gated a strip
+      // of this pace; the evidence says KEEP IT — it is load-bearing:
+      //   • bare strip (no pace)         → editor SIGSEGV @ ~19 tests (4.5)
+      //   • editor.wait_for_idle gate    → editor SIGSEGV @ ~22 tests (4.5)
+      //   • 150ms pace                   → 438/0 GREEN
+      // The crash is NON-scan back-pressure (it hits at the section 2→3
+      // boundary, before any file write), so wait_for_idle — a no-op when the
+      // filesystem isn't scanning — gives no relief. A true deterministic gate
+      // would have to yield editor *process frames* unconditionally, which
+      // needs a toolkit-side wait_for_idle extension (out of scope for this
+      // test-only iteration). Tracked as a follow-up:
+      // Plan/Ideas/PostRelease/2026-06-10-deterministic-intersection-gate.md.
       interSectionDelayMs: 150,
       reorderLast: 19,
     });

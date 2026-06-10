@@ -337,6 +337,11 @@ SMOKE-MAINTENANCE-PROTOCOL.md). Run: `npm run flows` /
 `npm run flows:single -- --only N`. See `CONTEXT.md` "Validation vocabulary"
 (plan repo) for the Smoke / Flow suite / Sweep glossary.
 
+**Validated (41m-bis, 2026-06-10):** 23/23 GREEN on **both Godot 4.5.0 and
+4.2.0** — including the version-gated Flow 01 update-existing branch (4.5 live /
+4.2 deferred restart-hint) and the Flow 02 hazard characterisation (4.5
+reachable / 4.2 stale; see `Insights/stale-live-instance-method-hazard.md`).
+
 | Flow | File | Covers | Why smoke can't | Version branch |
 |---|---|---|---|---|
 | 1 — Extension lifecycle | `flows/01_extension_lifecycle.ts` | create→discovered→call / re-entrancy / update-existing / remove→gone (sweep S24) | Smoke §22 "intentionally does not create extension scripts" — the **Finding #1** regression (`extensions.refresh` → `commands:[]`) hid here while smoke passed 437/0 | update-existing: 4.3+ live, 4.2 deferred restart-hint (regression-guards the 41l-tricies-ter REUSE gate) |

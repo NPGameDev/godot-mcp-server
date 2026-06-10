@@ -209,7 +209,11 @@ export interface SuiteConfig {
   counters: Counters;
   sections: Section[];
   flags: FilterFlags;
-  /** Inter-section pause (ms). Omit/0 = run at full speed. */
+  /**
+   * Inter-section pause (ms). Omit/0 = run at full speed. Smoke uses 150ms —
+   * load-bearing back-pressure relief (a full-speed run SIGSEGVs the editor;
+   * 41m-bis decision #6). The flow suite runs at full speed (short suite).
+   */
   interSectionDelayMs?: number;
   /** Section number forced to run last (smoke: 19 reconnect). */
   reorderLast?: number;
@@ -244,9 +248,10 @@ export async function runFullSuite(config: SuiteConfig): Promise<void> {
 
   try {
     for (let i = 0; i < sections.length; i++) {
-      // Optional pace between sections so the editor can drain deferred calls.
-      // Smoke historically used 150ms (smoke.ts); the flow suite runs full
-      // speed. See 41m-bis decision #6 (evidence-gated strip).
+      // Optional pace between sections so the editor can drain deferred-call
+      // back-pressure. Smoke uses 150ms (load-bearing — a full-speed run
+      // SIGSEGVs the 4.5 editor; 41m-bis decision #6); the flow suite runs at
+      // full speed.
       if (i > 0 && config.interSectionDelayMs) {
         await new Promise((r) => setTimeout(r, config.interSectionDelayMs));
       }
