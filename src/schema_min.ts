@@ -3,9 +3,15 @@
  */
 
 /**
- * Stable JSON.stringify with sorted keys for deterministic output.
- * Identical inputs produce byte-identical strings, enabling Anthropic
- * prompt-cache hits on repeat reads.
+ * Stable JSON.stringify with sorted keys: identical inputs produce
+ * byte-identical strings.
+ *
+ * Where this earns prompt-cache hits is the re-sent schema/tools block —
+ * stable key order keeps that whole-request payload byte-identical across
+ * turns, so Anthropic's cache matches it. A per-call tool response is
+ * serialized exactly once into history, so sorting its keys buys no extra
+ * cache hit; it is retained there for output stability (a tool's response
+ * keys don't reorder between otherwise-identical calls).
  */
 export function stableStringify(value: unknown): string {
   return JSON.stringify(value, sortedReplacer);

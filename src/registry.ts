@@ -121,24 +121,6 @@ export function lookupProject(projectPath: string): RegistryEntry | null {
 }
 
 /**
- * Look up the most-recently-started project entry on a given port.
- * Filters out entries whose PID is provably dead. Returns null if no
- * live entry matches the port.
- */
-export function lookupByPort(port: number): { path: string; entry: RegistryEntry } | null {
-  const registry = readRegistry();
-  let best: { path: string; entry: RegistryEntry } | null = null;
-  for (const [path, entry] of Object.entries(registry.by_path)) {
-    if (entry.port !== port) continue;
-    if (!isPidAlive(entry.pid)) continue;
-    if (!best || entry.started_at > best.entry.started_at) {
-      best = { path, entry };
-    }
-  }
-  return best;
-}
-
-/**
  * Return the runtime_port for a project, or null if no playtest is active.
  * Re-reads the file on every call so newly-started playtests are picked up.
  */
@@ -158,9 +140,9 @@ export function discoverRuntime(projectPath: string): number | null {
 // read whether its own bind won). See ADR 0008 (toolkit) / lsp_client.ts.
 
 /**
- * Every LIVE editor claiming a given LSP port. Mirrors lookupByPort but matches
- * entry.lsp_port and returns all claimants (not just the newest). Dead PIDs are
- * filtered via process.kill(pid, 0) — reliable on Windows, unlike the toolkit's
+ * Every LIVE editor claiming a given LSP port. Matches entry.lsp_port and
+ * returns all claimants (not just the newest). Dead PIDs are filtered via
+ * process.kill(pid, 0) — reliable on Windows, unlike the toolkit's
  * OS.is_process_running.
  */
 export function liveLspClaimants(port: number): Array<{ path: string; entry: RegistryEntry }> {
