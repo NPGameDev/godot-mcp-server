@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, unwrapUntrusted, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, unwrapUntrusted, assertGuard, assertError } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = [
   "scene_get_tree",
@@ -109,10 +109,14 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
     "BogusNonExistentClass_Smoke",
   );
 
-  // ── REGRESSION: compound property paths (fixed T:fc63785) ──
-  // Setting a nested resource property via compound path like
-  // "process_material:color" should succeed on nodes that support it.
-  // We test with a Node2D's modulate (simple) and a compound read.
+  // ── Compound property path contract: struct components are unsupported ──
+  // set_property_compound navigates Object/Resource chains (e.g.
+  // "material:shader_parameter/value"); built-in struct components like
+  // Vector2's "position:x" are NOT navigable (position is not an Object) and
+  // return NOT_FOUND by design. Assert that contract explicitly so a future
+  // behavior change (e.g. set_indexed support) shows up as a failing test
+  // instead of passing vacuously. Resource-chain compound paths are covered in
+  // sections 13/31.
   const compoundNode = (await bridge.call(
     "scene.create_node",
     { class_name: "Node2D", parent_path: ".", node_name: "CompoundProbe" },
@@ -120,19 +124,17 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   )) as { path?: string; status?: string };
   if (compoundNode?.status === "created") {
     const compoundPath = compoundNode.path ?? "CompoundProbe";
-    // Set position.x via the compound property access pattern.
-    const compoundSet = (await bridge.call(
+    const compoundSet = await bridge.call(
       "node.set_property",
       { node_path: compoundPath, property: "position:x", value: 42 },
       CALL_TIMEOUT,
-    )) as { success?: boolean; code?: string; error?: string };
-    if (compoundSet?.success) {
-      pass("REGRESSION compound property path position:x -> success");
-    } else {
-      // If compound paths aren't supported server-side (toolkit handles routing),
-      // accept gracefully — the canary is that it doesn't crash.
-      pass(`REGRESSION compound property path -> ${compoundSet?.code ?? "handled"} (canary: no crash)`);
-    }
+    );
+    assertError(
+      ctx,
+      "compound struct-component path position:x -> NOT_FOUND (unsupported by design)",
+      compoundSet,
+      "NOT_FOUND",
+    );
     await bridge.call("scene.delete_node", { node_path: compoundPath }, CALL_TIMEOUT);
   }
 
@@ -156,13 +158,17 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   }
 
   // ── scene.create_node with inline properties (redistributed from section 44) ──
+  // modulate uses the canonical typed-dict Color format (a raw "Color(...)"
+  // string never coerces — it used to reach instance.set() as a String, log an
+  // "Invalid color name" engine error, and leave the property unset while the
+  // test passed vacuously on visible alone).
   const propNode = (await bridge.call(
     "scene.create_node",
     {
       class_name: "Sprite2D",
       parent_path: ".",
       node_name: "MCPSmokePropNode",
-      properties: { visible: false, modulate: "Color(1, 0, 0, 1)" },
+      properties: { visible: false, modulate: { type: "Color", r: 1, g: 0, b: 0, a: 1 } },
     },
     CALL_TIMEOUT,
   )) as {
@@ -174,11 +180,13 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   const propPath = propNode?.path ?? "MCPSmokePropNode";
 
   if (propNode?.status === "created" || propNode?.status === "returned") {
-    if (propNode.properties_set == null || propNode.properties_set < 1)
-      fail(`scene.create_node properties: properties_set=${propNode.properties_set}`);
-    else pass(`scene.create_node inline properties -> properties_set=${propNode.properties_set}`);
+    if (propNode.properties_set !== 2)
+      fail(
+        `scene.create_node properties: expected properties_set=2 (visible + modulate), got ${propNode.properties_set} (failed: ${JSON.stringify(propNode.properties_failed)})`,
+      );
+    else pass(`scene.create_node inline properties -> properties_set=2`);
 
-    // Verify the property was actually applied.
+    // Verify both properties were actually applied.
     const getProp = (await bridge.call(
       "node.get_property",
       { node_path: propPath, property: "visible" },
@@ -186,6 +194,16 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
     )) as { success?: boolean; value?: unknown };
     if (getProp?.value !== false) fail(`inline property visible not applied: ${JSON.stringify(getProp)}`);
     else pass(`inline property visible=false verified via node.get_property`);
+
+    const getModulate = (await bridge.call(
+      "node.get_property",
+      { node_path: propPath, property: "modulate" },
+      CALL_TIMEOUT,
+    )) as { value?: { type?: string; r?: number; g?: number; b?: number; a?: number } };
+    const m = getModulate?.value;
+    if (m?.type !== "Color" || m.r !== 1 || m.g !== 0 || m.b !== 0 || m.a !== 1)
+      fail(`inline property modulate not applied: ${JSON.stringify(getModulate)}`);
+    else pass(`inline property modulate=Color(1,0,0,1) verified via node.get_property`);
 
     await bridge.call("scene.delete_node", { node_path: propPath }, CALL_TIMEOUT);
   } else {

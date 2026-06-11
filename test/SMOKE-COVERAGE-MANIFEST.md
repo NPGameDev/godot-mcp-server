@@ -30,7 +30,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | scene_get_tree | 02, 06 | ✓ | — | — | — | |
-| scene_create_node | 02, 06, 13, 16, 27, 29, 30, 31, 33, 37, 38 | ✓ | ✓ (07: INVALID_CLASS) | ✓ (unique_name) | — | |
+| scene_create_node | 02, 06, 13, 16, 27, 29, 30, 31, 33, 37, 38 | ✓ | ✓ (07: INVALID_CLASS) | ✓ (unique_name; 02: inline properties incl. typed-dict Color + readback) | — | |
 | scene_delete_node | 02, 06, 10, 37 | ✓ | — | — | — | |
 | scene_create | 08, 10, 14, 33 | ✓ | ✓ (08: ALREADY_EXISTS, INVALID_PATH) | ✓ (if_exists modes) | — | |
 | scene_open | 04, 10 | ✓ | ✓ (04: NOT_FOUND) | — | — | |
@@ -45,7 +45,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | node_get_property | 02, 07, 14, 25 | ✓ | ✓ (07: NOT_FOUND) | — | — | |
-| node_set_property | 02, 07, 10, 13, 14, 25, 31 | ✓ | ✓ (07: INVALID_PATH, NOT_FOUND) | ✓ (Resource dict) | — | **GAP:** LayerMask coercion, batch mode, bare res:// guard |
+| node_set_property | 02, 07, 10, 13, 14, 25, 31 | ✓ | ✓ (07: INVALID_PATH, NOT_FOUND; 02: NOT_FOUND struct-component compound contract) | ✓ (Resource dict) | — | **GAP:** LayerMask coercion, batch mode, bare res:// guard |
 | node_get_property_list | 05, 25 | ✓ | — | — | — | |
 | node_set_script | 16 | ✓ | ✓ (LOAD_FAILED, NOT_FOUND) | ✓ (attach, detach, properties) | — | |
 | node_call_method | 25 | ✓ | — | — | ✓ (25: C# hint) | Risk communicated via MCP annotations |
