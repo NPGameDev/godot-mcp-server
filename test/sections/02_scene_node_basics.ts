@@ -70,23 +70,34 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   await bridge.call("scene.delete_node", { node_path: uniqueNode?.path ?? uniqueNodeName }, CALL_TIMEOUT);
 
   // Property round-trip via editor_description (plain String).
+  // IMPORTANT: target the scene ROOT (".", never deleted), NOT a probe node we
+  // then delete. Setting editor_description arms a 0.5s one-shot tooltip timer
+  // in the engine's SceneTreeEditor that binds a raw TreeItem*; deleting that
+  // node within 0.5s makes the timer fire on freed memory → editor SIGSEGV
+  // (UAF, Godot 4.3+, unguarded on master — see plan-repo
+  // Insights/smoke-backpressure-crash-characterization.md). Section 02 was the
+  // suite's only arming op; round-tripping on the root (then restoring "")
+  // exercises the same code path without ever deleting the described node.
   const nodePath = freshNode?.path ?? nodeName;
   const marker = `smoke-${Date.now()}`;
   const setResult = (await bridge.call(
     "node.set_property",
-    { node_path: nodePath, property: "editor_description", value: marker },
+    { node_path: ".", property: "editor_description", value: marker },
     CALL_TIMEOUT,
   )) as { success?: boolean; code?: string; error?: string };
   if (!setResult?.success) fail(`node.set_property: ${JSON.stringify(setResult)}`);
   const getResult = (await bridge.call(
     "node.get_property",
-    { node_path: nodePath, property: "editor_description" },
+    { node_path: ".", property: "editor_description" },
     CALL_TIMEOUT,
   )) as { value?: unknown; code?: string };
   if (getResult?.value !== marker) fail(`node.get_property: expected ${marker} got ${JSON.stringify(getResult)}`);
   else pass("node.set_property + node.get_property round-trip");
+  // Restore the root's editor_description (hygiene; harmless re-arm on a node
+  // that is never deleted).
+  await bridge.call("node.set_property", { node_path: ".", property: "editor_description", value: "" }, CALL_TIMEOUT);
 
-  // Cleanup.
+  // Cleanup the probe node (created above; never carried editor_description).
   const deleteResult = (await bridge.call("scene.delete_node", { node_path: nodePath }, CALL_TIMEOUT)) as {
     success?: boolean;
     code?: string;

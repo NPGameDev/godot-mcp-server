@@ -83,14 +83,19 @@ npm run smoke        # single-pass: all tools always available
 
 The Godot editor must be running with the plugin enabled for smoke tests to pass.
 
-> **Known engine flake:** rapid scripted call bursts can SIGSEGV the Godot
-> editor itself — a long-standing engine race (reproduced on stock Godot
-> 4.3–4.6.2), not a toolkit/server bug, and not preventable by pacing. The
-> reliable trigger is a full smoke run followed by a targeted re-run
-> (`npm run smoke:single -- --only N`) against the **same editor session**.
-> **Relaunch the editor between a full run and any targeted re-run.** If a run
-> dies with `WebSocket closed before response` and the editor process is gone,
-> relaunch the editor and re-run — don't debug the suite for it.
+> **Known engine bug (root-caused; smoke no longer arms it):** setting a node's
+> `editor_description` and deleting that node within ~0.5 s triggers a
+> use-after-free in the Godot editor's `SceneTreeEditor` tooltip timer (engine
+> bug, Godot 4.3+, not ours). Section 02 used to do exactly that and would
+> SIGSEGV the editor on a full-run-then-`--only 2` sequence; it now round-trips
+> `editor_description` on the never-deleted scene root, so the suite is
+> deterministically safe (verified 6/6 on the former killer recipe). If you
+> write a NEW test that sets `editor_description` then deletes the same node,
+> target the scene root (or another node you don't delete). Belt-and-suspenders:
+> if a run ever dies with `WebSocket closed before response` and the editor
+> process is gone, relaunch the editor and re-run — it's this engine flake, not
+> the suite. Details: plan-repo
+> `Insights/smoke-backpressure-crash-characterization.md`.
 
 ### Build
 

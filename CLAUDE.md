@@ -207,13 +207,16 @@ npm run smoke:ci     # static catalogue validation only (no Godot required)
 npm link             # dogfood: global `godot-mcp-server` resolves to this dist/
 ```
 
-**Editor SIGSEGV flake (engine race — not ours):** a full smoke run followed by
-`npm run smoke:single -- --only N` against the **same editor session** reliably
-crashes the Godot editor (long-standing engine race, reproduced on stock
-4.3–4.6.2; pacing does not prevent it). Relaunch the editor between a full run
-and any targeted re-run. A run dying with `WebSocket closed before response`
-plus a dead editor process = this flake → relaunch the editor and re-run; do
-not debug the suite or the dispatch for it.
+**Editor UAF (engine bug, root-caused — smoke no longer arms it):** setting
+`editor_description` on a node then deleting it within ~0.5 s triggers a
+use-after-free in the editor's `SceneTreeEditor` tooltip timer (Godot 4.3+, not
+ours; `Insights/smoke-backpressure-crash-characterization.md` +
+`EngineBugs/scene-tree-tooltip-timer-uaf/`). Section 02 did this and SIGSEGV'd
+the editor on full-run-then-`--only 2`; it now round-trips on the never-deleted
+scene root, so the suite is deterministically safe (6/6 on the former killer).
+When adding a test, never set `editor_description` on a node you then delete —
+target the scene root. Belt-and-suspenders: a run dying with `WebSocket closed
+before response` + a dead editor = this flake → relaunch and re-run.
 
 Pre-iter-20 dogfood runs against a locally-built `dist/` via a path-based
 `.mcp.json` in the toolkit repo + `godot-mcp-dogfood-playground/` (not `npm
