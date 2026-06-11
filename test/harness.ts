@@ -12,7 +12,7 @@
 // and local-only (decision #8: no hollow flows:ci).
 //
 // This module is deliberately behaviour-preserving for smoke: with
-// label="smoke", interSectionDelayMs=150 (pre-strip), and reorderLast=19, the
+// label="smoke", interSectionDelayMs=150, and reorderLast=19, the
 // console output and exit semantics are identical to the pre-extraction
 // orchestrator.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -210,9 +210,11 @@ export interface SuiteConfig {
   sections: Section[];
   flags: FilterFlags;
   /**
-   * Inter-section pause (ms). Omit/0 = run at full speed. Smoke uses 150ms —
-   * load-bearing back-pressure relief (a full-speed run SIGSEGVs the editor;
-   * 41m-bis decision #6). The flow suite runs at full speed (short suite).
+   * Inter-section pause (ms). Omit/0 = run at full speed. Smoke keeps 150ms as
+   * a benign throttle — NOT a crash guard (the 2026-06-11 characterization
+   * showed the occasional editor SIGSEGV near the section 2→3 boundary is an
+   * environment-dependent engine race that hits paced and unpaced runs alike).
+   * The flow suite runs at full speed (short suite).
    */
   interSectionDelayMs?: number;
   /** Section number forced to run last (smoke: 19 reconnect). */
@@ -248,10 +250,9 @@ export async function runFullSuite(config: SuiteConfig): Promise<void> {
 
   try {
     for (let i = 0; i < sections.length; i++) {
-      // Optional pace between sections so the editor can drain deferred-call
-      // back-pressure. Smoke uses 150ms (load-bearing — a full-speed run
-      // SIGSEGVs the 4.5 editor; 41m-bis decision #6); the flow suite runs at
-      // full speed.
+      // Optional pace between sections (smoke: 150ms benign throttle; flow
+      // suite: full speed). See SuiteConfig.interSectionDelayMs — this is not
+      // a crash guard.
       if (i > 0 && config.interSectionDelayMs) {
         await new Promise((r) => setTimeout(r, config.interSectionDelayMs));
       }

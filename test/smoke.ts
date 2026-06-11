@@ -186,19 +186,19 @@ async function main(): Promise<void> {
       counters,
       sections: ALL_SECTIONS,
       flags,
-      // Inter-section pace guarding cumulative deferred-call back-pressure
-      // across the ~450-call run. 41m-bis (decision #6) evidence-gated a strip
-      // of this pace; the evidence says KEEP IT — it is load-bearing:
-      //   • bare strip (no pace)         → editor SIGSEGV @ ~19 tests (4.5)
-      //   • editor.wait_for_idle gate    → editor SIGSEGV @ ~22 tests (4.5)
-      //   • 150ms pace                   → 438/0 GREEN
-      // The crash is NON-scan back-pressure (it hits at the section 2→3
-      // boundary, before any file write), so wait_for_idle — a no-op when the
-      // filesystem isn't scanning — gives no relief. A true deterministic gate
-      // would have to yield editor *process frames* unconditionally, which
-      // needs a toolkit-side wait_for_idle extension (out of scope for this
-      // test-only iteration). Tracked as a follow-up:
-      // Plan/Ideas/PostRelease/2026-06-10-deterministic-intersection-gate.md.
+      // Benign inter-section throttle (~6.6s across the full run). NOT a crash
+      // guard: a 2026-06-11 characterization (18-run probe matrix + toolkit
+      // dispatch traces) disproved the earlier 41m-bis "load-bearing pace"
+      // conclusion — commands already dispatch at a strict 1-per-4-frames
+      // cadence with synchronous handlers (no deferred-queue depth exists),
+      // and a standard PACED run crashed at the same point as unpaced runs.
+      // The editor SIGSEGV occasionally seen near the section 2→3 boundary is
+      // an environment-dependent engine race (silent crash in engine code,
+      // 0-4 frames AFTER the last handler completed; machine-state dependent:
+      // identical binaries run 438/0 green on most days/sessions). If smoke
+      // dies with "WebSocket closed before response" and the editor process
+      // is gone: relaunch the editor and re-run — known engine flake, under
+      // upstream investigation, not a toolkit/server regression.
       interSectionDelayMs: 150,
       reorderLast: 19,
     });
