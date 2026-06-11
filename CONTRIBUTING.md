@@ -83,6 +83,15 @@ npm run smoke        # single-pass: all tools always available
 
 The Godot editor must be running with the plugin enabled for smoke tests to pass.
 
+> **Known engine flake:** rapid scripted call bursts can SIGSEGV the Godot
+> editor itself — a long-standing engine race (reproduced on stock Godot
+> 4.3–4.6.2), not a toolkit/server bug, and not preventable by pacing. The
+> reliable trigger is a full smoke run followed by a targeted re-run
+> (`npm run smoke:single -- --only N`) against the **same editor session**.
+> **Relaunch the editor between a full run and any targeted re-run.** If a run
+> dies with `WebSocket closed before response` and the editor process is gone,
+> relaunch the editor and re-run — don't debug the suite for it.
+
 ### Build
 
 ```bash

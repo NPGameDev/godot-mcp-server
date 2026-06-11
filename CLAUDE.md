@@ -207,6 +207,14 @@ npm run smoke:ci     # static catalogue validation only (no Godot required)
 npm link             # dogfood: global `godot-mcp-server` resolves to this dist/
 ```
 
+**Editor SIGSEGV flake (engine race — not ours):** a full smoke run followed by
+`npm run smoke:single -- --only N` against the **same editor session** reliably
+crashes the Godot editor (long-standing engine race, reproduced on stock
+4.3–4.6.2; pacing does not prevent it). Relaunch the editor between a full run
+and any targeted re-run. A run dying with `WebSocket closed before response`
+plus a dead editor process = this flake → relaunch the editor and re-run; do
+not debug the suite or the dispatch for it.
+
 Pre-iter-20 dogfood runs against a locally-built `dist/` via a path-based
 `.mcp.json` in the toolkit repo + `godot-mcp-dogfood-playground/` (not `npm
 link`, because `@npgamedev/godot-mcp-server` is not yet published). Iter 20
