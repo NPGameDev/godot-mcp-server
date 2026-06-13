@@ -6,6 +6,7 @@ export const TOOLS_TESTED: string[] = [
   "resource_load",
   "scene_instantiate",
   "folder_create",
+  "file_delete",
   "editor_screenshot",
   "project_get_settings",
 ];
@@ -55,6 +56,13 @@ export async function testSecurity(ctx: TestCtx): Promise<void> {
     "PATH_DENIED",
     "..",
   );
+  assertGuard(
+    ctx,
+    "FileGuard file.delete res://../../up.gd",
+    await bridge.call("file.delete", { file_path: "res://../../up.gd" }, CALL_TIMEOUT),
+    "PATH_DENIED",
+    "..",
+  );
 
   // Screenshot user://screenshots/ whitelist.
   const userShotPath = "user://screenshots/smoke_sec.png";
@@ -86,11 +94,44 @@ export async function testSecurity(ctx: TestCtx): Promise<void> {
     fail(`envelope check: script.read content missing nonce-tagged <untrusted-*> envelope`);
   } else if (!envelopeRead.content.includes(`source="${envelopeScriptPath}"`)) {
     fail(`envelope check: script.read envelope missing source="${envelopeScriptPath}"`);
+  } else if ((envelopeRead.content.match(/<untrusted-[0-9a-f]+/g) ?? []).length !== 1) {
+    // Exactly one opening envelope — origin-wrap survives the server passthrough,
+    // and the server does NOT re-wrap (double-wrap would corrupt the envelope).
+    fail(
+      `envelope check: script.read has ${(envelopeRead.content.match(/<untrusted-[0-9a-f]+/g) ?? []).length} envelopes, expected exactly 1 (double-wrap?)`,
+    );
   } else {
     pass(
-      `envelope check: script.read content wrapped in nonce-tagged <untrusted-* kind="script" source="${envelopeScriptPath}">`,
+      `envelope check: script.read content wrapped in exactly one nonce-tagged <untrusted-* kind="script" source="${envelopeScriptPath}">`,
     );
   }
+
+  // Untrusted envelope — resource.load wraps `properties` (exactly one envelope,
+  // origin-wrapped by the toolkit; the server passes it through untouched).
+  // Self-contained probe: create -> load -> assert -> delete.
+  const resProbePath = "res://smoke_sec_probe.tres";
+  await bridge.call("resource.write", { file_path: resProbePath, type: "Resource", properties: {} }, CALL_TIMEOUT);
+  const envelopeResource = (await bridge.call("resource.load", { file_path: resProbePath }, CALL_TIMEOUT)) as {
+    properties?: string;
+    code?: string;
+  };
+  const resEnvCount =
+    typeof envelopeResource?.properties === "string"
+      ? (envelopeResource.properties.match(/<untrusted-[0-9a-f]+/g) ?? []).length
+      : 0;
+  if (
+    typeof envelopeResource?.properties !== "string" ||
+    !/untrusted-[0-9a-f]+ kind="resource"/.test(envelopeResource.properties)
+  ) {
+    fail(
+      `envelope check: resource.load properties missing nonce-tagged <untrusted-* kind="resource">: ${JSON.stringify(envelopeResource)?.slice(0, 200)}`,
+    );
+  } else if (resEnvCount !== 1) {
+    fail(`envelope check: resource.load properties has ${resEnvCount} envelopes, expected exactly 1 (double-wrap?)`);
+  } else {
+    pass(`envelope check: resource.load properties wrapped in exactly one nonce-tagged <untrusted-* kind="resource">`);
+  }
+  await bridge.call("resource.delete", { file_path: resProbePath }, CALL_TIMEOUT);
 
   // Untrusted envelope on project.get_settings.
   const envelopeSettings = (await bridge.call("project.get_settings", { prefix: "application/" }, CALL_TIMEOUT)) as {

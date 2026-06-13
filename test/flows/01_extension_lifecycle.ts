@@ -48,6 +48,12 @@ func register(registry: MCPToolkitCommandRegistry, _server: Node) -> void:
 \t, MCPToolkitExtensionOptions.new("Flow test adder")
 \t\t.with_input_schema({"type": "object", "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}}, "required": ["a", "b"]})
 \t\t.with_group("flow_test_group", "Flow test group"))
+\tregistry.add("flow_ext.guarded", func(params: Dictionary) -> Dictionary:
+\t\treturn {"success": true, "path": str(params.get("file_path", ""))}
+\t, MCPToolkitExtensionOptions.new("Flow test path-guarded")
+\t\t.with_input_schema({"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]})
+\t\t.guard_project_path("file_path")
+\t\t.with_group("flow_test_group", "Flow test group"))
 `;
 
 // Three-tool extension (update-existing state). Adds flow_ext.multiply, keeps
@@ -157,6 +163,24 @@ export async function testExtensionLifecycle(ctx: TestCtx): Promise<void> {
     };
     if (add?.success === true && add.result === 10) pass("ext lifecycle CALL: flow_ext.add(3,7) -> 10");
     else fail(`ext lifecycle CALL: flow_ext.add: ${JSON.stringify(add)}`);
+
+    // ── PATH GUARD (41m-quater): declarative extension guard enforced at dispatch ──
+    // flow_ext.guarded declared .guard_project_path("file_path"); the toolkit
+    // dispatch must reject a traversal path with PATH_DENIED before the handler,
+    // and allow a valid res:// path. This is the live end-to-end of the toolkit's
+    // extension path-guard enforcement (server → bridge → command_registry).
+    const guardBad = (await bridge.call("flow_ext.guarded", { file_path: "res://../escape.gd" }, CALL_TIMEOUT)) as {
+      success?: boolean;
+      code?: string;
+    };
+    if (guardBad?.success === false && guardBad.code === "PATH_DENIED")
+      pass("ext lifecycle GUARD: flow_ext.guarded traversal -> PATH_DENIED (toolkit dispatch)");
+    else fail(`ext lifecycle GUARD: expected PATH_DENIED, got ${JSON.stringify(guardBad)}`);
+    const guardOk = (await bridge.call("flow_ext.guarded", { file_path: "res://ok.gd" }, CALL_TIMEOUT)) as {
+      success?: boolean;
+    };
+    if (guardOk?.success === true) pass("ext lifecycle GUARD: flow_ext.guarded valid res:// -> allowed");
+    else fail(`ext lifecycle GUARD: valid path should pass, got ${JSON.stringify(guardOk)}`);
 
     // ── RE-ENTRANCY: refresh with no changes → stable, no duplicates ───────
     const refreshAgain = (await bridge.call("extensions.refresh", {}, CALL_TIMEOUT)) as RefreshResult;
