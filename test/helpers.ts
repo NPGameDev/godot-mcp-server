@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket as WS } from "ws";
 import type { AddressInfo } from "node:net";
 
 import { createBridge } from "../src/bridge.js";
+import { isVersionAtLeast, type GodotVer } from "../src/version.js";
 
 // ─── Constants ───────────────────────────────────────────────────────────
 export const HOST = "127.0.0.1";
@@ -13,6 +14,18 @@ export const MAIN_SCENE = "res://Main.tscn";
 export const CALL_TIMEOUT = 5000;
 export const SCREENSHOT_TIMEOUT = 10000;
 export const IMPORT_TIMEOUT = 15000;
+
+// ─── Version-aware node classes ────────────────────────────────────────────
+
+/**
+ * The tilemap node class for the running Godot version: `TileMapLayer` on 4.3+, legacy
+ * `TileMap` on 4.2 (TileMapLayer doesn't exist there). Centralizes the single 4.2-vs-4.3+
+ * tilemap branch so smoke sections exercise each version's native node type — the tilemap
+ * tools handle both (41m-ter A1). Pass `bridge.getGodotVersion()`.
+ */
+export function tilemapNodeClass(godotVer: GodotVer | null): "TileMapLayer" | "TileMap" {
+  return godotVer !== null && isVersionAtLeast(godotVer, "4.3") ? "TileMapLayer" : "TileMap";
+}
 
 // ─── Bridge type alias ──────────────────────────────────────────────────
 export type BridgeInstance =

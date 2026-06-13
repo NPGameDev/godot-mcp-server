@@ -49,6 +49,16 @@ Update `test/sections/` whenever an iteration:
 10. **Changes crash detection or log caching** — update section 40
     (crash_detection) which tests post-game-stop log retrieval and
     COMPILATION_FAILED detection.
+11. **Adds or calls a version-gated tool** (one with `godotMinVersion` /
+    `godotMaxVersion`) — guard every call with `bridge.getGodotVersion()` +
+    `isVersionAtLeast(...)` so the suite runs to completion on every supported
+    version. An unregistered tool returns JSON-RPC `-32601`, which `bridge.call`
+    **throws**; the harness isolates a thrown section (fail-and-continue,
+    41m-ter A0), but guard anyway to avoid false failures. `scene_close` (4.5+)
+    is the example (sections 04/08/14 all gate on `godotVer >= 4.5`). For
+    version-divergent node *types*, use the centralized helper
+    (`tilemapNodeClass()` — TileMapLayer 4.3+ / legacy TileMap 4.2) rather than
+    inlining the branch.
 
 ## Section naming convention
 

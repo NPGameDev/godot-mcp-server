@@ -256,10 +256,18 @@ export async function runFullSuite(config: SuiteConfig): Promise<void> {
       if (i > 0 && config.interSectionDelayMs) {
         await new Promise((r) => setTimeout(r, config.interSectionDelayMs));
       }
-      await sections[i].run(ctx);
+      // Per-section isolation (41m-ter A0): a thrown section — e.g. an unguarded
+      // call to a tool that is unregistered on the connected Godot version, which
+      // surfaces as JSON-RPC -32601 and rejects bridge.call — records a failure and
+      // the suite CONTINUES rather than aborting every remaining section. This makes
+      // "run to completion" robust on every supported version. Behaviour-preserving
+      // on a clean run: when no section throws, the output is byte-identical.
+      try {
+        await sections[i].run(ctx);
+      } catch (err) {
+        counters.fail(`section ${sections[i].num} (${sections[i].name}) threw: ${(err as Error).message}`);
+      }
     }
-  } catch (err) {
-    counters.fail(`unexpected error: ${(err as Error).message}`);
   } finally {
     await bridge.close();
   }

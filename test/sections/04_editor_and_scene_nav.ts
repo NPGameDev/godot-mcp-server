@@ -1,5 +1,6 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
+import { isVersionAtLeast } from "../../src/version.js";
 
 export const TOOLS_TESTED: string[] = [
   "editor_screenshot",
@@ -71,55 +72,67 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     fail(`scene.open bogus: expected NOT_FOUND, got ${JSON.stringify(openNotFound)}`);
   else pass("scene.open bogus -> NOT_FOUND");
 
-  // scene.close round-trip.
-  const closeTestPath = "res://smoke_close_test.tscn";
-  await bridge.call("scene.create", { file_path: closeTestPath, root_type: "Node", if_exists: "return" }, CALL_TIMEOUT);
-  await bridge.call("scene.open", { file_path: closeTestPath }, CALL_TIMEOUT);
-  const closedResult = (await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT)) as {
-    success?: boolean;
-  };
-  if (!closedResult?.success) fail(`scene.close happy path: ${JSON.stringify(closedResult)}`);
-  else pass("scene.close happy path -> success");
-  assertGuard(
-    ctx,
-    "scene.close already-closed",
-    await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT),
-    "NOT_FOUND",
-    "not open",
-  );
-  await bridge.call("scene.delete", { file_path: closeTestPath }, CALL_TIMEOUT);
+  // scene.close is Godot 4.5+ only — on <4.5 it is unregistered (calls would throw
+  // JSON-RPC -32601); skip the whole block there so the rest of section 04 still runs
+  // (41m-ter A0/Q2). Mirrors section 08's gate. (Prettier reindents the wrapped block.)
+  const godotVer = bridge.getGodotVersion();
+  if (godotVer !== null && isVersionAtLeast(godotVer, "4.5")) {
+    // scene.close round-trip.
+    const closeTestPath = "res://smoke_close_test.tscn";
+    await bridge.call(
+      "scene.create",
+      { file_path: closeTestPath, root_type: "Node", if_exists: "return" },
+      CALL_TIMEOUT,
+    );
+    await bridge.call("scene.open", { file_path: closeTestPath }, CALL_TIMEOUT);
+    const closedResult = (await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT)) as {
+      success?: boolean;
+    };
+    if (!closedResult?.success) fail(`scene.close happy path: ${JSON.stringify(closedResult)}`);
+    else pass("scene.close happy path -> success");
+    assertGuard(
+      ctx,
+      "scene.close already-closed",
+      await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT),
+      "NOT_FOUND",
+      "not open",
+    );
+    await bridge.call("scene.delete", { file_path: closeTestPath }, CALL_TIMEOUT);
 
-  // scene.close guard rejections.
-  assertGuard(
-    ctx,
-    "scene.close no res://",
-    await bridge.call("scene.close", { file_path: "/tmp/foo.tscn" }, CALL_TIMEOUT),
-    "PATH_DENIED",
-    "absolute",
-  );
-  assertGuard(
-    ctx,
-    "scene.close not open",
-    await bridge.call("scene.close", { file_path: "res://nonexistent_scene.tscn" }, CALL_TIMEOUT),
-    "NOT_FOUND",
-    "not open",
-  );
-  // Closing the last tab is refused — the editor must always have at least one scene open.
-  // Ensure Main.tscn is the active tab (scene.close only works on the active tab).
-  await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
-  const lastTabResult = (await bridge.call("scene.close", { file_path: MAIN_SCENE }, CALL_TIMEOUT)) as {
-    success?: boolean;
-    code?: string;
-    error?: string;
-  };
-  if (lastTabResult?.code === "EDITED_SCENE" && lastTabResult?.error?.includes("last open scene tab")) {
-    pass("scene.close last tab -> EDITED_SCENE (message mentions last open scene tab)");
-  } else if (lastTabResult?.success === true) {
-    // Other editor tabs were open — Main.tscn wasn't the last tab. Re-open it for later tests.
+    // scene.close guard rejections.
+    assertGuard(
+      ctx,
+      "scene.close no res://",
+      await bridge.call("scene.close", { file_path: "/tmp/foo.tscn" }, CALL_TIMEOUT),
+      "PATH_DENIED",
+      "absolute",
+    );
+    assertGuard(
+      ctx,
+      "scene.close not open",
+      await bridge.call("scene.close", { file_path: "res://nonexistent_scene.tscn" }, CALL_TIMEOUT),
+      "NOT_FOUND",
+      "not open",
+    );
+    // Closing the last tab is refused — the editor must always have at least one scene open.
+    // Ensure Main.tscn is the active tab (scene.close only works on the active tab).
     await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
-    pass("scene.close last tab -> success (not last tab — other editor tabs open, re-opened Main)");
+    const lastTabResult = (await bridge.call("scene.close", { file_path: MAIN_SCENE }, CALL_TIMEOUT)) as {
+      success?: boolean;
+      code?: string;
+      error?: string;
+    };
+    if (lastTabResult?.code === "EDITED_SCENE" && lastTabResult?.error?.includes("last open scene tab")) {
+      pass("scene.close last tab -> EDITED_SCENE (message mentions last open scene tab)");
+    } else if (lastTabResult?.success === true) {
+      // Other editor tabs were open — Main.tscn wasn't the last tab. Re-open it for later tests.
+      await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
+      pass("scene.close last tab -> success (not last tab — other editor tabs open, re-opened Main)");
+    } else {
+      ctx.fail(`scene.close last tab: unexpected ${JSON.stringify(lastTabResult)}`);
+    }
   } else {
-    ctx.fail(`scene.close last tab: unexpected ${JSON.stringify(lastTabResult)}`);
+    pass("scene.close suite -> SKIP (requires Godot 4.5+)");
   }
 
   // project.get_settings with prefix.

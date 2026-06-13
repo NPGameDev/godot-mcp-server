@@ -1,5 +1,6 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
+import { isVersionAtLeast } from "../../src/version.js";
 
 export const TOOLS_TESTED: string[] = ["scene_create_node", "scene_delete_node", "animationtree_edit"];
 export async function testAnimationTree(ctx: TestCtx): Promise<void> {
@@ -127,6 +128,20 @@ export async function testAnimationTree(ctx: TestCtx): Promise<void> {
     pass(`animationtree.edit list -> root_type=${listResult.root_type}`);
   } else {
     fail(`animationtree.edit list: ${JSON.stringify(listResult)}`);
+  }
+  // Node enumeration uses AnimationNodeStateMachine.get_node_list(), a 4.5+ script API
+  // (41m-ter A4/A5): nodes are listed on 4.5+, empty on 4.2-4.4. Transitions enumerate on
+  // all versions (get_transition_* are 4.2+), so list stays well-formed everywhere.
+  const atVer = bridge.getGodotVersion();
+  const listNodes = unwrapUntrusted(listResult?.nodes) as unknown[] | null;
+  if (atVer !== null && isVersionAtLeast(atVer, "4.5")) {
+    if (Array.isArray(listNodes) && listNodes.length >= 2)
+      pass(`animationtree.edit list nodes -> ${listNodes.length} (4.5+ enumerated)`);
+    else fail(`animationtree.edit list nodes (4.5+): expected >=2, got ${JSON.stringify(listNodes)}`);
+  } else {
+    if (Array.isArray(listNodes) && listNodes.length === 0)
+      pass(`animationtree.edit list nodes -> [] (4.2-4.4: get_node_list is 4.5+)`);
+    else fail(`animationtree.edit list nodes (4.2-4.4): expected [], got ${JSON.stringify(listNodes)}`);
   }
 
   // ── remove_transition: run -> idle ──

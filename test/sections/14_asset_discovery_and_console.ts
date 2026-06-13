@@ -1,5 +1,6 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
+import { isVersionAtLeast } from "../../src/version.js";
 
 export const TOOLS_TESTED: string[] = [
   "asset_list",
@@ -320,34 +321,50 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   }
   await new Promise((r) => setTimeout(r, 1000));
 
-  // 2. Plain-text keyword match — only "hit" entries returned
-  const tfKeyword = (await bridge.call(
-    "editor.get_console",
-    { text_filter: "txtflt_hit", limit: 100 },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; entries?: unknown; count?: number };
-  const kwEntries = unwrapUntrusted(tfKeyword?.entries) as { message: string }[] | null;
-  if (
-    tfKeyword?.success &&
-    kwEntries &&
-    kwEntries.length > 0 &&
-    kwEntries.every((e) => /txtflt_hit/i.test(e.message)) &&
-    !kwEntries.some((e) => /txtflt_miss/i.test(e.message))
-  )
-    pass(`text_filter plain -> count=${tfKeyword.count}`);
-  else fail(`text_filter plain: ${JSON.stringify({ success: tfKeyword?.success, count: tfKeyword?.count })}`);
+  // A2/A3 (41m-ter): editor parse errors (editor.refresh recompiling a bogus script) are
+  // captured only by the 4.5+ Logger API (in-memory buffer). On 4.2-4.4 they are NOT
+  // written to godot.log, so editor.get_console (buffer OR file) cannot surface them —
+  // gate the parse-error-CAPTURE assertions (#2/#3/#6) to 4.5+. Filter MECHANICS that
+  // don't need a seeded capture (#4 invalid regex, #5 literal parens, #7 no-match) run on
+  // every version. (Runtime output IS captured on 4.2+ — see the level_filter=warning and
+  // source=file shape checks above.) Empirically confirmed on 4.2: source=file count=0.
+  const godotVer = bridge.getGodotVersion();
+  const parseErrorsCaptured = godotVer !== null && isVersionAtLeast(godotVer, "4.5");
 
-  // 3. Regex alternation with is_regex=true — both markers
-  const tfRegex = (await bridge.call(
-    "editor.get_console",
-    { text_filter: "txtflt_(hit|miss)", is_regex: true, limit: 100 },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; entries?: unknown; count?: number };
-  const rxEntries = unwrapUntrusted(tfRegex?.entries) as { message: string }[] | null;
-  const hasHit = rxEntries?.some((e) => /txtflt_hit/i.test(e.message));
-  const hasMiss = rxEntries?.some((e) => /txtflt_miss/i.test(e.message));
-  if (tfRegex?.success && hasHit && hasMiss) pass(`text_filter is_regex=true alternation -> count=${tfRegex.count}`);
-  else fail(`text_filter regex: hit=${hasHit} miss=${hasMiss}`);
+  if (parseErrorsCaptured) {
+    // 2. Plain-text keyword match — only "hit" entries returned.
+    const tfKeyword = (await bridge.call(
+      "editor.get_console",
+      { text_filter: "txtflt_hit", limit: 100 },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; entries?: unknown; count?: number };
+    const kwEntries = unwrapUntrusted(tfKeyword?.entries) as { message: string }[] | null;
+    if (
+      tfKeyword?.success &&
+      kwEntries &&
+      kwEntries.length > 0 &&
+      kwEntries.every((e) => /txtflt_hit/i.test(e.message)) &&
+      !kwEntries.some((e) => /txtflt_miss/i.test(e.message))
+    )
+      pass(`text_filter plain -> count=${tfKeyword.count}`);
+    else fail(`text_filter plain: ${JSON.stringify({ success: tfKeyword?.success, count: tfKeyword?.count })}`);
+
+    // 3. Regex alternation with is_regex=true — both markers.
+    const tfRegex = (await bridge.call(
+      "editor.get_console",
+      { text_filter: "txtflt_(hit|miss)", is_regex: true, limit: 100 },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; entries?: unknown; count?: number };
+    const rxEntries = unwrapUntrusted(tfRegex?.entries) as { message: string }[] | null;
+    const hasHit = rxEntries?.some((e) => /txtflt_hit/i.test(e.message));
+    const hasMiss = rxEntries?.some((e) => /txtflt_miss/i.test(e.message));
+    if (tfRegex?.success && hasHit && hasMiss) pass(`text_filter is_regex=true alternation -> count=${tfRegex.count}`);
+    else fail(`text_filter regex: hit=${hasHit} miss=${hasMiss}`);
+  } else {
+    pass(
+      "text_filter plain+regex parse-error capture -> SKIP (4.5+ Logger; 4.2-4.4 don't file-log editor parse errors)",
+    );
+  }
 
   // 4. is_regex=true with invalid pattern — INVALID_PARAMS + hint
   assertGuard(
@@ -367,16 +384,29 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   if (tfLiteral?.success && tfLiteral.count === 0) pass("text_filter plain with parens -> safe, no match (literal)");
   else fail(`text_filter literal parens: count=${tfLiteral?.count}`);
 
-  // 6. text_filter + level_filter composition
-  const tfLevel = (await bridge.call(
-    "editor.get_console",
-    { text_filter: "txtflt_hit", level_filter: ["error"], limit: 100 },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; count?: number; entries?: unknown };
-  const lvlEntries = unwrapUntrusted(tfLevel?.entries) as { message: string; level: string }[] | null;
-  if (tfLevel?.success && lvlEntries && lvlEntries.every((e) => /txtflt_hit/i.test(e.message) && e.level === "error"))
-    pass(`text_filter + level_filter -> count=${tfLevel.count}`);
-  else fail(`text_filter + level_filter: ${JSON.stringify({ success: tfLevel?.success, count: tfLevel?.count })}`);
+  // 6. text_filter + level_filter composition (parse-error capture → 4.5+ only, see above).
+  // Strengthened to require a hit (length>0) — the old empty-array .every() passed vacuously.
+  // On 4.5+ the Logger entry carries the filename at error level (continuation lines are
+  // leveled by the toolkit's shared helper; see 41m-ter A2/A3 toolkit fix + units).
+  if (parseErrorsCaptured) {
+    const tfLevel = (await bridge.call(
+      "editor.get_console",
+      { text_filter: "txtflt_hit", level_filter: ["error"], limit: 100 },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; count?: number; entries?: unknown };
+    const lvlEntries = unwrapUntrusted(tfLevel?.entries) as { message: string; level: string }[] | null;
+    if (
+      tfLevel?.success &&
+      lvlEntries &&
+      lvlEntries.length > 0 &&
+      lvlEntries.every((e) => /txtflt_hit/i.test(e.message) && e.level === "error")
+    )
+      pass(`text_filter + level_filter=error -> count=${tfLevel.count}`);
+    else
+      fail(`text_filter + level_filter=error: ${JSON.stringify({ success: tfLevel?.success, count: tfLevel?.count })}`);
+  } else {
+    pass("text_filter + level_filter parse-error capture -> SKIP (4.5+ Logger)");
+  }
 
   // 7. No match — empty result
   const tfNone = (await bridge.call(
@@ -501,10 +531,13 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   } catch {
     /* noop */
   }
-  try {
-    await bridge.call("scene.close", { file_path: smokeDeps }, CALL_TIMEOUT);
-  } catch {
-    /* noop */
+  // scene.close is 4.5+ only (unregistered on <4.5 → -32601); guard the cleanup (Q2).
+  if (godotVer !== null && isVersionAtLeast(godotVer, "4.5")) {
+    try {
+      await bridge.call("scene.close", { file_path: smokeDeps }, CALL_TIMEOUT);
+    } catch {
+      /* noop */
+    }
   }
   try {
     await bridge.call("scene.delete", { file_path: smokeDeps }, CALL_TIMEOUT);

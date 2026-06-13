@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard, tilemapNodeClass } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = [
   "scene_create_node",
@@ -14,6 +14,10 @@ export const TOOLS_TESTED: string[] = [
 ];
 export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
+
+  // A1 (41m-ter): TileMapLayer is 4.3+; on 4.2 use the legacy TileMap node so the tilemap
+  // tools are exercised on their real 4.2 path (the tool handles both node types).
+  const tmClass = tilemapNodeClass(bridge.getGodotVersion());
 
   // ── animation.* guards ──
   const animPlayerNode = (await bridge.call(
@@ -119,7 +123,7 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
   // ── tilemap.set_cells ──
   const tilemapNode = (await bridge.call(
     "scene.create_node",
-    { class_name: "TileMapLayer", parent_path: ".", node_name: "MCPSmokeTML" },
+    { class_name: tmClass, parent_path: ".", node_name: "MCPSmokeTML" },
     CALL_TIMEOUT,
   )) as { status?: string; path?: string; code?: string };
   const tilemapPath = tilemapNode?.path ?? "MCPSmokeTML";
@@ -180,7 +184,7 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
       ["cells[0]", "source_id"],
     );
   } else {
-    pass(`tilemap.set_cells: TileMapLayer setup failed (probably stale), skipping round-trip`);
+    pass(`tilemap.set_cells: ${tmClass} setup failed (probably stale), skipping round-trip`);
   }
   try {
     await bridge.call("scene.delete_node", { node_path: tilemapPath }, CALL_TIMEOUT);
@@ -305,10 +309,10 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     "node",
   );
 
-  // Happy path: empty TileMapLayer → cell_count=0.
+  // Happy path: empty tilemap → cell_count=0 (TileMapLayer on 4.3+, legacy TileMap on 4.2).
   const tmlNode = (await bridge.call(
     "scene.create_node",
-    { class_name: "TileMapLayer", parent_path: ".", node_name: "MCPSmokeReadTML" },
+    { class_name: tmClass, parent_path: ".", node_name: "MCPSmokeReadTML" },
     CALL_TIMEOUT,
   )) as { status?: string; path?: string };
   const tmlPath = tmlNode?.path ?? "MCPSmokeReadTML";
@@ -322,10 +326,10 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     };
     if (readEmpty?.success !== true || readEmpty.cell_count !== 0)
       fail(`tilemap.read_cells empty: ${JSON.stringify(readEmpty)}`);
-    else pass(`tilemap.read_cells empty TileMapLayer -> cell_count=0`);
+    else pass(`tilemap.read_cells empty ${tmClass} -> cell_count=0`);
 
     await bridge.call("scene.delete_node", { node_path: tmlPath }, CALL_TIMEOUT);
   } else {
-    fail(`tilemap.read_cells: could not create TileMapLayer: ${JSON.stringify(tmlNode)}`);
+    fail(`tilemap.read_cells: could not create ${tmClass}: ${JSON.stringify(tmlNode)}`);
   }
 }
