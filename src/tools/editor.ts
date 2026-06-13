@@ -10,6 +10,7 @@ import {
   coercedBoolean,
 } from "../tool_helpers.js";
 import { stableStringify } from "../schema_min.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 // ── Tool definitions ─────────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ export const editorTools: ToolDef[] = [
     description: "Save the current edited scene. Optional file_path triggers save-as.",
     inputSchema: { file_path: z.string().optional() },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "editor_screenshot",
@@ -36,6 +38,8 @@ export const editorTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint: "For running game visuals use runtime_screenshot. Pass node_path for focused capture.",
+    // save_path accepts res:// OR user://screenshots/ (matches editor_commands.gd).
+    pathParams: [{ param: "save_path", prefixes: ["res://", "user://screenshots/"] }],
   },
   {
     // I2 waiver: editor_refresh description exceeds 200-char limit.
@@ -61,6 +65,7 @@ export const editorTools: ToolDef[] = [
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint: "View structure with scene_get_tree. Query specific nodes with scene_query.",
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "scene_close",
@@ -70,6 +75,7 @@ export const editorTools: ToolDef[] = [
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     godotMinVersion: "4.5",
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "project_get_settings",

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 export const assetTools: ToolDef[] = [
   {
@@ -18,6 +19,7 @@ export const assetTools: ToolDef[] = [
       max_results: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    pathParams: [{ param: "path_prefix", guard: "project" }],
   },
   {
     name: "asset_get_dependencies",
@@ -30,6 +32,7 @@ export const assetTools: ToolDef[] = [
       max_results: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "asset_import",
@@ -45,6 +48,10 @@ export const assetTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     successHint: "Verify import with resource_load. Check file system with asset_list.",
+    // Only dest_path is guarded. source_path is deliberately NOT declared: it is
+    // an absolute filesystem path to an external asset (the toolkit reads it raw,
+    // guarding only dest_path) — guarding it would false-reject intended use.
+    pathParams: [{ param: "dest_path", guard: "project" }],
   },
 ];
 

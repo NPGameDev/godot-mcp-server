@@ -17,6 +17,7 @@ export const saveTools: ToolDef[] = [
       max_bytes: z.coerce.number().int().positive().max(262144).optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    pathParams: [{ param: "path", guard: "user" }],
   },
   {
     name: "save_write",
@@ -27,6 +28,7 @@ export const saveTools: ToolDef[] = [
       content: z.string(),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    pathParams: [{ param: "path", guard: "user" }],
   },
   {
     name: "save_delete",
@@ -36,6 +38,7 @@ export const saveTools: ToolDef[] = [
       path: z.string(),
     },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    pathParams: [{ param: "path", guard: "user" }],
   },
   {
     name: "save_list",
@@ -46,6 +49,7 @@ export const saveTools: ToolDef[] = [
       path: z.string(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    pathParams: [{ param: "path", guard: "user" }],
   },
 ];
 

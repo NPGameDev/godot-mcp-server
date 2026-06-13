@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ToolDef } from "../types.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 const frameSchema = z.object({
   texture: z.string().describe("res:// path to frame texture"),
@@ -34,6 +35,7 @@ export const spriteframesTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     successHint: "Add/modify frames with spriteframes_edit. For spritesheets use spriteframes_from_spritesheet.",
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "spriteframes_edit",
@@ -62,6 +64,7 @@ export const spriteframesTools: ToolDef[] = [
       new_index: z.number().int().optional().describe("New position (for reorder)"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "spriteframes_from_spritesheet",
@@ -92,5 +95,8 @@ export const spriteframesTools: ToolDef[] = [
         .describe("Animation definitions mapping to spritesheet regions"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    // file_path is guarded; texture_path is NOT (toolkit calls load(), which is
+    // res://-scoped — guarding it server-side could false-reject. See ADR 0009.
+    pathParams: [PROJECT_FILE_PATH],
   },
 ];

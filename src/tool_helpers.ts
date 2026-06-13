@@ -8,10 +8,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { stableStringify } from "./schema_min.js";
 import { isReadOnly, isExcludedByReadOnly } from "./profiles.js";
-import type { Bridge, ErrorCode, ToolDef, ToolTextResult, ToolRequest } from "./types.js";
+import type { Bridge, ErrorCode, ToolDef, ToolTextResult, ToolRequest, PathGuard } from "./types.js";
 import { BridgeError } from "./errors.js";
 import { setToolRef } from "./tool_refs.js";
 import { isVersionCompatible } from "./version.js";
+import { checkPathGuard } from "./path_guard.js";
 
 // ── Error utilities ─────────────────────────────────────────────────
 
@@ -246,6 +247,14 @@ const _versionMap = new Map<string, { min?: string; max?: string }>();
 export function getVersionMap(): Map<string, { min?: string; max?: string }> {
   return _versionMap;
 }
+
+/**
+ * Path-guard map (built-in tools only) — name → declared PathGuards. Consulted
+ * in the dispatch choke point (wrappedHandler) to syntactically pre-filter
+ * path params before the bridge round-trip. Extension tools register without
+ * pathParams, so they never have an entry here (toolkit enforces their guards).
+ */
+const _pathParamMap = new Map<string, readonly PathGuard[]>();
 
 // ── MCP string-coercion helpers ────────────────────────────────────
 
@@ -482,7 +491,12 @@ export function registerToolWrapped(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- McpServer.registerTool has complex overloaded types
   config: any,
   handler: (input: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolTextResult>,
-  opts: { godotMinVersion?: string; godotMaxVersion?: string; hookPipeline?: HookPipeline } = {},
+  opts: {
+    godotMinVersion?: string;
+    godotMaxVersion?: string;
+    hookPipeline?: HookPipeline;
+    pathParams?: readonly PathGuard[];
+  } = {},
 ): void {
   // Convert raw JSON Schema (from extensions) to Zod shape for SDK compat.
   if (config.inputSchema && isRawJsonSchema(config.inputSchema)) {
@@ -495,6 +509,9 @@ export function registerToolWrapped(
   }
   if (opts.godotMinVersion != null || opts.godotMaxVersion != null) {
     _versionMap.set(name, { min: opts.godotMinVersion, max: opts.godotMaxVersion });
+  }
+  if (opts.pathParams != null && opts.pathParams.length > 0) {
+    _pathParamMap.set(name, opts.pathParams);
   }
 
   // Registration-time version filter: skip version-gated tools when the
@@ -535,6 +552,23 @@ export function registerToolWrapped(
           `${name} requires Godot ${parts.join(" and ")} (connected: ${connected[0]}.${connected[1]})`,
           "Check COMPATIBILITY.md or use classdb.get_info for alternatives.",
         );
+      }
+    }
+
+    // Syntactic path pre-filter (built-in tools only) — fast-fail an
+    // out-of-bounds path before the WS round-trip. Strict subset of the
+    // toolkit's FileGuard (the authoritative boundary). See ADR 0009.
+    const guards = _pathParamMap.get(name);
+    if (guards) {
+      for (const g of guards) {
+        const verdict = checkPathGuard(g, input?.[g.param]);
+        if (!verdict.ok) {
+          return toolError(
+            "PATH_DENIED",
+            `path rejected (${g.param}): ${verdict.reason}`,
+            "Use a project-relative res:// path (user:// for save_* tools). The toolkit is the authoritative guard.",
+          );
+        }
       }
     }
 
@@ -623,6 +657,7 @@ export function registerTools(
         godotMinVersion: tool.godotMinVersion,
         godotMaxVersion: tool.godotMaxVersion,
         hookPipeline: opts.hookPipeline,
+        pathParams: tool.pathParams,
       },
     );
   }

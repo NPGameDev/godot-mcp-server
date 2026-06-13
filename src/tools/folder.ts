@@ -12,6 +12,7 @@ export const folderTools: ToolDef[] = [
       "Create directory at res:// path (recursive — parents auto-created). Idempotent: status created on fresh, returned if pre-existing.",
     inputSchema: { folder_path: z.string() },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    pathParams: [{ param: "folder_path", guard: "project" }],
   },
   {
     name: "folder_delete",
@@ -23,11 +24,10 @@ export const folderTools: ToolDef[] = [
       recursive: coercedBoolean().optional(),
     },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    pathParams: [{ param: "folder_path", guard: "project" }],
   },
 ];
 
-// TODO(security): path sanitisation. folder.create auto-creates
-// intermediates so FileGuard's escape-rejection matters especially here.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   registerTools(server, bridge, folderTools, allowedTools);
 }

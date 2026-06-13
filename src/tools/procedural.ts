@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools, jsonCoerce } from "../tool_helpers.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 const colorSchema = z.object({
   r: z.number().optional(),
@@ -39,6 +40,7 @@ export const proceduralTools: ToolDef[] = [
       interpolation_mode: z.enum(["linear", "cubic", "constant"]).optional().describe("Interpolation between stops"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "procedural_edit_curve",
@@ -71,6 +73,7 @@ export const proceduralTools: ToolDef[] = [
       max_value: z.number().optional().describe("Curve maximum Y value"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "procedural_edit_noise",
@@ -105,6 +108,7 @@ export const proceduralTools: ToolDef[] = [
       domain_warp_amplitude: z.number().optional(),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
 ];
 

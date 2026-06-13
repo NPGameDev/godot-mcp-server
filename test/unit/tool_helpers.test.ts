@@ -10,8 +10,12 @@ import {
   coercedBoolean,
   jsonCoerce,
   jsonSchemaToParamMap,
+  registerToolWrapped,
 } from "../../src/tool_helpers.js";
 import { BridgeError } from "../../src/errors.js";
+import { PROJECT_FILE_PATH } from "../../src/path_guard.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Bridge, PathGuard, ToolTextResult } from "../../src/types.js";
 
 // ── toolError ────────────────────────────────────────────────────────
 
@@ -233,6 +237,66 @@ assert.deepEqual(jsonCoerce([1, 2]), [1, 2]);
   };
   const params = jsonSchemaToParamMap(schema);
   assert.equal(params.x.description, undefined);
+}
+
+// ── path-guard dispatch wiring (registerToolWrapped) ─────────────────
+// Shields the new spec: a tool that declares pathParams fast-fails an
+// out-of-bounds path with PATH_DENIED *before* the handler/bridge runs, and a
+// tool that declares none is never filtered.
+
+/** Register a tool through registerToolWrapped and capture its wrapped handler. */
+function captureWrapped(name: string, pathParams?: readonly PathGuard[]) {
+  let calls = 0;
+  let captured: ((input: Record<string, unknown>, extra?: { signal?: AbortSignal }) => Promise<ToolTextResult>) | null =
+    null;
+  const fakeServer = {
+    registerTool: (_n: string, _c: unknown, h: NonNullable<typeof captured>) => {
+      captured = h;
+      return {};
+    },
+    sendToolListChanged: () => {},
+  } as unknown as McpServer;
+  const fakeBridge = { getGodotVersion: () => null } as unknown as Bridge;
+  const handler = async (): Promise<ToolTextResult> => {
+    calls++;
+    return { content: [{ type: "text", text: "ok" }] };
+  };
+  registerToolWrapped(fakeServer, fakeBridge, name, { description: "t", inputSchema: {} }, handler, { pathParams });
+  return { invoke: (input: Record<string, unknown>) => captured!(input), calls: () => calls };
+}
+
+// Declared project guard: bad path → PATH_DENIED, handler NOT reached (fast-fail).
+{
+  const t = captureWrapped("pg_wire_project", [PROJECT_FILE_PATH]);
+  const bad = await t.invoke({ file_path: "res://../escape.gd" });
+  assert.equal(bad.isError, true);
+  assert.equal(JSON.parse(bad.content[0].text).code, "PATH_DENIED");
+  assert.equal(t.calls(), 0);
+  // Good path → handler reached.
+  const ok = await t.invoke({ file_path: "res://ok.gd" });
+  assert.equal(ok.isError, undefined);
+  assert.equal(t.calls(), 1);
+  // Absent optional param → skip → handler reached.
+  await t.invoke({});
+  assert.equal(t.calls(), 2);
+}
+
+// Undeclared tool: an out-of-bounds path passes straight through (no filtering).
+{
+  const t = captureWrapped("pg_wire_none");
+  await t.invoke({ file_path: "res://../escape.gd" });
+  assert.equal(t.calls(), 1);
+}
+
+// User guard: a res:// path to a user:// param is rejected.
+{
+  const t = captureWrapped("pg_wire_user", [{ param: "path", guard: "user" }]);
+  const bad = await t.invoke({ path: "res://nope.gd" });
+  assert.equal(JSON.parse(bad.content[0].text).code, "PATH_DENIED");
+  assert.equal(t.calls(), 0);
+  const ok = await t.invoke({ path: "user://saves/slot1.json" });
+  assert.equal(ok.isError, undefined);
+  assert.equal(t.calls(), 1);
 }
 
 console.log("All tool_helpers tests passed.");

@@ -87,6 +87,26 @@ export type ErrorCode =
   | "UNSUPPORTED_FILE_TYPE"
   | "WRITE_FAILED";
 
+// ── Path guard declaration ───────────────────────────────────────────
+
+/**
+ * Declares that a tool input param carries a filesystem path that the server
+ * should syntactically pre-filter (defense-in-depth / fast-fail) before the WS
+ * round-trip. A strict subset of the toolkit's canonicalizing FileGuard — see
+ * src/path_guard.ts and ADR 0009 (toolkit).
+ *
+ * `guard: "project"` ↔ res:// (FileGuard.resolve_safe); `guard: "user"` ↔ user://
+ * (FileGuard.resolve_safe_user). Use the explicit `prefixes` form only for the
+ * rare multi-prefix outlier (editor_screenshot.save_path).
+ *
+ * Declare a param here ONLY if the toolkit also guards it with the same prefix
+ * (strict-subset invariant — never reject a path the toolkit accepts). Params
+ * the toolkit does NOT guard (source_path = absolute allowed; texture_path =
+ * ResourceLoader res://-scoped) and scene-tree node paths (node_path,
+ * parent_path, …) are deliberately NOT declared.
+ */
+export type PathGuard = { param: string; guard: "project" | "user" } | { param: string; prefixes: readonly string[] };
+
 // ── Tool definition ──────────────────────────────────────────────────
 
 export type { ToolAnnotations };
@@ -103,6 +123,10 @@ export type ToolDef = {
   godotMaxVersion?: string;
   /** Brief guidance appended to successful responses — next steps, related tools, common pitfalls. Omit for terminal actions or self-evident results. Does not overwrite toolkit-provided hints. */
   successHint?: string;
+  /** Filesystem-path params to syntactically pre-filter before dispatch (strict
+   *  subset of the toolkit guard). Omit for tools with no fs path, or for params
+   *  the toolkit doesn't guard (absolute-allowed source_path, node-tree paths). */
+  pathParams?: readonly PathGuard[];
 };
 
 export type ToolTextResult = {

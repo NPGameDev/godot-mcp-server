@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
 import { registerTools, callAndWrap } from "../tool_helpers.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 export const fileTools: ToolDef[] = [
   {
@@ -14,6 +15,7 @@ export const fileTools: ToolDef[] = [
       file_path: z.string(),
     },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
 ];
 
@@ -33,7 +35,6 @@ function fileDeleteHint(filePath: string): string | undefined {
   return undefined;
 }
 
-// TODO(security): path sanitisation via FileGuard.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   const handlers = new Map<string, (input: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolTextResult>>();
   handlers.set("file_delete", async (input, signal) => {

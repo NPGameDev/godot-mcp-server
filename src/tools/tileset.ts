@@ -3,10 +3,13 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 // ── tileset group (structural) ──────────────────────────────────────
 
-export const tilesetStructuralTools: ToolDef[] = [
+// Every tileset tool guards its res:// file_path; texture_path is NOT guarded
+// (toolkit load() is res://-scoped). Declared uniformly via .map below.
+const tilesetStructuralDefs: ToolDef[] = [
   {
     name: "tileset_create",
     method: "tileset.create",
@@ -160,13 +163,18 @@ export const tilesetStructuralTools: ToolDef[] = [
   },
 ];
 
+export const tilesetStructuralTools: ToolDef[] = tilesetStructuralDefs.map((t) => ({
+  ...t,
+  pathParams: [PROJECT_FILE_PATH],
+}));
+
 // ── tileset_edit group (per-tile properties) ─────────────────────────
 
 const tileArraySchema = z
   .preprocess(jsonCoerce, z.array(z.record(z.string(), z.unknown())))
   .describe("Per-tile edits: [{atlas_x, atlas_y, ...domain-specific params}]");
 
-export const tilesetEditTools: ToolDef[] = [
+const tilesetEditDefs: ToolDef[] = [
   {
     name: "tileset_edit_physics",
     method: "tileset.edit_physics",
@@ -246,6 +254,11 @@ export const tilesetEditTools: ToolDef[] = [
     successHint: "Custom data set. Configure layers first with tileset_setup_layers if needed.",
   },
 ];
+
+export const tilesetEditTools: ToolDef[] = tilesetEditDefs.map((t) => ({
+  ...t,
+  pathParams: [PROJECT_FILE_PATH],
+}));
 
 export const tilesetTools: ToolDef[] = [...tilesetStructuralTools, ...tilesetEditTools];
 

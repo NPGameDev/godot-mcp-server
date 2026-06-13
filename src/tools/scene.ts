@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools, jsonCoerce, coercedBoolean } from "../tool_helpers.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 export const sceneTools: ToolDef[] = [
   {
@@ -69,6 +70,7 @@ export const sceneTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     successHint: "Open with scene_open to make it the active scene, then add nodes with scene_create_node.",
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "scene_delete",
@@ -79,6 +81,7 @@ export const sceneTools: ToolDef[] = [
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
     successHint:
       "Only for .tscn/.scn files. Scripts: script_delete. Resources: resource_delete. Other files: file_delete.",
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "scene_instantiate",
@@ -105,6 +108,7 @@ export const sceneTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     successHint: "Configure instance properties with node_set_property. Save with editor_save_scene.",
+    pathParams: [{ param: "scene_path", guard: "project" }],
   },
 ];
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools } from "../tool_helpers.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 export const scriptTools: ToolDef[] = [
   {
@@ -16,6 +17,7 @@ export const scriptTools: ToolDef[] = [
       end_line: z.coerce.number().optional().describe("Last line to read (1-indexed, inclusive)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "script_write",
@@ -27,6 +29,7 @@ export const scriptTools: ToolDef[] = [
     inputSchema: { file_path: z.string(), content: z.string() },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     successHint: "Validate with script_check or lsp_diagnostics. Errors also appear in editor_get_console.",
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "script_delete",
@@ -36,6 +39,7 @@ export const scriptTools: ToolDef[] = [
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
     successHint: "For scenes use scene_delete. For resources use resource_delete.",
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "script_check",
@@ -46,11 +50,13 @@ export const scriptTools: ToolDef[] = [
     inputSchema: { file_path: z.string().describe("res:// path to a .gd file") },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint: "For detailed diagnostics use lsp_diagnostics. For runtime errors use editor_get_console.",
+    pathParams: [PROJECT_FILE_PATH],
   },
 ];
 
-// TODO(security): for script_read, wrap result.content in
-// <untrusted kind="gdscript" source="godot">...</untrusted> before returning.
+// script_read content is already <untrusted>-wrapped at origin by the toolkit
+// (script_commands.gd). Do NOT re-wrap here: the wrapper scrubs inner envelope
+// tags, so double-wrapping corrupts the envelope. See ADR 0009 (toolkit).
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   registerTools(server, bridge, scriptTools, allowedTools);
 }

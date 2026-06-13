@@ -111,6 +111,9 @@ export const nodeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     successHint: "Write script content with script_write. View @export properties in the returned property list.",
+    // script_path is a res:// file path; node_path is a scene-tree path (not guarded).
+    // Empty script_path (detach) is skipped by checkPathGuard, deferring to the toolkit.
+    pathParams: [{ param: "script_path", guard: "project" }],
   },
   {
     name: "control_set_layout",

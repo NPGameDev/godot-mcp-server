@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools, jsonCoerce } from "../tool_helpers.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 export const themeTools: ToolDef[] = [
   {
@@ -37,6 +38,7 @@ export const themeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     successHint: "Apply theme to Control via node_set_property (theme property with Resource type tag).",
+    pathParams: [PROJECT_FILE_PATH],
   },
 ];
 

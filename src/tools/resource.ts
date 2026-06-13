@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools } from "../tool_helpers.js";
+import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 export const resourceTools: ToolDef[] = [
   {
@@ -12,6 +13,7 @@ export const resourceTools: ToolDef[] = [
       "Load a res:// resource and return { class, path, properties, metadata }. Heavy fields (image, mesh_arrays) pruned; Texture2D gets size in metadata.",
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "resource_write",
@@ -31,6 +33,7 @@ export const resourceTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     successHint: "Verify with resource_load. Assign to node via node_set_property with Resource type tag.",
+    pathParams: [PROJECT_FILE_PATH],
   },
   {
     name: "resource_delete",
@@ -40,11 +43,14 @@ export const resourceTools: ToolDef[] = [
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
     successHint: "For scenes use scene_delete. For scripts use script_delete. Non-resource files: file_delete.",
+    pathParams: [PROJECT_FILE_PATH],
   },
 ];
 
-// TODO(security): wrap `properties` in an <untrusted kind="resource_props">
-// envelope if the underlying data came from disk.
+// resource_load `properties` is already <untrusted>-wrapped at origin by the
+// toolkit (resource_commands.gd wraps the whole JSON.stringify(properties) in
+// one envelope). Do NOT re-wrap here: the wrapper scrubs inner envelope tags,
+// so double-wrapping corrupts the envelope. See ADR 0009 (toolkit).
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
   registerTools(server, bridge, resourceTools, allowedTools);
 }
