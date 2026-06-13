@@ -28,7 +28,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   // Tool count — the complete canonical catalogue (ALL_TOOL_DEFS). Bump this
   // when tools are added/removed; `godot-mcp-server --tools-count` prints the
   // live value.
-  const expectedToolCount = 105;
+  const expectedToolCount = 108;
   const allTools = getAllToolDefs();
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else pass(`tool count == ${expectedToolCount}`);
@@ -91,9 +91,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
 
   // Readonly tool count canary — catches accidental annotation drift.
   // Count tools with readOnlyHint=true across the full canonical catalogue.
-  // 35 readonly tools (recomputed over all 105 tools in vicies-novies; was 25
-  // when the catalogue under-counted at 75).
-  const expectedReadonly = 35;
+  // 36 readonly tools (35 + scene_spatial_map, the read-only spatial map added
+  // in 41m-quinquies; was 25 when the catalogue under-counted at 75).
+  const expectedReadonly = 36;
   const readonlyCount = allTools.filter((t: ToolDef) => t.annotations?.readOnlyHint === true).length;
   if (readonlyCount !== expectedReadonly) fail(`readonly count: expected ${expectedReadonly}, got ${readonlyCount}`);
   else pass(`readonly count == ${expectedReadonly} (readOnlyHint canary)`);

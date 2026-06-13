@@ -48,6 +48,9 @@ import * as tileset from "./tools/tileset.js";
 import * as classdb from "./tools/classdb.js";
 import * as nodeManagement from "./tools/node_management.js";
 import * as sceneQuery from "./tools/scene_query.js";
+import * as spatial from "./tools/spatial.js";
+import * as texture from "./tools/texture.js";
+import * as sound from "./tools/sound.js";
 
 // ── Node.js version gate ────────────────────────────────────────────
 const [nodeMajor] = process.versions.node.split(".").map(Number);
@@ -218,6 +221,9 @@ function registerModules(ma: Set<string>): void {
   classdb.register(server, bridge, ma);
   nodeManagement.register(server, bridge, ma);
   sceneQuery.register(server, bridge, ma);
+  spatial.register(server, bridge, ma);
+  texture.register(server, bridge, ma);
+  sound.register(server, bridge, ma);
 }
 
 function registerGroups(): void {

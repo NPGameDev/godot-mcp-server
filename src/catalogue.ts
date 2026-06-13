@@ -49,8 +49,11 @@ import { sceneInheritanceTools } from "./tools/scene_inheritance.js";
 import { sceneQueryTools } from "./tools/scene_query.js";
 import { scriptTools } from "./tools/script.js";
 import { signalTools } from "./tools/signals.js";
+import { soundTools } from "./tools/sound.js";
+import { spatialTools } from "./tools/spatial.js";
 import { spriteframesTools } from "./tools/spriteframes.js";
 import { themeTools } from "./tools/theme.js";
+import { textureTools } from "./tools/texture.js";
 import { threeDTools } from "./tools/three_d.js";
 import { tilemapTools } from "./tools/tilemap.js";
 // NOTE: split tileset exports — NOT the unsplit `tilesetTools` convenience
@@ -94,9 +97,12 @@ export const ALL_TOOL_DEFS: ToolDef[] = [
   ...sceneQueryTools,
   ...scriptTools,
   ...signalTools,
+  ...soundTools,
+  ...spatialTools,
   ...spriteframesTools,
   ...themeTools,
   ...threeDTools,
+  ...textureTools,
   ...tilemapTools,
   ...tilesetStructuralTools,
   ...tilesetEditTools,

@@ -15,7 +15,7 @@ import { isAllowedInReadOnly } from "../src/profiles.js";
 // ── Canonical tool inventory (single source of truth) ───────────────
 import { ALL_TOOL_DEFS } from "../src/catalogue.js";
 
-// ── Import TOOLS_TESTED from all 44 sections ────────────────────────
+// ── Import TOOLS_TESTED from all 46 sections ────────────────────────
 import { TOOLS_TESTED as T01 } from "./sections/01_catalogue.js";
 import { TOOLS_TESTED as T02 } from "./sections/02_scene_node_basics.js";
 import { TOOLS_TESTED as T03 } from "./sections/03_script_ops.js";
@@ -60,6 +60,8 @@ import { TOOLS_TESTED as T41 } from "./sections/41_lsp.js";
 import { TOOLS_TESTED as T42 } from "./sections/42_debugger.js";
 import { TOOLS_TESTED as T43 } from "./sections/43_control_layout.js";
 import { TOOLS_TESTED as T44 } from "./sections/44_tileset.js";
+import { TOOLS_TESTED as T45 } from "./sections/45_spatial.js";
+import { TOOLS_TESTED as T46 } from "./sections/46_placeholders.js";
 
 // ── Unfiltered tool catalogue ───────────────────────────────────────
 
@@ -103,7 +105,9 @@ const KNOWN_DOMAINS = new Set([
   "scene",
   "script",
   "signal",
+  "sound",
   "spriteframes",
+  "texture",
   "theme",
   "tilemap",
   "tileset",
@@ -176,6 +180,8 @@ const ALL_TOOLS_TESTED = new Set([
   ...T42,
   ...T43,
   ...T44,
+  ...T45,
+  ...T46,
 ]);
 
 // ── Check 1: Schema integrity ───────────────────────────────────────

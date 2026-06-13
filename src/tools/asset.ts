@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../types.js";
 import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
 import { PROJECT_FILE_PATH } from "../path_guard.js";
+import { assetWriteFields } from "./_asset_write.js";
 
 export const assetTools: ToolDef[] = [
   {
@@ -43,8 +44,7 @@ export const assetTools: ToolDef[] = [
       source_path: z.string().optional(),
       base64_data: z.string().optional(),
       dest_path: z.string(),
-      if_exists: z.enum(["return", "fail", "replace"]).optional(),
-      wait_for_scan_ms: z.coerce.number().optional(),
+      ...assetWriteFields,
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     successHint: "Verify import with resource_load. Check file system with asset_list.",

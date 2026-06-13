@@ -1,11 +1,11 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-06-10 (41m-bis — added the Flow Suite section)
-**Server commit:** S:6fa6143
+**Last updated:** 2026-06-14 (41m-quinquies — scene_spatial_map + placeholder generators)
+**Server commit:** S:6fa6143 (+ 41m-quinquies; final SHA recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
-**Total tools (including on-demand groups):** 105 (33 eager + 72 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
+**Total tools (including on-demand groups):** 108 (33 eager + 75 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
-**Smoke sections:** 44 (sections 01–44)
+**Smoke sections:** 46 (sections 01–46)
 **Flow suite:** 3 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
 
 ---
@@ -301,6 +301,18 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Response caps | 21 | ✓ (FILE_TOO_LARGE, range reads, limits) | |
 | C# compatibility | 25 | ✓ (detection, .cs ops, exports, signals) | Skips if not .NET project |
 | Error contract | 07 | ✓ (status discriminator, recovery hints) | |
+
+### Spatial + Placeholder Generation (3 tools — 41m-quinquies)
+
+| Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
+|---|---|---|---|---|---|---|
+| scene_spatial_map | 45 | ✓ (2D overlaps / containment / nearest) | ✓ (INVALID_PARAMS: detail, region size) | ✓ (detail brief/normal/full, class, region, radius, subtree, max_nodes truncation) | — | eager; read-only |
+| texture_generate | 46 | ✓ (all 7 shapes) | ✓ (INVALID_PATH png, PATH_DENIED, INVALID_PARAMS transparent/shape, ALREADY_EXISTS) | ✓ (colour hex/named/[0-1]/[0-255], hollow, label, dim cap, if_exists) | — | placeholders group |
+| sound_generate | 46 | ✓ (all 5 waveforms) | ✓ (INVALID_PATH wav, PATH_DENIED, INVALID_PARAMS waveform) | ✓ (sweep, decay, duration cap, if_exists) | — | placeholders group |
+
+> **runtime_set_property** was demoted eager → `runtime_advanced` group in
+> 41m-quinquies; its smoke stays in **section 17 (mode_b)** — `bridge.call` hits the
+> toolkit method directly, so MCP grouping does not affect it.
 
 ---
 

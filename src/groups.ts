@@ -54,7 +54,8 @@ export type GroupName =
   | "lsp_code_analysis"
   | "lsp_code_navigation"
   | "debugger"
-  | "classdb";
+  | "classdb"
+  | "placeholders";
 
 const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -84,6 +85,7 @@ const GROUP_NAMES: readonly GroupName[] = [
   "lsp_code_navigation",
   "debugger",
   "classdb",
+  "placeholders",
 ];
 
 interface GroupDef {
@@ -96,11 +98,13 @@ interface GroupDef {
 export const GROUPS: GroupDef[] = [
   {
     name: "runtime_advanced",
-    description: "Inspect live node state and control AnimationPlayer during playtests",
-    tools: ["runtime_get_node_state", "animation_player_control"],
+    description: "Inspect live node state, set node properties, and control AnimationPlayer during playtests",
+    tools: ["runtime_get_node_state", "runtime_set_property", "animation_player_control"],
     keywords: [
       "runtime",
       "node state",
+      "set property",
+      "runtime property",
       "animation playback",
       "animationplayer",
       "play animation",
@@ -159,6 +163,35 @@ export const GROUPS: GroupDef[] = [
     description: "List assets, query dependencies, and import binary files into the project",
     tools: ["asset_list", "asset_get_dependencies", "asset_import"],
     keywords: ["asset", "import", "dependencies", "texture", "image", "list assets", "files", "browse"],
+  },
+  {
+    name: "placeholders",
+    description:
+      "Generate placeholder/prototype assets procedurally — textures (shapes, patterns, labels) and sound effects (tones, noise). No art or network needed.",
+    tools: ["texture_generate", "sound_generate"],
+    keywords: [
+      "placeholder",
+      "prototype",
+      "prototyping",
+      "stand-in",
+      "mock",
+      "generate",
+      "procedural",
+      "texture",
+      "sprite",
+      "image",
+      "icon",
+      "png",
+      "sound",
+      "sfx",
+      "audio",
+      "tone",
+      "beep",
+      "noise",
+      "wav",
+      "art",
+      "asset",
+    ],
   },
   {
     name: "cleanup",
@@ -428,13 +461,14 @@ export const GROUP_TOOL_NAMES = new Set(GROUPS.flatMap((g) => g.tools));
 // tools, so the extra entries are inert.
 const allDefs = new Map<string, ToolDef>(ALL_TOOL_DEFS.map((t) => [t.name, t]));
 
-// Tools that route through the runtime (Mode B) bridge — only the 2
-// remaining runtime_advanced group tools. The 4 promoted tools
-// (runtime_screenshot, input_simulate, runtime_get_script_vars,
+// Tools that route through the runtime (Mode B) bridge — the 3 runtime_advanced
+// group tools (runtime_set_property demoted from eager → group in 41m-quinquies;
+// it still routes via the runtime bridge, so it must live here). The 4 promoted
+// tools (runtime_screenshot, input_simulate, runtime_get_script_vars,
 // debugger_get_log) are now standard and handled by runtime.ts.
 // Exported for the catalogue completeness guard (01_catalogue.ts): every
 // runtime-bridge tool must resolve in ALL_TOOL_NAMES.
-export const RUNTIME_TOOLS = new Set(["runtime_get_node_state", "animation_player_control"]);
+export const RUNTIME_TOOLS = new Set(["runtime_get_node_state", "runtime_set_property", "animation_player_control"]);
 
 // LSP tools — use their own TCP client, not the bridge.
 // Exported for the catalogue completeness guard (01_catalogue.ts).
