@@ -1,5 +1,36 @@
 # Compatibility Notes
 
+## Error Contract
+
+### Parameter validation: which layer rejects, by entry point
+
+Two layers validate tool parameters, and **which one rejects a bad value depends
+on how the call arrives**:
+
+- **Through the MCP server (every Claude / agent call):** parameters are checked
+  against the server's Zod schema *before* the request reaches the Godot plugin.
+  A value that violates an **enum** constraint — e.g. `texture_generate shape`,
+  `sound_generate waveform`, `scene_spatial_map detail`, `if_exists` — is rejected
+  by the MCP SDK as JSON-RPC **`-32602` (Invalid params)**, with the message
+  naming the offending parameter. This fails fast, with no editor round-trip.
+- **Direct plugin dispatch** (the toolkit's own `sv2_` GDScript sweep driver, or
+  extension tools that declare no server-side enum): the request bypasses the
+  server's Zod layer and reaches the plugin handler, whose own validation returns
+  the toolkit error code **`INVALID_PARAMS`**.
+
+Both are correct and intentional — not a bug. The server-side enum is the
+fast-fail, self-documenting path for agents; the plugin-side check is
+defense-in-depth for anything that reaches the plugin directly. **Non-enum**
+guards (range clamps, mutually-exclusive params, semantic checks the JSON schema
+cannot express) always reach the plugin and surface as `INVALID_PARAMS`
+regardless of entry point.
+
+> **For test authors:** a sweep driven by an **MCP agent** sees `-32602` for an
+> invalid enum; the **GDScript `sv2_` driver** sees `INVALID_PARAMS` for the same
+> input. Assert per the path you are exercising. (Smoke `bridge.call` is the
+> direct-dispatch path → `INVALID_PARAMS`; see smoke §46 `texture bad shape` /
+> `sound bad waveform`.)
+
 ## Extension System
 
 ### Live Reload

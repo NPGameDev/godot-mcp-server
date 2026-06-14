@@ -11,6 +11,8 @@ type GenResult = {
   height?: number;
   duration?: number;
   end_frequency?: number;
+  warnings?: string[];
+  elapsed_ms?: number;
   error?: string;
 };
 
@@ -58,8 +60,21 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
         fill_color: "#3366ff",
         outline_color: "#000000",
       });
-      if (r?.success && (r.class === "Texture2D" || r.class == null)) pass(`texture.generate shape=${shape}`);
+      if (r?.success && r.class === "Texture2D") pass(`texture.generate shape=${shape}`);
       else fail(`texture.generate shape=${shape}: ${JSON.stringify(r).slice(0, 160)}`);
+    }
+
+    // Item B (41m-sexies): the default path reports the constructed class with NO
+    // blocking import-settle — class is populated (never null), no "did not index"
+    // warning, and elapsed_ms is ~0 (vs the pre-fix ~5000ms poll).
+    const settleR = await genTexture("settle_contract", { shape: "solid", fill_color: "#abcdef" });
+    const noIndexWarn = !(settleR.warnings ?? []).some((w) => w.includes("did not index"));
+    if (settleR.class === "Texture2D" && noIndexWarn && (settleR.elapsed_ms ?? 9999) < 1000) {
+      pass("texture.generate default path: class populated, no settle wait, no index warning (Item B)");
+    } else {
+      fail(
+        `texture.generate settle contract: ${JSON.stringify({ class: settleR.class, warnings: settleR.warnings, elapsed_ms: settleR.elapsed_ms })}`,
+      );
     }
 
     // Colour input formats (sequential — concurrent generate calls serialize on
@@ -159,7 +174,7 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
     // ── sound.generate: every waveform ──
     for (const waveform of WAVEFORMS) {
       const r = await genSound(`wave_${waveform}`, { waveform, duration: 0.1, frequency: 440 });
-      if (r?.success && (r.class === "AudioStreamWAV" || r.class == null)) pass(`sound.generate waveform=${waveform}`);
+      if (r?.success && r.class === "AudioStreamWAV") pass(`sound.generate waveform=${waveform}`);
       else fail(`sound.generate waveform=${waveform}: ${JSON.stringify(r).slice(0, 150)}`);
     }
 
