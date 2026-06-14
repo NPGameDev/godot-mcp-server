@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import type { ToolDef } from "../types.js";
+import { coercedBoolean } from "../tool_helpers.js";
 
 export const debugTools: ToolDef[] = [
   {
@@ -32,12 +33,12 @@ export const debugTools: ToolDef[] = [
     inputSchema: {
       file_path: z.string().describe("res:// path to a .gd file (e.g. res://scripts/player.gd)"),
       line: z.coerce.number().int().describe("1-based line number"),
-      enabled: z
-        .preprocess(
-          (v) => (typeof v === "string" ? v.toLowerCase() === "true" || v === "1" : v),
-          z.boolean().default(true).optional(),
-        )
-        .describe("true to set, false to clear (default true)"),
+      // Optional with `.optional()` OUTERMOST: a coercion wrapper (preprocess =
+      // ZodPipe) does not inherit an inner `.optional()` under the SDK's
+      // io:"input" conversion, which would flip the param to `required` in
+      // tools/list. The plugin defaults enabled→true (debug_commands.gd), so no
+      // server-side .default is needed. (Guarded by structural Check 7.)
+      enabled: coercedBoolean().optional().describe("true to set, false to clear (default true)"),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },

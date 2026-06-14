@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { ToolDef } from "../src/types.js";
 import { isAllowedInReadOnly, STANDARD_TOOLS } from "../src/profiles.js";
 import { GROUP_TOOL_NAMES } from "../src/groups.js";
+import { addStringCoercion } from "../src/tool_helpers.js";
 
 // ── Canonical tool inventory (single source of truth) ───────────────
 import { ALL_TOOL_DEFS } from "../src/catalogue.js";
@@ -362,6 +363,57 @@ function checkReachability(tools: ToolDef[], pass: (msg: string) => void, fail: 
   }
 }
 
+// ── Check 7: Optional-param input/output parity ─────────────────────
+
+/**
+ * Catch the "coercion wrapper flips an optional param to required" bug class
+ * (S:159978c). The live registration path wraps every Zod inputSchema with
+ * addStringCoercion before handing it to the SDK, and the SDK emits the JSON
+ * Schema with io:"input". A z.preprocess()/coerce wrapper is a ZodPipe whose
+ * INPUT side does not inherit an inner `.optional()` — so an optional param can
+ * silently become `required` in tools/list while looking fine under the default
+ * io:"output" conversion (and under Check 1, which uses io:"output").
+ *
+ * Invariant (intent-free, no allowlist): for every tool, the required[] set
+ * under io:"input" must be a SUBSET of the required[] set under io:"output" —
+ * i.e. no param may become required ONLY on the input side. Both conversions run
+ * on the SAME addStringCoercion-wrapped shape (the live registered schema), so a
+ * benign `.default()`-without-`.optional()` param (optional-on-input,
+ * required-on-output) does NOT trip it; only the wrapper-leak bug does.
+ * (Caught debug.ts:38 `z.preprocess(fn, z.boolean().default(true).optional())`.)
+ */
+function requiredSet(shape: Record<string, z.ZodTypeAny>, io: "input" | "output"): Set<string> {
+  const json = z.toJSONSchema(z.object(shape), { io }) as Record<string, unknown>;
+  return new Set((json.required as string[] | undefined) ?? []);
+}
+
+function checkInputOptionality(tools: ToolDef[], pass: (msg: string) => void, fail: (msg: string) => void): void {
+  let failures = 0;
+  for (const t of tools) {
+    if (!t.inputSchema || Object.keys(t.inputSchema).length === 0) continue;
+    try {
+      const wrapped = addStringCoercion(t.inputSchema);
+      const reqIn = requiredSet(wrapped, "input");
+      const reqOut = requiredSet(wrapped, "output");
+      const inputOnly = [...reqIn].filter((p) => !reqOut.has(p));
+      if (inputOnly.length > 0) {
+        fail(
+          `optionality: ${t.name} — param(s) required ONLY on the io:"input" side: ${inputOnly.join(", ")}. ` +
+            `A coercion wrapper (preprocess/pipe) is dropping an inner .optional() in tools/list. ` +
+            `Put .optional() OUTERMOST (e.g. coercedBoolean().optional(), or z.preprocess(fn, inner).optional()).`,
+        );
+        failures++;
+      }
+    } catch (err) {
+      fail(`optionality: ${t.name} — io conversion failed: ${(err as Error).message}`);
+      failures++;
+    }
+  }
+  if (failures === 0) {
+    pass(`optionality: all ${tools.length} tools keep optional params optional under io:"input" (no wrapper leak)`);
+  }
+}
+
 // ── Entry point ─────────────────────────────────────────────────────
 
 export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
@@ -375,4 +427,5 @@ export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (m
   checkNamingConvention(tools, pass, fail);
   checkSuccessHints(tools, pass, fail);
   checkReachability(tools, pass, fail);
+  checkInputOptionality(tools, pass, fail);
 }
