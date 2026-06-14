@@ -175,6 +175,10 @@ async function runCiMode(): Promise<void> {
 
   sec01.testCatalogueStatic({ pass: counters.pass, fail: counters.fail });
   runStructuralChecks({ pass: counters.pass, fail: counters.fail });
+  // §39 is fully static (group structure + keyword-match scoring, no bridge), so
+  // it belongs in the deterministic CI gate — this is where the Item C
+  // dominant-match prune/recall assertions run as a standing guardrail.
+  await sec39.testDiscoverTools({ pass: counters.pass, fail: counters.fail });
 
   counters.printSummary();
   process.exit(counters.failCount() > 0 ? 1 : 0);

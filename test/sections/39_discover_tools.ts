@@ -1,4 +1,4 @@
-import { GROUPS, GROUP_TOOL_NAMES } from "../../src/groups.js";
+import { GROUPS, GROUP_TOOL_NAMES, findMatchesSingle } from "../../src/groups.js";
 
 import type { TestCtx } from "../helpers.js";
 
@@ -15,8 +15,10 @@ export const TOOLS_TESTED: string[] = ["discover_tools"];
  * 3. Keyword arrays are non-empty for discoverability
  * 4. GROUP_TOOL_NAMES accurately reflects GROUPS
  * 5. Over-activation threshold logic is sound (>5 groups)
+ * 6. Dominant-match keyword filter prunes incidental noise but never hides a
+ *    valid group (Item C, 41m-sexies — prune + recall-preservation guardrail)
  *
- * This runs even in CI mode (no bridge required).
+ * Runs in CI mode (no bridge required) — wired into runCiMode() in smoke.ts.
  */
 export async function testDiscoverTools(ctx: TestCtx): Promise<void> {
   const { pass, fail } = ctx;
@@ -96,5 +98,41 @@ export async function testDiscoverTools(ctx: TestCtx): Promise<void> {
     pass(`discover_tools: over-activation threshold (>5) is meaningful with ${GROUPS.length} groups`);
   } else {
     fail("discover_tools: fewer than 6 groups makes over-activation warning pointless");
+  }
+
+  // ── Dominant-match threshold (Item C, 41m-sexies) ──
+  // PRUNE: a vague multi-word phrase must not over-activate. The §28 sweep saw
+  // "placeholder texture sprite sound" activate placeholders + asset_ops +
+  // path_editing; the dominant-match filter must now leave only placeholders.
+  const phraseMatches = findMatchesSingle("placeholder texture sprite sound", false).map((m) => m.name);
+  if (phraseMatches.length === 1 && phraseMatches[0] === "placeholders") {
+    pass('discover_tools dominant-match: "placeholder texture sprite sound" → only placeholders');
+  } else {
+    fail(`discover_tools dominant-match: expected only [placeholders], got [${phraseMatches.join(", ")}]`);
+  }
+
+  // RECALL: the filter must NEVER hide a valid group (over-activation is the safe
+  // direction). A focused keyword whose groups cluster in score keeps them all.
+  const soundMatches = findMatchesSingle("sound", false).map((m) => m.name);
+  if (soundMatches.includes("placeholders") && soundMatches.includes("audio")) {
+    pass('discover_tools recall: "sound" keeps both placeholders and audio');
+  } else {
+    fail(`discover_tools recall: "sound" should keep placeholders AND audio, got [${soundMatches.join(", ")}]`);
+  }
+
+  // RECALL via exact-match exemption: for "sprite", spriteframes dominates
+  // (~9) while placeholders and path_editing score ~3 — below half the top, but
+  // each holds "sprite" as an EXACT keyword, so the exemption must keep them.
+  const spriteMatches = findMatchesSingle("sprite", false).map((m) => m.name);
+  if (
+    spriteMatches.includes("spriteframes") &&
+    spriteMatches.includes("placeholders") &&
+    spriteMatches.includes("path_editing")
+  ) {
+    pass('discover_tools recall: "sprite" exact-keyword exemption keeps spriteframes + placeholders + path_editing');
+  } else {
+    fail(
+      `discover_tools recall: "sprite" should keep all three exact-keyword groups, got [${spriteMatches.join(", ")}]`,
+    );
   }
 }

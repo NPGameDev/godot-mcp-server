@@ -708,10 +708,24 @@ function matchKeywords(query: string, keywords: string[]): number {
   return score;
 }
 
-/** Score a single keyword against all groups. Returns {name, score} sorted desc. */
-function findMatchesSingle(keyword: string, readOnly: boolean): { name: string; score: number }[] {
+// Recall-biased dominant-match filter (Item C, 41m-sexies). A multi-word query
+// substring-matches several unrelated groups' single keywords (+2 each) while
+// the intended group scores far higher; admitting those incidental matches
+// bloats the tool context. Drop candidates below this fraction of the top score
+// — but NEVER hide a valid group (over-activation is the safe failure direction;
+// it is clearer for the LLM to receive extra groups and reset them than to have
+// a valid group withheld). Safeguards: keep top-1 always, inclusive boundary,
+// and exempt exact keyword/tool-name matches.
+const DOMINANT_MATCH_RATIO = 0.5;
+
+/**
+ * Score a single keyword against all groups, apply the dominant-match filter,
+ * and return surviving {name, score} sorted desc. Exported for the §39 smoke
+ * assertions (prune + recall-preservation guardrail).
+ */
+export function findMatchesSingle(keyword: string, readOnly: boolean): { name: string; score: number }[] {
   const q = keyword.toLowerCase();
-  const matches: { name: string; score: number }[] = [];
+  const matches: { name: string; score: number; exact: boolean }[] = [];
 
   for (const group of GROUPS) {
     if (readOnly) {
@@ -722,11 +736,13 @@ function findMatchesSingle(keyword: string, readOnly: boolean): { name: string; 
       if (!hasReadOnlyTool) continue;
     }
     let score = matchKeywords(q, group.keywords);
+    let exact = group.keywords.includes(q);
     for (const toolName of group.tools) {
       const norm = toolName.replace(/_/g, " ");
       if (norm.includes(q) && q.length >= 3) score += 1;
+      if (toolName === q || norm === q) exact = true;
     }
-    if (score > 0) matches.push({ name: group.name, score });
+    if (score > 0) matches.push({ name: group.name, score, exact });
   }
 
   for (const [name, ext] of extensionGroups) {
@@ -735,6 +751,7 @@ function findMatchesSingle(keyword: string, readOnly: boolean): { name: string; 
       if (!hasReadOnly) continue;
     }
     let score = 0;
+    let exact = ext.keywords.includes(q);
     if (ext.keywords.length > 0) {
       score += matchKeywords(q, ext.keywords);
     }
@@ -746,12 +763,23 @@ function findMatchesSingle(keyword: string, readOnly: boolean): { name: string; 
     for (const cmd of ext.commands) {
       const norm = cmd.toolName.replace(/_/g, " ");
       if (norm.includes(q) && q.length >= 3) score += 1;
+      if (cmd.toolName === q || norm === q) exact = true;
     }
-    if (score > 0) matches.push({ name, score });
+    if (score > 0) matches.push({ name, score, exact });
   }
 
   matches.sort((a, b) => b.score - a.score);
-  return matches;
+
+  // Apply the dominant-match filter. matches[0] is the top score (sorted desc).
+  // Keep: the top match (i === 0), any exact match (exempt), and anything within
+  // DOMINANT_MATCH_RATIO of the top (inclusive >=). Single-keyword queries cluster
+  // within 2× so they survive intact; only the multi-word-phrase noise is pruned.
+  let kept = matches;
+  if (matches.length > 1) {
+    const cutoff = matches[0].score * DOMINANT_MATCH_RATIO;
+    kept = matches.filter((m, i) => i === 0 || m.exact || m.score >= cutoff);
+  }
+  return kept.map((m) => ({ name: m.name, score: m.score }));
 }
 
 const FUZZY_PER_ELEMENT_CAP = 3;
