@@ -342,7 +342,16 @@ export function addStringCoercion(shape: Record<string, z.ZodTypeAny>): Record<s
     if (inner === "string" || inner === "enum" || inner === "pipe") {
       coerced[key] = schema;
     } else {
-      coerced[key] = z.preprocess(coerceStringValue, schema);
+      // Wrap with preprocess so JSON-encoded strings are parsed before Zod.
+      // z.preprocess() is a ZodPipe, not a ZodOptional — and the MCP SDK emits
+      // the JSON Schema with io:"input" (pipeStrategy), where the pipe's input
+      // side does NOT inherit the inner .optional(). That flips optional params
+      // to `required` in tools/list (regression caught by the scene_spatial_map
+      // sweep: radius/max_nodes). Re-apply .optional() so the wrapper stays
+      // optional on the input side. (undefined short-circuits the outer optional,
+      // so coercion and any inner default are unaffected for provided values.)
+      const wrapped = z.preprocess(coerceStringValue, schema);
+      coerced[key] = schema instanceof z.ZodOptional ? wrapped.optional() : wrapped;
     }
   }
   return coerced;

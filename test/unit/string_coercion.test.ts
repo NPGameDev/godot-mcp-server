@@ -165,4 +165,39 @@ import { coerceStringValue, innerZodType, addStringCoercion, coercedBoolean } fr
   assert.equal(innerZodType(shape.enabled), "pipe", "pipe key skipped (stays pipe)");
 }
 
+// ── addStringCoercion preserves optionality in the emitted JSON Schema ──
+// Regression: z.preprocess() is a ZodPipe, not a ZodOptional, so wrapping an
+// optional field for string-coercion flipped it to `required` in the emitted
+// tools/list schema (e.g. scene_spatial_map advertised radius/max_nodes as
+// required even though the handler treats them as optional). Coercion must not
+// change which params are required.
+{
+  const coerced = addStringCoercion({
+    req: z.coerce.number(), // required
+    optNum: z.coerce.number().optional(), // optional number (wrapped)
+    optArr: z.array(z.number()).optional(), // optional array (wrapped)
+    optObj: z.object({ a: z.number() }).optional(), // optional object (wrapped)
+  });
+  // io:"input" matches the MCP SDK's conversion (pipeStrategy "input" in
+  // zod-json-schema-compat). With io:"output" the inner .optional() is
+  // respected and the bug is invisible — the live tools/list uses input.
+  const json = z.toJSONSchema(z.object(coerced), { io: "input" }) as { required?: string[] };
+  const required = new Set(json.required ?? []);
+  assert.ok(required.has("req"), "required coerced field must stay required");
+  assert.ok(!required.has("optNum"), "optional coerced number must NOT be required");
+  assert.ok(!required.has("optArr"), "optional coerced array must NOT be required");
+  assert.ok(!required.has("optObj"), "optional coerced object must NOT be required");
+
+  // Coercion still fires on provided JSON-string values:
+  const obj = z.object(coerced);
+  const parsed = obj.parse({ req: "5", optNum: "7", optArr: "[1,2]", optObj: '{"a":3}' });
+  assert.equal(parsed.req, 5);
+  assert.equal(parsed.optNum, 7);
+  assert.deepEqual(parsed.optArr, [1, 2]);
+  assert.deepEqual(parsed.optObj, { a: 3 });
+
+  // Omitting optionals is accepted (they stay undefined):
+  assert.deepEqual(obj.parse({ req: "5" }), { req: 5 });
+}
+
 console.log("All string_coercion tests passed.");
