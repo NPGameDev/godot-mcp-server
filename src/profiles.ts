@@ -3,7 +3,7 @@
  * (GODOT_MCP_READ_ONLY=1) filters out mutating tools.
  */
 
-/** 35 standard tools (discover_tools + extensions_refresh added programmatically → 37 total). */
+/** 33 standard tools (discover_tools + extensions_refresh added programmatically → 35 total). */
 export const STANDARD_TOOLS: readonly string[] = [
   // Scene (5)
   "scene_get_tree",
@@ -32,13 +32,15 @@ export const STANDARD_TOOLS: readonly string[] = [
   "editor_get_console",
   "project_get_settings",
   "project_set_setting",
-  // Playtest (7) — runtime tools promoted from lazy runtime group
+  // Playtest (6) — runtime tools promoted from lazy runtime group.
+  // runtime_set_property was demoted to the runtime_advanced group in
+  // 41m-quinquies; listing it here too is dead (buildModuleAllowed subtracts
+  // group tools from the eager set), so it is intentionally omitted.
   "game_start",
   "game_stop",
   "runtime_screenshot",
   "input_simulate",
   "runtime_get_script_vars",
-  "runtime_set_property",
   "debugger_get_log",
   // Signals (2) — promoted from signals group: all 3 validation agents
   // independently needed signal wiring.
@@ -50,6 +52,13 @@ export const STANDARD_TOOLS: readonly string[] = [
   "script_check",
   // Scene query (1)
   "scene_query",
+  // Spatial (1) — eager read-only scene layout map (added 41m-quinquies).
+  // MUST be listed here: eager registration is gated by STANDARD_TOOLS, NOT by
+  // ALL_TOOL_DEFS (which only feeds --tools-count and the static catalogue
+  // checks). Omitting it makes the tool counted-but-unregistered — absent from
+  // tools/list on every session, with no client-side fix. (Regression: a738182;
+  // the test/structural.ts reachability check now guards against recurrence.)
+  "scene_spatial_map",
   // High-risk tools — always available on Standard profile. Risk communicated
   // via MCP annotations (destructiveHint); agent-side filtering recommended.
   "execute_code",

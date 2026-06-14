@@ -10,7 +10,8 @@
 
 import { z } from "zod";
 import type { ToolDef } from "../src/types.js";
-import { isAllowedInReadOnly } from "../src/profiles.js";
+import { isAllowedInReadOnly, STANDARD_TOOLS } from "../src/profiles.js";
+import { GROUP_TOOL_NAMES } from "../src/groups.js";
 
 // ── Canonical tool inventory (single source of truth) ───────────────
 import { ALL_TOOL_DEFS } from "../src/catalogue.js";
@@ -336,6 +337,31 @@ function checkSuccessHints(tools: ToolDef[], pass: (msg: string) => void, fail: 
   }
 }
 
+// ── Check 6: Reachability (every catalogued tool is registered) ─────
+
+function checkReachability(tools: ToolDef[], pass: (msg: string) => void, fail: (msg: string) => void): void {
+  // A tool is reachable iff it is eager (in STANDARD_TOOLS) OR on-demand (in
+  // some group → GROUP_TOOL_NAMES). ALL_TOOL_DEFS feeds --tools-count and these
+  // static checks, but it is NOT the registration path (see the src/catalogue.ts
+  // guardrail + src/index.ts buildModuleAllowed). A tool present in the catalogue
+  // yet in neither set is counted but never appears in tools/list — silently
+  // unreachable from any client. This guard closes that gap.
+  // (Caught 41m-quinquies regression a738182: scene_spatial_map was added to
+  // ALL_TOOL_DEFS but not to STANDARD_TOOLS.)
+  const reachable = new Set<string>([...STANDARD_TOOLS, ...GROUP_TOOL_NAMES]);
+  const orphans = tools.filter((t) => !reachable.has(t.name)).map((t) => t.name);
+  if (orphans.length > 0) {
+    fail(
+      `reachability: ${orphans.length} catalogued tool(s) registered nowhere — ` +
+        `not in STANDARD_TOOLS (eager) nor any group (on-demand): ${orphans.join(", ")}. ` +
+        `Counted by --tools-count but never advertised in tools/list. ` +
+        `Add each to STANDARD_TOOLS (profiles.ts) or a group (groups.ts).`,
+    );
+  } else {
+    pass(`reachability: all ${tools.length} catalogued tools are eager or on-demand (none orphaned)`);
+  }
+}
+
 // ── Entry point ─────────────────────────────────────────────────────
 
 export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
@@ -348,4 +374,5 @@ export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (m
   checkAnnotations(tools, pass, fail);
   checkNamingConvention(tools, pass, fail);
   checkSuccessHints(tools, pass, fail);
+  checkReachability(tools, pass, fail);
 }
