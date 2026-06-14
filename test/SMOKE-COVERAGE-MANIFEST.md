@@ -265,7 +265,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| discover_tools | 01 (catalogue), 39 | ✓ (catalogue probe) | — | — | — | **Section 39:** keyword search, group activation, selective reset, over-activation warning |
+| discover_tools | 01 (catalogue), 39 | ✓ (catalogue probe) | — | ✓ (dominant-match prune + recall) | — | **Section 39 (now runs in CI mode):** keyword search, group activation, selective reset, over-activation warning, **dominant-match prune/recall (Item C, 41m-sexies)** |
 | extensions_refresh | 22 | ✓ (via extensions.list) | — | — | — | |
 | *(error contract)* | 22 | — | ✓ (empty file_path) | — | ✓ (error hint) | Bridge round-trip of MCPToolkitError shape (41l-vicies-ter) |
 | *(success contract)* | 22 | ✓ (scene.get_tree) | — | — | — | Verifies ADR 0004 success:true at bridge level (hints are server-side via callAndWrap) |
@@ -288,7 +288,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | debug_state | 42 | ✓ (active=false) | — | — | — | Reports game-running state |
-| debug_set_breakpoint | 42 | ✓ (set + clear cycle) | ✓ (UNSUPPORTED_FILE_TYPE: .cs) | ✓ (enabled=true/false) | — | Breakpoint lifecycle tested |
+| debug_set_breakpoint | 42 | ✓ (set + clear cycle) | ✓ (UNSUPPORTED_FILE_TYPE: .cs) | ✓ (enabled=true/false; `enabled` optional in tools/list — structural Check 7, 41m-sexies) | — | Breakpoint lifecycle tested |
 | debug_list_breakpoints | 42 | ✓ (verify set + verify clear) | — | — | — | |
 | debug_continue | 42 | ✓ (GAME_NOT_RUNNING) | ✓ (NOT_BREAKED) | — | — | |
 
@@ -307,8 +307,8 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | scene_spatial_map | 45 | ✓ (2D overlaps / containment / nearest) | ✓ (INVALID_PARAMS: detail, region size) | ✓ (detail brief/normal/full, class, region, radius, subtree, max_nodes truncation) | — | eager; read-only |
-| texture_generate | 46 | ✓ (all 7 shapes) | ✓ (INVALID_PATH png, PATH_DENIED, INVALID_PARAMS transparent/shape, ALREADY_EXISTS) | ✓ (colour hex/named/[0-1]/[0-255], hollow, label, dim cap, if_exists) | — | placeholders group |
-| sound_generate | 46 | ✓ (all 5 waveforms) | ✓ (INVALID_PATH wav, PATH_DENIED, INVALID_PARAMS waveform) | ✓ (sweep, decay, duration cap, if_exists) | — | placeholders group |
+| texture_generate | 46 | ✓ (all 7 shapes, class=Texture2D) | ✓ (INVALID_PATH png, PATH_DENIED, INVALID_PARAMS transparent/shape — bridge/direct path; cf. sweep -32602 via server) | ✓ (colour hex/named/[0-1]/[0-255], hollow, label, dim cap, if_exists, **default-path settle: class populated + no warning + elapsed_ms<1000 — Item B, 41m-sexies**) | — | placeholders group |
+| sound_generate | 46 | ✓ (all 5 waveforms, class=AudioStreamWAV) | ✓ (INVALID_PATH wav, PATH_DENIED, INVALID_PARAMS waveform — bridge/direct path; cf. sweep -32602) | ✓ (sweep, decay, duration cap, if_exists) | — | placeholders group |
 
 > **runtime_set_property** was demoted eager → `runtime_advanced` group in
 > 41m-quinquies; its smoke stays in **section 17 (mode_b)** — `bridge.call` hits the
