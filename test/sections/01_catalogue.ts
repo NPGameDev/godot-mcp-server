@@ -85,6 +85,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     // Byte-offset pagination guidance (41n concern 025) — the next_offset/
     // total_bytes/truncated paging protocol must be spelled out for the agent.
     "save_read",
+    // Line-window pagination guidance (41n concern 054) — the next_start_line/
+    // total_lines/truncated paging protocol must be spelled out (mirrors save_read).
+    "script_read",
   ]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;

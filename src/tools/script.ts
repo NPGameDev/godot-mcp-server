@@ -10,11 +10,16 @@ export const scriptTools: ToolDef[] = [
     name: "script_read",
     method: "script.read",
     description:
-      "Read a script file (res:// only). Returns the file content as text. Pass start_line / end_line for partial reads (1-indexed, inclusive).",
+      "Read a script file (res:// only). Returns the file content as text in an <untrusted> envelope. Read large scripts in successive line windows via start_line/end_line (1-indexed, inclusive); the response carries next_start_line/total_lines/truncated to drive paging — pass next_start_line back as start_line until truncated is false.",
     inputSchema: {
       file_path: z.string(),
-      start_line: z.coerce.number().optional().describe("First line to read (1-indexed, inclusive)"),
-      end_line: z.coerce.number().optional().describe("Last line to read (1-indexed, inclusive)"),
+      start_line: z.coerce
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("1-based first line to read (default 1); pass next_start_line from the prior response to page"),
+      end_line: z.coerce.number().int().positive().optional().describe("1-based last line to read (inclusive)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     pathParams: [PROJECT_FILE_PATH],
