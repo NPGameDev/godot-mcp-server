@@ -303,8 +303,8 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     ctx,
     "folder.delete toolkit plugin dir",
     await bridge.call("folder.delete", { folder_path: "res://addons/godot_mcp_toolkit" }, CALL_TIMEOUT),
-    "FOLDER_PROTECTED",
-    "godot_mcp_toolkit",
+    "PATH_DENIED",
+    "plugin's own source",
   );
   assertGuard(
     ctx,
@@ -325,10 +325,10 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   if (
     folderDeleteLeaf?.success !== true ||
     folderDeleteLeaf.files_deleted !== 0 ||
-    folderDeleteLeaf.directories_deleted !== 0
+    folderDeleteLeaf.directories_deleted !== 1
   ) {
-    fail(`folder.delete empty leaf: expected success with zero counts, got ${JSON.stringify(folderDeleteLeaf)}`);
-  } else pass(`folder.delete empty leaf ${folderDeep} -> files=0 dirs=0`);
+    fail(`folder.delete empty leaf: expected success with files=0 dirs=1, got ${JSON.stringify(folderDeleteLeaf)}`);
+  } else pass(`folder.delete empty leaf ${folderDeep} -> files=0 dirs=1`);
 
   const folderDeleteRecursive = (await bridge.call(
     "folder.delete",
