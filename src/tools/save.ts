@@ -11,10 +11,22 @@ export const saveTools: ToolDef[] = [
     name: "save_read",
     method: "save.read",
     description:
-      "Read user:// file (default 64 KB cap; max 256 KB). Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8.",
+      "Read user:// file (default 64 KB window; cap configurable, default 256 KB). Read large files in successive max_bytes windows via byte offset (default 0); the response carries next_offset/total_bytes/truncated to drive paging — pass next_offset back as offset until truncated is false. Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8.",
     inputSchema: {
-      path: z.string(),
-      max_bytes: z.coerce.number().int().positive().max(262144).optional(),
+      path: z.string().describe("user:// file path"),
+      max_bytes: z.coerce
+        .number()
+        .int()
+        .positive()
+        .max(4194304)
+        .optional()
+        .describe("Bytes to read this window (default 64 KB; cap configurable, default 256 KB)"),
+      offset: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe("Byte offset to start at (default 0); pass next_offset from the prior response to page"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     pathParams: [{ param: "path", guard: "user" }],

@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, assertGuard, assertError } from "../helpers.js";
+import { CALL_TIMEOUT, assertGuard, assertError, unwrapUntrusted } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = ["save_write", "save_read", "save_list", "save_delete"];
 
@@ -67,6 +67,58 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
     pass(
       `save.read truncation -> truncated=true, bytes_returned=${truncRead.bytes_returned}, total_bytes=${truncRead.total_bytes}`,
     );
+  }
+
+  // save.read offset pagination — read a file in two windows and reassemble.
+  // ASCII payload so 1 char == 1 byte; size exceeds one 64-byte window.
+  const pageBody = "abcdefghij".repeat(20); // 200 bytes
+  await bridge.call("save.write", { path: "user://saves/smoke_page.txt", content: pageBody }, CALL_TIMEOUT);
+  const win = 64;
+  const page1 = (await bridge.call(
+    "save.read",
+    { path: "user://saves/smoke_page.txt", offset: 0, max_bytes: win },
+    CALL_TIMEOUT,
+  )) as {
+    success?: boolean;
+    content?: string;
+    truncated?: boolean;
+    offset?: number;
+    next_offset?: number;
+    bytes_returned?: number;
+    total_bytes?: number;
+  };
+  if (page1?.success !== true || page1.truncated !== true) {
+    fail(`save.read page1: ${JSON.stringify(page1)}`);
+  } else if (page1.offset !== 0 || page1.bytes_returned !== win || page1.next_offset !== win) {
+    fail(
+      `save.read page1: expected offset=0 bytes_returned=${win} next_offset=${win}, got offset=${page1.offset} bytes_returned=${page1.bytes_returned} next_offset=${page1.next_offset}`,
+    );
+  } else {
+    const page2 = (await bridge.call(
+      "save.read",
+      { path: "user://saves/smoke_page.txt", offset: page1.next_offset, max_bytes: win },
+      CALL_TIMEOUT,
+    )) as {
+      success?: boolean;
+      content?: string;
+      truncated?: boolean;
+      offset?: number;
+      next_offset?: number;
+      bytes_returned?: number;
+    };
+    const inner1 = unwrapUntrusted(page1.content);
+    const inner2 = unwrapUntrusted(page2.content);
+    if (page2?.success !== true) {
+      fail(`save.read page2: ${JSON.stringify(page2)}`);
+    } else if (page2.offset !== win || typeof inner1 !== "string" || typeof inner2 !== "string") {
+      fail(`save.read page2: expected offset=${win} + string windows, got ${JSON.stringify(page2)}`);
+    } else if (!pageBody.startsWith(inner1 + inner2)) {
+      fail(`save.read pagination: reassembled windows do not match original prefix`);
+    } else {
+      pass(
+        `save.read pagination -> window1+window2 reassemble (offset 0->${win}->${page2.next_offset}, total_bytes=${page1.total_bytes})`,
+      );
+    }
   }
 
   // save.read oversized max_bytes.
@@ -154,6 +206,7 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
   // Cleanup.
   try {
     await bridge.call("save.delete", { path: "user://saves/smoke_big.json" }, CALL_TIMEOUT);
+    await bridge.call("save.delete", { path: "user://saves/smoke_page.txt" }, CALL_TIMEOUT);
   } catch {
     // best-effort
   }

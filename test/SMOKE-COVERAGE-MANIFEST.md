@@ -257,7 +257,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | save_write | 20 | ✓ | ✓ (20: PATH_DENIED, INVALID_PATH, INVALID_PARAMS) | — | — | |
-| save_read | 20 | ✓ | — | ✓ (envelope wrapping, truncation) | — | |
+| save_read | 20 | ✓ | ✓ (20: oversized max_bytes → INVALID_PARAMS w/ cap) | ✓ (envelope wrapping, truncation, **offset pagination**: 2-window reassemble + next_offset) | — | `offset`/`next_offset`/`total_bytes` paging; cap configurable (`save_read_cap_kb`, server ceiling 4 MB) |
 | save_list | 20 | ✓ | — | ✓ (prefix filtering) | — | |
 | save_delete | 20 | ✓ | — | — | — | |
 

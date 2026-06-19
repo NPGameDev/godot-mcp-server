@@ -82,6 +82,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     // Surfaced when the catalogue expanded to all modules (vicies-novies);
     // audio-bus editing has many sub-actions — 218 chars is intentional.
     "audiobus_edit",
+    // Byte-offset pagination guidance (41n concern 025) — the next_offset/
+    // total_bytes/truncated paging protocol must be spelled out for the agent.
+    "save_read",
   ]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;
