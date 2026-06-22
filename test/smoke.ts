@@ -76,6 +76,7 @@ import * as sec43 from "./sections/43_control_layout.js";
 import * as sec44 from "./sections/44_tileset.js";
 import * as sec45 from "./sections/45_spatial.js";
 import * as sec46 from "./sections/46_placeholders.js";
+import * as sec47 from "./sections/47_batch_partial_failure.js";
 
 // ─── Expected noise in the Godot editor during a clean smoke run ─────────
 //
@@ -167,6 +168,7 @@ const ALL_SECTIONS: Section[] = [
   { num: 44, name: "tileset", run: sec44.testTileset },
   { num: 45, name: "spatial", run: sec45.testSpatialMap },
   { num: 46, name: "placeholders", run: sec46.testPlaceholders },
+  { num: 47, name: "batch_partial_failure", run: sec47.testBatchPartialFailure },
 ];
 
 // ─── CI mode: static catalogue validation only ───────────────────────────

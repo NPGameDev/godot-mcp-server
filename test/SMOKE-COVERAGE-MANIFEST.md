@@ -5,7 +5,7 @@
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 108 (33 eager + 75 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
-**Smoke sections:** 46 (sections 01–46)
+**Smoke sections:** 47 (sections 01–47)
 **Flow suite:** 3 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
 
 ---
@@ -36,7 +36,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | scene_open | 04, 10 | ✓ | ✓ (04: NOT_FOUND) | — | — | |
 | scene_close | 01, 04 | ✓ (04, 4.5+) | ✓ (04: PATH_DENIED, NOT_FOUND, EDITED_SCENE last-tab; 4.5+) | — | ✓ (01: godotMinVersion=4.5) | 4.5+ only; §04 happy+guards gated `godotVer>=4.5` (skips on <4.5 — 41m-ter A0); structural in §01 |
 | scene_delete | 08 | ✓ | ✓ (08: NOT_FOUND) | — | — | Scene file deletion (distinct from scene_delete_node) |
-| scene_instantiate | 10 | ✓ | ✓ (10: PATH_DENIED, INVALID_PATH, NOT_FOUND) | ✓ (as_name, transform, FIX-K auto-rename, owner-set) | — | |
+| scene_instantiate | 10, 47 | ✓ | ✓ (10: PATH_DENIED, INVALID_PATH, NOT_FOUND) | ✓ (as_name, transform, FIX-K auto-rename, owner-set; **47: batch all-success control → count=2, instances=2, failed/hint absent**) | — | Batch partial-failure not assertable via smoke — see §47 note |
 | scene_query | 36 | ✓ | ✓ (INVALID_PARAMS: no filters) | ✓ (class_filter, name_pattern, property_filters, limit) | — | |
 | scene_create_inherited | 33 | ✓ | ✓ (NOT_FOUND: missing base) | ✓ (auto root name, custom root name, idempotency) | — | |
 
@@ -45,7 +45,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | node_get_property | 02, 07, 14, 25 | ✓ | ✓ (07: NOT_FOUND) | — | — | |
-| node_set_property | 02, 07, 10, 13, 14, 25, 31 | ✓ | ✓ (07: INVALID_PATH, NOT_FOUND; 02: NOT_FOUND struct-component compound contract) | ✓ (Resource dict) | — | **GAP:** LayerMask coercion, batch mode, bare res:// guard |
+| node_set_property | 02, 07, 10, 13, 14, 25, 31, 47 | ✓ | ✓ (07: INVALID_PATH, NOT_FOUND; 02: NOT_FOUND struct-component compound contract) | ✓ (Resource dict; **47: batch partial-failure → top-level `failed`+`hint`, + all-success control asserting both absent**) | — | **GAP:** LayerMask coercion, bare res:// guard |
 | node_get_property_list | 05, 25 | ✓ | — | — | — | |
 | node_set_script | 16 | ✓ | ✓ (LOAD_FAILED, NOT_FOUND) | ✓ (attach, detach, properties) | — | |
 | node_call_method | 25 | ✓ | — | — | ✓ (25: C# hint) | Risk communicated via MCP annotations |
@@ -55,7 +55,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | node_manage | 10 | ✓ (rename, reparent, reorder, duplicate) | — | ✓ (all 4 actions) | — | **GAP:** duplicate with properties override |
-| node_groups | 10 | ✓ (add, remove, list) | — | — | — | **GAP:** batch mode |
+| node_groups | 10, 47 | ✓ (add, remove, list) | — | ✓ (**47: batch partial-failure → top-level `failed`+`hint` via tolerant predicate on `{status?,error?}` entries, + all-success control asserting both absent**) | — | |
 | autoload_manage | 10 | ✓ (register, unregister, list) | — | — | — | **GAP:** DX hint (ProjectSettings restart) |
 
 ### Script Management (4 tools)
@@ -313,6 +313,33 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 > **runtime_set_property** was demoted eager → `runtime_advanced` group in
 > 41m-quinquies; its smoke stays in **section 17 (mode_b)** — `bridge.call` hits the
 > toolkit method directly, so MCP grouping does not affect it.
+
+### Batch Partial-Failure Visibility (section 47 — 41n concern-034 category D)
+
+Asserts the additive top-level `failed` (int) + `hint` (String) that the shared
+toolkit helper `summarize_batch` (`editor_helpers.gd`, T:eb25de5/T:42e5b87)
+adds to a batch response **only when ≥1 entry failed**. The two tools whose
+per-entry failure is reachable from the MCP surface — `node_set_property` and
+`node_groups` — each get a one-bad-entry case (failed/hint present + correct)
+**and** an all-success control (failed/hint **absent** — locks the additive-only
+/ byte-identical guarantee). The third results[]-bearing batch site,
+`scene_instantiate` (rollup wired in D-C3 / T:7244950, `scene_commands.gd:708`),
+gets the **all-success control only**: its single failure path
+(`packed.instantiate()==null`) is not triggerable from a valid `.tscn` (all
+entries share one already-validated `PackedScene`), so its partial-failure rollup
+is pinned at the helper level by the toolkit headless unit `_test_summarize_batch`
+— see the table note below.
+
+| Tool Name | Smoke Section | Coverage | Notes |
+|---|---|---|---|
+| node_set_property (batch) | 47 | ✓ partial-fail (failed=1, hint contains "1 of 2 entries failed" + "inspect results[]") + ✓ all-success control (failed/hint absent) | Bad entry = nonexistent `node_path` → per-entry `{success:false, error:"node not found"}`; predicate counts `success==false` |
+| node_groups (batch) | 47 | ✓ partial-fail (failed=1, same hint) + ✓ all-success control (failed/hint absent) | Bad entry = nonexistent `node_path` → per-entry `{error:"node not found"}` with **no `success` key**; exercises the helper's tolerant predicate (no-success + error ⇒ failure) |
+| scene_instantiate (batch) | 47 | ✓ all-success control (count=2, instances=2, failed/hint **absent**); partial-fail **not assertable via smoke** | Site-3 rollup **is** wired — D-C3 (T:7244950) added `summarize_batch` to `_batch_instantiate` (`scene_commands.gd:708`). But the only path that increments top-level `failed` is `packed.instantiate()==null` (`scene_commands.gd:625-628`), and all entries share ONE already-validated `PackedScene`, so a per-entry instantiate failure is **not triggerable through the MCP surface** from a valid `.tscn` (a bad scene fails the whole call at LOAD_FAILED/NOT_FOUND before the batch loop; `instance==null` is a defensive/unreachable path). Per-key coerce errors attach as `property_errors[]` to a **succeeding** entry — they do not increment `failed`. The partial-failure rollup is therefore pinned at the helper level by the toolkit headless unit `_test_summarize_batch` (feeds a `{success:false}` shape); smoke covers the **all-success** scene_instantiate batch control end-to-end. |
+
+> **Hint wording (committed source of truth, `editor_helpers.gd` `summarize_batch`):**
+> `"%d of %d entries failed — inspect results[] for per-entry .error."`. Assertions
+> use substring matches (`"1 of 2 entries failed"` + `"inspect results[]"`) so they
+> survive em-dash / trailing-punctuation tweaks.
 
 ---
 

@@ -64,6 +64,7 @@ import { TOOLS_TESTED as T43 } from "./sections/43_control_layout.js";
 import { TOOLS_TESTED as T44 } from "./sections/44_tileset.js";
 import { TOOLS_TESTED as T45 } from "./sections/45_spatial.js";
 import { TOOLS_TESTED as T46 } from "./sections/46_placeholders.js";
+import { TOOLS_TESTED as T47 } from "./sections/47_batch_partial_failure.js";
 
 // ── Unfiltered tool catalogue ───────────────────────────────────────
 
@@ -184,6 +185,7 @@ const ALL_TOOLS_TESTED = new Set([
   ...T44,
   ...T45,
   ...T46,
+  ...T47,
 ]);
 
 // ── Check 1: Schema integrity ───────────────────────────────────────
