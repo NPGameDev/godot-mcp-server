@@ -11,6 +11,9 @@ import {
   jsonCoerce,
   jsonSchemaToParamMap,
   registerToolWrapped,
+  callAndWrap,
+  runtimeErrorWithCrashContext,
+  buildScreenshotResponse,
 } from "../../src/tool_helpers.js";
 import { BridgeError } from "../../src/errors.js";
 import { PROJECT_FILE_PATH } from "../../src/path_guard.js";
@@ -297,6 +300,188 @@ function captureWrapped(name: string, pathParams?: readonly PathGuard[]) {
   const ok = await t.invoke({ path: "user://saves/slot1.json" });
   assert.equal(ok.isError, undefined);
   assert.equal(t.calls(), 1);
+}
+
+// ── callAndWrap / runtimeErrorWithCrashContext / buildScreenshotResponse ──
+// A method-aware fake bridge: each branch overrides only the call(s) it needs;
+// the rest default to a benign success so an unexpected call never crashes.
+
+function makeBridge(
+  over: {
+    call?: (m: string, p?: unknown) => Promise<unknown>;
+    callRuntime?: (m: string, p?: unknown) => Promise<unknown>;
+  } = {},
+): Bridge {
+  return {
+    call: over.call ?? (async () => ({ success: true })),
+    callRuntime: over.callRuntime ?? (async () => ({ success: true })),
+    close: async () => {},
+    getGodotVersionString: () => null,
+    getGodotVersion: () => null,
+  } as unknown as Bridge;
+}
+
+// ── callAndWrap ──────────────────────────────────────────────────────
+
+// Happy path: success payload is JSON-stringified, not an error.
+{
+  const bridge = makeBridge({ call: async () => ({ success: true, value: 7 }) });
+  const result = await callAndWrap(bridge, "some.method", {});
+  assert.equal(result.isError, undefined);
+  assert.equal(JSON.parse(result.content[0].text).value, 7);
+}
+
+// Payload error: {success:false} becomes a toolError with the same code.
+{
+  const bridge = makeBridge({ call: async () => ({ success: false, code: "NOT_FOUND", error: "nope" }) });
+  const result = await callAndWrap(bridge, "some.method", {});
+  assert.equal(result.isError, true);
+  assert.equal(JSON.parse(result.content[0].text).code, "NOT_FOUND");
+}
+
+// Thrown BridgeError (non-runtime): code preserved + default exception hint.
+{
+  const bridge = makeBridge({
+    call: async () => {
+      throw new BridgeError("TIMEOUT", "slow");
+    },
+  });
+  const result = await callAndWrap(bridge, "some.method", {});
+  assert.equal(result.isError, true);
+  const payload = JSON.parse(result.content[0].text);
+  assert.equal(payload.code, "TIMEOUT");
+  assert.ok(payload.hint);
+}
+
+// extensionTimeoutHint overrides the default TIMEOUT hint.
+{
+  const bridge = makeBridge({
+    call: async () => {
+      throw new BridgeError("TIMEOUT", "slow");
+    },
+  });
+  const result = await callAndWrap(bridge, "some.method", {}, { extensionTimeoutHint: "ext-specific" });
+  assert.equal(JSON.parse(result.content[0].text).hint, "ext-specific");
+}
+
+// successHint injected when absent; not overwritten when the toolkit set one.
+{
+  const bare = makeBridge({ call: async () => ({ success: true }) });
+  const injected = await callAndWrap(bare, "some.method", {}, { successHint: "next" });
+  assert.equal(JSON.parse(injected.content[0].text).hint, "next");
+
+  const withHint = makeBridge({ call: async () => ({ success: true, hint: "toolkit" }) });
+  const kept = await callAndWrap(withHint, "some.method", {}, { successHint: "mine" });
+  assert.equal(JSON.parse(kept.content[0].text).hint, "toolkit");
+}
+
+// runtime:true routes through callRuntime (call must not be invoked).
+{
+  const bridge = makeBridge({
+    call: async () => {
+      throw new Error("call should not run for runtime requests");
+    },
+    callRuntime: async () => ({ success: true, v: 1 }),
+  });
+  const result = await callAndWrap(bridge, "some.method", {}, { runtime: true });
+  assert.equal(result.isError, undefined);
+  assert.equal(JSON.parse(result.content[0].text).v, 1);
+}
+
+// ── runtimeErrorWithCrashContext ─────────────────────────────────────
+
+// Crash code + debugger.get_log context → hint carries the formatted errors.
+{
+  const bridge = makeBridge({
+    call: async () => ({
+      error_buffer: [{ message: "boom", source: "res://x.gd", line: 5 }],
+      lines: ["tail"],
+    }),
+  });
+  const result = await runtimeErrorWithCrashContext(bridge, new BridgeError("TIMEOUT", "t"));
+  assert.equal(result.isError, true);
+  const payload = JSON.parse(result.content[0].text);
+  assert.equal(payload.code, "TIMEOUT");
+  assert.ok(payload.hint.includes("boom (res://x.gd:5)"));
+  assert.ok(payload.hint.includes("tail"));
+  assert.ok(payload.hint.includes("Recent errors from editor console"));
+}
+
+// debugger.get_log throws → falls back to editor.get_console for context.
+{
+  const bridge = makeBridge({
+    call: async (m: string) => {
+      if (m === "debugger.get_log") throw new BridgeError("DISCONNECTED", "no debugger");
+      return { count: 2, entries: "console errs" };
+    },
+  });
+  const result = await runtimeErrorWithCrashContext(bridge, new BridgeError("GAME_NOT_RUNNING", "g"));
+  assert.equal(result.isError, true);
+  assert.ok(JSON.parse(result.content[0].text).hint.includes("console errs"));
+}
+
+// No context from either source → generic toolErrorFromException (code kept).
+{
+  const bridge = makeBridge({
+    call: async (m: string) => (m === "editor.get_console" ? { count: 0 } : {}),
+  });
+  const result = await runtimeErrorWithCrashContext(bridge, new BridgeError("COMPILATION_FAILED", "c"));
+  assert.equal(JSON.parse(result.content[0].text).code, "COMPILATION_FAILED");
+}
+
+// Non-crash code → immediate toolErrorFromException, no crash fetch attempted.
+{
+  const bridge = makeBridge({
+    call: async () => {
+      throw new Error("crash fetch should not run");
+    },
+  });
+  const result = await runtimeErrorWithCrashContext(bridge, new BridgeError("NOT_FOUND", "x"));
+  assert.equal(JSON.parse(result.content[0].text).code, "NOT_FOUND");
+}
+
+// Plain Error → INTERNAL.
+{
+  const result = await runtimeErrorWithCrashContext(makeBridge(), new Error("boom"));
+  assert.equal(JSON.parse(result.content[0].text).code, "INTERNAL");
+}
+
+// ── buildScreenshotResponse ──────────────────────────────────────────
+
+// Image result → [text metadata, image block].
+{
+  const result = buildScreenshotResponse({
+    image_base64: "BASE64",
+    mime_type: "image/png",
+    width: 64,
+    height: 48,
+    bytes: 900,
+  });
+  assert.equal(result.content.length, 2);
+  assert.equal(result.content[0].type, "text");
+  const meta = JSON.parse(result.content[0].text);
+  assert.equal(meta.width, 64);
+  assert.equal(meta.height, 48);
+  assert.equal(meta.bytes, 900);
+  assert.equal(meta.mime_type, "image/png");
+  const image = result.content[1] as unknown as { type: string; data: string; mimeType: string };
+  assert.equal(image.type, "image");
+  assert.equal(image.data, "BASE64");
+  assert.equal(image.mimeType, "image/png");
+}
+
+// No image but {success:false} → toolError with the payload's code.
+{
+  const result = buildScreenshotResponse({ success: false, code: "EMPTY_CONTENT", error: "no bytes" });
+  assert.equal(result.isError, true);
+  assert.equal(JSON.parse(result.content[0].text).code, "EMPTY_CONTENT");
+}
+
+// No image and no failure → passthrough JSON, not an error.
+{
+  const result = buildScreenshotResponse({ foo: "bar" });
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(JSON.parse(result.content[0].text), { foo: "bar" });
 }
 
 console.log("All tool_helpers tests passed.");
