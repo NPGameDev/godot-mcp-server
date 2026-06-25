@@ -345,8 +345,8 @@ function handleConfigReload(): void {
 // overlapping remove+rebuild cycles that leave the tool list empty.
 let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
 // The first auth-delivered config_reloaded (reconnect=false) is the initial
-// config sync.  Suppress tools/list_changed for it — Claude Code may restart
-// the MCP server when it receives the notification within the first second.
+// config sync.  Suppress tools/list_changed for it — some MCP clients restart
+// the server on notifications received within the first second of connection.
 let initialAuthSyncDone = false;
 
 // Push the GDScript LSP verdict to the editor dock (editor.set_lsp_status, ADR
@@ -392,7 +392,7 @@ bridge.onNotification((type, params) => {
       // On the very first auth of a new bridge process, tools were JUST
       // registered at startup from the same env vars.  Skip tool
       // re-registration to avoid a tools/list_changed notification that
-      // would cause Claude Code to restart the bridge.
+      // can cause some MCP clients to restart or reconnect the bridge.
       process.stderr.write("[godot-mcp] initial auth sync — skipping tool reload to avoid connection bounce\n");
       return;
     }

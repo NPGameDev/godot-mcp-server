@@ -12,8 +12,8 @@ export const STANDARD_TOOLS: readonly string[] = [
   "scene_create",
   "scene_open",
   // Node (8) — node_manage, node_groups, autoload_manage promoted from
-  // node_management group: dynamic activation unreliable due to Claude Code
-  // not processing tools/list_changed notifications (platform limitation).
+  // node_management group: dynamic activation via tools/list_changed is not
+  // robust across MCP clients; keeping them eager is the stable choice.
   // control_set_layout added as standard (all 3 validation agents needed layout).
   "node_get_property",
   "node_set_property",
