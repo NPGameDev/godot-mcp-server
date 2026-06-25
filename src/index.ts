@@ -546,25 +546,11 @@ async function discoverExtensions(): Promise<void> {
     process.stderr.write(`[godot-mcp] extensions: ${parts.join(" + ")}\n`);
   }
 
-  // Defensive re-registration: at startup, registerExtensionsRefresh()
-  // already registered this before the deadline-wrapped call. But on the
-  // handleConfigReload path, removeAllTools() clears it, so re-register.
-  if (!hasToolRef("extensions_refresh")) {
-    registerToolWrapped(
-      server,
-      bridge,
-      "extensions_refresh",
-      {
-        description:
-          "Force a filesystem rescan and re-discover extension scripts. " +
-          "Call after creating, modifying, or deleting extension files from outside the Godot editor. " +
-          "Returns the updated list of extension commands.",
-        annotations: { readOnlyHint: true, idempotentHint: true },
-      },
-      (input: unknown, signal?: AbortSignal) =>
-        callAndWrap(bridge, "extensions.refresh", input, { signal }) as Promise<ToolTextResult>,
-    );
-  }
+  // Defensive re-registration: on the handleConfigReload path,
+  // removeAllTools() has cleared extensions_refresh, so re-add it.
+  // Delegates to registerExtensionsRefresh() (self-guards via hasToolRef),
+  // which is the same helper used by the startup path.
+  registerExtensionsRefresh();
 }
 
 // ── Live extension reconciliation ───────────────────────────────────
