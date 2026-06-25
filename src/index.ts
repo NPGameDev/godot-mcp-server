@@ -290,9 +290,10 @@ registerRoots(server);
 // Discover extensions BEFORE transport connects so they're in the
 // initial tools/list. Deadline prevents blocking if editor is slow.
 // Note: bridge.onNotification is set up AFTER this await, so the
-// initial auth-delivered config_reloaded notification is missed.
-// We compensate below by reading bridge.getAuthGates() after wiring
-// up the notification handler.
+// initial auth-delivered config_reloaded notification is missed —
+// but this is benign by design.  The notification handler detects it
+// via reconnect===false and early-returns (see below), because tools
+// were already registered at startup from the same env vars.
 
 let extDiscoveryTimedOut = false;
 try {
