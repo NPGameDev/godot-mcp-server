@@ -330,14 +330,24 @@ function handleConfigReload(): void {
   allowedTools = buildAllowedTools();
   moduleAllowed = buildModuleAllowed(allowedTools);
 
-  removeAllTools();
-  registerModules(moduleAllowed);
-  registerGroups();
+  // Collapse the remove+rebuild into a SINGLE tools/list_changed. The SDK
+  // auto-emits on every ref.remove() (in removeAllTools) and every registerTool
+  // (in registerModules/registerGroups); batching suppresses those per-op
+  // notifications and fires exactly one when the rebuild completes, so the
+  // client never observes the transient empty/partial tool list mid-reload.
+  batchToolRegistration(server, () => {
+    removeAllTools();
+    registerModules(moduleAllowed);
+    registerGroups();
+  });
 
   process.stderr.write(`[godot-mcp] config reloaded — ${toolRefCount()} tools registered\n`);
 
-  // Re-discover extensions + register discover_tools (the MCP SDK
-  // auto-emits tool list notifications on each registerTool call).
+  // Re-discover extensions + register discover_tools. Runs AFTER and OUTSIDE
+  // the batch above: it is async (batchToolRegistration is synchronous and would
+  // restore sendToolListChanged before the async work ran), and it batches its
+  // own tool registrations internally — so it reconciles the extension surface
+  // without reintroducing a per-registration notification burst.
   discoverExtensions().catch(() => {});
 }
 

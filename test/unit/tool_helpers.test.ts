@@ -11,6 +11,7 @@ import {
   jsonCoerce,
   jsonSchemaToParamMap,
   registerToolWrapped,
+  batchToolRegistration,
   callAndWrap,
   runtimeErrorWithCrashContext,
   buildScreenshotResponse,
@@ -482,6 +483,62 @@ function makeBridge(
   const result = buildScreenshotResponse({ foo: "bar" });
   assert.equal(result.isError, undefined);
   assert.deepEqual(JSON.parse(result.content[0].text), { foo: "bar" });
+}
+
+// ── batchToolRegistration — notification collapse (config-reload invariant) ──
+// The config-reload path wraps removeAllTools()+registerModules()+registerGroups()
+// in batchToolRegistration so a live reload emits ONE tools/list_changed, not a
+// burst. The real MCP SDK funnels BOTH registerTool and ref.remove() (remove =
+// update({name:null})) through server.sendToolListChanged(), so suppressing that
+// method during the batch collapses the whole remove+rebuild into a single event.
+// This fake mirrors that routing: registerTool and the ref's remove() each invoke
+// server.sendToolListChanged() — read dynamically, so the batch's no-op swap hides
+// them, exactly as the SDK's instance method does.
+
+function makeCountingServer() {
+  let count = 0;
+  const fake = {
+    sendToolListChanged() {
+      count++;
+    },
+    registerTool(_name: string, _config: unknown, _handler: unknown) {
+      fake.sendToolListChanged(); // SDK emits on registration
+      return {
+        remove() {
+          fake.sendToolListChanged(); // SDK emits on removal (update({name:null}))
+        },
+      };
+    },
+  };
+  return { fake, server: fake as unknown as McpServer, count: () => count };
+}
+
+// Drive an identical register-three-then-remove-three burst against a counting
+// server, returning the resulting notification count.
+function registerThenRemoveBurst(fake: ReturnType<typeof makeCountingServer>["fake"]): void {
+  const refs = [
+    fake.registerTool("alpha", {}, async () => {}),
+    fake.registerTool("beta", {}, async () => {}),
+    fake.registerTool("gamma", {}, async () => {}),
+  ];
+  for (const ref of refs) ref.remove();
+}
+
+// Batched: the whole burst collapses to exactly ONE notification.
+{
+  const { fake, server, count } = makeCountingServer();
+  batchToolRegistration(server, () => {
+    registerThenRemoveBurst(fake);
+  });
+  assert.equal(count(), 1, "batched register+remove burst must emit exactly one notification");
+}
+
+// Control: the SAME ops without the batch wrapper emit one notification PER op (>1).
+{
+  const { fake, count } = makeCountingServer();
+  registerThenRemoveBurst(fake);
+  assert.ok(count() > 1, "unbatched burst must emit more than one notification");
+  assert.equal(count(), 6, "unbatched burst emits one per op (3 register + 3 remove)");
 }
 
 console.log("All tool_helpers tests passed.");
