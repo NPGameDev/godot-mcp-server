@@ -346,8 +346,10 @@ function handleConfigReload(): void {
   // Re-discover extensions + register discover_tools. Runs AFTER and OUTSIDE
   // the batch above: it is async (batchToolRegistration is synchronous and would
   // restore sendToolListChanged before the async work ran), and it batches its
-  // own tool registrations internally — so it reconciles the extension surface
-  // without reintroducing a per-registration notification burst.
+  // bulk (ungrouped) extension registrations internally — so it reconciles the
+  // extension surface with only a few discrete notifications (the ungrouped
+  // batch, the discover_tools update, the extensions_refresh re-add), never a
+  // per-registration burst.
   discoverExtensions().catch(() => {});
 }
 
