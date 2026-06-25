@@ -25,7 +25,7 @@ import { getServerVersion } from "./version.js";
 import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
-import type { ToolTextResult } from "./types.js";
+import type { ToolTextResult, ExtensionCmdWire } from "./types.js";
 import { callAndWrap, registerToolWrapped, batchToolRegistration, setGlobalHookPipeline } from "./tool_helpers.js";
 
 import * as animation from "./tools/animation.js";
@@ -429,6 +429,57 @@ function buildExtensionTimeoutHint(method: string, timeoutMs?: number): string {
   );
 }
 
+/** Build the MCP annotation object for an extension command, defaulting each
+ *  hint to false when the plugin omits it. */
+function extensionAnnotations(cmd: Pick<ExtensionCmdWire, "annotations">): {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  idempotentHint: boolean;
+} {
+  return {
+    readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
+    destructiveHint: cmd.annotations?.destructiveHint ?? false,
+    idempotentHint: cmd.annotations?.idempotentHint ?? false,
+  };
+}
+
+/**
+ * Register one ungrouped extension command as an MCP tool. Returns true when the
+ * tool was registered, false when skipped by read-only exclusion. Callers own
+ * their own pre-checks (dedup guard), counters, and knownExtensionTools
+ * bookkeeping — this encapsulates only the shared registration recipe common to
+ * the eager-discovery and live-reconciliation ungrouped paths.
+ */
+function registerExtensionTool(cmd: ExtensionCmdWire): boolean {
+  const toolName = cmd.method.replace(/\./g, "_");
+  const annotations = extensionAnnotations(cmd);
+  // Read-only mode: skip extension tools that aren't read-only.
+  if (isExcludedByReadOnly(readOnly, annotations)) return false;
+  const timeoutMs = cmd.timeout_ms ?? undefined;
+  const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
+  registerToolWrapped(
+    server,
+    bridge,
+    toolName,
+    {
+      description: cmd.description || `Extension: ${cmd.method}`,
+      inputSchema: cmd.input_schema ?? {},
+      annotations,
+    },
+    (input: unknown, signal?: AbortSignal) =>
+      callAndWrap(bridge, cmd.method, input, {
+        timeoutMs,
+        extensionTimeoutHint,
+        signal,
+      }) as Promise<ToolTextResult>,
+    {
+      godotMinVersion: cmd.min_godot_version,
+      godotMaxVersion: cmd.max_godot_version,
+    },
+  );
+  return true;
+}
+
 // Discover third-party extensions from the toolkit and register them as
 // MCP tools. Called eagerly before transport (deadline-wrapped) at startup,
 // and again from handleConfigReload on config changes.
@@ -442,16 +493,7 @@ async function discoverExtensions(): Promise<void> {
     // Falls back to extensions.list for older plugins without hot-reload.
     type ExtResult = {
       success?: boolean;
-      commands?: {
-        method: string;
-        description?: string;
-        input_schema?: Record<string, unknown>;
-        annotations?: Record<string, boolean>;
-        group?: { name: string; description?: string; keywords?: string[] };
-        timeout_ms?: number;
-        min_godot_version?: string;
-        max_godot_version?: string;
-      }[];
+      commands?: ExtensionCmdWire[];
     };
     let result: ExtResult;
     try {
@@ -467,11 +509,7 @@ async function discoverExtensions(): Promise<void> {
       for (const cmd of result.commands) {
         const toolName = cmd.method.replace(/\./g, "_");
         knownExtensionTools.add(toolName);
-        const annotations = {
-          readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
-          destructiveHint: cmd.annotations?.destructiveHint ?? false,
-          idempotentHint: cmd.annotations?.idempotentHint ?? false,
-        };
+        const annotations = extensionAnnotations(cmd);
         if (cmd.group?.name) {
           const extCmd: ExtensionCmd = {
             method: cmd.method,
@@ -492,37 +530,7 @@ async function discoverExtensions(): Promise<void> {
       if (ungrouped.length > 0) {
         batchToolRegistration(server, () => {
           for (const cmd of ungrouped) {
-            const toolName = cmd.method.replace(/\./g, "_");
-            const annotations = {
-              readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
-              destructiveHint: cmd.annotations?.destructiveHint ?? false,
-              idempotentHint: cmd.annotations?.idempotentHint ?? false,
-            };
-            // Read-only mode: skip extension tools that aren't read-only.
-            if (isExcludedByReadOnly(readOnly, annotations)) continue;
-            const timeoutMs = cmd.timeout_ms ?? undefined;
-            const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
-            registerToolWrapped(
-              server,
-              bridge,
-              toolName,
-              {
-                description: cmd.description || `Extension: ${cmd.method}`,
-                inputSchema: cmd.input_schema ?? {},
-                annotations,
-              },
-              (input: unknown, signal?: AbortSignal) =>
-                callAndWrap(bridge, cmd.method, input, {
-                  timeoutMs,
-                  extensionTimeoutHint,
-                  signal,
-                }) as Promise<ToolTextResult>,
-              {
-                godotMinVersion: cmd.min_godot_version,
-                godotMaxVersion: cmd.max_godot_version,
-              },
-            );
-            registered++;
+            if (registerExtensionTool(cmd)) registered++;
           }
         });
       }
@@ -564,18 +572,7 @@ async function discoverExtensions(): Promise<void> {
  * one tools/list_changed notification if anything changed.
  */
 function handleExtensionsChanged(params?: Record<string, unknown>): void {
-  const commands = params?.commands as
-    | {
-        method: string;
-        description?: string;
-        input_schema?: Record<string, unknown>;
-        annotations?: Record<string, boolean>;
-        group?: { name: string; description?: string; keywords?: string[] };
-        timeout_ms?: number;
-        min_godot_version?: string;
-        max_godot_version?: string;
-      }[]
-    | undefined;
+  const commands = params?.commands as ExtensionCmdWire[] | undefined;
   const removedMethods = (params?.removed as string[]) ?? [];
 
   if (!Array.isArray(commands)) {
@@ -604,11 +601,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
     const ungrouped: typeof commands = [];
     for (const cmd of commands) {
       const toolName = cmd.method.replace(/\./g, "_");
-      const annotations = {
-        readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
-        destructiveHint: cmd.annotations?.destructiveHint ?? false,
-        idempotentHint: cmd.annotations?.idempotentHint ?? false,
-      };
+      const annotations = extensionAnnotations(cmd);
 
       if (knownExtensionTools.has(toolName)) {
         // Known tool — reconcile annotation/description changes in-place.
@@ -683,37 +676,10 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
     for (const cmd of ungrouped) {
       const toolName = cmd.method.replace(/\./g, "_");
       if (hasToolRef(toolName)) continue; // Dedup guard.
-      const annotations = {
-        readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
-        destructiveHint: cmd.annotations?.destructiveHint ?? false,
-        idempotentHint: cmd.annotations?.idempotentHint ?? false,
-      };
-      // Read-only mode: skip extension tools that aren't read-only.
-      if (isExcludedByReadOnly(readOnly, annotations)) continue;
-      const timeoutMs = cmd.timeout_ms ?? undefined;
-      const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
-      registerToolWrapped(
-        server,
-        bridge,
-        toolName,
-        {
-          description: cmd.description || `Extension: ${cmd.method}`,
-          inputSchema: cmd.input_schema ?? {},
-          annotations,
-        },
-        (input: unknown, signal?: AbortSignal) =>
-          callAndWrap(bridge, cmd.method, input, {
-            timeoutMs,
-            extensionTimeoutHint,
-            signal,
-          }) as Promise<ToolTextResult>,
-        {
-          godotMinVersion: cmd.min_godot_version,
-          godotMaxVersion: cmd.max_godot_version,
-        },
-      );
-      knownExtensionTools.add(toolName);
-      added++;
+      if (registerExtensionTool(cmd)) {
+        knownExtensionTools.add(toolName);
+        added++;
+      }
     }
   });
 

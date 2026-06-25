@@ -134,6 +134,25 @@ export type ToolTextResult = {
   isError?: true;
 };
 
+// ── Extension command wire shape ─────────────────────────────────────
+
+/**
+ * One extension command as it arrives over the wire from the toolkit plugin —
+ * the payload of extensions.refresh/list results (ExtResult.commands[]) and the
+ * extensions.changed push notification. Snake_case fields mirror the GDScript
+ * registry; the server maps them to camelCase MCP tool config at registration.
+ */
+export type ExtensionCmdWire = {
+  method: string;
+  description?: string;
+  input_schema?: Record<string, unknown>;
+  annotations?: Record<string, boolean>;
+  group?: { name: string; description?: string; keywords?: string[] };
+  timeout_ms?: number;
+  min_godot_version?: string;
+  max_godot_version?: string;
+};
+
 // ── Hook pipeline types ──────────────────────────────────────────────
 
 /** Identifies the tool being called — passed to every hook. */
