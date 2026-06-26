@@ -17,6 +17,7 @@ import * as registrars from "./registrars.js";
 import { createExtensionManager } from "./extensions.js";
 import { createReconciler } from "./reconcile.js";
 import { createLspStatusReporter } from "./lsp_status_reporter.js";
+import { installProcessHandlers } from "./lifecycle.js";
 
 // ── Preflight (may exit) ─────────────────────────────────────────────
 startupEnv.enforceNodeVersion();
@@ -146,25 +147,9 @@ bridge.onNotification((type, params) => {
 // eager surface was already complete. See reconcile.ts for the latch + triggers.
 reconciler.armStartupReconcile({ versionNullAtEagerRegistration, extDiscoveryTimedOut: timedOut });
 
-// ── Lifecycle ────────────────────────────────────────────────────────
+// ── Lifecycle + transport (last) ─────────────────────────────────────
 
-async function shutdown(): Promise<void> {
-  try {
-    await bridge.close();
-  } finally {
-    process.exit(0);
-  }
-}
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-// Prevent unhandled errors from crashing the bridge process.
-// Log to stderr for diagnostics; the bridge stays alive.
-process.on("unhandledRejection", (reason) => {
-  process.stderr.write(`[godot-mcp] unhandledRejection: ${reason}\n`);
-});
-process.on("uncaughtException", (err) => {
-  process.stderr.write(`[godot-mcp] uncaughtException: ${err?.stack ?? err}\n`);
-});
+installProcessHandlers(bridge);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
