@@ -4,19 +4,21 @@
  */
 import assert from "node:assert/strict";
 import {
-  toolError,
-  toolErrorFromPayload,
-  toolErrorFromException,
   coercedBoolean,
   jsonCoerce,
   jsonSchemaToParamMap,
   registerToolWrapped,
   batchToolRegistration,
   callAndWrap,
-  runtimeErrorWithCrashContext,
   buildScreenshotResponse,
   versionSupportText,
 } from "../../src/tool_helpers.js";
+import {
+  toolError,
+  toolErrorFromPayload,
+  toolErrorFromException,
+  runtimeErrorWithCrashContext,
+} from "../../src/error_contract.js";
 import { BridgeError } from "../../src/errors.js";
 import { PROJECT_FILE_PATH } from "../../src/path_guard.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { ToolDef, ToolTextResult } from "../types.js";
-import { toolError } from "../tool_helpers.js";
+import { toolError } from "../error_contract.js";
 import { LspClient, LspResolutionError, type LspStatus } from "../lsp_client.js";
 import { untrustedWrap } from "../untrusted.js";
 

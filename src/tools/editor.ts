@@ -2,13 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import {
-  toolErrorFromException,
-  toolErrorFromPayload,
-  registerTools,
-  jsonCoerce,
-  coercedBoolean,
-} from "../tool_helpers.js";
+import { registerTools, jsonCoerce, coercedBoolean } from "../tool_helpers.js";
+import { toolErrorFromException, toolErrorFromPayload } from "../error_contract.js";
 import { stableStringify } from "../schema_min.js";
 import { PROJECT_FILE_PATH } from "../path_guard.js";
 
