@@ -81,9 +81,9 @@ export function checkPathGuard(g: PathGuard, value: unknown): PathCheck {
 }
 
 /**
- * Shared subset fixture — the SAME path cases are mirrored in the toolkit
- * `test/run_unit_tests.gd` (FileGuard group). This file is the source of truth;
- * keep the GDScript mirror in sync. The cross-repo invariant the duplication
+ * Shared subset fixture — the SAME path cases are mirrored in the toolkit's
+ * FileGuard unit-test group. This file is the source of truth; keep the
+ * GDScript mirror in sync. The cross-repo invariant the duplication
  * enforces: NO path is server-deny / toolkit-allow (a false rejection). Both
  * suites assert their own guard against `allow` (→ ok) and `deny` (→ rejected).
  *
