@@ -3,8 +3,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { createBridge } from "./bridge.js";
-import { getLspStatus, setGodotVersionGetter, type LspStatus } from "./lsp_client.js";
-import { setLspStatusReporter } from "./tools/lsp.js";
 import { isExcludedByReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
 import {
   registerGroupSystem,
@@ -26,6 +24,7 @@ import { callAndWrap, registerToolWrapped, batchToolRegistration, setGlobalHookP
 import * as startupEnv from "./startup_env.js";
 import * as serverMode from "./server_mode.js";
 import * as registrars from "./registrars.js";
+import { createLspStatusReporter } from "./lsp_status_reporter.js";
 
 // ── Preflight (may exit) ─────────────────────────────────────────────
 startupEnv.enforceNodeVersion();
@@ -197,41 +196,16 @@ function handleConfigReload(): void {
 // overlapping remove+rebuild cycles that leave the tool list empty.
 let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Push the GDScript LSP verdict to the editor dock (editor.set_lsp_status, ADR
-// 0008) — the editor can't read its own LSP bind status, so the server reports it.
-function sendLspStatus(s: LspStatus): void {
-  try {
-    void bridge.call("editor.set_lsp_status", s, 3000).catch(() => {});
-  } catch {
-    /* never let UI status reporting disrupt the bridge */
-  }
-}
-
-// Verified verdicts from actual LSP tool calls (the real connection result —
-// accurate across versions), de-duped so frequent LSP calls don't spam the bridge.
-let lastLspKey = "";
-setLspStatusReporter((s: LspStatus) => {
-  const key = `${s.state}:${s.host}:${s.port}`;
-  if (key === lastLspKey) return;
-  lastLspKey = key;
-  sendLspStatus(s);
-});
-// Version-tailored LSP conflict hints (4.5+ auto-rebind vs 4.2-4.4 distinct-port).
-setGodotVersionGetter(() => bridge.getGodotVersion());
-
-/** On bridge connect/reconnect: push the registry verdict (fast, no LSP
- *  connection) so a freshly-connected editor gets the current status; later LSP
- *  tool calls refine it with the verified result. */
-function reportLspStatus(): void {
-  const s = getLspStatus(projectPath);
-  lastLspKey = `${s.state}:${s.host}:${s.port}`;
-  sendLspStatus(s);
-}
+// LSP status reporter — pushes the GDScript-LSP verdict to the editor dock (ADR
+// 0008), de-duped. Constructed here so its setLspStatusReporter +
+// setGodotVersionGetter wiring fires before transport connect; the notification
+// router below calls reportRegistryVerdict() on reconnect.
+const lspReporter = createLspStatusReporter({ bridge, projectPath });
 
 bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
     // Push the authoritative LSP verdict to the editor dock (ADR 0008).
-    reportLspStatus();
+    lspReporter.reportRegistryVerdict();
     // config_reloaded is only ever emitted on a RECONNECT ({reconnect:true},
     // bridge.ts performAuth) — the editor's FIRST connect sends no notification.
     // An incomplete first-connect surface is completed by the startup reconcile
