@@ -8,61 +8,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { stableStringify } from "./schema_min.js";
 import { isReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import type { Bridge, ToolDef, ToolTextResult, ToolRequest, PathGuard } from "./types.js";
-import { BridgeError } from "./errors.js";
 import { setToolRef } from "./tool_refs.js";
 import { isVersionCompatible } from "./version.js";
 import { checkPathGuard } from "./path_guard.js";
-import {
-  toolError,
-  toolErrorFromPayload,
-  toolErrorFromException,
-  runtimeErrorWithCrashContext,
-} from "./error_contract.js";
+import { toolError, toolErrorFromPayload } from "./error_contract.js";
 import { isRawJsonSchema, jsonSchemaToZodShape, addStringCoercion } from "./schema_coercion.js";
-
-// ── Shared call wrapper ─────────────────────────────────────────────
-
-/**
- * Shared handler body for tools that do a single bridge call and
- * JSON-stringify the result. Centralises error-contract compliance:
- *   1. Try/catch around the bridge call — BridgeError becomes toolError.
- *   2. Result payload inspection — {success: false} becomes toolError.
- *   3. Happy path — JSON-stringified into a text content block.
- *
- * Screenshots and other multi-content handlers stay custom but use
- * toolError directly for their error branches.
- */
-export async function callAndWrap(
-  bridge: Bridge,
-  method: string,
-  input: unknown,
-  opts: {
-    runtime?: boolean;
-    timeoutMs?: number;
-    extensionTimeoutHint?: string;
-    signal?: AbortSignal;
-    successHint?: string;
-  } = {},
-): Promise<ToolTextResult> {
-  try {
-    const result = opts.runtime
-      ? await bridge.callRuntime(method, input, opts.timeoutMs, opts.signal)
-      : await bridge.call(method, input, opts.timeoutMs, opts.signal);
-    const err = toolErrorFromPayload(result);
-    if (err) return err;
-    // Inject success hint if provided and toolkit didn't already set one
-    if (opts.successHint && result && typeof result === "object" && !(result as Record<string, unknown>).hint) {
-      (result as Record<string, unknown>).hint = opts.successHint;
-    }
-    return { content: [{ type: "text", text: stableStringify(result) }] };
-  } catch (err) {
-    if (opts.runtime) return runtimeErrorWithCrashContext(bridge, err);
-    if (opts.extensionTimeoutHint && err instanceof BridgeError && err.code === "TIMEOUT") {
-      return toolError("TIMEOUT", err.message, opts.extensionTimeoutHint);
-    }
-    return toolErrorFromException(err);
-  }
-}
+import { callAndWrap, injectSuccessHint } from "./tool_dispatch.js";
 
 // ── Screenshot response builder ─────────────────────────────────────
 
@@ -257,25 +208,6 @@ export function registerToolWrapped(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handler 2-arg shape doesn't match SDK overloads
   const ref = server.registerTool(name, config, wrappedHandler as any);
   setToolRef(name, ref);
-}
-
-/** Inject a success hint into the first JSON text block of a ToolTextResult.
- *  Skips if the payload already has a toolkit-provided hint. */
-function injectSuccessHint(result: ToolTextResult, hint: string): void {
-  for (const block of result.content) {
-    if (block.type === "text") {
-      try {
-        const payload = JSON.parse(block.text);
-        if (typeof payload === "object" && payload !== null && !payload.hint) {
-          payload.hint = hint;
-          block.text = JSON.stringify(payload);
-          return;
-        }
-      } catch {
-        /* non-JSON text content — skip */
-      }
-    }
-  }
 }
 
 /**

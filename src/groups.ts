@@ -6,7 +6,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "./types.js";
-import { callAndWrap, registerToolWrapped, batchToolRegistration } from "./tool_helpers.js";
+import { registerToolWrapped, batchToolRegistration } from "./tool_helpers.js";
+import { callAndWrap } from "./tool_dispatch.js";
 import { coercedBoolean } from "./schema_coercion.js";
 import { toolErrorFromPayload, toolErrorFromException } from "./error_contract.js";
 import { enrichGroupResults, type ToolMeta, type GroupResult } from "./tool_meta.js";

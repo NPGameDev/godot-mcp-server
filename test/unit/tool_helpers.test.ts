@@ -6,10 +6,10 @@ import assert from "node:assert/strict";
 import {
   registerToolWrapped,
   batchToolRegistration,
-  callAndWrap,
   buildScreenshotResponse,
   versionSupportText,
 } from "../../src/tool_helpers.js";
+import { callAndWrap } from "../../src/tool_dispatch.js";
 import { jsonSchemaToParamMap } from "../../src/tool_meta.js";
 import { coercedBoolean, jsonCoerce } from "../../src/schema_coercion.js";
 import {
