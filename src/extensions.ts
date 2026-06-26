@@ -17,9 +17,9 @@ import {
   removeExtensionCommand,
   removeUngroupedExtensionTool,
 } from "./groups.js";
-import type { ExtensionCmd } from "./groups.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
 import { callAndWrap, registerToolWrapped, batchToolRegistration } from "./tool_helpers.js";
+import { extensionAnnotations, toolNameFromMethod, toExtensionCommand } from "./extension_command.js";
 import type { ToolTextResult, ExtensionCmdWire, Bridge } from "./types.js";
 
 // Generous for the editor-running case (<1s); protects against the rare
@@ -43,20 +43,6 @@ function buildExtensionTimeoutHint(method: string, timeoutMs?: number): string {
     `Extension tool '${method}' timed out after ${effectiveMs / 1000}s. ` +
     "If this tool calls external services, the extension author can increase timeout_ms in registry.add() options."
   );
-}
-
-/** Build the MCP annotation object for an extension command, defaulting each
- *  hint to false when the plugin omits it. */
-function extensionAnnotations(cmd: Pick<ExtensionCmdWire, "annotations">): {
-  readOnlyHint: boolean;
-  destructiveHint: boolean;
-  idempotentHint: boolean;
-} {
-  return {
-    readOnlyHint: cmd.annotations?.readOnlyHint ?? false,
-    destructiveHint: cmd.annotations?.destructiveHint ?? false,
-    idempotentHint: cmd.annotations?.idempotentHint ?? false,
-  };
 }
 
 /** The extension subsystem facade — see module header for the owned lifecycle. */
@@ -116,7 +102,7 @@ export function createExtensionManager(deps: {
    * the eager-discovery and live-reconciliation ungrouped paths.
    */
   function registerExtensionTool(cmd: ExtensionCmdWire): boolean {
-    const toolName = cmd.method.replace(/\./g, "_");
+    const toolName = toolNameFromMethod(cmd.method);
     const annotations = extensionAnnotations(cmd);
     // Read-only mode: skip extension tools that aren't read-only.
     if (isExcludedByReadOnly(getReadOnly(), annotations)) return false;
@@ -207,17 +193,11 @@ export function createExtensionManager(deps: {
         // Collect ungrouped for batched registration (1 notification).
         const ungrouped: typeof result.commands = [];
         for (const cmd of result.commands) {
-          const toolName = cmd.method.replace(/\./g, "_");
+          const toolName = toolNameFromMethod(cmd.method);
           knownExtensionTools.add(toolName);
           const annotations = extensionAnnotations(cmd);
           if (cmd.group?.name) {
-            const extCmd: ExtensionCmd = {
-              method: cmd.method,
-              toolName,
-              description: cmd.description || `Extension: ${cmd.method}`,
-              inputSchema: cmd.input_schema ?? {},
-              annotations,
-            };
+            const extCmd = toExtensionCommand(cmd, annotations);
             addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
             deferredCount++;
           } else {
@@ -297,7 +277,7 @@ export function createExtensionManager(deps: {
     batchToolRegistration(server, () => {
       // 1. Remove tools for methods listed in 'removed'.
       for (const method of removedMethods) {
-        const toolName = method.replace(/\./g, "_");
+        const toolName = toolNameFromMethod(method);
         if (knownExtensionTools.has(toolName)) {
           // Try grouped removal first, then ungrouped.
           if (!removeExtensionCommand(method)) {
@@ -311,7 +291,7 @@ export function createExtensionManager(deps: {
       // 2. Process current command set — register new tools, reconcile known ones.
       const ungrouped: typeof commands = [];
       for (const cmd of commands) {
-        const toolName = cmd.method.replace(/\./g, "_");
+        const toolName = toolNameFromMethod(cmd.method);
         const annotations = extensionAnnotations(cmd);
 
         if (knownExtensionTools.has(toolName)) {
@@ -341,13 +321,7 @@ export function createExtensionManager(deps: {
           // Grouped: addExtensionGroup replaces commands, so re-add to pick up changes.
           // Already-loaded group tools are updated via updateToolRef if registered.
           if (cmd.group?.name) {
-            const extCmd: ExtensionCmd = {
-              method: cmd.method,
-              toolName,
-              description: cmd.description || `Extension: ${cmd.method}`,
-              inputSchema: cmd.input_schema ?? {},
-              annotations,
-            };
+            const extCmd = toExtensionCommand(cmd, annotations);
             addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
             // If the group is loaded and the tool is registered, update in-place.
             if (hasToolRef(toolName)) {
@@ -368,13 +342,7 @@ export function createExtensionManager(deps: {
 
         // New tool — partition into grouped/ungrouped.
         if (cmd.group?.name) {
-          const extCmd: ExtensionCmd = {
-            method: cmd.method,
-            toolName,
-            description: cmd.description || `Extension: ${cmd.method}`,
-            inputSchema: cmd.input_schema ?? {},
-            annotations,
-          };
+          const extCmd = toExtensionCommand(cmd, annotations);
           addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
           knownExtensionTools.add(toolName);
           added++;
@@ -385,7 +353,7 @@ export function createExtensionManager(deps: {
 
       // Register ungrouped tools (new + newly-eligible from annotation changes).
       for (const cmd of ungrouped) {
-        const toolName = cmd.method.replace(/\./g, "_");
+        const toolName = toolNameFromMethod(cmd.method);
         if (hasToolRef(toolName)) continue; // Dedup guard.
         if (registerExtensionTool(cmd)) {
           knownExtensionTools.add(toolName);
