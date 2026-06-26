@@ -5,10 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createBridge } from "./bridge.js";
 import { getLspStatus, setGodotVersionGetter, type LspStatus } from "./lsp_client.js";
 import { setLspStatusReporter } from "./tools/lsp.js";
-import { resolveAllowedTools, isReadOnly, isExcludedByReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
+import { isExcludedByReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
 import {
   registerGroupSystem,
-  GROUP_TOOL_NAMES,
   resetLoadedGroups,
   addExtensionGroup,
   removeExtensionCommand,
@@ -25,6 +24,7 @@ import { init as initRoots, registerRoots } from "./roots.js";
 import type { ToolTextResult, ExtensionCmdWire } from "./types.js";
 import { callAndWrap, registerToolWrapped, batchToolRegistration, setGlobalHookPipeline } from "./tool_helpers.js";
 import * as startupEnv from "./startup_env.js";
+import * as serverMode from "./server_mode.js";
 import * as registrars from "./registrars.js";
 
 // ── Preflight (may exit) ─────────────────────────────────────────────
@@ -34,21 +34,7 @@ startupEnv.maybePrintToolCountAndExit();
 // ── Mode resolution ─────────────────────────────────────────────────
 
 warnDeprecatedEnvVars();
-let readOnly = isReadOnly();
-
-function buildAllowedTools(): Set<string> {
-  return resolveAllowedTools();
-}
-
-/** Subtract group-managed tools → set used by module register(). */
-function buildModuleAllowed(allowed: Set<string>): Set<string> {
-  const mod = new Set(allowed);
-  for (const name of GROUP_TOOL_NAMES) mod.delete(name);
-  return mod;
-}
-
-let allowedTools = buildAllowedTools();
-let moduleAllowed = buildModuleAllowed(allowedTools);
+serverMode.refreshMode();
 
 // ── Bridge setup ─────────────────────────────────────────────────────
 
@@ -100,7 +86,7 @@ function registerExtensionsRefresh(): void {
 function logStartup(extTimedOut = false): void {
   const suffix = extTimedOut ? " (ext discovery timed out — extensions_refresh available)" : "";
   process.stderr.write(
-    `[godot-mcp] readOnly=${readOnly} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${caps.scriptReadLimitBytes / 1024}KB/${caps.wsBufferLimitBytes / 1024}KB${suffix}\n`,
+    `[godot-mcp] readOnly=${serverMode.getReadOnly()} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${caps.scriptReadLimitBytes / 1024}KB/${caps.wsBufferLimitBytes / 1024}KB${suffix}\n`,
   );
 }
 
@@ -130,8 +116,8 @@ let discoveryInFlight: Promise<void> | null = null;
 // registry in the common dogfood flow → false → no reconcile needed.
 const versionNullAtEagerRegistration = bridge.getGodotVersion() == null;
 
-registrars.registerBuiltinModules(server, bridge, moduleAllowed);
-registrars.registerGroups(server, bridge, readOnly);
+registrars.registerBuiltinModules(server, bridge, serverMode.getModuleAllowed());
+registrars.registerGroups(server, bridge, serverMode.getReadOnly());
 registerExtensionsRefresh(); // always in initial tools/list
 
 // ── Prompts, resources, roots ────────────────────────────────────────
@@ -182,9 +168,7 @@ function handleConfigReload(): void {
     applyEnvUpdate(newEnv);
   }
 
-  readOnly = isReadOnly();
-  allowedTools = buildAllowedTools();
-  moduleAllowed = buildModuleAllowed(allowedTools);
+  serverMode.refreshMode();
 
   // Collapse the remove+rebuild into a SINGLE tools/list_changed. The SDK
   // auto-emits on every ref.remove() (in removeAllTools) and every registerTool
@@ -193,8 +177,8 @@ function handleConfigReload(): void {
   // client never observes the transient empty/partial tool list mid-reload.
   batchToolRegistration(server, () => {
     removeAllTools();
-    registrars.registerBuiltinModules(server, bridge, moduleAllowed);
-    registrars.registerGroups(server, bridge, readOnly);
+    registrars.registerBuiltinModules(server, bridge, serverMode.getModuleAllowed());
+    registrars.registerGroups(server, bridge, serverMode.getReadOnly());
   });
 
   process.stderr.write(`[godot-mcp] config reloaded — ${toolRefCount()} tools registered\n`);
@@ -330,7 +314,7 @@ function registerExtensionTool(cmd: ExtensionCmdWire): boolean {
   const toolName = cmd.method.replace(/\./g, "_");
   const annotations = extensionAnnotations(cmd);
   // Read-only mode: skip extension tools that aren't read-only.
-  if (isExcludedByReadOnly(readOnly, annotations)) return false;
+  if (isExcludedByReadOnly(serverMode.getReadOnly(), annotations)) return false;
   const timeoutMs = cmd.timeout_ms ?? undefined;
   const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
   registerToolWrapped(
@@ -455,7 +439,7 @@ async function runDiscovery(): Promise<void> {
   // Uses in-place update (1 notification). For the common case
   // (no extensions), discover_tools was already registered at startup.
   if (deferredCount > 0) {
-    registerGroupSystem(server, bridge, readOnly);
+    registerGroupSystem(server, bridge, serverMode.getReadOnly());
   }
 
   if (registered > 0 || deferredCount > 0) {
@@ -519,7 +503,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
         if (!cmd.group?.name) {
           // Ungrouped: update or register/remove based on read-only eligibility.
           const isRegistered = hasToolRef(toolName);
-          const shouldBeRegistered = !isExcludedByReadOnly(readOnly, annotations);
+          const shouldBeRegistered = !isExcludedByReadOnly(serverMode.getReadOnly(), annotations);
 
           if (isRegistered && !shouldBeRegistered) {
             // Was eligible, now excluded (e.g., readOnlyHint removed in read-only mode).
@@ -551,7 +535,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
           addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
           // If the group is loaded and the tool is registered, update in-place.
           if (hasToolRef(toolName)) {
-            const shouldBeRegistered = !isExcludedByReadOnly(readOnly, annotations);
+            const shouldBeRegistered = !isExcludedByReadOnly(serverMode.getReadOnly(), annotations);
             if (!shouldBeRegistered) {
               removeToolByName(toolName);
               removed++;
@@ -596,7 +580,7 @@ function handleExtensionsChanged(params?: Record<string, unknown>): void {
 
   // Update discover_tools description if extension groups changed.
   if (added > 0 || removed > 0) {
-    registerGroupSystem(server, bridge, readOnly);
+    registerGroupSystem(server, bridge, serverMode.getReadOnly());
   }
 
   if (added > 0 || removed > 0) {
