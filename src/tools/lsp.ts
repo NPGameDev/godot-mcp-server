@@ -267,6 +267,26 @@ export function createLspHandler(toolName: string, projectPath: string): (input:
 
 // ── Individual handlers ──────────────────────────────────────────────
 
+/**
+ * Build the connect-failure hint for the LSP_UNAVAILABLE branch below. Causes
+ * are ordered by likelihood given the editor is usually up — the calling agent
+ * is already using other MCP tools that need it — so the "editor not running"
+ * theory (the cause most callers can already rule out) comes LAST. The common
+ * real cause is the GDScript LSP not listening on the port we tried: the editor
+ * may have been launched with --lsp-port (which the registry can't see), so the
+ * server connected to the default and got ECONNREFUSED. Pure + exported so the
+ * ordering/contents are unit-testable without a live client.
+ */
+export function lspConnectFailureHint(port: number): string {
+  return (
+    `Could not reach the GDScript LSP on port ${port}. Most likely the LSP is listening on a ` +
+    `different port — the editor may have been launched with --lsp-port, or its ` +
+    `network/language_server/remote_port setting differs from ${port}; set GODOT_MCP_LSP_PORT to ` +
+    `the actual LSP port to match. The LSP may also still be initializing — retry shortly. ` +
+    `Only if no other MCP tool works at all is the editor not running.`
+  );
+}
+
 async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClient> {
   const client = getLspClient(projectPath);
   try {
@@ -291,7 +311,8 @@ async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClien
     _statusReporter?.({ state: "unavailable", host: ep.host, port: ep.port, detail: (err as Error).message });
     return toolError(
       "LSP_UNAVAILABLE",
-      `GDScript LSP unavailable: ${(err as Error).message}. Ensure the Godot editor is running.`,
+      `GDScript LSP unavailable: ${(err as Error).message}.`,
+      lspConnectFailureHint(ep.port),
     );
   }
 }
