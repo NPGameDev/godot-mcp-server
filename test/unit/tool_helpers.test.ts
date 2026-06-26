@@ -15,6 +15,7 @@ import {
   callAndWrap,
   runtimeErrorWithCrashContext,
   buildScreenshotResponse,
+  versionSupportText,
 } from "../../src/tool_helpers.js";
 import { BridgeError } from "../../src/errors.js";
 import { PROJECT_FILE_PATH } from "../../src/path_guard.js";
@@ -593,5 +594,16 @@ assert.equal(
   true,
   "4.4 within [4.2, 4.5] → registered",
 );
+
+// ── versionSupportText — range-aware UNSUPPORTED error-hint clause (concern 087) ──
+// The runtime version gate (registerToolWrapped) builds its UNSUPPORTED hint from
+// this pure helper. The gate guarantees at least one bound is set, so three cases
+// exist: min+max (inclusive range), min-only (or-newer), max-only (up-to). The "–"
+// is an en-dash (U+2013), matched verbatim here against the helper's output.
+{
+  assert.equal(versionSupportText("4.2", "4.5"), "Supported on Godot 4.2–4.5 (inclusive).");
+  assert.equal(versionSupportText("4.5", undefined), "Requires Godot 4.5 or newer.");
+  assert.equal(versionSupportText(undefined, "4.4"), "Supported up to Godot 4.4 (inclusive).");
+}
 
 console.log("All tool_helpers tests passed.");

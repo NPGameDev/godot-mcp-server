@@ -249,6 +249,20 @@ export function getVersionMap(): Map<string, { min?: string; max?: string }> {
 }
 
 /**
+ * Plain-language, inclusive, range-aware support clause for a version-gated
+ * tool's bounds. Used ONLY in the UNSUPPORTED error hint (the runtime version
+ * gate below) — never in a success/regular hint, tool-def successHint, or
+ * schema description. The gate guarantees at least one bound is set, so the
+ * final return covers the max-only case. The "–" between bounds is an en-dash
+ * (U+2013).
+ */
+export function versionSupportText(min?: string, max?: string): string {
+  if (min && max) return `Supported on Godot ${min}–${max} (inclusive).`;
+  if (min) return `Requires Godot ${min} or newer.`;
+  return `Supported up to Godot ${max} (inclusive).`;
+}
+
+/**
  * Path-guard map (built-in tools only) — name → declared PathGuards. Consulted
  * in the dispatch choke point (wrappedHandler) to syntactically pre-filter
  * path params before the bridge round-trip. Extension tools register without
@@ -556,13 +570,11 @@ export function registerToolWrapped(
     if (verBounds != null) {
       const connected = bridge.getGodotVersion();
       if (connected != null && !isVersionCompatible(connected, verBounds.min, verBounds.max)) {
-        const parts: string[] = [];
-        if (verBounds.min) parts.push(`>= ${verBounds.min}`);
-        if (verBounds.max) parts.push(`<= ${verBounds.max}`);
+        const supported = versionSupportText(verBounds.min, verBounds.max);
         return toolError(
           "UNSUPPORTED",
-          `${name} requires Godot ${parts.join(" and ")} (connected: ${connected[0]}.${connected[1]})`,
-          "Check COMPATIBILITY.md or use classdb.get_info for alternatives.",
+          `${name} is not supported on this Godot version (connected: ${connected[0]}.${connected[1]})`,
+          `${supported} Use classdb.get_info for alternatives.`,
         );
       }
     }
