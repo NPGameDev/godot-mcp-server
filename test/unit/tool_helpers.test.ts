@@ -3,12 +3,7 @@
  * and coercion helpers.
  */
 import assert from "node:assert/strict";
-import {
-  registerToolWrapped,
-  batchToolRegistration,
-  buildScreenshotResponse,
-  versionSupportText,
-} from "../../src/tool_helpers.js";
+import { registerToolWrapped, batchToolRegistration, versionSupportText } from "../../src/tool_helpers.js";
 import { callAndWrap } from "../../src/tool_dispatch.js";
 import { jsonSchemaToParamMap } from "../../src/tool_meta.js";
 import { coercedBoolean, jsonCoerce } from "../../src/schema_coercion.js";
@@ -305,7 +300,7 @@ function captureWrapped(name: string, pathParams?: readonly PathGuard[]) {
   assert.equal(t.calls(), 1);
 }
 
-// ── callAndWrap / runtimeErrorWithCrashContext / buildScreenshotResponse ──
+// ── callAndWrap / runtimeErrorWithCrashContext ──
 // A method-aware fake bridge: each branch overrides only the call(s) it needs;
 // the rest default to a benign success so an unexpected call never crashes.
 
@@ -447,44 +442,6 @@ function makeBridge(
 {
   const result = await runtimeErrorWithCrashContext(makeBridge(), new Error("boom"));
   assert.equal(JSON.parse(result.content[0].text).code, "INTERNAL");
-}
-
-// ── buildScreenshotResponse ──────────────────────────────────────────
-
-// Image result → [text metadata, image block].
-{
-  const result = buildScreenshotResponse({
-    image_base64: "BASE64",
-    mime_type: "image/png",
-    width: 64,
-    height: 48,
-    bytes: 900,
-  });
-  assert.equal(result.content.length, 2);
-  assert.equal(result.content[0].type, "text");
-  const meta = JSON.parse(result.content[0].text);
-  assert.equal(meta.width, 64);
-  assert.equal(meta.height, 48);
-  assert.equal(meta.bytes, 900);
-  assert.equal(meta.mime_type, "image/png");
-  const image = result.content[1] as unknown as { type: string; data: string; mimeType: string };
-  assert.equal(image.type, "image");
-  assert.equal(image.data, "BASE64");
-  assert.equal(image.mimeType, "image/png");
-}
-
-// No image but {success:false} → toolError with the payload's code.
-{
-  const result = buildScreenshotResponse({ success: false, code: "EMPTY_CONTENT", error: "no bytes" });
-  assert.equal(result.isError, true);
-  assert.equal(JSON.parse(result.content[0].text).code, "EMPTY_CONTENT");
-}
-
-// No image and no failure → passthrough JSON, not an error.
-{
-  const result = buildScreenshotResponse({ foo: "bar" });
-  assert.equal(result.isError, undefined);
-  assert.deepEqual(JSON.parse(result.content[0].text), { foo: "bar" });
 }
 
 // ── batchToolRegistration — notification collapse (config-reload invariant) ──

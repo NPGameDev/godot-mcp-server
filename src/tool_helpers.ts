@@ -5,46 +5,14 @@
  * need the Bridge type no longer pull in registration/error logic.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { stableStringify } from "./schema_min.js";
 import { isReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import type { Bridge, ToolDef, ToolTextResult, ToolRequest, PathGuard } from "./types.js";
 import { setToolRef } from "./tool_refs.js";
 import { isVersionCompatible } from "./version.js";
 import { checkPathGuard } from "./path_guard.js";
-import { toolError, toolErrorFromPayload } from "./error_contract.js";
+import { toolError } from "./error_contract.js";
 import { isRawJsonSchema, jsonSchemaToZodShape, addStringCoercion } from "./schema_coercion.js";
 import { callAndWrap, injectSuccessHint } from "./tool_dispatch.js";
-
-// ── Screenshot response builder ─────────────────────────────────────
-
-/**
- * Build a multi-content screenshot response from a bridge result.
- * Shared by editor_screenshot and runtime_screenshot.
- */
-export function buildScreenshotResponse(result: unknown): ToolTextResult {
-  const r = result as {
-    image_base64?: string;
-    mime_type?: string;
-    width?: number;
-    height?: number;
-    bytes?: number;
-  };
-  if (!r?.image_base64) {
-    return toolErrorFromPayload(result) ?? { content: [{ type: "text", text: stableStringify(result) }] };
-  }
-  return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify({ width: r.width, height: r.height, bytes: r.bytes, mime_type: r.mime_type }),
-      },
-      { type: "image" as unknown as "text", data: r.image_base64, mimeType: r.mime_type ?? "image/png" } as unknown as {
-        type: "text";
-        text: string;
-      },
-    ],
-  };
-}
 
 // ── Registration helpers ────────────────────────────────────────────
 
@@ -60,10 +28,6 @@ export function setGlobalHookPipeline(pipeline: HookPipeline): void {
 
 /** Version gate map — populated by registerToolWrapped callers. */
 const _versionMap = new Map<string, { min?: string; max?: string }>();
-
-export function getVersionMap(): Map<string, { min?: string; max?: string }> {
-  return _versionMap;
-}
 
 /**
  * Plain-language, inclusive, range-aware support clause for a version-gated
