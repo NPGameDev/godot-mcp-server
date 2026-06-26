@@ -560,10 +560,29 @@ export interface BridgeOptions {
 export function createBridge(
   editorUrl: string,
   opts?: BridgeOptions,
-): Bridge & { onNotification(handler: NotificationHandler): void } {
+): Bridge & {
+  onNotification(handler: NotificationHandler): void;
+  /** Register a one-shot-friendly hook fired when the connected Godot version
+   *  resolves (unknown → known). The composition root uses it to complete an
+   *  incomplete startup tool surface (concern 071). */
+  onGodotVersionKnown(handler: () => void): void;
+} {
   const projectPath = opts?.projectPath;
   let godotVersion: string | null = null;
   let notificationHandler: NotificationHandler | null = null;
+  let versionKnownHandler: (() => void) | null = null;
+
+  // Record the connected Godot version. Fires the version-resolved hook on the
+  // unknown → known transition (and only then) so the composition root can
+  // complete a tool surface that was registered before the editor reported its
+  // version — version-gated tools (scene_close) and extension tools stranded on
+  // a server-before-editor cold start (concern 071). Routing every version-set
+  // site through here keeps the unknown → known lifecycle owned in one place.
+  function setGodotVersion(v: string): void {
+    const versionWasUnknown = godotVersion == null;
+    godotVersion = v;
+    if (versionWasUnknown && versionKnownHandler) versionKnownHandler();
+  }
 
   // Pre-populate version from registry entry (available before auth).
   if (projectPath) {
@@ -595,7 +614,7 @@ export function createBridge(
     editorUrl,
     projectPath,
     (v) => {
-      godotVersion = v;
+      setGodotVersion(v);
       sendLimitsIfConfigured(editor);
     },
     getNotificationHandler,
@@ -629,7 +648,7 @@ export function createBridge(
       `ws://127.0.0.1:${cachedEditorPort}`,
       projectPath,
       (v) => {
-        godotVersion = v;
+        setGodotVersion(v);
       },
       getNotificationHandler,
     );
@@ -886,6 +905,9 @@ export function createBridge(
     },
     onNotification(handler: NotificationHandler) {
       notificationHandler = handler;
+    },
+    onGodotVersionKnown(handler: () => void) {
+      versionKnownHandler = handler;
     },
   };
 }

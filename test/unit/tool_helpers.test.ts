@@ -541,4 +541,57 @@ function registerThenRemoveBurst(fake: ReturnType<typeof makeCountingServer>["fa
   assert.equal(count(), 6, "unbatched burst emits one per op (3 register + 3 remove)");
 }
 
+// ── version-gate registration recovery (concern 071) ─────────────────
+// registerToolWrapped filters version-gated tools at registration time against
+// bridge.getGodotVersion(): unknown → fail-closed (skip), known-incompatible →
+// skip, known-compatible → register. The startup reconcile (index.ts) leans on
+// exactly this gate — when the editor reports its version later, a re-registration
+// pass lands (or correctly skips) each version-gated tool. These cases shield the
+// gate's three outcomes against a fake bridge whose getGodotVersion() is pinned.
+
+/** Register one version-gated tool and report whether it reached server.registerTool. */
+function gateRegisters(
+  connected: [number, number] | null,
+  verOpts: { godotMinVersion?: string; godotMaxVersion?: string },
+): boolean {
+  let registered = false;
+  const fakeServer = {
+    registerTool: () => {
+      registered = true;
+      return {};
+    },
+    sendToolListChanged: () => {},
+  } as unknown as McpServer;
+  const fakeBridge = { getGodotVersion: () => connected } as unknown as Bridge;
+  registerToolWrapped(
+    fakeServer,
+    fakeBridge,
+    "vg_tool",
+    { description: "t", inputSchema: {} },
+    async (): Promise<ToolTextResult> => ({ content: [{ type: "text", text: "ok" }] }),
+    verOpts,
+  );
+  return registered;
+}
+
+// Version unknown (null) → fail-closed: tool is NOT registered.
+assert.equal(gateRegisters(null, { godotMinVersion: "4.5" }), false, "null version → fail-closed (not registered)");
+
+// Known-compatible (meets the minimum) → registered.
+assert.equal(gateRegisters([4, 5], { godotMinVersion: "4.5" }), true, "4.5 meets min 4.5 → registered");
+assert.equal(gateRegisters([4, 6], { godotMinVersion: "4.5" }), true, "4.6 exceeds min 4.5 → registered");
+
+// Known-incompatible (below min) → NOT registered.
+assert.equal(gateRegisters([4, 3], { godotMinVersion: "4.5" }), false, "4.3 below min 4.5 → not registered");
+
+// Known-incompatible (above max) → NOT registered.
+assert.equal(gateRegisters([4, 6], { godotMaxVersion: "4.5" }), false, "4.6 above max 4.5 → not registered");
+
+// Inside both bounds → registered.
+assert.equal(
+  gateRegisters([4, 4], { godotMinVersion: "4.2", godotMaxVersion: "4.5" }),
+  true,
+  "4.4 within [4.2, 4.5] → registered",
+);
+
 console.log("All tool_helpers tests passed.");

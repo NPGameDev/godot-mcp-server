@@ -272,8 +272,20 @@ const EXTENSION_DISCOVERY_DEADLINE_MS = 8000;
 // and buildExtensionTimeoutHint() reference them during the await.
 const DEFAULT_EXTENSION_TIMEOUT_MS = 30_000;
 const knownExtensionTools = new Set<string>();
+// Single-flight latch for discoverExtensions (concern 071 follow-up). Holds the
+// currently-running discovery promise so a concurrent caller joins it instead of
+// starting a second pass. Declared here (not beside discoverExtensions) so it is
+// initialised before the eager discovery awaits — same TDZ rule as above.
+let discoveryInFlight: Promise<void> | null = null;
 
 // ── Initial registration ────────────────────────────────────────────
+
+// Snapshot whether the Godot version is unknown at eager registration. When it
+// is, the registration-time version gate filters out version-gated tools
+// (scene_close) — leaving the startup surface incomplete. The startup reconcile
+// (below) completes it once the version resolves. Pre-populated from the
+// registry in the common dogfood flow → false → no reconcile needed.
+const versionNullAtEagerRegistration = bridge.getGodotVersion() == null;
 
 registerModules(moduleAllowed);
 registerGroups();
@@ -289,11 +301,11 @@ registerRoots(server);
 // ── Eager extension discovery ──────────────────────────────────────
 // Discover extensions BEFORE transport connects so they're in the
 // initial tools/list. Deadline prevents blocking if editor is slow.
-// Note: bridge.onNotification is set up AFTER this await, so the
-// initial auth-delivered config_reloaded notification is missed —
-// but this is benign by design.  The notification handler detects it
-// via reconnect===false and early-returns (see below), because tools
-// were already registered at startup from the same env vars.
+// Note: the editor's FIRST connect delivers no notification (config_reloaded
+// is reconnect-only — see bridge.ts performAuth). The version becomes known
+// via bridge.onGodotVersionKnown; if discovery timed out here or the version
+// was unknown at eager registration, the startup reconcile (maybeStartupReconcile,
+// below) completes the tool surface once the editor is reachable.
 
 let extDiscoveryTimedOut = false;
 try {
@@ -305,9 +317,10 @@ try {
   ]);
 } catch {
   extDiscoveryTimedOut = true;
-  // Deadline or discovery error — if the bridge connects on a later
-  // tool call, config_reloaded re-triggers full discovery. LLM can
-  // also call extensions_refresh (always registered above).
+  // Deadline or discovery error — the startup reconcile (maybeStartupReconcile,
+  // below) re-runs discovery once the version is known (immediately if it
+  // already is). The LLM can also call extensions_refresh (always registered
+  // above).
 }
 
 logStartup(extDiscoveryTimedOut);
@@ -356,10 +369,6 @@ function handleConfigReload(): void {
 // Debounce config_reloaded to prevent rapid config changes from causing
 // overlapping remove+rebuild cycles that leave the tool list empty.
 let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
-// The first auth-delivered config_reloaded (reconnect=false) is the initial
-// config sync.  Suppress tools/list_changed for it — some MCP clients restart
-// the server on notifications received within the first second of connection.
-let initialAuthSyncDone = false;
 
 // Push the GDScript LSP verdict to the editor dock (editor.set_lsp_status, ADR
 // 0008) — the editor can't read its own LSP bind status, so the server reports it.
@@ -396,19 +405,11 @@ bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
     // Push the authoritative LSP verdict to the editor dock (ADR 0008).
     reportLspStatus();
-    // Auth-sourced notifications include `reconnect`; plugin-sent ones don't.
-    const isInitialAuth = !initialAuthSyncDone && params?.reconnect === false;
-    if (params?.reconnect !== undefined) initialAuthSyncDone = true;
-
-    if (isInitialAuth) {
-      // On the very first auth of a new bridge process, tools were JUST
-      // registered at startup from the same env vars.  Skip tool
-      // re-registration to avoid a tools/list_changed notification that
-      // can cause some MCP clients to restart or reconnect the bridge.
-      process.stderr.write("[godot-mcp] initial auth sync — skipping tool reload to avoid connection bounce\n");
-      return;
-    }
-
+    // config_reloaded is only ever emitted on a RECONNECT ({reconnect:true},
+    // bridge.ts performAuth) — the editor's FIRST connect sends no notification.
+    // An incomplete first-connect surface is completed by the startup reconcile
+    // (maybeStartupReconcile), not here. So this is the live reconnect handler:
+    // re-read config + re-register tools, debounced.
     if (configReloadTimer) clearTimeout(configReloadTimer);
     configReloadTimer = setTimeout(() => {
       configReloadTimer = null;
@@ -423,6 +424,26 @@ bridge.onNotification((type, params) => {
     bridge.clearRuntime?.();
   }
 });
+
+// ── Startup reconcile (concern 071) ──────────────────────────────────
+// The eagerly-registered tool surface is INCOMPLETE when the Godot version was
+// unknown at eager registration (version-gated tools like scene_close were
+// filtered out) or extension discovery timed out (extension tools never
+// registered) — the classic server-before-editor cold start. Complete it
+// EXACTLY ONCE: immediately if the version is already known (slow/timed-out
+// discovery), or when it resolves later via the version-resolved hook
+// (server-before-editor). In the common dogfood case the surface is already
+// complete (version pre-populated + discovery succeeded) → needsStartupReconcile
+// is false → this is a strict no-op: no reconcile, no extra tools/list_changed.
+const startupSurfaceIncomplete = versionNullAtEagerRegistration || extDiscoveryTimedOut;
+let needsStartupReconcile = startupSurfaceIncomplete;
+function maybeStartupReconcile(): void {
+  if (!needsStartupReconcile || bridge.getGodotVersion() == null) return;
+  needsStartupReconcile = false; // one-shot; also dedups reconnect re-deliveries
+  handleConfigReload(); // re-register (known version) + re-discover, already batched
+}
+maybeStartupReconcile(); // version already known (slow/timed-out discovery)
+bridge.onGodotVersionKnown(maybeStartupReconcile); // version known later (server-before-editor)
 
 // ── Extension discovery ──────────────────────────────────────────────
 
@@ -495,7 +516,42 @@ function registerExtensionTool(cmd: ExtensionCmdWire): boolean {
 // Discover third-party extensions from the toolkit and register them as
 // MCP tools. Called eagerly before transport (deadline-wrapped) at startup,
 // and again from handleConfigReload on config changes.
-async function discoverExtensions(): Promise<void> {
+//
+// Single-flight (concern 071 follow-up): if a discovery is already running,
+// JOIN it rather than start a second concurrent pass. Without this, the eager
+// discovery losing the 8s Promise.race deadline stays in-flight, and the
+// immediate startup reconcile (maybeStartupReconcile → handleConfigReload) would
+// fire a second discoverExtensions() — two concurrent passes issuing duplicate
+// extensions.refresh RPCs and double-registering the same ungrouped tools (a
+// swallowed "already registered" throw + up to 2× tools/list_changed). The latch
+// engages ONLY when a discovery is genuinely concurrent; in the common case and
+// the server-before-editor fast-fail the eager pass settles (and clears the
+// latch) before any reconcile fires, so this is a transparent pass-through.
+//
+// Safe against handleConfigReload's removeAllTools(): a joined pass always
+// registers AFTER the reconcile's synchronous removeAllTools()+module rebuild
+// (the eager pass is still awaiting its RPC when the timeout fires, so it has
+// registered nothing yet), landing the extension tools exactly once on the
+// freshly-rebuilt surface. If a prior pass had already registered, it has
+// settled → the latch is clear → a fresh discovery runs. Either way: registered
+// exactly once. knownExtensionTools.add() is idempotent across joins.
+//
+// Accepted residual (deferred fix, post-1.0): a join inherits a FAILING eager
+// pass — if the joined discovery's RPC fails, the reconcile registers zero
+// extensions and consumes its one-shot, so extensions recover only on the next
+// extensions.changed / extensions_refresh / reconnect. Ultra-narrow + self-
+// healing; built-ins unaffected. Deferred fix = retry a fresh pass on an empty join.
+function discoverExtensions(): Promise<void> {
+  if (discoveryInFlight) return discoveryInFlight;
+  const run = runDiscovery().finally(() => {
+    // Clear only if still ours — a later pass may have replaced the latch.
+    if (discoveryInFlight === run) discoveryInFlight = null;
+  });
+  discoveryInFlight = run;
+  return run;
+}
+
+async function runDiscovery(): Promise<void> {
   let registered = 0;
   let deferredCount = 0;
 
