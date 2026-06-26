@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools, jsonCoerce, coercedBoolean } from "../tool_helpers.js";
+import { registerTools } from "../tool_helpers.js";
+import { jsonCoerce, coercedBoolean } from "../schema_coercion.js";
 import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 export const sceneTools: ToolDef[] = [

@@ -12,7 +12,7 @@ import { z } from "zod";
 import type { ToolDef } from "../src/types.js";
 import { isAllowedInReadOnly, STANDARD_TOOLS } from "../src/profiles.js";
 import { GROUP_TOOL_NAMES } from "../src/groups.js";
-import { addStringCoercion } from "../src/tool_helpers.js";
+import { addStringCoercion } from "../src/schema_coercion.js";
 
 // ── Canonical tool inventory (single source of truth) ───────────────
 import { ALL_TOOL_DEFS } from "../src/catalogue.js";

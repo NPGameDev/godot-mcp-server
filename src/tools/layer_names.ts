@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools, jsonCoerce } from "../tool_helpers.js";
+import { registerTools } from "../tool_helpers.js";
+import { jsonCoerce } from "../schema_coercion.js";
 
 const CATEGORY_ENUM = z.enum(["2d_physics", "2d_render", "3d_physics", "3d_render"]);
 

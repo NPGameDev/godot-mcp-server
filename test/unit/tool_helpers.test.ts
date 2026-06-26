@@ -4,8 +4,6 @@
  */
 import assert from "node:assert/strict";
 import {
-  coercedBoolean,
-  jsonCoerce,
   jsonSchemaToParamMap,
   registerToolWrapped,
   batchToolRegistration,
@@ -13,6 +11,7 @@ import {
   buildScreenshotResponse,
   versionSupportText,
 } from "../../src/tool_helpers.js";
+import { coercedBoolean, jsonCoerce } from "../../src/schema_coercion.js";
 import {
   toolError,
   toolErrorFromPayload,

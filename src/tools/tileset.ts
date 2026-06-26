@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
+import { registerTools } from "../tool_helpers.js";
+import { coercedBoolean, jsonCoerce } from "../schema_coercion.js";
 import { PROJECT_FILE_PATH } from "../path_guard.js";
 
 // ── tileset group (structural) ──────────────────────────────────────

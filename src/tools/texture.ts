@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools, jsonCoerce } from "../tool_helpers.js";
+import { registerTools } from "../tool_helpers.js";
+import { jsonCoerce } from "../schema_coercion.js";
 import { assetWriteFields } from "./_asset_write.js";
 
 /** A colour: a hex/named string ("#ff0000", "red") or an [r,g,b(,a)] array

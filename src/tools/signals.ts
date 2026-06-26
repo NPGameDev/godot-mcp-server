@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools, coercedBoolean, jsonCoerce } from "../tool_helpers.js";
+import { registerTools } from "../tool_helpers.js";
+import { coercedBoolean, jsonCoerce } from "../schema_coercion.js";
 
 // signal_emit is dual-mode: default routes to the editor-side Mode A
 // server (edited scene); `mode: "runtime"` routes to Mode B for
