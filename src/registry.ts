@@ -61,22 +61,18 @@ export function registryPath(): string {
 // -- Registry I/O ------------------------------------------------------------
 
 function readRegistry(): Registry {
-  // Retry up to 3 times on parse failure — handles the brief window
-  // during two-phase atomic write where the file may be partially written.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const raw = readFileSync(registryPath(), "utf-8");
-      const data = JSON.parse(raw) as Registry;
-      if (data && typeof data.by_path === "object") return data;
-    } catch {
-      if (attempt < 2) {
-        const delay = 100 * (attempt + 1);
-        const start = Date.now();
-        while (Date.now() - start < delay) {
-          /* busy wait — rare path, tiny delay */
-        }
-      }
-    }
+  // Single parse attempt — no retry, no busy-wait. The toolkit writes the
+  // registry atomically (.tmp → rename, atomic on POSIX *and* Windows), so a
+  // reader always sees a complete prior-or-new file, never a partial one. A
+  // parse failure is therefore genuine corruption that re-reading the same
+  // bytes cannot fix, and a missing file (ENOENT, first run) is the expected
+  // "no registry yet" state. Either way we degrade gracefully to empty.
+  try {
+    const raw = readFileSync(registryPath(), "utf-8");
+    const data = JSON.parse(raw) as Registry;
+    if (data && typeof data.by_path === "object") return data;
+  } catch {
+    /* ENOENT (no registry yet) or corrupt file — fall through to empty. */
   }
   return { by_path: {} };
 }

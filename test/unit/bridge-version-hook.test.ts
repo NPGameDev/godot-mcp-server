@@ -68,8 +68,7 @@ function writeRegistry(byPath: Record<string, RegistryEntry>): void {
 }
 
 // Start with an empty registry so createBridge pre-populates nothing unless a
-// case explicitly seeds an entry (and readRegistry succeeds without the
-// missing-file retry busy-wait).
+// case explicitly seeds an entry.
 writeRegistry({});
 
 // ── Mock editor WebSocket server ─────────────────────────────────────
