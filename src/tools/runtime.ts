@@ -8,6 +8,7 @@ import { coercedBoolean } from "../schema_coercion.js";
 import { toolErrorFromPayload, runtimeErrorWithCrashContext } from "../error_contract.js";
 import { BridgeError } from "../errors.js";
 import { stableStringify } from "../schema_min.js";
+import { buildScreenshotResult } from "../screenshot_response.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:6570. Only works while the game is running in a debug build
@@ -186,15 +187,11 @@ function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown
       const err = toolErrorFromPayload(result);
       if (err) return err;
       const obj = result as { image_base64: string; mime_type: string; width: number; height: number; bytes: number };
-      return {
-        content: [
-          { type: "image" as const, data: obj.image_base64, mimeType: obj.mime_type ?? "image/png" },
-          {
-            type: "text" as const,
-            text: JSON.stringify({ width: obj.width, height: obj.height, bytes: obj.bytes }),
-          },
-        ],
-      };
+      return buildScreenshotResult(obj.image_base64, obj.mime_type, {
+        width: obj.width,
+        height: obj.height,
+        bytes: obj.bytes,
+      });
     } catch (err) {
       return runtimeErrorWithCrashContext(bridge, err);
     }

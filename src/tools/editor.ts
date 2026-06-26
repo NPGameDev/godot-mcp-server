@@ -7,6 +7,7 @@ import { jsonCoerce, coercedBoolean } from "../schema_coercion.js";
 import { toolErrorFromException, toolErrorFromPayload } from "../error_contract.js";
 import { stableStringify } from "../schema_min.js";
 import { PROJECT_FILE_PATH } from "../path_guard.js";
+import { buildScreenshotResult } from "../screenshot_response.js";
 
 // ── Tool definitions ─────────────────────────────────────────────────
 
@@ -191,15 +192,12 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
         "screenshot returned no image bytes — node may lack visual content. Use editor_screenshot for full viewport.",
     })!;
   }
-  return {
-    content: [
-      { type: "image" as const, data: result.image_base64, mimeType: result.mime_type ?? "image/png" },
-      {
-        type: "text" as const,
-        text: JSON.stringify({ width: result.width, height: result.height, bytes: result.bytes, path: result.path }),
-      },
-    ],
-  };
+  return buildScreenshotResult(result.image_base64, result.mime_type, {
+    width: result.width,
+    height: result.height,
+    bytes: result.bytes,
+    path: result.path,
+  });
 }
 
 // ── Registration ─────────────────────────────────────────────────────

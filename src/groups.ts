@@ -13,6 +13,7 @@ import { toolErrorFromPayload, toolErrorFromException } from "./error_contract.j
 import { enrichGroupResults, type ToolMeta, type GroupResult } from "./tool_meta.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
+import { buildScreenshotResult } from "./screenshot_response.js";
 
 // Canonical tool inventory (single source of truth for counting + lookup)
 // and group-loaded state. Both are leaf modules that do NOT import groups.ts,
@@ -615,20 +616,12 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
             "screenshot returned no image bytes — node may lack visual content. Use editor_screenshot for full viewport.",
         })!;
       }
-      return {
-        content: [
-          { type: "image" as const, data: obj.image_base64, mimeType: obj.mime_type ?? "image/png" },
-          {
-            type: "text" as const,
-            text: JSON.stringify({
-              width: obj.width,
-              height: obj.height,
-              bytes: obj.bytes,
-              path: obj.path,
-            }),
-          },
-        ],
-      };
+      return buildScreenshotResult(obj.image_base64, obj.mime_type, {
+        width: obj.width,
+        height: obj.height,
+        bytes: obj.bytes,
+        path: obj.path,
+      });
     } catch (err) {
       return toolErrorFromException(err);
     }
