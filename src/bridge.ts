@@ -661,11 +661,14 @@ export function createBridge(
   // callRuntime re-reads the registry on each invocation to pick up
   // newly-started playtests. The channel is cached and recreated only
   // when the port changes.
+  // Single construction point for all runtime channels (no reconnect, 10s connect timeout).
+  const createRuntimeChannel = (port: number | string): Channel =>
+    createChannel(`ws://127.0.0.1:${port}`, projectPath, undefined, undefined, {
+      noReconnect: true,
+      connectTimeoutMs: 10_000,
+    });
   let runtimeChannel: Channel | null = opts?.explicitRuntimePort
-    ? createChannel(`ws://127.0.0.1:${opts.explicitRuntimePort}`, projectPath, undefined, undefined, {
-        noReconnect: true,
-        connectTimeoutMs: 10_000,
-      })
+    ? createRuntimeChannel(opts.explicitRuntimePort)
     : null;
   let cachedRuntimePort: number | null = opts?.explicitRuntimePort ? Number(opts.explicitRuntimePort) : null;
 
@@ -687,10 +690,7 @@ export function createBridge(
         if (discoveredPath !== normalizedProject) return;
         process.stderr.write(`[bridge] runtime discovered on port ${port}\n`);
         if (runtimeChannel) void runtimeChannel.close();
-        runtimeChannel = createChannel(`ws://127.0.0.1:${port}`, projectPath, undefined, undefined, {
-          noReconnect: true,
-          connectTimeoutMs: 10_000,
-        });
+        runtimeChannel = createRuntimeChannel(port);
         cachedRuntimePort = port;
         startHeartbeat();
         // Notify any pending waitForRuntimeConnection callers.
@@ -811,10 +811,7 @@ export function createBridge(
           );
         }
         // Disk confirms a port exists — new game started. Create channel.
-        runtimeChannel = createChannel(`ws://127.0.0.1:${diskPort}`, projectPath, undefined, undefined, {
-          noReconnect: true,
-          connectTimeoutMs: 10_000,
-        });
+        runtimeChannel = createRuntimeChannel(diskPort);
         cachedRuntimePort = diskPort;
       } else {
         // Normal path: consult registry cache.
@@ -835,10 +832,7 @@ export function createBridge(
         // Port changed (new playtest or different runtime instance).
         if (currentPort !== cachedRuntimePort) {
           if (runtimeChannel) await runtimeChannel.close();
-          runtimeChannel = createChannel(`ws://127.0.0.1:${currentPort}`, projectPath, undefined, undefined, {
-            noReconnect: true,
-            connectTimeoutMs: 10_000,
-          });
+          runtimeChannel = createRuntimeChannel(currentPort);
           cachedRuntimePort = currentPort;
         }
       }
