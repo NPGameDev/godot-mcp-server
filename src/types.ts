@@ -1,7 +1,8 @@
 /**
  * Pure type definitions for the Godot MCP server.
- * Implementation (error utilities, callAndWrap, registerTools) lives in
- * tool_helpers.ts — import from there for runtime functions.
+ * Runtime implementation lives in the registration/dispatch modules —
+ * registerTools in tool_registry.ts, callAndWrap in tool_dispatch.ts, the
+ * error utilities in error_contract.ts — import from there for runtime functions.
  */
 import type { ZodRawShape } from "zod";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";

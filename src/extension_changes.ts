@@ -23,7 +23,7 @@ import {
   removeUngroupedExtensionTool,
 } from "./groups.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
-import { batchToolRegistration } from "./tool_helpers.js";
+import { batchToolRegistration } from "./tool_registry.js";
 import { extensionAnnotations, toolNameFromMethod, toExtensionCommand } from "./extension_command.js";
 import type { ExtensionRegistrar } from "./extension_registrar.js";
 import type { ExtensionCmdWire, Bridge } from "./types.js";

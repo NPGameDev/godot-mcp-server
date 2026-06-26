@@ -19,7 +19,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { isExcludedByReadOnly } from "./profiles.js";
 import { hasToolRef } from "./tool_refs.js";
-import { registerToolWrapped } from "./tool_helpers.js";
+import { registerToolWrapped } from "./tool_registry.js";
 import { callAndWrap } from "./tool_dispatch.js";
 import { extensionAnnotations, toolNameFromMethod } from "./extension_command.js";
 import type { ToolTextResult, ExtensionCmdWire, Bridge } from "./types.js";

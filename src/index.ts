@@ -10,7 +10,7 @@ import { getServerVersion } from "./version.js";
 import { registerPrompts } from "./prompts.js";
 import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
-import { setGlobalHookPipeline } from "./tool_helpers.js";
+import { setGlobalHookPipeline } from "./tool_registry.js";
 import * as startupEnv from "./startup_env.js";
 import { MODULE_ALLOWED } from "./server_mode.js";
 import * as registrars from "./registrars.js";

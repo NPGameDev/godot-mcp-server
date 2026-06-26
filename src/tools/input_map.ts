@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_helpers.js";
+import { registerTools } from "../tool_registry.js";
 
 // input_map tools write to ProjectSettings (input/* keys). Ungated since
 // project_set_setting can already write the same keys — these structured

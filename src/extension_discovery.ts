@@ -15,7 +15,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { registerGroupSystem, addExtensionGroup } from "./groups.js";
-import { batchToolRegistration } from "./tool_helpers.js";
+import { batchToolRegistration } from "./tool_registry.js";
 import { extensionAnnotations, toolNameFromMethod, toExtensionCommand } from "./extension_command.js";
 import type { ExtensionRegistrar } from "./extension_registrar.js";
 import type { ExtensionCmdWire, Bridge } from "./types.js";

@@ -17,7 +17,7 @@ import { MODULE_ALLOWED } from "./server_mode.js";
 import { isReadOnly } from "./profiles.js";
 import * as registrars from "./registrars.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
-import { batchToolRegistration } from "./tool_helpers.js";
+import { batchToolRegistration } from "./tool_registry.js";
 import { removeAllToolRefs, toolRefCount } from "./tool_refs.js";
 import { resetLoadedGroups } from "./groups.js";
 import type { Bridge } from "./types.js";

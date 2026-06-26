@@ -1,8 +1,10 @@
 /**
- * Shared tool registration and error utilities.
- * Extracted from types.ts to separate pure type definitions from
- * implementation, satisfying Interface Segregation: modules that only
- * need the Bridge type no longer pull in registration/error logic.
+ * Tool registry — install tools through one wrapped, pre-flighted path
+ * (version-gate, path-guard, hook-pipeline) and register them with the MCP
+ * server. The per-call dispatch primitive lives in tool_dispatch.ts, error
+ * shaping in error_contract.ts, input coercion in schema_coercion.ts.
+ * Originally split from types.ts to keep pure type definitions free of
+ * registration logic (Interface Segregation).
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { isReadOnly, isExcludedByReadOnly } from "./profiles.js";
