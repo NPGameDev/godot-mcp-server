@@ -136,54 +136,6 @@ export function versionSupportText(min?: string, max?: string): string {
  */
 const _pathParamMap = new Map<string, readonly PathGuard[]>();
 
-// ── JSON Schema → param map (reverse of jsonSchemaToZodShape) ──────
-
-/** Simplified parameter info for LLM-facing tool metadata. */
-export interface ParamInfo {
-  type: string;
-  required: boolean;
-  description?: string;
-}
-
-/**
- * Flatten a JSON Schema properties/required structure to a simplified
- * parameter map. Mirrors jsonSchemaToZodShape() in reverse — used by
- * tool_meta.ts to build human-readable param info for discover_tools
- * enrichment. Handles the same types as jsonSchemaToZodShape.
- */
-export function jsonSchemaToParamMap(schema: Record<string, unknown>): Record<string, ParamInfo> {
-  const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
-  if (!properties) return {};
-
-  const required = new Set((schema.required as string[]) ?? []);
-  const params: Record<string, ParamInfo> = {};
-
-  for (const [key, prop] of Object.entries(properties)) {
-    let type: string;
-    switch (prop.type) {
-      case "string":
-        type = Array.isArray(prop.enum) && prop.enum.length > 0 ? "enum" : "string";
-        break;
-      case "number":
-      case "integer":
-        type = "number";
-        break;
-      case "boolean":
-        type = "boolean";
-        break;
-      case "array":
-        type = "array";
-        break;
-      default:
-        type = "string";
-        break;
-    }
-    const description = typeof prop.description === "string" ? prop.description : undefined;
-    params[key] = { type, required: required.has(key), ...(description && { description }) };
-  }
-  return params;
-}
-
 /**
  * Suppress per-tool sendToolListChanged() notifications during a batch
  * operation, then emit a single notification at the end. Use this when

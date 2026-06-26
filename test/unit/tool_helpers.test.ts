@@ -4,13 +4,13 @@
  */
 import assert from "node:assert/strict";
 import {
-  jsonSchemaToParamMap,
   registerToolWrapped,
   batchToolRegistration,
   callAndWrap,
   buildScreenshotResponse,
   versionSupportText,
 } from "../../src/tool_helpers.js";
+import { jsonSchemaToParamMap } from "../../src/tool_meta.js";
 import { coercedBoolean, jsonCoerce } from "../../src/schema_coercion.js";
 import {
   toolError,
