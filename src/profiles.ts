@@ -59,7 +59,7 @@ export const STANDARD_TOOLS: readonly string[] = [
   // tools/list on every session, with no client-side fix. (Regression: a738182;
   // the test/structural.ts reachability check now guards against recurrence.)
   "scene_spatial_map",
-  // High-risk tools — always available on Standard profile. Risk communicated
+  // High-risk tools — always eagerly registered. Risk communicated
   // via MCP annotations (destructiveHint); agent-side filtering recommended.
   "execute_code",
   "node_call_method",

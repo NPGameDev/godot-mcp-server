@@ -447,7 +447,7 @@ export const GROUPS: GroupDef[] = [
   },
 ];
 
-/** All tool names that belong to groups (for filtering during standard profile registration). */
+/** All tool names that belong to groups (for filtering during eager tool registration). */
 export const GROUP_TOOL_NAMES = new Set(GROUPS.flatMap((g) => g.tools));
 
 // ── Tool lookup ──────────────────────────────────────────────────────
@@ -934,7 +934,7 @@ function deactivateGroups(names: string[] | true, readOnly: boolean): string[] {
 
 /**
  * Register the discover_tools meta-tool and its handler.
- * Call this for the standard profile only. Idempotent — if the tool
+ * Call this during base registration. Idempotent — if the tool
  * already exists, updates its description in-place (one notification);
  * otherwise registers fresh (also one notification).
  */
