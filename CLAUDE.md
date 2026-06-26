@@ -21,8 +21,13 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   per-call timeout). Exposes `Bridge.call(method, params, timeoutMs)` and `close()`.
 - `src/types.ts` — `Bridge` interface, `ToolDef`, pure type/interface exports.
 - `src/errors.ts` — `BridgeError` runtime error class.
-- `src/tool_helpers.ts` — `callAndWrap` (uses `stableStringify` for deterministic
-  output), `toolError*` helpers, `registerToolWrapped`/`registerTools`.
+- `src/tool_registry.ts` — tool installation: `registerToolWrapped`/`registerTools`/
+  `batchToolRegistration` + the wrapped-handler pre-flight (version gate, path guard,
+  hook pipeline).
+- `src/tool_dispatch.ts` — per-call dispatch: `callAndWrap` (bridge call + error-wrap +
+  success-hint; uses `stableStringify` for deterministic output), `injectSuccessHint`.
+- `src/error_contract.ts` — `toolError*` builders, `EXCEPTION_HINTS`, crash-context errors.
+- `src/schema_coercion.ts` — input coercion (`coercedBoolean`, `jsonCoerce`) + JSON-Schema→Zod.
 - `src/profiles.ts` — tool visibility (`resolveAllowedTools`, `isReadOnly`,
   `isAllowedInReadOnly`, `isExcludedByReadOnly`). Defines `STANDARD_TOOLS`.
 - `src/groups.ts` — lazy-load group system. `registerGroupSystem` registers
@@ -137,7 +142,7 @@ pre-populates the version from the registry entry's `godot_version` field
 (raw string) and `Bridge.getGodotVersion()` (returns `GodotVer` tuple
 `[major, minor]` or `null`).
 
-**Registration-time gating:** `src/tool_helpers.ts` checks each tool's
+**Registration-time gating:** `src/tool_registry.ts` checks each tool's
 `godotMinVersion` / `godotMaxVersion` (string, `"major.minor"` format)
 against the connected Godot version at tool registration time. Incompatible
 tools are silently skipped — they never appear in `tools/list`. A runtime
