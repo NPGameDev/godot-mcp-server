@@ -125,6 +125,13 @@ export function discoverRuntime(projectPath: string): number | null {
   if (!entry) return null;
   const port = entry.runtime_port;
   if (port == null || !Number.isInteger(port) || port < 1024 || port > 65535) return null;
+  // Skip a port whose owning playtest process is provably dead. The toolkit has
+  // no PID-based GC (OS.is_process_running is unreliable on Windows), so a
+  // crashed playtest leaves runtime_port set until the next register() clears
+  // it; without this gate the bridge would attempt a doomed connect. Mirrors
+  // liveLspClaimants' dead-PID filter. A null runtime_pid (no recorded owner)
+  // does not block — behavior is unchanged for entries without a pid.
+  if (entry.runtime_pid != null && !isPidAlive(entry.runtime_pid)) return null;
   return port;
 }
 

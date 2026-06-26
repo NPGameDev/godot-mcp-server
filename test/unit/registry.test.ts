@@ -144,6 +144,9 @@ const REDIRECT: string | null =
 
 // This process is always alive — used as the default entry pid.
 const ALIVE = process.pid;
+// Never a live PID → process.kill(DEAD, 0) throws ESRCH on Linux, macOS and
+// Windows. Same value/convention as discover_lsp.test.ts (dead-PID filtering).
+const DEAD = 2147483646;
 
 /** Build a complete RegistryEntry, overriding only what a case cares about. */
 function makeEntry(over: Partial<RegistryEntry>): RegistryEntry {
@@ -231,6 +234,26 @@ function withRawRegistry(raw: string | null, fn: () => void): void {
   });
   withRegistry({}, () => {
     assert.equal(discoverRuntime("/proj/run"), null, "discoverRuntime: missing project → null");
+  });
+}
+
+// ── 073: discoverRuntime runtime_pid liveness gate ───────────────────
+//
+// Symmetric with liveLspClaimants' dead-PID filter: a crashed playtest leaves
+// runtime_port set (the toolkit has no PID-based GC), so discoverRuntime must
+// skip a port whose owning process is provably dead — otherwise the bridge
+// attempts a doomed connect. A null runtime_pid (no owner) does NOT block; that
+// path is already covered above (makeEntry defaults runtime_pid to null and the
+// in-range case returns the port).
+{
+  const key = normalizePath("/proj/run");
+  // Valid port but a dead owner → gate fires → null.
+  withRegistry({ [key]: makeEntry({ runtime_port: 6570, runtime_pid: DEAD }) }, () => {
+    assert.equal(discoverRuntime("/proj/run"), null, "discoverRuntime: dead runtime_pid → null");
+  });
+  // Valid port + a live owner → gate must not over-block → port returned.
+  withRegistry({ [key]: makeEntry({ runtime_port: 6570, runtime_pid: ALIVE }) }, () => {
+    assert.equal(discoverRuntime("/proj/run"), 6570, "discoverRuntime: live runtime_pid → port returned");
   });
 }
 
