@@ -25,30 +25,7 @@ import { init as initRoots, registerRoots } from "./roots.js";
 import type { ToolTextResult, ExtensionCmdWire } from "./types.js";
 import { callAndWrap, registerToolWrapped, batchToolRegistration, setGlobalHookPipeline } from "./tool_helpers.js";
 import * as startupEnv from "./startup_env.js";
-
-import * as animation from "./tools/animation.js";
-import * as asset from "./tools/asset.js";
-import * as diff from "./tools/diff.js";
-import * as editor from "./tools/editor.js";
-import * as file from "./tools/file.js";
-import * as folder from "./tools/folder.js";
-import * as inputMap from "./tools/input_map.js";
-import * as node from "./tools/node.js";
-import * as playtest from "./tools/playtest.js";
-import * as resource from "./tools/resource.js";
-import * as runtime from "./tools/runtime.js";
-import * as scene from "./tools/scene.js";
-import * as script from "./tools/script.js";
-import * as signal from "./tools/signals.js";
-import * as save from "./tools/save.js";
-import * as tilemap from "./tools/tilemap.js";
-import * as tileset from "./tools/tileset.js";
-import * as classdb from "./tools/classdb.js";
-import * as nodeManagement from "./tools/node_management.js";
-import * as sceneQuery from "./tools/scene_query.js";
-import * as spatial from "./tools/spatial.js";
-import * as texture from "./tools/texture.js";
-import * as sound from "./tools/sound.js";
+import * as registrars from "./registrars.js";
 
 // ── Preflight (may exit) ─────────────────────────────────────────────
 startupEnv.enforceNodeVersion();
@@ -100,43 +77,6 @@ const server = new McpServer(
 
 const hookPipeline = createHookPipeline();
 setGlobalHookPipeline(hookPipeline);
-
-// ── Tool registration (shared by startup + reload) ──────────────────
-
-function registerModules(ma: Set<string>): void {
-  scene.register(server, bridge, ma);
-  node.register(server, bridge, ma);
-  script.register(server, bridge, ma);
-  editor.register(server, bridge, ma);
-  resource.register(server, bridge, ma);
-  folder.register(server, bridge, ma);
-  diff.register(server, bridge, ma);
-  playtest.register(server, bridge, ma);
-  tilemap.register(server, bridge, ma);
-  tileset.register(server, bridge, ma);
-  asset.register(server, bridge, ma);
-  runtime.register(server, bridge, ma);
-  signal.register(server, bridge, ma);
-  animation.register(server, bridge, ma);
-  inputMap.register(server, bridge, ma);
-  file.register(server, bridge, ma);
-  save.register(server, bridge, ma);
-  classdb.register(server, bridge, ma);
-  nodeManagement.register(server, bridge, ma);
-  sceneQuery.register(server, bridge, ma);
-  spatial.register(server, bridge, ma);
-  texture.register(server, bridge, ma);
-  sound.register(server, bridge, ma);
-}
-
-function registerGroups(): void {
-  // Register discover_tools with built-in groups BEFORE transport
-  // connects, so it's in the initial tools/list response — no extra
-  // notification needed for the common case (no extensions).
-  // If extensions are later discovered, registerGroupSystem is called
-  // again (idempotent) which updates the description.
-  registerGroupSystem(server, bridge, readOnly);
-}
 
 function registerExtensionsRefresh(): void {
   if (!hasToolRef("extensions_refresh")) {
@@ -190,8 +130,8 @@ let discoveryInFlight: Promise<void> | null = null;
 // registry in the common dogfood flow → false → no reconcile needed.
 const versionNullAtEagerRegistration = bridge.getGodotVersion() == null;
 
-registerModules(moduleAllowed);
-registerGroups();
+registrars.registerBuiltinModules(server, bridge, moduleAllowed);
+registrars.registerGroups(server, bridge, readOnly);
 registerExtensionsRefresh(); // always in initial tools/list
 
 // ── Prompts, resources, roots ────────────────────────────────────────
@@ -248,13 +188,13 @@ function handleConfigReload(): void {
 
   // Collapse the remove+rebuild into a SINGLE tools/list_changed. The SDK
   // auto-emits on every ref.remove() (in removeAllTools) and every registerTool
-  // (in registerModules/registerGroups); batching suppresses those per-op
+  // (in registrars.registerBuiltinModules/registerGroups); batching suppresses those per-op
   // notifications and fires exactly one when the rebuild completes, so the
   // client never observes the transient empty/partial tool list mid-reload.
   batchToolRegistration(server, () => {
     removeAllTools();
-    registerModules(moduleAllowed);
-    registerGroups();
+    registrars.registerBuiltinModules(server, bridge, moduleAllowed);
+    registrars.registerGroups(server, bridge, readOnly);
   });
 
   process.stderr.write(`[godot-mcp] config reloaded — ${toolRefCount()} tools registered\n`);
