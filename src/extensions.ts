@@ -3,10 +3,11 @@
  *
  * Owns eager (deadline-wrapped, single-flight) discovery, live reconciliation on
  * the extensions.changed push, the shared ungrouped registrar, and the always-on
- * extensions_refresh tool. The ExtensionManager facade composes them over closure
- * state (knownExtensionTools + the discovery single-flight latch); getReadOnly is
- * injected (a live read of profiles.isReadOnly) so this module imports no other
- * composition module and unit-tests with a fake server + fake bridge.
+ * extensions_refresh tool. The ExtensionManager facade composes one shared
+ * registrar — which owns the known-extension ledger — with the discovery
+ * single-flight latch; getReadOnly is injected (a live read of profiles.isReadOnly)
+ * so this module imports no other composition module and unit-tests with a fake
+ * server + fake bridge.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -18,32 +19,16 @@ import {
   removeUngroupedExtensionTool,
 } from "./groups.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
-import { callAndWrap, registerToolWrapped, batchToolRegistration } from "./tool_helpers.js";
+import { batchToolRegistration } from "./tool_helpers.js";
 import { extensionAnnotations, toolNameFromMethod, toExtensionCommand } from "./extension_command.js";
-import type { ToolTextResult, ExtensionCmdWire, Bridge } from "./types.js";
+import { createExtensionRegistrar } from "./extension_registrar.js";
+import type { ExtensionCmdWire, Bridge } from "./types.js";
 
 // Generous for the editor-running case (<1s); protects against the rare
 // hanging-WebSocket-handshake scenario (editor partially started, port
 // open but not yet accepting). When the editor is fully down,
 // ECONNREFUSED fires in ~50ms — the deadline is irrelevant.
 const EXTENSION_DISCOVERY_DEADLINE_MS = 8000;
-
-const DEFAULT_EXTENSION_TIMEOUT_MS = 30_000;
-
-/** Build a context-aware timeout hint for extension tools. */
-function buildExtensionTimeoutHint(method: string, timeoutMs?: number): string {
-  const effectiveMs = timeoutMs ?? DEFAULT_EXTENSION_TIMEOUT_MS;
-  if (timeoutMs != null) {
-    return (
-      `Extension tool '${method}' timed out after ${effectiveMs}ms (custom timeout). ` +
-      "If this exceeds 5 minutes, consider restructuring the tool to start work and return a polling handle rather than blocking the bridge."
-    );
-  }
-  return (
-    `Extension tool '${method}' timed out after ${effectiveMs / 1000}s. ` +
-    "If this tool calls external services, the extension author can increase timeout_ms in registry.add() options."
-  );
-}
 
 /** The extension subsystem facade — see module header for the owned lifecycle. */
 export interface ExtensionManager {
@@ -69,67 +54,16 @@ export function createExtensionManager(deps: {
 }): ExtensionManager {
   const { server, bridge, getReadOnly } = deps;
 
-  const knownExtensionTools = new Set<string>();
+  // One shared registrar — owns the known-extension ledger + the register-one-tool
+  // recipe + the always-on refresh tool. The still-inline discovery and change-
+  // application below operate on THIS instance, so the ledger stays a single shared
+  // consistency boundary (two registrars would fork it).
+  const registrar = createExtensionRegistrar({ server, bridge, getReadOnly });
+
   // Single-flight latch for discoverExtensions (concern 071 follow-up). Holds the
   // currently-running discovery promise so a concurrent caller joins it instead of
   // starting a second pass.
   let discoveryInFlight: Promise<void> | null = null;
-
-  function registerRefreshTool(): void {
-    if (!hasToolRef("extensions_refresh")) {
-      registerToolWrapped(
-        server,
-        bridge,
-        "extensions_refresh",
-        {
-          description:
-            "Force a filesystem rescan and re-discover extension scripts. " +
-            "Call after creating, modifying, or deleting extension files from outside the Godot editor. " +
-            "Returns the updated list of extension commands.",
-          annotations: { readOnlyHint: true, idempotentHint: true },
-        },
-        (input: unknown, signal?: AbortSignal) =>
-          callAndWrap(bridge, "extensions.refresh", input, { signal }) as Promise<ToolTextResult>,
-      );
-    }
-  }
-
-  /**
-   * Register one ungrouped extension command as an MCP tool. Returns true when the
-   * tool was registered, false when skipped by read-only exclusion. Callers own
-   * their own pre-checks (dedup guard), counters, and knownExtensionTools
-   * bookkeeping — this encapsulates only the shared registration recipe common to
-   * the eager-discovery and live-reconciliation ungrouped paths.
-   */
-  function registerExtensionTool(cmd: ExtensionCmdWire): boolean {
-    const toolName = toolNameFromMethod(cmd.method);
-    const annotations = extensionAnnotations(cmd);
-    // Read-only mode: skip extension tools that aren't read-only.
-    if (isExcludedByReadOnly(getReadOnly(), annotations)) return false;
-    const timeoutMs = cmd.timeout_ms ?? undefined;
-    const extensionTimeoutHint = buildExtensionTimeoutHint(cmd.method, timeoutMs);
-    registerToolWrapped(
-      server,
-      bridge,
-      toolName,
-      {
-        description: cmd.description || `Extension: ${cmd.method}`,
-        inputSchema: cmd.input_schema ?? {},
-        annotations,
-      },
-      (input: unknown, signal?: AbortSignal) =>
-        callAndWrap(bridge, cmd.method, input, {
-          timeoutMs,
-          extensionTimeoutHint,
-          signal,
-        }) as Promise<ToolTextResult>,
-      {
-        godotMinVersion: cmd.min_godot_version,
-        godotMaxVersion: cmd.max_godot_version,
-      },
-    );
-    return true;
-  }
 
   // Discover third-party extensions from the toolkit and register them as
   // MCP tools. Called eagerly before transport (deadline-wrapped) at startup,
@@ -152,7 +86,7 @@ export function createExtensionManager(deps: {
   // registered nothing yet), landing the extension tools exactly once on the
   // freshly-rebuilt surface. If a prior pass had already registered, it has
   // settled → the latch is clear → a fresh discovery runs. Either way: registered
-  // exactly once. knownExtensionTools.add() is idempotent across joins.
+  // exactly once. registrar.register() (the ledger add) is idempotent across joins.
   //
   // Accepted residual (deferred fix, post-1.0): a join inherits a FAILING eager
   // pass — if the joined discovery's RPC fails, the reconcile registers zero
@@ -194,7 +128,7 @@ export function createExtensionManager(deps: {
         const ungrouped: typeof result.commands = [];
         for (const cmd of result.commands) {
           const toolName = toolNameFromMethod(cmd.method);
-          knownExtensionTools.add(toolName);
+          registrar.register(toolName);
           const annotations = extensionAnnotations(cmd);
           if (cmd.group?.name) {
             const extCmd = toExtensionCommand(cmd, annotations);
@@ -210,7 +144,7 @@ export function createExtensionManager(deps: {
         if (ungrouped.length > 0) {
           batchToolRegistration(server, () => {
             for (const cmd of ungrouped) {
-              if (registerExtensionTool(cmd)) registered++;
+              if (registrar.registerExtensionTool(cmd)) registered++;
             }
           });
         }
@@ -236,9 +170,9 @@ export function createExtensionManager(deps: {
 
     // Defensive re-registration: on the handleConfigReload path,
     // removeAllTools() has cleared extensions_refresh, so re-add it.
-    // Delegates to registerRefreshTool() (self-guards via hasToolRef),
+    // Delegates to registrar.registerRefreshTool() (self-guards via hasToolRef),
     // which is the same helper used by the startup path.
-    registerRefreshTool();
+    registrar.registerRefreshTool();
   }
 
   function discoverEagerly(deadlineMs = EXTENSION_DISCOVERY_DEADLINE_MS): Promise<{ timedOut: boolean }> {
@@ -278,12 +212,12 @@ export function createExtensionManager(deps: {
       // 1. Remove tools for methods listed in 'removed'.
       for (const method of removedMethods) {
         const toolName = toolNameFromMethod(method);
-        if (knownExtensionTools.has(toolName)) {
+        if (registrar.isRegistered(toolName)) {
           // Try grouped removal first, then ungrouped.
           if (!removeExtensionCommand(method)) {
             removeUngroupedExtensionTool(toolName);
           }
-          knownExtensionTools.delete(toolName);
+          registrar.deregister(toolName);
           removed++;
         }
       }
@@ -294,7 +228,7 @@ export function createExtensionManager(deps: {
         const toolName = toolNameFromMethod(cmd.method);
         const annotations = extensionAnnotations(cmd);
 
-        if (knownExtensionTools.has(toolName)) {
+        if (registrar.isRegistered(toolName)) {
           // Known tool — reconcile annotation/description changes in-place.
           if (!cmd.group?.name) {
             // Ungrouped: update or register/remove based on read-only eligibility.
@@ -308,7 +242,7 @@ export function createExtensionManager(deps: {
             } else if (!isRegistered && shouldBeRegistered) {
               // Was excluded, now eligible (e.g., readOnlyHint added in read-only mode).
               // Feed into the ungrouped registration path below.
-              knownExtensionTools.delete(toolName);
+              registrar.deregister(toolName);
               ungrouped.push(cmd);
             } else if (isRegistered) {
               // Still registered — update description + annotations in-place.
@@ -344,7 +278,7 @@ export function createExtensionManager(deps: {
         if (cmd.group?.name) {
           const extCmd = toExtensionCommand(cmd, annotations);
           addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);
-          knownExtensionTools.add(toolName);
+          registrar.register(toolName);
           added++;
         } else {
           ungrouped.push(cmd);
@@ -355,8 +289,8 @@ export function createExtensionManager(deps: {
       for (const cmd of ungrouped) {
         const toolName = toolNameFromMethod(cmd.method);
         if (hasToolRef(toolName)) continue; // Dedup guard.
-        if (registerExtensionTool(cmd)) {
-          knownExtensionTools.add(toolName);
+        if (registrar.registerExtensionTool(cmd)) {
+          registrar.register(toolName);
           added++;
         }
       }
@@ -372,5 +306,10 @@ export function createExtensionManager(deps: {
     }
   }
 
-  return { registerRefreshTool, discoverExtensions, discoverEagerly, handleExtensionsChanged };
+  return {
+    registerRefreshTool: registrar.registerRefreshTool,
+    discoverExtensions,
+    discoverEagerly,
+    handleExtensionsChanged,
+  };
 }
