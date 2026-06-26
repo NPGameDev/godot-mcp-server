@@ -68,7 +68,7 @@ const EXCEPTION_HINTS: Record<string, string> = {
     "Transient file lock during log flush — retry in 1-2 seconds, or use source='buffer' (default) which reads from an in-memory ring buffer with no file I/O.",
   LOG_UNAVAILABLE:
     "Log file not available. Enable file logging in ProjectSettings → Debug → File Logging → Enable File Logging, then restart the editor. Or use source='buffer' (default) which captures all output in real-time.",
-  FEATURE_DISABLED: "This tool is disabled. Use discover_tools to load it dynamically.",
+  FEATURE_DISABLED: "This tool is unavailable under the current server configuration.",
 };
 
 /**
