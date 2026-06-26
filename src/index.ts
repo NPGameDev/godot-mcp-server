@@ -5,11 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createBridge } from "./bridge.js";
 import { getLspStatus, setGodotVersionGetter, type LspStatus } from "./lsp_client.js";
 import { setLspStatusReporter } from "./tools/lsp.js";
-import { lookupProject } from "./registry.js";
 import { resolveAllowedTools, isReadOnly, isExcludedByReadOnly, warnDeprecatedEnvVars } from "./profiles.js";
 import {
   registerGroupSystem,
-  GROUPS,
   GROUP_TOOL_NAMES,
   resetLoadedGroups,
   addExtensionGroup,
@@ -17,7 +15,6 @@ import {
   removeUngroupedExtensionTool,
 } from "./groups.js";
 import type { ExtensionCmd } from "./groups.js";
-import { ALL_TOOL_DEFS, META_TOOL_NAMES } from "./catalogue.js";
 import { readMcpJsonEnv, applyEnvUpdate } from "./config_reload.js";
 import { removeAllToolRefs, removeToolByName, updateToolRef, toolRefCount, hasToolRef } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
@@ -27,6 +24,7 @@ import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
 import type { ToolTextResult, ExtensionCmdWire } from "./types.js";
 import { callAndWrap, registerToolWrapped, batchToolRegistration, setGlobalHookPipeline } from "./tool_helpers.js";
+import * as startupEnv from "./startup_env.js";
 
 import * as animation from "./tools/animation.js";
 import * as asset from "./tools/asset.js";
@@ -52,34 +50,9 @@ import * as spatial from "./tools/spatial.js";
 import * as texture from "./tools/texture.js";
 import * as sound from "./tools/sound.js";
 
-// ── Node.js version gate ────────────────────────────────────────────
-const [nodeMajor] = process.versions.node.split(".").map(Number);
-if (nodeMajor < 20) {
-  process.stderr.write(
-    `[godot-mcp] Error: requires Node.js >= 20 (found ${process.version}).\n` +
-      `Download the latest LTS from https://nodejs.org\n`,
-  );
-  process.exit(1);
-}
-
-// ── --tools-count diagnostic (early exit; no MCP connection or editor) ──
-// Static count of the tools the server ships, derived from the canonical
-// ALL_TOOL_DEFS. Excludes per-project extension tools (dynamic). Runs before
-// any bridge/WebSocket/transport setup so it is editor-independent.
-if (process.argv.includes("--tools-count")) {
-  const total = ALL_TOOL_DEFS.length;
-  const onDemand = GROUP_TOOL_NAMES.size;
-  const eager = total - onDemand;
-  process.stdout.write(
-    `Total tools:  ${total}\n` +
-      `  Eager:      ${eager}\n` +
-      `  On-demand:  ${onDemand}\n` +
-      `Meta:         ${META_TOOL_NAMES.length} (also eager — always in tools/list)\n` +
-      `Groups:       ${GROUPS.length}\n` +
-      `Startup surface (eager + meta): ${eager + META_TOOL_NAMES.length}\n`,
-  );
-  process.exit(0);
-}
+// ── Preflight (may exit) ─────────────────────────────────────────────
+startupEnv.enforceNodeVersion();
+startupEnv.maybePrintToolCountAndExit();
 
 // ── Mode resolution ─────────────────────────────────────────────────
 
@@ -102,89 +75,19 @@ let moduleAllowed = buildModuleAllowed(allowedTools);
 
 // ── Bridge setup ─────────────────────────────────────────────────────
 
-// Registry-based discovery. GODOT_MCP_PORT bypasses registry for
-// backwards compat. Otherwise resolve via the system-wide projects.json.
-const explicitPort = process.env.GODOT_MCP_PORT;
-const explicitRuntimePort = process.env.GODOT_MCP_RUNTIME_PORT ?? null;
 const projectPath = process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
-
-let editorPort: string;
-if (explicitPort) {
-  editorPort = explicitPort;
-} else {
-  const entry = lookupProject(projectPath);
-  if (entry) {
-    editorPort = String(entry.port);
-    process.stderr.write(`[godot-mcp] registry: ${projectPath} → port ${editorPort}\n`);
-  } else {
-    editorPort = "6550";
-    process.stderr.write(`[godot-mcp] registry: no entry for ${projectPath}; falling back to port ${editorPort}\n`);
-  }
-}
-
-// ── Response caps ────────────────────────────────────────────────────
-
-// Defaults match the plugin-side ProjectSettings defaults.
-const SCRIPT_READ_LIMIT_DEFAULT = 262144; // 256 KB
-const WS_BUFFER_LIMIT_DEFAULT = 1048576; // 1 MB
-const SCRIPT_READ_LIMIT_FLOOR = 65536; // 64 KB
-const WS_BUFFER_LIMIT_FLOOR = 262144; // 256 KB
-
-function parseCapEnv(envName: string, defaultVal: number, floor: number): number {
-  const raw = process.env[envName];
-  if (!raw) return defaultVal;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    process.stderr.write(
-      `[godot-mcp] WARNING: ${envName}=${raw} is not a valid positive number; using default ${defaultVal}\n`,
-    );
-    return defaultVal;
-  }
-  if (parsed < floor) {
-    process.stderr.write(`[godot-mcp] WARNING: ${envName}=${parsed} is below minimum ${floor}; clamping to ${floor}\n`);
-    return floor;
-  }
-  return parsed;
-}
-
-const scriptReadLimit = parseCapEnv("GODOT_MCP_SCRIPT_READ_LIMIT", SCRIPT_READ_LIMIT_DEFAULT, SCRIPT_READ_LIMIT_FLOOR);
-const wsBufferLimit = parseCapEnv("GODOT_MCP_WS_BUFFER_LIMIT", WS_BUFFER_LIMIT_DEFAULT, WS_BUFFER_LIMIT_FLOOR);
+const editorPort = startupEnv.resolveEditorPort(projectPath);
+const caps = startupEnv.resolveResponseCaps();
 
 const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
   projectPath,
-  explicitRuntimePort,
-  explicitEditorPort: !!explicitPort,
-  scriptReadLimitBytes: scriptReadLimit,
-  wsBufferLimitBytes: wsBufferLimit,
+  explicitRuntimePort: process.env.GODOT_MCP_RUNTIME_PORT ?? null,
+  explicitEditorPort: !!process.env.GODOT_MCP_PORT,
+  scriptReadLimitBytes: caps.scriptReadLimitBytes,
+  wsBufferLimitBytes: caps.wsBufferLimitBytes,
 });
 
-// ── Config version check ────────────────────────────────────────────
-
-const EXPECTED_CONFIG_VERSION = 1;
-const rawConfigVersion = process.env.GODOT_MCP_CONFIG_VERSION;
-if (rawConfigVersion == null || rawConfigVersion === "") {
-  process.stderr.write(
-    "[godot-mcp] WARNING: no GODOT_MCP_CONFIG_VERSION in env. " +
-      "Config may be from a pre-release build — regenerate .mcp.json from the toolkit dock.\n",
-  );
-} else {
-  const configVersion = Number(rawConfigVersion);
-  if (!Number.isFinite(configVersion)) {
-    process.stderr.write(
-      `[godot-mcp] WARNING: GODOT_MCP_CONFIG_VERSION="${rawConfigVersion}" is not a valid number.\n`,
-    );
-  } else if (configVersion < EXPECTED_CONFIG_VERSION) {
-    process.stderr.write(
-      `[godot-mcp] WARNING: config version ${configVersion} is outdated (expected ${EXPECTED_CONFIG_VERSION}). ` +
-        `Regenerate .mcp.json from the toolkit dock.\n`,
-    );
-  } else if (configVersion > EXPECTED_CONFIG_VERSION) {
-    process.stderr.write(
-      `[godot-mcp] WARNING: config version ${configVersion} is newer than this server understands (max ${EXPECTED_CONFIG_VERSION}). ` +
-        `Consider updating the server (npm update).\n`,
-    );
-  }
-}
+startupEnv.warnConfigVersion();
 
 // ── Server + hook pipeline ───────────────────────────────────────────
 
@@ -257,7 +160,7 @@ function registerExtensionsRefresh(): void {
 function logStartup(extTimedOut = false): void {
   const suffix = extTimedOut ? " (ext discovery timed out — extensions_refresh available)" : "";
   process.stderr.write(
-    `[godot-mcp] readOnly=${readOnly} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${scriptReadLimit / 1024}KB/${wsBufferLimit / 1024}KB${suffix}\n`,
+    `[godot-mcp] readOnly=${readOnly} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${caps.scriptReadLimitBytes / 1024}KB/${caps.wsBufferLimitBytes / 1024}KB${suffix}\n`,
   );
 }
 
