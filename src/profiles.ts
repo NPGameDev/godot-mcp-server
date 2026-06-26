@@ -34,7 +34,7 @@ export const STANDARD_TOOLS: readonly string[] = [
   "project_set_setting",
   // Playtest (6) — runtime tools promoted from lazy runtime group.
   // runtime_set_property was demoted to the runtime_advanced group in
-  // 41m-quinquies; listing it here too is dead (buildModuleAllowed subtracts
+  // 41m-quinquies; listing it here too is dead (MODULE_ALLOWED subtracts
   // group tools from the eager set), so it is intentionally omitted.
   "game_start",
   "game_stop",

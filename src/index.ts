@@ -3,7 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { createBridge } from "./bridge.js";
-import { warnDeprecatedEnvVars } from "./profiles.js";
+import { warnDeprecatedEnvVars, isReadOnly } from "./profiles.js";
 import { toolRefCount } from "./tool_refs.js";
 import { createHookPipeline } from "./hooks.js";
 import { getServerVersion } from "./version.js";
@@ -12,7 +12,7 @@ import { registerResources } from "./resources.js";
 import { init as initRoots, registerRoots } from "./roots.js";
 import { setGlobalHookPipeline } from "./tool_helpers.js";
 import * as startupEnv from "./startup_env.js";
-import * as serverMode from "./server_mode.js";
+import { MODULE_ALLOWED } from "./server_mode.js";
 import * as registrars from "./registrars.js";
 import { createExtensionManager } from "./extensions.js";
 import { createReconciler } from "./reconcile.js";
@@ -23,10 +23,9 @@ import { installProcessHandlers } from "./lifecycle.js";
 startupEnv.enforceNodeVersion();
 startupEnv.maybePrintToolCountAndExit();
 
-// ── Mode resolution ─────────────────────────────────────────────────
+// ── Deprecated env vars ─────────────────────────────────────────────
 
 warnDeprecatedEnvVars();
-serverMode.refreshMode();
 
 // ── Bridge setup ─────────────────────────────────────────────────────
 
@@ -59,9 +58,9 @@ setGlobalHookPipeline(hookPipeline);
 // ── Subsystem construction ───────────────────────────────────────────
 // The extension subsystem owns extension discovery (single-flight), live
 // reconciliation on extensions.changed, and the always-on extensions_refresh
-// tool. getReadOnly is injected (a live read of server_mode) so extensions.ts
+// tool. getReadOnly is injected (a live read of profiles.isReadOnly) so extensions.ts
 // imports no other composition module.
-const extensions = createExtensionManager({ server, bridge, getReadOnly: serverMode.getReadOnly });
+const extensions = createExtensionManager({ server, bridge, getReadOnly: isReadOnly });
 
 // The reconciler keeps the advertised surface consistent with config + version:
 // the debounced config_reloaded reload and the one-shot startup reconcile (concern
@@ -72,7 +71,7 @@ const reconciler = createReconciler({ server, bridge, projectPath, discover: ext
 function logStartup(extTimedOut = false): void {
   const suffix = extTimedOut ? " (ext discovery timed out — extensions_refresh available)" : "";
   process.stderr.write(
-    `[godot-mcp] readOnly=${serverMode.getReadOnly()} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${caps.scriptReadLimitBytes / 1024}KB/${caps.wsBufferLimitBytes / 1024}KB${suffix}\n`,
+    `[godot-mcp] readOnly=${isReadOnly()} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${caps.scriptReadLimitBytes / 1024}KB/${caps.wsBufferLimitBytes / 1024}KB${suffix}\n`,
   );
 }
 
@@ -85,8 +84,8 @@ function logStartup(extTimedOut = false): void {
 // registry in the common dogfood flow → false → no reconcile needed.
 const versionNullAtEagerRegistration = bridge.getGodotVersion() == null;
 
-registrars.registerBuiltinModules(server, bridge, serverMode.getModuleAllowed());
-registrars.registerGroups(server, bridge, serverMode.getReadOnly());
+registrars.registerBuiltinModules(server, bridge, MODULE_ALLOWED);
+registrars.registerGroups(server, bridge, isReadOnly());
 extensions.registerRefreshTool(); // always in initial tools/list
 
 // ── Prompts, resources, roots ────────────────────────────────────────

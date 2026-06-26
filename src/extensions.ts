@@ -5,7 +5,7 @@
  * the extensions.changed push, the shared ungrouped registrar, and the always-on
  * extensions_refresh tool. The ExtensionManager facade composes them over closure
  * state (knownExtensionTools + the discovery single-flight latch); getReadOnly is
- * injected (a live read of server_mode) so this module imports no other
+ * injected (a live read of profiles.isReadOnly) so this module imports no other
  * composition module and unit-tests with a fake server + fake bridge.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -73,7 +73,7 @@ export interface ExtensionManager {
 
 /**
  * Construct the extension manager. getReadOnly is injected (a live read of
- * server_mode) so this module depends on no other composition module —
+ * profiles.isReadOnly) so this module depends on no other composition module —
  * maximising unit-testability with a fake bridge + fake server.
  */
 export function createExtensionManager(deps: {
