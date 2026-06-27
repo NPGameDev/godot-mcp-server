@@ -26,6 +26,24 @@ function matchKeywords(query: string, keywords: string[]): number {
   return score;
 }
 
+// Score a query against a list of tool names — the loop shared by both
+// findMatchesSingle halves (built-in groups pass group.tools directly; extension
+// groups map cmd.toolName into an array). Each name is normalized "_"→space, then
+// contributes +1 to `delta` when its normalized form substring-contains the query
+// (same query.length >= 3 floor as matchKeywords) and flips `exact` on a raw- or
+// normalized-name equality. The caller adds `delta` to its running score and ORs
+// `exact` into its running flag — byte-identical to the inline loops it replaces.
+function scoreToolNameTokens(q: string, toolNames: string[]): { delta: number; exact: boolean } {
+  let delta = 0;
+  let exact = false;
+  for (const toolName of toolNames) {
+    const norm = toolName.replace(/_/g, " ");
+    if (norm.includes(q) && q.length >= 3) delta += 1;
+    if (toolName === q || norm === q) exact = true;
+  }
+  return { delta, exact };
+}
+
 // Recall-biased dominant-match filter (Item C, 41m-sexies). A multi-word query
 // substring-matches several unrelated groups' single keywords (+2 each) while
 // the intended group scores far higher; admitting those incidental matches
@@ -55,11 +73,9 @@ export function findMatchesSingle(keyword: string, readOnly: boolean): { name: s
     }
     let score = matchKeywords(q, group.keywords);
     let exact = group.keywords.includes(q);
-    for (const toolName of group.tools) {
-      const norm = toolName.replace(/_/g, " ");
-      if (norm.includes(q) && q.length >= 3) score += 1;
-      if (toolName === q || norm === q) exact = true;
-    }
+    const toolNameScore = scoreToolNameTokens(q, group.tools);
+    score += toolNameScore.delta;
+    exact = exact || toolNameScore.exact;
     if (score > 0) matches.push({ name: group.name, score, exact });
   }
 
@@ -78,11 +94,12 @@ export function findMatchesSingle(keyword: string, readOnly: boolean): { name: s
       if (q === tok) score += 2;
       else if (tok.includes(q) && q.length >= 3) score += 1;
     }
-    for (const cmd of ext.commands) {
-      const norm = cmd.toolName.replace(/_/g, " ");
-      if (norm.includes(q) && q.length >= 3) score += 1;
-      if (cmd.toolName === q || norm === q) exact = true;
-    }
+    const toolNameScore = scoreToolNameTokens(
+      q,
+      ext.commands.map((c) => c.toolName),
+    );
+    score += toolNameScore.delta;
+    exact = exact || toolNameScore.exact;
     if (score > 0) matches.push({ name, score, exact });
   }
 

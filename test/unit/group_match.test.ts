@@ -57,6 +57,23 @@ clearExtensionGroups();
 }
 clearExtensionGroups();
 
+// ── Block 1b — scoreToolNameTokens "_"→space normalization ───────────
+// The shared tool-name-token scorer normalizes "_"→space on each tool name
+// before its substring/exact test, so a space-bearing query matches an
+// underscore tool name. Isolated on a lone extension group whose keyword + name
+// share no substring with the query (the qwzzt/zzcmd families are built-in-free,
+// per Block 1) → the normalized command name is the ONLY scorer. score 1 = one
+// normalized-substring hit; the match also exercises the norm === q exact path.
+{
+  addExtensionGroup("qwznorm", "", [cmd("m.q", "qwzzt_zzcmd")], ["zznokw"]);
+  assert.deepEqual(
+    findMatchesSingle("qwzzt zzcmd", false),
+    [{ name: "qwznorm", score: 1 }],
+    'tool-name "_"→space: "qwzzt zzcmd" matches normalized "qwzzt_zzcmd"',
+  );
+}
+clearExtensionGroups();
+
 // ── Block 2 — built-in scoring + dominant-match prune ────────────────
 {
   // Built-in: "tilemap" → the tilemap group on top with a strong (exact) score.
