@@ -16,6 +16,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { Bridge } from "./types.js";
 import type { ToolMeta, GroupResult } from "./tool_meta.js"; // type-only: no circular runtime dep
+import { activatedResult, alreadyLoadedResult, availableResult, readOnlyEmptyResult } from "./group_result.js";
 import { registerToolWrapped } from "./tool_registry.js";
 import { callAndWrap } from "./tool_dispatch.js";
 import { removeToolByName } from "./tool_refs.js";
@@ -164,32 +165,22 @@ export function activateExtGroup(
 ): GroupResult {
   const ext = extensionGroups.get(name);
   if (!ext) {
-    return { name, status: "available", tools: [], description: `Unknown group: ${name}` };
+    return availableResult(name, [], `Unknown group: ${name}`);
   }
   const toolNames = readOnly
     ? ext.commands.filter((c) => isAllowedInReadOnly(c.annotations)).map((c) => c.toolName)
     : ext.commands.map((c) => c.toolName);
   const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
   if (loadedExtensionGroups.has(name)) {
-    return { name, status: "already_loaded", tools, description: ext.description };
+    return alreadyLoadedResult(name, tools, ext.description);
   }
   const registered = registerExtGroupTools(server, bridge, ext, readOnly);
   // In read-only mode, if all tools were filtered out, don't waste a group slot.
   if (readOnly && registered.length === 0) {
-    return {
-      name,
-      status: "available",
-      tools: [],
-      description: `Group '${name}' has no tools available in read-only mode.`,
-    };
+    return readOnlyEmptyResult(name);
   }
   loadedExtensionGroups.add(name);
-  return {
-    name,
-    status: "activated",
-    tools: registered.map((t) => ({ name: t })),
-    description: ext.description,
-  };
+  return activatedResult(name, registered, ext.description);
 }
 
 /** Report an extension group's status without mutating (the QUERY half). */
@@ -202,8 +193,8 @@ export function reportExtGroupStatus(name: string, readOnly: boolean = false): G
     ? ext.commands.filter((c) => isAllowedInReadOnly(c.annotations)).map((c) => c.toolName)
     : ext.commands.map((c) => c.toolName);
   const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
-  if (loadedExtensionGroups.has(name)) return { name, status: "already_loaded", tools, description: ext.description };
-  return { name, status: "available", tools, description: ext.description };
+  if (loadedExtensionGroups.has(name)) return alreadyLoadedResult(name, tools, ext.description);
+  return availableResult(name, tools, ext.description);
 }
 
 // ── Purpose accessors (the maps stay private — DP-S3, the 079 seam) ──
