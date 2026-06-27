@@ -7,6 +7,8 @@
  *   1. GROUPS assembles exactly 28 entries, with unique names.
  *   2. Every assembled name is a canonical GroupName (∈ GROUP_NAMES).
  *   3. Every entry has the GroupDef shape (non-empty name/description/tools).
+ *   4. GROUPS assembles in the canonical PINNED order, and GROUP_NAMES (derived
+ *      from GROUPS in concern 094, C2) matches it element-for-element.
  */
 import assert from "node:assert/strict";
 import { GROUPS } from "../../src/builtin_groups.js";
@@ -47,6 +49,57 @@ import { GROUP_NAMES } from "../../src/group_catalogue.js";
     assert.ok(Array.isArray(g.tools) && g.tools.length > 0, `${g.name}: tools must be a non-empty array`);
     assert.ok(Array.isArray(g.keywords), `${g.name}: keywords must be an array`);
   }
+}
+
+// ── Block 4 — GROUPS order is pinned (loud gate against silent reorder) ──
+
+{
+  // The assembly order in builtin_groups.ts is the SSOT for discover_tools
+  // enumeration and every derived index; pin it byte-for-byte so any reorder
+  // (or an added/dropped group) trips here loudly. placeholders is 7th; classdb
+  // is last.
+  assert.deepEqual(
+    GROUPS.map((g) => g.name),
+    [
+      "runtime_advanced",
+      "signals",
+      "animation_authoring",
+      "input_map",
+      "resource_io",
+      "asset_ops",
+      "placeholders",
+      "cleanup",
+      "user_data",
+      "scene_advanced",
+      "editor_advanced",
+      "tilemap",
+      "tileset",
+      "tileset_edit",
+      "theme",
+      "layer_naming",
+      "path_editing",
+      "3d_tools",
+      "procedural",
+      "scene_inheritance",
+      "audio",
+      "spriteframes",
+      "particles",
+      "navigation",
+      "lsp_code_analysis",
+      "lsp_code_navigation",
+      "debugger",
+      "classdb",
+    ],
+    "GROUPS assembles in the canonical pinned order",
+  );
+
+  // GROUP_NAMES is derived from GROUPS (concern 094, C2), so it must equal the
+  // assembly order element-for-element — not merely as a set.
+  assert.deepEqual(
+    [...GROUP_NAMES],
+    GROUPS.map((g) => g.name),
+    "GROUP_NAMES is derived from GROUPS (order-identical)",
+  );
 }
 
 console.log("All builtin_groups tests passed.");

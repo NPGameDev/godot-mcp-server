@@ -72,10 +72,12 @@ import { ALL_TOOL_DEFS } from "../../src/catalogue.js";
 // ── Block 5 — GROUP_NAMES enumerates exactly the GROUPS names ─────────
 
 {
-  // GROUP_NAMES and GROUPS list the same group names, but NOT in the same order
-  // in the live data (placeholders is GROUPS[6] yet the LAST element of
-  // GROUP_NAMES), so this is an order-independent SET equality: every GROUPS name
-  // is in GROUP_NAMES and vice versa, with no extras or omissions.
+  // GROUP_NAMES is now DERIVED from GROUPS (concern 094, C2), so the two list the
+  // same group names in the same order by construction. This assertion stays a
+  // deliberately order-INDEPENDENT SET equality (both sides .sort()ed): it pins
+  // the membership invariant — every GROUPS name is in GROUP_NAMES and vice
+  // versa, no extras or omissions — while the element-for-element order is
+  // guarded separately by the builtin_groups order-pinning test.
   assert.equal(GROUP_NAMES.length, GROUPS.length, "GROUP_NAMES has one entry per group");
   assert.deepEqual(
     [...GROUP_NAMES].sort(),

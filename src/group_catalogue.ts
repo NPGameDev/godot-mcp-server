@@ -31,36 +31,15 @@ export type { GroupDef, GroupName } from "./group_types.js";
 
 // ── Group definitions ────────────────────────────────────────────────
 
-export const GROUP_NAMES: readonly GroupName[] = [
-  "runtime_advanced",
-  "signals",
-  "animation_authoring",
-  "input_map",
-  "resource_io",
-  "asset_ops",
-  "cleanup",
-  "user_data",
-  "scene_advanced",
-  "editor_advanced",
-  "tilemap",
-  "tileset",
-  "tileset_edit",
-  "theme",
-  "layer_naming",
-  "path_editing",
-  "3d_tools",
-  "procedural",
-  "scene_inheritance",
-  "audio",
-  "spriteframes",
-  "particles",
-  "navigation",
-  "lsp_code_analysis",
-  "lsp_code_navigation",
-  "debugger",
-  "classdb",
-  "placeholders",
-];
+// GROUP_NAMES — the canonical group order, DERIVED from GROUPS (concern 094, C2)
+// rather than hand-kept, so the value can never drift from the assembly order in
+// builtin_groups.ts (the old literal had silently fallen out of order, ending in
+// placeholders instead of classdb). ESM-safe: GROUPS is imported (fully
+// assembled) above before this module's body runs, exactly like the eager
+// GROUP_TOOL_NAMES derivation below. The GroupName[] element type is preserved
+// (GroupDef.name is GroupName) — the central GroupName union in group_types.ts
+// stays the type SSOT; only this value array is now derived.
+export const GROUP_NAMES: readonly GroupName[] = GROUPS.map((g) => g.name);
 
 // GROUPS is assembled in builtin_groups.ts from the 28 per-group data modules
 // (src/groups/*), in canonical order. Imported above as a local binding and
