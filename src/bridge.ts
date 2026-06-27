@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Bridge, NotificationHandler } from "./types.js";
 import { BridgeError } from "./errors.js";
 import { readToken } from "./token_path.js";
+import { authenticate } from "./auth_handshake.js";
 import { getServerVersion, compareVersions, parseGodotVer } from "./version.js";
 import type { GodotVer } from "./version.js";
 import {
@@ -19,11 +20,14 @@ import {
 // surface is byte-stable (importers keep getting it from "./bridge.js").
 export type { NotificationHandler } from "./types.js";
 
+// `AuthResponse` now lives in auth_handshake.ts; re-export it so the public
+// bridge surface is byte-stable (importers keep getting it from "./bridge.js").
+export type { AuthResponse } from "./auth_handshake.js";
+
 // ── Constants ────────────────────────────────────────────────────────
 
 const JSONRPC_VERSION = "2.0";
 const DEFAULT_TIMEOUT_MS = 30_000;
-const AUTH_TIMEOUT_MS = 5_000;
 
 // Reconnect tuning. 2^6 = 64s clamped to 60s ceiling, so the attempt
 // progression is 1, 2, 4, 8, 16, 32, 60, 60, ... seconds. The per-call
@@ -68,59 +72,6 @@ type PluginNotification = {
   notification: string;
   params?: Record<string, unknown>;
 };
-
-/** Parsed auth response from the Godot plugin. */
-export interface AuthResponse {
-  godotVersion: string | null;
-  toolkitVersion: string | null;
-}
-
-/**
- * Send the auth handshake and wait for {"authed": true} or a close frame.
- * Resolves with the full auth response.
- */
-function authenticate(ws: WebSocket, token: string): Promise<AuthResponse> {
-  return new Promise<AuthResponse>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new BridgeError("AUTH_FAILED", "auth handshake timed out"));
-    }, AUTH_TIMEOUT_MS);
-
-    function cleanup(): void {
-      clearTimeout(timer);
-      ws.removeListener("message", onMessage);
-      ws.removeListener("close", onClose);
-    }
-
-    function onMessage(data: unknown): void {
-      try {
-        const msg = JSON.parse(String(data)) as {
-          authed?: boolean;
-          godot_version?: string;
-          version?: string;
-        };
-        if (msg.authed === true) {
-          cleanup();
-          resolve({
-            godotVersion: msg.godot_version ?? null,
-            toolkitVersion: msg.version ?? null,
-          });
-        }
-      } catch {
-        // Not JSON — ignore, keep waiting.
-      }
-    }
-
-    function onClose(_code: number, reason: Buffer): void {
-      cleanup();
-      reject(new BridgeError("AUTH_FAILED", `server closed connection during auth: ${reason.toString()}`));
-    }
-
-    ws.on("message", onMessage);
-    ws.on("close", onClose);
-    ws.send(JSON.stringify({ auth: token, version: getServerVersion() }));
-  });
-}
 
 // ── Channel (WebSocket wrapper with reconnect) ───────────────────────
 
