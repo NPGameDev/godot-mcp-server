@@ -34,6 +34,7 @@ import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import { registerToolWrapped } from "./tool_registry.js";
 import { removeToolByName } from "./tool_refs.js";
 import type { ToolMeta, GroupResult } from "./tool_meta.js";
+import { activatedResult, alreadyLoadedResult, availableResult, readOnlyEmptyResult } from "./group_result.js";
 
 // ── Registration ─────────────────────────────────────────────────────
 
@@ -162,25 +163,15 @@ export function activateGroup(server: McpServer, bridge: Bridge, group: GroupDef
   const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
 
   if (loadedGroups.has(group.name)) {
-    return { name: group.name, status: "already_loaded", tools, description: group.description };
+    return alreadyLoadedResult(group.name, tools, group.description);
   }
   const registered = registerGroupTools(server, bridge, group, readOnly);
   // In read-only mode, if all tools were filtered out, don't waste a group slot.
   if (readOnly && registered.length === 0) {
-    return {
-      name: group.name,
-      status: "available",
-      tools: [],
-      description: `Group '${group.name}' has no tools available in read-only mode.`,
-    };
+    return readOnlyEmptyResult(group.name);
   }
   loadedGroups.add(group.name);
-  return {
-    name: group.name,
-    status: "activated",
-    tools: registered.map((t) => ({ name: t })),
-    description: group.description,
-  };
+  return activatedResult(group.name, registered, group.description);
 }
 
 /**
@@ -206,9 +197,8 @@ export function reportGroupStatus(groupName: string, readOnly: boolean): GroupRe
       })
     : group.tools;
   const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
-  if (loadedGroups.has(groupName))
-    return { name: groupName, status: "already_loaded", tools, description: group.description };
-  return { name: groupName, status: "available", tools, description: group.description };
+  if (loadedGroups.has(groupName)) return alreadyLoadedResult(groupName, tools, group.description);
+  return availableResult(groupName, tools, group.description);
 }
 
 /**
