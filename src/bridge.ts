@@ -1,18 +1,10 @@
 import { Bridge, NotificationHandler } from "./types.js";
 import { BridgeError } from "./errors.js";
 import { createChannel, type Channel } from "./channel.js";
-import { createHeartbeat } from "./heartbeat.js";
+import { createRuntimeConnection } from "./runtime_connection.js";
 import { parseGodotVer } from "./version.js";
 import type { GodotVer } from "./version.js";
-import {
-  discoverRuntime,
-  lookupProject,
-  normalizePath,
-  watchRegistry,
-  unwatchRegistry,
-  isWatcherActive,
-  getCachedRuntimePort,
-} from "./registry.js";
+import { lookupProject } from "./registry.js";
 
 // `NotificationHandler` now lives in types.ts; re-export it so the public bridge
 // surface is byte-stable (importers keep getting it from "./bridge.js").
@@ -139,87 +131,13 @@ export function createBridge(
     return true;
   }
 
-  // ── Runtime channel management ───────────────────────────────────
-  // When an explicit port is set, create a static channel. Otherwise,
-  // callRuntime re-reads the registry on each invocation to pick up
-  // newly-started playtests. The channel is cached and recreated only
-  // when the port changes.
-  // Single construction point for all runtime channels (no reconnect, 10s connect timeout).
-  const createRuntimeChannel = (port: number | string): Channel =>
-    createChannel(`ws://127.0.0.1:${port}`, projectPath, undefined, undefined, {
-      noReconnect: true,
-      connectTimeoutMs: 10_000,
-    });
-  let runtimeChannel: Channel | null = opts?.explicitRuntimePort
-    ? createRuntimeChannel(opts.explicitRuntimePort)
-    : null;
-  let cachedRuntimePort: number | null = opts?.explicitRuntimePort ? Number(opts.explicitRuntimePort) : null;
-
-  // ── Runtime-port waiters (for waitForRuntimeConnection) ────────
-  // Resolved when onDiscovered fires for this project; timed out by
-  // the caller's deadline.  Cleaned up in close().
-  type RuntimePortResolver = (port: number | null) => void;
-  let runtimePortResolvers: RuntimePortResolver[] = [];
-
-  // ── Runtime heartbeat (frozen-game detection) ───────────────────
-  // Pings the runtime every 15s with a 10s timeout. Four consecutive
-  // failures (~60s unresponsive) → proactive teardown. The generous
-  // threshold avoids false positives on poorly-optimized games running
-  // at very low FPS. True freezes (infinite loop) will never respond.
-  // The generic timer/threshold policy lives in heartbeat.ts; the
-  // runtime-state probe + teardown are injected here.
-  const heartbeat = createHeartbeat({
-    // The probe bakes its own 10s timeout (the channel call self-rejects at
-    // 10s), so createHeartbeat runs no timeout race of its own.
-    ping: () => runtimeChannel!.call("ping", null, 10_000),
-    // Load-bearing self-stop guard: callRuntime can null runtimeChannel
-    // WITHOUT stopping us (it relies on the next tick seeing this and
-    // self-stopping — no failure counted).
-    isAlive: () => runtimeChannel !== null,
-    onDead: () => {
-      process.stderr.write("[bridge] heartbeat failed 4x (~60s) — runtime dead/frozen, clearing\n");
-      if (runtimeChannel) {
-        void runtimeChannel.close();
-        runtimeChannel = null;
-        cachedRuntimePort = null;
-      }
-    },
-    intervalMs: 15_000,
-    maxFailures: 4,
-  });
-
-  // ── Registry watcher for instant runtime discovery ─────────────
-  // fs.watch on projects.json auto-connects to new runtime ports and
-  // tears down stale channels. Replaces per-RPC file reads in
-  // callRuntime with in-memory lookups (Path A). Falls back to
-  // per-RPC reads when fs.watch is unavailable (Path B).
-  if (projectPath && !opts?.explicitRuntimePort) {
-    const normalizedProject = normalizePath(projectPath);
-    watchRegistry({
-      onDiscovered: (discoveredPath, port) => {
-        if (discoveredPath !== normalizedProject) return;
-        process.stderr.write(`[bridge] runtime discovered on port ${port}\n`);
-        if (runtimeChannel) void runtimeChannel.close();
-        runtimeChannel = createRuntimeChannel(port);
-        cachedRuntimePort = port;
-        heartbeat.start();
-        // Notify any pending waitForRuntimeConnection callers.
-        const resolvers = runtimePortResolvers;
-        runtimePortResolvers = [];
-        for (const resolve of resolvers) resolve(port);
-      },
-      onRemoved: (removedPath) => {
-        if (removedPath !== normalizedProject) return;
-        process.stderr.write(`[bridge] runtime removed\n`);
-        heartbeat.stop();
-        if (runtimeChannel) {
-          void runtimeChannel.close();
-          runtimeChannel = null;
-          cachedRuntimePort = null;
-        }
-      },
-    });
-  }
+  // ── Runtime connection ───────────────────────────────────────────
+  // The playtest runtime-connection aggregate — discovery, the registry
+  // watcher, port-waiters, and the frozen-game heartbeat — lives in
+  // runtime_connection.ts. The composition root builds one and delegates the
+  // runtime facade methods (callRuntime / waitForRuntimeConnection /
+  // clearRuntime) to it. It touches neither version state nor notifications.
+  const runtime = createRuntimeConnection({ projectPath, explicitRuntimePort: opts?.explicitRuntimePort });
 
   return {
     async call(method, params, timeoutMs, signal) {
@@ -235,101 +153,16 @@ export function createBridge(
         throw err;
       }
     },
-    async callRuntime(method, params, timeoutMs, signal) {
-      // Static port override — same as explicit-port behaviour.
-      if (opts?.explicitRuntimePort) {
-        try {
-          return await runtimeChannel!.call(method, params, timeoutMs, signal);
-        } catch (err) {
-          if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
-            throw new BridgeError(
-              "GAME_NOT_RUNNING",
-              `no runtime server on 127.0.0.1:${opts.explicitRuntimePort} — start the game in the editor (F5) with a debug build`,
-            );
-          }
-          throw err;
-        }
-      }
-
-      // Registry-based discovery.
-      if (!projectPath) {
-        throw new BridgeError("GAME_NOT_RUNNING", "no runtime port configured and no project path for registry lookup");
-      }
-
-      // Fast path: if clearRuntime() was called (game_stopped notification),
-      // trust it over the potentially-stale registry cache. The registry
-      // watcher has a 100ms debounce — during that window getCachedRuntimePort
-      // still returns the old port. Don't create a doomed channel to it.
-      if (!runtimeChannel && cachedRuntimePort === null) {
-        const freshPort = isWatcherActive() ? getCachedRuntimePort(projectPath) : discoverRuntime(projectPath);
-        if (freshPort === null) {
-          throw new BridgeError(
-            "GAME_NOT_RUNNING",
-            "no runtime_port in registry — start the game in the editor (F5) with a debug build",
-          );
-        }
-        // Registry still has a port — either watcher is stale (race) or a new
-        // game started before we ran. Re-read the file to break the debounce.
-        const diskPort = discoverRuntime(projectPath);
-        if (diskPort === null) {
-          throw new BridgeError(
-            "GAME_NOT_RUNNING",
-            "game stopped (runtime cleared by notification, registry not yet updated)",
-          );
-        }
-        // Disk confirms a port exists — new game started. Create channel.
-        runtimeChannel = createRuntimeChannel(diskPort);
-        cachedRuntimePort = diskPort;
-      } else {
-        // Normal path: consult registry cache.
-        const currentPort = isWatcherActive() ? getCachedRuntimePort(projectPath) : discoverRuntime(projectPath);
-        if (currentPort === null) {
-          // No playtest running — close stale channel and reject immediately.
-          if (runtimeChannel) {
-            await runtimeChannel.close();
-            runtimeChannel = null;
-            cachedRuntimePort = null;
-          }
-          throw new BridgeError(
-            "GAME_NOT_RUNNING",
-            "no runtime_port in registry — start the game in the editor (F5) with a debug build",
-          );
-        }
-
-        // Port changed (new playtest or different runtime instance).
-        if (currentPort !== cachedRuntimePort) {
-          if (runtimeChannel) await runtimeChannel.close();
-          runtimeChannel = createRuntimeChannel(currentPort);
-          cachedRuntimePort = currentPort;
-        }
-      }
-
-      try {
-        return await runtimeChannel!.call(method, params, timeoutMs, signal);
-      } catch (err) {
-        if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
-          const failedPort = cachedRuntimePort;
-          await runtimeChannel!.close();
-          runtimeChannel = null;
-          cachedRuntimePort = null;
-          throw new BridgeError(
-            "GAME_NOT_RUNNING",
-            `runtime server on port ${failedPort} is not responding — playtest may have ended`,
-          );
-        }
-        throw err;
-      }
+    callRuntime(method, params, timeoutMs, signal) {
+      return runtime.callRuntime(method, params, timeoutMs, signal);
     },
     async close() {
-      heartbeat.stop();
-      // Resolve outstanding runtime-port waiters as null (bridge closing).
-      const resolvers = runtimePortResolvers;
-      runtimePortResolvers = [];
-      for (const resolve of resolvers) resolve(null);
-
-      unwatchRegistry();
+      // Runtime first: tearing it down resolves any outstanding port-waiters
+      // and stops the heartbeat/watcher before either socket closes — the same
+      // ordering as the former inline close. The editor and runtime are
+      // independent sockets, so their relative close order is unobservable.
+      await runtime.close();
       await editor.close();
-      if (runtimeChannel) await runtimeChannel.close();
     },
     getGodotVersionString() {
       return godotVersion;
@@ -339,30 +172,10 @@ export function createBridge(
       return parseGodotVer(godotVersion);
     },
     waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | null> {
-      if (!projectPath) return Promise.resolve(null);
-      return new Promise<{ port: number } | null>((resolve) => {
-        const timer = setTimeout(() => {
-          runtimePortResolvers = runtimePortResolvers.filter((r) => r !== handler);
-          resolve(null);
-        }, timeoutMs);
-        timer.unref?.();
-
-        const handler: RuntimePortResolver = (port) => {
-          clearTimeout(timer);
-          runtimePortResolvers = runtimePortResolvers.filter((r) => r !== handler);
-          resolve(port != null ? { port } : null);
-        };
-        runtimePortResolvers.push(handler);
-      });
+      return runtime.waitForRuntimeConnection(timeoutMs);
     },
     clearRuntime() {
-      heartbeat.stop();
-      if (runtimeChannel) {
-        void runtimeChannel.close();
-        runtimeChannel = null;
-        cachedRuntimePort = null;
-        process.stderr.write("[bridge] runtime cleared (game_stopped notification)\n");
-      }
+      runtime.clearRuntime();
     },
     onNotification(handler: NotificationHandler) {
       notificationHandler = handler;
