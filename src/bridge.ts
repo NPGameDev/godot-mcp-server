@@ -1,6 +1,7 @@
 import { Bridge, NotificationHandler } from "./types.js";
 import { BridgeError } from "./errors.js";
 import { createChannel, type Channel } from "./channel.js";
+import { createHeartbeat } from "./heartbeat.js";
 import { parseGodotVer } from "./version.js";
 import type { GodotVer } from "./version.js";
 import {
@@ -160,6 +161,33 @@ export function createBridge(
   type RuntimePortResolver = (port: number | null) => void;
   let runtimePortResolvers: RuntimePortResolver[] = [];
 
+  // ── Runtime heartbeat (frozen-game detection) ───────────────────
+  // Pings the runtime every 15s with a 10s timeout. Four consecutive
+  // failures (~60s unresponsive) → proactive teardown. The generous
+  // threshold avoids false positives on poorly-optimized games running
+  // at very low FPS. True freezes (infinite loop) will never respond.
+  // The generic timer/threshold policy lives in heartbeat.ts; the
+  // runtime-state probe + teardown are injected here.
+  const heartbeat = createHeartbeat({
+    // The probe bakes its own 10s timeout (the channel call self-rejects at
+    // 10s), so createHeartbeat runs no timeout race of its own.
+    ping: () => runtimeChannel!.call("ping", null, 10_000),
+    // Load-bearing self-stop guard: callRuntime can null runtimeChannel
+    // WITHOUT stopping us (it relies on the next tick seeing this and
+    // self-stopping — no failure counted).
+    isAlive: () => runtimeChannel !== null,
+    onDead: () => {
+      process.stderr.write("[bridge] heartbeat failed 4x (~60s) — runtime dead/frozen, clearing\n");
+      if (runtimeChannel) {
+        void runtimeChannel.close();
+        runtimeChannel = null;
+        cachedRuntimePort = null;
+      }
+    },
+    intervalMs: 15_000,
+    maxFailures: 4,
+  });
+
   // ── Registry watcher for instant runtime discovery ─────────────
   // fs.watch on projects.json auto-connects to new runtime ports and
   // tears down stale channels. Replaces per-RPC file reads in
@@ -174,7 +202,7 @@ export function createBridge(
         if (runtimeChannel) void runtimeChannel.close();
         runtimeChannel = createRuntimeChannel(port);
         cachedRuntimePort = port;
-        startHeartbeat();
+        heartbeat.start();
         // Notify any pending waitForRuntimeConnection callers.
         const resolvers = runtimePortResolvers;
         runtimePortResolvers = [];
@@ -183,7 +211,7 @@ export function createBridge(
       onRemoved: (removedPath) => {
         if (removedPath !== normalizedProject) return;
         process.stderr.write(`[bridge] runtime removed\n`);
-        stopHeartbeat();
+        heartbeat.stop();
         if (runtimeChannel) {
           void runtimeChannel.close();
           runtimeChannel = null;
@@ -191,49 +219,6 @@ export function createBridge(
         }
       },
     });
-  }
-
-  // ── Runtime heartbeat (frozen-game detection) ───────────────────
-  // Pings the runtime every 15s with a 10s timeout. Four consecutive
-  // failures (~60s unresponsive) → proactive teardown. The generous
-  // threshold avoids false positives on poorly-optimized games running
-  // at very low FPS. True freezes (infinite loop) will never respond.
-  let heartbeatInterval: NodeJS.Timeout | null = null;
-  let heartbeatFailures = 0;
-
-  function startHeartbeat(): void {
-    if (heartbeatInterval) return;
-    heartbeatFailures = 0;
-    heartbeatInterval = setInterval(async () => {
-      if (!runtimeChannel) {
-        stopHeartbeat();
-        return;
-      }
-      try {
-        await runtimeChannel.call("ping", null, 10_000);
-        heartbeatFailures = 0;
-      } catch {
-        heartbeatFailures++;
-        if (heartbeatFailures >= 4) {
-          process.stderr.write("[bridge] heartbeat failed 4x (~60s) — runtime dead/frozen, clearing\n");
-          if (runtimeChannel) {
-            void runtimeChannel.close();
-            runtimeChannel = null;
-            cachedRuntimePort = null;
-          }
-          stopHeartbeat();
-        }
-      }
-    }, 15_000);
-    heartbeatInterval.unref?.();
-  }
-
-  function stopHeartbeat(): void {
-    if (heartbeatInterval) {
-      clearInterval(heartbeatInterval);
-      heartbeatInterval = null;
-    }
-    heartbeatFailures = 0;
   }
 
   return {
@@ -336,7 +321,7 @@ export function createBridge(
       }
     },
     async close() {
-      stopHeartbeat();
+      heartbeat.stop();
       // Resolve outstanding runtime-port waiters as null (bridge closing).
       const resolvers = runtimePortResolvers;
       runtimePortResolvers = [];
@@ -371,7 +356,7 @@ export function createBridge(
       });
     },
     clearRuntime() {
-      stopHeartbeat();
+      heartbeat.stop();
       if (runtimeChannel) {
         void runtimeChannel.close();
         runtimeChannel = null;
