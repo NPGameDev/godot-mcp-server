@@ -1,10 +1,8 @@
 import { WebSocket } from "ws";
-import { randomUUID, createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { homedir } from "node:os";
-import { Bridge } from "./types.js";
+import { randomUUID } from "node:crypto";
+import { Bridge, NotificationHandler } from "./types.js";
 import { BridgeError } from "./errors.js";
+import { readToken } from "./token_path.js";
 import { getServerVersion, compareVersions, parseGodotVer } from "./version.js";
 import type { GodotVer } from "./version.js";
 import {
@@ -16,6 +14,10 @@ import {
   isWatcherActive,
   getCachedRuntimePort,
 } from "./registry.js";
+
+// `NotificationHandler` now lives in types.ts; re-export it so the public bridge
+// surface is byte-stable (importers keep getting it from "./bridge.js").
+export type { NotificationHandler } from "./types.js";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -66,108 +68,6 @@ type PluginNotification = {
   notification: string;
   params?: Record<string, unknown>;
 };
-
-export type NotificationHandler = (type: string, params?: Record<string, unknown>) => void;
-
-// ── Token resolution ─────────────────────────────────────────────────
-
-/**
- * Resolve the Godot project name.
- *
- * Precedence:
- *   1. GODOT_MCP_PROJECT_NAME env var  (set by smoke harness / CI)
- *   2. config/name in project.godot at projectPath (from registry)
- *   3. config/name in project.godot in cwd
- *   4. "[unnamed project]"  (matches Godot's actual appdata dir name)
- */
-async function resolveProjectName(projectPath?: string): Promise<string> {
-  const envName = process.env.GODOT_MCP_PROJECT_NAME;
-  if (envName) return envName;
-  // Try the known project directory first, then fall back to cwd.
-  const candidates = projectPath ? [join(projectPath, "project.godot"), "project.godot"] : ["project.godot"];
-  for (const path of candidates) {
-    try {
-      const content = await readFile(path, "utf-8");
-      const match = content.match(/config\/name="([^"]+)"/);
-      if (match) return match[1];
-    } catch {
-      // Not found at this location — try next.
-    }
-  }
-  return "[unnamed project]";
-}
-
-/**
- * Cross-platform Godot user:// path resolution.
- *   win32:  %APPDATA%/Godot/app_userdata/<project>/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token
- *   darwin: ~/Library/Application Support/Godot/app_userdata/<project>/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token
- *   linux:  ~/.local/share/godot/app_userdata/<project>/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token
- *
- * Per-instance: when projectPath is known, the token lives in a hash-named
- * subdirectory matching the plugin's project_paths.gd derivation. Two
- * worktrees of the same repo get distinct directories.
- */
-async function resolveTokenPath(projectPath?: string): Promise<string> {
-  const envPath = process.env.GODOT_MCP_TOKEN_PATH;
-  if (envPath) return envPath;
-
-  const projectName = await resolveProjectName(projectPath);
-
-  // Per-instance: hash the canonical project path so two worktrees of the
-  // same repo (same config/name → same user://) get distinct directories.
-  // The plugin writes the token to
-  //   user://addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token
-  // (see project_paths.gd + auth.gd), so the subdir must match here.
-  let instanceDir = "addons/godot_mcp_toolkit";
-  if (projectPath) {
-    let canonical = projectPath.replace(/\\/g, "/").replace(/\/+$/, "");
-    // Windows/macOS: lowercase to match GDScript project_paths.gd hash.
-    if (process.platform === "win32" || process.platform === "darwin") canonical = canonical.toLowerCase();
-    const hash = createHash("sha256").update(canonical).digest("hex").slice(0, 12);
-    instanceDir = join("addons", "godot_mcp_toolkit", `project_instance_${hash}`);
-  }
-
-  const tokenFile = "mcp_token";
-
-  switch (process.platform) {
-    case "win32":
-      return join(
-        process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
-        "Godot",
-        "app_userdata",
-        projectName,
-        instanceDir,
-        tokenFile,
-      );
-    case "darwin":
-      return join(
-        homedir(),
-        "Library",
-        "Application Support",
-        "Godot",
-        "app_userdata",
-        projectName,
-        instanceDir,
-        tokenFile,
-      );
-    default:
-      return join(homedir(), ".local", "share", "godot", "app_userdata", projectName, instanceDir, tokenFile);
-  }
-}
-
-/**
- * Read the session token from disk. Re-reads on every call (no caching) so
- * reconnects after a plugin restart pick up the rotated token.
- */
-async function readToken(projectPath?: string): Promise<string> {
-  const tokenPath = await resolveTokenPath(projectPath);
-  try {
-    const token = (await readFile(tokenPath, "utf-8")).trim();
-    return token;
-  } catch (err) {
-    throw new BridgeError("AUTH_FAILED", `cannot read token file at ${tokenPath}: ${(err as Error).message}`);
-  }
-}
 
 /** Parsed auth response from the Godot plugin. */
 export interface AuthResponse {

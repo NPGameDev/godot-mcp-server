@@ -28,6 +28,9 @@ export interface Bridge {
   clearRuntime?(): void;
 }
 
+/** Handler invoked for an unsolicited plugin notification routed off a channel. */
+export type NotificationHandler = (type: string, params?: Record<string, unknown>) => void;
+
 // BridgeError lives in errors.ts (runtime class, not a pure type).
 
 // ── Error codes ──────────────────────────────────────────────────────
