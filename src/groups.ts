@@ -21,6 +21,21 @@ import { buildScreenshotResult } from "./screenshot_response.js";
 // owns allDefs (derived from catalogue.ts's ALL_TOOL_DEFS).
 import { GROUPS, allDefs, GROUP_NAMES, RUNTIME_TOOLS, LSP_TOOLS, type GroupDef } from "./group_catalogue.js";
 import { loadedGroups } from "./group_state.js";
+// Dynamic extension-group registry (concern 077, C1). The extensionGroups /
+// loadedExtensionGroups maps live there (private); the residual reads + mutates
+// ext state only through these accessors + the activate/report helpers.
+import {
+  type ExtensionCmd,
+  clearExtensionGroups,
+  deactivateExtensionGroup,
+  extensionGroupEntries,
+  getExtensionGroup,
+  isExtensionGroupLoaded,
+  loadedExtensionGroupCount,
+  loadedExtensionGroupNames,
+  activateExtGroup,
+  reportExtGroupStatus,
+} from "./extension_groups.js";
 import { createLspHandler } from "./tools/lsp.js";
 
 // ── Static group catalogue (re-exported from group_catalogue.ts) ─────
@@ -32,6 +47,21 @@ import { createLspHandler } from "./tools/lsp.js";
 export type { GroupName } from "./group_catalogue.js";
 export { GROUPS, GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "./group_catalogue.js";
 
+// ── Extension-group registry (re-exported from extension_groups.ts) ──
+// The dynamic extension-group registry + its mutators moved to the near-leaf
+// extension_groups.ts (concern 077, C1). Re-export the externally-consumed
+// surface so importers of groups.js stay unchanged. (activateExtGroup /
+// reportExtGroupStatus / registerExtGroupTools / the read accessors are
+// export-but-internal — C-TSM modules import those from extension_groups.js.)
+export type { ExtensionCmd } from "./extension_groups.js";
+export {
+  addExtensionGroup,
+  removeExtensionCommand,
+  removeExtensionGroup,
+  removeUngroupedExtensionTool,
+  hasExtensionGroups,
+} from "./extension_groups.js";
+
 // loadedGroups (session group-load state) + isGroupLoaded() moved to the leaf
 // module group_state.ts (imported above) — lets tool-def modules read load
 // state without importing groups.ts. resetLoadedGroups() below still clears it.
@@ -39,98 +69,7 @@ export { GROUPS, GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "./group_cata
 /** Clear loaded-group tracking (used by config reload). */
 export function resetLoadedGroups(): void {
   loadedGroups.clear();
-  extensionGroups.clear();
-  loadedExtensionGroups.clear();
-}
-
-// ── Extension groups (dynamic, from third-party extensions) ─────────
-
-export interface ExtensionCmd {
-  method: string;
-  toolName: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  annotations: Record<string, boolean>;
-}
-
-interface ExtensionGroupDef {
-  name: string;
-  description: string;
-  keywords: string[];
-  commands: ExtensionCmd[];
-}
-
-const extensionGroups = new Map<string, ExtensionGroupDef>();
-const loadedExtensionGroups = new Set<string>();
-
-/** Register a deferred extension group (called from discoverExtensions). Deduplicates by method name. */
-export function addExtensionGroup(
-  name: string,
-  description: string,
-  commands: ExtensionCmd[],
-  keywords?: string[],
-): void {
-  const existing = extensionGroups.get(name);
-  if (existing) {
-    for (const cmd of commands) {
-      if (!existing.commands.some((c) => c.method === cmd.method)) {
-        existing.commands.push(cmd);
-      }
-    }
-    // Merge description if different.
-    if (description && description !== existing.description) {
-      existing.description = existing.description + "; " + description;
-    }
-    // Merge keywords without duplicates.
-    if (keywords) {
-      for (const kw of keywords) {
-        if (!existing.keywords.includes(kw)) existing.keywords.push(kw);
-      }
-    }
-  } else {
-    extensionGroups.set(name, { name, description, keywords: keywords ?? [], commands });
-  }
-}
-
-/** Remove a single command from an extension group by method name. Returns true if found. */
-export function removeExtensionCommand(method: string): boolean {
-  for (const [name, group] of extensionGroups) {
-    const idx = group.commands.findIndex((c) => c.method === method);
-    if (idx >= 0) {
-      const toolName = group.commands[idx].toolName;
-      group.commands.splice(idx, 1);
-      removeToolByName(toolName);
-      // If no commands remain, remove the entire group.
-      if (group.commands.length === 0) {
-        extensionGroups.delete(name);
-        loadedExtensionGroups.delete(name);
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
-/** Remove an entire extension group by name. Unregisters all its tools. */
-export function removeExtensionGroup(name: string): boolean {
-  const group = extensionGroups.get(name);
-  if (!group) return false;
-  for (const cmd of group.commands) {
-    removeToolByName(cmd.toolName);
-  }
-  extensionGroups.delete(name);
-  loadedExtensionGroups.delete(name);
-  return true;
-}
-
-/** Remove an ungrouped extension tool by its method-derived tool name. */
-export function removeUngroupedExtensionTool(toolName: string): boolean {
-  return removeToolByName(toolName);
-}
-
-/** Whether any extension groups exist (used to decide if refresh needed). */
-export function hasExtensionGroups(): boolean {
-  return extensionGroups.size > 0;
+  clearExtensionGroups();
 }
 
 // ── Special-case handlers ────────────────────────────────────────────
@@ -288,7 +227,7 @@ export function findMatchesSingle(keyword: string, readOnly: boolean): { name: s
     if (score > 0) matches.push({ name: group.name, score, exact });
   }
 
-  for (const [name, ext] of extensionGroups) {
+  for (const [name, ext] of extensionGroupEntries()) {
     if (readOnly) {
       const hasReadOnly = ext.commands.some((c) => isAllowedInReadOnly(c.annotations));
       if (!hasReadOnly) continue;
@@ -420,12 +359,12 @@ function buildDiscoverToolsDesc(readOnly: boolean): string {
   }
 
   const extParts: string[] = [];
-  for (const [name, ext] of extensionGroups) {
+  for (const [name, ext] of extensionGroupEntries()) {
     if (readOnly) {
       const hasReadOnly = ext.commands.some((c) => isAllowedInReadOnly(c.annotations));
       if (!hasReadOnly) continue;
     }
-    const loaded = loadedExtensionGroups.has(name);
+    const loaded = isExtensionGroupLoaded(name);
     const desc = ext.description || name;
     extParts.push(`${name} [${loaded ? "LOADED" : "available"}] — ${desc}`);
   }
@@ -447,7 +386,7 @@ function buildDiscoverToolsDesc(readOnly: boolean): string {
 
 function deactivateGroups(names: string[] | true, readOnly: boolean): string[] {
   const deactivated: string[] = [];
-  const targets = names === true ? [...loadedGroups, ...loadedExtensionGroups] : names;
+  const targets = names === true ? [...loadedGroups, ...loadedExtensionGroupNames()] : names;
 
   for (const groupName of targets) {
     // Built-in group?
@@ -463,12 +402,7 @@ function deactivateGroups(names: string[] | true, readOnly: boolean): string[] {
       continue;
     }
     // Extension group?
-    if (loadedExtensionGroups.has(groupName)) {
-      const ext = extensionGroups.get(groupName);
-      if (ext) {
-        for (const cmd of ext.commands) removeToolByName(cmd.toolName);
-      }
-      loadedExtensionGroups.delete(groupName);
+    if (deactivateExtensionGroup(groupName)) {
       deactivated.push(groupName);
     }
   }
@@ -548,7 +482,10 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         // Empty array is treated as "no request" (catalog trigger), not "zero elements".
         if (parsed.request !== undefined && !requestIsEmpty) {
           const elements = coerceRequest(parsed.request);
-          const allNames = new Set<string>([...(GROUP_NAMES as readonly string[]), ...extensionGroups.keys()]);
+          const allNames = new Set<string>([
+            ...(GROUP_NAMES as readonly string[]),
+            ...[...extensionGroupEntries()].map(([name]) => name),
+          ]);
           const exactElements: string[] = [];
           const fuzzyElements: string[] = [];
 
@@ -600,7 +537,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         for (const group of GROUPS) {
           groupResults.push(reportGroupStatus(group.name, readOnly));
         }
-        for (const [name] of extensionGroups) {
+        for (const [name] of extensionGroupEntries()) {
           groupResults.push(reportExtGroupStatus(name));
         }
       }
@@ -612,7 +549,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
       // Post-collection enrichment: replace bare {name} tool objects with
       // full metadata for activated/already_loaded groups.
       const extCmdLookup = new Map<string, ExtensionCmd>();
-      for (const [, ext] of extensionGroups) {
+      for (const [, ext] of extensionGroupEntries()) {
         for (const cmd of ext.commands) extCmdLookup.set(cmd.toolName, cmd);
       }
       enrichGroupResults(groupResults, includeSchemas, allDefs, extCmdLookup);
@@ -629,7 +566,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         for (const gName of deactivated) {
           const group = GROUPS.find((g) => g.name === gName);
           if (group) deactivatedTools.push(...group.tools);
-          const ext = extensionGroups.get(gName);
+          const ext = getExtensionGroup(gName);
           if (ext) deactivatedTools.push(...ext.commands.map((c) => c.toolName));
         }
         if (deactivatedTools.length > 0) response.deactivated_tools = deactivatedTools;
@@ -641,7 +578,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
       }
 
       // Cumulative >5 warning — checks total loaded groups across all calls.
-      const totalLoaded = loadedGroups.size + loadedExtensionGroups.size;
+      const totalLoaded = loadedGroups.size + loadedExtensionGroupCount();
       if (totalLoaded > 5) {
         response.warning =
           `${totalLoaded} groups currently loaded. ` +
@@ -665,8 +602,8 @@ function activateOrReportGroup(
 ): GroupResult {
   const group = GROUPS.find((g) => g.name === groupName);
   if (!group) {
-    // Try extension groups.
-    return activateOrReportExtGroup(server, bridge, groupName, activate, readOnly);
+    // Not built-in — dispatch to the extension-group command/query (081 split).
+    return activate ? activateExtGroup(server, bridge, groupName, readOnly) : reportExtGroupStatus(groupName, readOnly);
   }
 
   // In read-only mode, filter tool lists to only show read-only tools.
@@ -703,46 +640,6 @@ function activateOrReportGroup(
   };
 }
 
-function activateOrReportExtGroup(
-  server: McpServer,
-  bridge: Bridge,
-  name: string,
-  activate: boolean,
-  readOnly: boolean = false,
-): GroupResult {
-  const ext = extensionGroups.get(name);
-  if (!ext) {
-    return { name, status: "available", tools: [], description: `Unknown group: ${name}` };
-  }
-  const toolNames = readOnly
-    ? ext.commands.filter((c) => isAllowedInReadOnly(c.annotations)).map((c) => c.toolName)
-    : ext.commands.map((c) => c.toolName);
-  const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
-  if (loadedExtensionGroups.has(name)) {
-    return { name, status: "already_loaded", tools, description: ext.description };
-  }
-  if (!activate) {
-    return { name, status: "available", tools, description: ext.description };
-  }
-  const registered = registerExtGroupTools(server, bridge, ext, readOnly);
-  // In read-only mode, if all tools were filtered out, don't waste a group slot.
-  if (readOnly && registered.length === 0) {
-    return {
-      name,
-      status: "available",
-      tools: [],
-      description: `Group '${name}' has no tools available in read-only mode.`,
-    };
-  }
-  loadedExtensionGroups.add(name);
-  return {
-    name,
-    status: "activated",
-    tools: registered.map((t) => ({ name: t })),
-    description: ext.description,
-  };
-}
-
 function reportGroupStatus(groupName: string, readOnly: boolean): GroupResult {
   const group = GROUPS.find((g) => g.name === groupName);
   if (!group) return { name: groupName, status: "available", tools: [] };
@@ -757,57 +654,4 @@ function reportGroupStatus(groupName: string, readOnly: boolean): GroupResult {
   if (loadedGroups.has(groupName))
     return { name: groupName, status: "already_loaded", tools, description: group.description };
   return { name: groupName, status: "available", tools, description: group.description };
-}
-
-function reportExtGroupStatus(name: string): GroupResult {
-  const ext = extensionGroups.get(name);
-  if (!ext) return { name, status: "available", tools: [] };
-  const tools: ToolMeta[] = ext.commands.map((c) => ({ name: c.toolName }));
-  if (loadedExtensionGroups.has(name)) return { name, status: "already_loaded", tools, description: ext.description };
-  return { name, status: "available", tools, description: ext.description };
-}
-
-/** Register an extension group's tools (called from discover_tools handler). */
-function registerExtGroupTools(
-  server: McpServer,
-  bridge: Bridge,
-  group: ExtensionGroupDef,
-  readOnly: boolean = false,
-): string[] {
-  const registered: string[] = [];
-  for (const cmd of group.commands) {
-    if (isExcludedByReadOnly(readOnly, cmd.annotations)) continue;
-    registerToolWrapped(
-      server,
-      bridge,
-      cmd.toolName,
-      {
-        description: cmd.description,
-        inputSchema: cmd.inputSchema,
-        annotations: {
-          readOnlyHint: cmd.annotations.readOnlyHint ?? false,
-          destructiveHint: cmd.annotations.destructiveHint ?? false,
-          idempotentHint: cmd.annotations.idempotentHint ?? false,
-        },
-      },
-      (input: unknown, signal?: AbortSignal) =>
-        callAndWrap(bridge, cmd.method, input, { signal }) as Promise<import("./types.js").ToolTextResult>,
-    );
-    registered.push(cmd.toolName);
-  }
-  return registered;
-}
-
-/**
- * For power_user profile: register all extension group tools immediately.
- * Batches notifications so only 1 tools/list_changed fires regardless of tool count.
- */
-export function registerAllExtensionGroupTools(server: McpServer, bridge: Bridge, readOnly: boolean = false): void {
-  batchToolRegistration(server, () => {
-    for (const [name, group] of extensionGroups) {
-      if (loadedExtensionGroups.has(name)) continue;
-      registerExtGroupTools(server, bridge, group, readOnly);
-      loadedExtensionGroups.add(name);
-    }
-  });
 }
