@@ -116,7 +116,7 @@ function enrichExtensionTool(cmd: ExtensionCmd, includeSchemas: boolean): ToolMe
  * groups, replace bare tool names with full metadata. For available
  * groups, tools stay as {name} only.
  *
- * @param results - Raw group results from activateOrReportGroup()
+ * @param results - Raw group results from the discover_tools handler (activateGroupByName / reportGroupStatusByName)
  * @param includeSchemas - Whether to include parameters + annotations
  * @param allDefs - Master lookup of all built-in ToolDefs by name
  * @param extGroupCommands - Lookup of extension commands by tool name

@@ -8,29 +8,26 @@ import { z } from "zod";
 import type { Bridge } from "./types.js";
 import { registerToolWrapped, batchToolRegistration } from "./tool_registry.js";
 import { coercedBoolean } from "./schema_coercion.js";
-import { enrichGroupResults, type ToolMeta, type GroupResult } from "./tool_meta.js";
-import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
-import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
+import { enrichGroupResults, type GroupResult } from "./tool_meta.js";
+import { updateToolRef, hasToolRef } from "./tool_refs.js";
 
 // Static group catalogue (the GROUPS literal + its derived lookup/index sets)
 // and group-loaded state — both leaf modules that do NOT import groups.ts, so
 // tool-def modules never cycle back here via catalogue.ts. group_catalogue.ts
 // owns allDefs (derived from catalogue.ts's ALL_TOOL_DEFS).
-import { GROUPS, allDefs, GROUP_NAMES, type GroupDef } from "./group_catalogue.js";
+import { GROUPS, allDefs, GROUP_NAMES } from "./group_catalogue.js";
 import { loadedGroups } from "./group_state.js";
 // Dynamic extension-group registry (concern 077, C1). The extensionGroups /
-// loadedExtensionGroups maps live there (private); the residual reads + mutates
-// ext state only through these accessors + the activate/report helpers.
+// loadedExtensionGroups maps live there (private); the residual touches ext
+// state only through these accessors (clearExtensionGroups on reset,
+// reportExtGroupStatus for the catalog path's ext query). Activation +
+// deactivation moved to group_activation.ts (C4).
 import {
   type ExtensionCmd,
   clearExtensionGroups,
-  deactivateExtensionGroup,
   extensionGroupEntries,
   getExtensionGroup,
-  isExtensionGroupLoaded,
   loadedExtensionGroupCount,
-  loadedExtensionGroupNames,
-  activateExtGroup,
   reportExtGroupStatus,
 } from "./extension_groups.js";
 // Keyword-scoring pipeline (concern 077, C2). findMatchesSingle scores a query
@@ -38,11 +35,20 @@ import {
 // coerceRequest normalizes the raw request param. The discover_tools handler
 // below is the sole caller.
 import { findMatchesSingle, capFuzzyResults, coerceRequest } from "./group_match.js";
-// Per-tool callback factory (concern 077, C3). createHandler builds the
-// registerTool callback for one tool def — signal_emit dual-mode routing,
-// editor_screenshot multi-content, LSP tools' own TCP client, and the default
-// callAndWrap path. registerGroupTools below is the sole caller.
-import { createHandler } from "./group_tool_handlers.js";
+// Group-activation lifecycle (concern 077, C4). registerGroupTools, the 081
+// command/query split (activateGroupByName / reportGroupStatusByName dispatchers
+// over activateGroup / reportGroupStatus), deactivateGroups, and
+// buildDiscoverToolsDesc all live there now; the discover_tools handler below
+// composes them. reportGroupStatus is used directly by the catalog path;
+// reportGroupStatusByName preserves the fused activateOrReportGroup query
+// dispatch (built-in vs ext) at the exact/fuzzy call sites.
+import {
+  activateGroupByName,
+  reportGroupStatus,
+  reportGroupStatusByName,
+  buildDiscoverToolsDesc,
+  deactivateGroups,
+} from "./group_activation.js";
 
 // ── Static group catalogue (re-exported from group_catalogue.ts) ─────
 // The GROUPS literal + its derived lookup/index sets (allDefs, GROUP_TOOL_NAMES,
@@ -84,114 +90,6 @@ export { findMatchesSingle } from "./group_match.js";
 export function resetLoadedGroups(): void {
   loadedGroups.clear();
   clearExtensionGroups();
-}
-
-// ── Registration ─────────────────────────────────────────────────────
-
-/**
- * Register a single group's tools dynamically.
- * Removes any LOCKED stubs for those tools first (stub->real swap).
- * Returns the list of newly registered tool names.
- */
-function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, readOnly: boolean): string[] {
-  const registered: string[] = [];
-  for (const toolName of group.tools) {
-    const def = allDefs.get(toolName);
-    if (!def) continue;
-    if (isExcludedByReadOnly(readOnly, def.annotations)) continue;
-    removeToolByName(toolName); // Remove stub if present
-    registerToolWrapped(
-      server,
-      bridge,
-      def.name,
-      {
-        description: def.description,
-        inputSchema: def.inputSchema,
-        annotations: def.annotations,
-      },
-      createHandler(bridge, def) as (input: Record<string, unknown>) => Promise<import("./types.js").ToolTextResult>,
-      { godotMinVersion: def.godotMinVersion, godotMaxVersion: def.godotMaxVersion },
-    );
-    registered.push(toolName);
-  }
-  return registered;
-}
-
-// ── discover_tools description builder ──────────────────────────────
-
-// I2 waiver: discover_tools description intentionally exceeds the 200-char
-// tool-description limit. As the gateway to 30+ hidden tools, discoverability
-// is more important than description brevity for this meta-tool.
-//
-// Strategy D: group name + one-line description + status tag. No tool lists —
-// agents see individual tools only after activation or via no-params catalog.
-function buildDiscoverToolsDesc(readOnly: boolean): string {
-  const parts: string[] = [];
-  for (const group of GROUPS) {
-    if (readOnly) {
-      const hasReadOnlyTool = group.tools.some((t) => {
-        const d = allDefs.get(t);
-        return d ? isAllowedInReadOnly(d.annotations) : false;
-      });
-      if (!hasReadOnlyTool) continue;
-    }
-
-    const loaded = loadedGroups.has(group.name);
-    const state = loaded ? "LOADED" : "available";
-
-    const entry = `${group.name} [${state}] — ${group.description}`;
-    parts.push(entry);
-  }
-
-  const extParts: string[] = [];
-  for (const [name, ext] of extensionGroupEntries()) {
-    if (readOnly) {
-      const hasReadOnly = ext.commands.some((c) => isAllowedInReadOnly(c.annotations));
-      if (!hasReadOnly) continue;
-    }
-    const loaded = isExtensionGroupLoaded(name);
-    const desc = ext.description || name;
-    extParts.push(`${name} [${loaded ? "LOADED" : "available"}] — ${desc}`);
-  }
-
-  let description =
-    "Find and activate tool groups by name or domain keyword. " +
-    "Activate only the groups needed for your current task (up to ~5) — loading many groups at once floods the tool list and degrades response quality. " +
-    "No params → full catalog. reset: true → deactivate ALL groups; reset: ['group_a'] → deactivate only group_a. " +
-    "Groups: " +
-    parts.join("; ");
-  if (extParts.length > 0) {
-    description += ". Extensions: " + extParts.join("; ");
-  }
-  description += ".";
-  return description;
-}
-
-// ── Group deactivation ──────────────────────────────────────────────
-
-function deactivateGroups(names: string[] | true, readOnly: boolean): string[] {
-  const deactivated: string[] = [];
-  const targets = names === true ? [...loadedGroups, ...loadedExtensionGroupNames()] : names;
-
-  for (const groupName of targets) {
-    // Built-in group?
-    const group = GROUPS.find((g) => g.name === groupName);
-    if (group && loadedGroups.has(groupName)) {
-      for (const toolName of group.tools) {
-        const def = allDefs.get(toolName);
-        if (isExcludedByReadOnly(readOnly, def?.annotations)) continue;
-        removeToolByName(toolName);
-      }
-      loadedGroups.delete(groupName);
-      deactivated.push(groupName);
-      continue;
-    }
-    // Extension group?
-    if (deactivateExtensionGroup(groupName)) {
-      deactivated.push(groupName);
-    }
-  }
-  return deactivated;
 }
 
 /**
@@ -281,7 +179,9 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
           // Exact matches (uncapped — agent asked for these by name).
           for (const name of exactElements) {
-            const result = activateOrReportGroup(server, bridge, name, activate, readOnly);
+            const result = activate
+              ? activateGroupByName(server, bridge, name, readOnly)
+              : reportGroupStatusByName(name, readOnly);
             result.match = "exact_name";
             groupResults.push(result);
           }
@@ -296,7 +196,9 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
             for (const name of selected) {
               if (groupResults.some((r) => r.name === name)) continue;
-              const result = activateOrReportGroup(server, bridge, name, activate, readOnly);
+              const result = activate
+                ? activateGroupByName(server, bridge, name, readOnly)
+                : reportGroupStatusByName(name, readOnly);
               result.match = "loose_keyword";
               groupResults.push(result);
             }
@@ -375,68 +277,4 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
       return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     },
   );
-}
-
-/** Activate a built-in or extension group by name, or report status if not activating. */
-function activateOrReportGroup(
-  server: McpServer,
-  bridge: Bridge,
-  groupName: string,
-  activate: boolean,
-  readOnly: boolean,
-): GroupResult {
-  const group = GROUPS.find((g) => g.name === groupName);
-  if (!group) {
-    // Not built-in — dispatch to the extension-group command/query (081 split).
-    return activate ? activateExtGroup(server, bridge, groupName, readOnly) : reportExtGroupStatus(groupName, readOnly);
-  }
-
-  // In read-only mode, filter tool lists to only show read-only tools.
-  const toolNames = readOnly
-    ? group.tools.filter((t) => {
-        const d = allDefs.get(t);
-        return d ? isAllowedInReadOnly(d.annotations) : false;
-      })
-    : group.tools;
-  const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
-
-  if (loadedGroups.has(groupName)) {
-    return { name: groupName, status: "already_loaded", tools, description: group.description };
-  }
-  if (!activate) {
-    return { name: groupName, status: "available", tools, description: group.description };
-  }
-  const registered = registerGroupTools(server, bridge, group, readOnly);
-  // In read-only mode, if all tools were filtered out, don't waste a group slot.
-  if (readOnly && registered.length === 0) {
-    return {
-      name: groupName,
-      status: "available",
-      tools: [],
-      description: `Group '${groupName}' has no tools available in read-only mode.`,
-    };
-  }
-  loadedGroups.add(groupName);
-  return {
-    name: groupName,
-    status: "activated",
-    tools: registered.map((t) => ({ name: t })),
-    description: group.description,
-  };
-}
-
-function reportGroupStatus(groupName: string, readOnly: boolean): GroupResult {
-  const group = GROUPS.find((g) => g.name === groupName);
-  if (!group) return { name: groupName, status: "available", tools: [] };
-  // In read-only mode, filter tool lists to only show read-only tools.
-  const toolNames = readOnly
-    ? group.tools.filter((t) => {
-        const d = allDefs.get(t);
-        return d ? isAllowedInReadOnly(d.annotations) : false;
-      })
-    : group.tools;
-  const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
-  if (loadedGroups.has(groupName))
-    return { name: groupName, status: "already_loaded", tools, description: group.description };
-  return { name: groupName, status: "available", tools, description: group.description };
 }
