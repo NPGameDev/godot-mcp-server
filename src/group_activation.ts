@@ -69,6 +69,16 @@ export function registerGroupTools(server: McpServer, bridge: Bridge, group: Gro
 
 // ── discover_tools description builder ──────────────────────────────
 
+/**
+ * Format one catalogue line for the discover_tools description, shared by the
+ * built-in and extension sections: `<name> [LOADED|available] — <desc>`. The
+ * loaded-state source and the description source differ per kind, so the caller
+ * resolves both and passes them in.
+ */
+function formatGroupEntry(name: string, loaded: boolean, desc: string): string {
+  return `${name} [${loaded ? "LOADED" : "available"}] — ${desc}`;
+}
+
 // I2 waiver: discover_tools description intentionally exceeds the 200-char
 // tool-description limit. As the gateway to 30+ hidden tools, discoverability
 // is more important than description brevity for this meta-tool.
@@ -87,10 +97,7 @@ export function buildDiscoverToolsDesc(readOnly: boolean): string {
     }
 
     const loaded = loadedGroups.has(group.name);
-    const state = loaded ? "LOADED" : "available";
-
-    const entry = `${group.name} [${state}] — ${group.description}`;
-    parts.push(entry);
+    parts.push(formatGroupEntry(group.name, loaded, group.description));
   }
 
   const extParts: string[] = [];
@@ -101,7 +108,7 @@ export function buildDiscoverToolsDesc(readOnly: boolean): string {
     }
     const loaded = isExtensionGroupLoaded(name);
     const desc = ext.description || name;
-    extParts.push(`${name} [${loaded ? "LOADED" : "available"}] — ${desc}`);
+    extParts.push(formatGroupEntry(name, loaded, desc));
   }
 
   let description =
