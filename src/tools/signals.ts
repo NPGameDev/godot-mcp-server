@@ -51,7 +51,7 @@ export const signalTools: ToolDef[] = [
 ];
 
 // NOTE: All signal tools are in the "signals" group (GROUP_TOOL_NAMES).
-// The dual-mode signal_emit handler lives in groups.ts createHandler.
+// The dual-mode signal_emit handler is built by group_tool_handlers.ts (createHandler).
 // This register() is a no-op under standard/custom profiles but remains
 // as a fallback for direct-call scenarios.
 export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {

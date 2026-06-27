@@ -5,21 +5,18 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef } from "./types.js";
+import type { Bridge } from "./types.js";
 import { registerToolWrapped, batchToolRegistration } from "./tool_registry.js";
-import { callAndWrap } from "./tool_dispatch.js";
 import { coercedBoolean } from "./schema_coercion.js";
-import { toolErrorFromPayload, toolErrorFromException } from "./error_contract.js";
 import { enrichGroupResults, type ToolMeta, type GroupResult } from "./tool_meta.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "./profiles.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "./tool_refs.js";
-import { buildScreenshotResult } from "./screenshot_response.js";
 
 // Static group catalogue (the GROUPS literal + its derived lookup/index sets)
 // and group-loaded state — both leaf modules that do NOT import groups.ts, so
 // tool-def modules never cycle back here via catalogue.ts. group_catalogue.ts
 // owns allDefs (derived from catalogue.ts's ALL_TOOL_DEFS).
-import { GROUPS, allDefs, GROUP_NAMES, RUNTIME_TOOLS, LSP_TOOLS, type GroupDef } from "./group_catalogue.js";
+import { GROUPS, allDefs, GROUP_NAMES, type GroupDef } from "./group_catalogue.js";
 import { loadedGroups } from "./group_state.js";
 // Dynamic extension-group registry (concern 077, C1). The extensionGroups /
 // loadedExtensionGroups maps live there (private); the residual reads + mutates
@@ -41,7 +38,11 @@ import {
 // coerceRequest normalizes the raw request param. The discover_tools handler
 // below is the sole caller.
 import { findMatchesSingle, capFuzzyResults, coerceRequest } from "./group_match.js";
-import { createLspHandler } from "./tools/lsp.js";
+// Per-tool callback factory (concern 077, C3). createHandler builds the
+// registerTool callback for one tool def — signal_emit dual-mode routing,
+// editor_screenshot multi-content, LSP tools' own TCP client, and the default
+// callAndWrap path. registerGroupTools below is the sole caller.
+import { createHandler } from "./group_tool_handlers.js";
 
 // ── Static group catalogue (re-exported from group_catalogue.ts) ─────
 // The GROUPS literal + its derived lookup/index sets (allDefs, GROUP_TOOL_NAMES,
@@ -83,78 +84,6 @@ export { findMatchesSingle } from "./group_match.js";
 export function resetLoadedGroups(): void {
   loadedGroups.clear();
   clearExtensionGroups();
-}
-
-// ── Special-case handlers ────────────────────────────────────────────
-// Tools with non-standard response processing. Each returns a handler
-// function matching the registerTool callback signature.
-
-/** signal_emit has dual-mode routing (editor or runtime). */
-function handleSignalEmit(bridge: Bridge, def: ToolDef) {
-  return async (input: unknown) => {
-    const parsed = input as { node_path: string; signal_name: string; args?: unknown[]; mode?: string };
-    const mode = parsed.mode ?? "editor";
-    const params = { node_path: parsed.node_path, signal_name: parsed.signal_name, args: parsed.args ?? [] };
-    return callAndWrap(bridge, def.method, params, { runtime: mode === "runtime" });
-  };
-}
-
-/** editor_screenshot returns multi-content (image + text metadata). */
-function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
-  return async (input: unknown) => {
-    try {
-      const result = await bridge.call(def.method, input ?? {});
-      const err = toolErrorFromPayload(result);
-      if (err) return err;
-      const obj = result as {
-        image_base64?: string;
-        mime_type?: string;
-        width?: number;
-        height?: number;
-        bytes?: number;
-        path?: string;
-      };
-      if (!obj?.image_base64) {
-        return toolErrorFromPayload({
-          success: false,
-          code: "EMPTY_CONTENT",
-          error:
-            "screenshot returned no image bytes — node may lack visual content. Use editor_screenshot for full viewport.",
-        })!;
-      }
-      return buildScreenshotResult(obj.image_base64, obj.mime_type, {
-        width: obj.width,
-        height: obj.height,
-        bytes: obj.bytes,
-        path: obj.path,
-      });
-    } catch (err) {
-      return toolErrorFromException(err);
-    }
-  };
-}
-
-// ── Handler dispatch ─────────────────────────────────────────────────
-
-/**
- * Create the handler for a given tool, respecting runtime routing
- * and special-case tools.
- */
-function createHandler(bridge: Bridge, def: ToolDef) {
-  switch (def.name) {
-    case "signal_emit":
-      return handleSignalEmit(bridge, def);
-    case "editor_screenshot":
-      return handleEditorScreenshot(bridge, def);
-    default: {
-      if (LSP_TOOLS.has(def.name)) {
-        const projectPath = process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
-        return createLspHandler(def.name, projectPath);
-      }
-      const useRuntime = RUNTIME_TOOLS.has(def.name);
-      return (input: unknown) => callAndWrap(bridge, def.method, input, { runtime: useRuntime });
-    }
-  }
 }
 
 // ── Registration ─────────────────────────────────────────────────────
