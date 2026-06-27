@@ -5,57 +5,12 @@
  */
 import { z } from "zod";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 
 import type { ToolDef, ToolTextResult } from "../types.js";
 import { toolError } from "../error_contract.js";
 import { LspClient, LspResolutionError, type LspStatus } from "../lsp_client.js";
 import { untrustedWrap } from "../untrusted.js";
-
-// ── URI / path helpers ───────��───────────────────────────────────────
-
-function resToAbsolute(resPath: string, projectPath: string): string {
-  // res://foo/bar.gd → <projectPath>/foo/bar.gd
-  const relative = resPath.replace(/^res:\/\//, "");
-  return join(projectPath, relative);
-}
-
-function absoluteToFileUri(absPath: string): string {
-  // Windows: C:\foo\bar.gd → file:///C:/foo/bar.gd
-  // Unix: /foo/bar.gd → file:///foo/bar.gd
-  const normalized = absPath.replace(/\\/g, "/");
-  if (/^[A-Za-z]:/.test(normalized)) {
-    return `file:///${normalized}`;
-  }
-  return `file://${normalized}`;
-}
-
-function fileUriToRes(uri: string, projectPath: string): string {
-  // file:///C:/project/foo.gd → res://foo.gd
-  let absPath: string;
-  if (uri.startsWith("file:///")) {
-    absPath = uri.slice(8); // Remove file:///
-  } else if (uri.startsWith("file://")) {
-    absPath = uri.slice(7); // Remove file://
-  } else {
-    return uri; // Not a file URI, return as-is.
-  }
-
-  // Decode percent-encoding.
-  absPath = decodeURIComponent(absPath);
-
-  // Normalize slashes.
-  const normalizedProject = projectPath.replace(/\\/g, "/").replace(/\/$/, "");
-  const normalizedPath = absPath.replace(/\\/g, "/");
-
-  // Strip project prefix to get res:// path.
-  if (normalizedPath.toLowerCase().startsWith(normalizedProject.toLowerCase())) {
-    const relative = normalizedPath.slice(normalizedProject.length);
-    return "res:/" + relative; // normalizedPath starts with / after project path
-  }
-
-  return uri; // Outside project — return raw.
-}
+import { resToAbsolute, absoluteToFileUri, fileUriToRes } from "../lsp_uri.js";
 
 /** Severity number → human-readable label. */
 function severityLabel(severity: number): string {

@@ -9,6 +9,7 @@ import { createConnection, type Socket } from "node:net";
 
 import { discoverLspEndpoint, liveLspClaimants } from "./registry.js";
 import { isVersionAtLeast, type GodotVer } from "./version.js";
+import { normalizeUri } from "./lsp_uri.js";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -148,19 +149,6 @@ export function getLspStatus(projectPath: string): LspStatus {
     }
     return { state: "unavailable", host: "127.0.0.1", port: DEFAULT_LSP_PORT, detail: String(err) };
   }
-}
-
-/**
- * Normalize a file URI for map lookups. Godot's LSP may return URIs
- * with different drive-letter casing or percent-encoding than we send.
- */
-function normalizeUri(uri: string): string {
-  let norm = decodeURIComponent(uri).replace(/\\/g, "/");
-  // Lowercase Windows drive letter: file:///C: → file:///c:
-  if (/^file:\/\/\/[A-Z]:/.test(norm)) {
-    norm = "file:///" + norm[8].toLowerCase() + norm.slice(9);
-  }
-  return norm;
 }
 
 // ── Types ────────────────────────────────────────────────────────────
