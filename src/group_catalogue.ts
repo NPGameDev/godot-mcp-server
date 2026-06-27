@@ -7,43 +7,20 @@
  * cycle back here via catalogue.ts. Extracted from groups.ts (concern 077, C0).
  */
 import type { ToolDef } from "./types.js";
+import type { GroupDef, GroupName } from "./group_types.js";
 
 // Canonical tool inventory (single source of truth for counting + lookup).
 // A leaf module that does NOT import groups.ts, so tool-def modules never
 // cycle back here via catalogue.ts.
 import { ALL_TOOL_DEFS } from "./catalogue.js";
 
-// ── Group definitions ────────────────────────────────────────────────
+// Re-export the group type vocabulary so group_catalogue.ts's public surface
+// stays byte-stable: group_activation.ts imports GroupDef from here, and the
+// groups.ts barrel re-exports GroupName from here. The declarations themselves
+// now live in the pure-types leaf group_types.ts (concern 094, C0).
+export type { GroupDef, GroupName } from "./group_types.js";
 
-export type GroupName =
-  | "runtime_advanced"
-  | "signals"
-  | "animation_authoring"
-  | "input_map"
-  | "resource_io"
-  | "asset_ops"
-  | "cleanup"
-  | "user_data"
-  | "scene_advanced"
-  | "editor_advanced"
-  | "tilemap"
-  | "tileset"
-  | "tileset_edit"
-  | "theme"
-  | "layer_naming"
-  | "path_editing"
-  | "3d_tools"
-  | "procedural"
-  | "scene_inheritance"
-  | "audio"
-  | "spriteframes"
-  | "particles"
-  | "navigation"
-  | "lsp_code_analysis"
-  | "lsp_code_navigation"
-  | "debugger"
-  | "classdb"
-  | "placeholders";
+// ── Group definitions ────────────────────────────────────────────────
 
 export const GROUP_NAMES: readonly GroupName[] = [
   "runtime_advanced",
@@ -75,13 +52,6 @@ export const GROUP_NAMES: readonly GroupName[] = [
   "classdb",
   "placeholders",
 ];
-
-export interface GroupDef {
-  name: GroupName;
-  description: string;
-  tools: string[];
-  keywords: string[];
-}
 
 export const GROUPS: GroupDef[] = [
   {
