@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import type { ToolDef } from "../../src/shared/types.js";
 import type { ExtensionCmd } from "../../src/groups/groups.js";
-import { enrichGroupResults, type GroupResult } from "../../src/registration/toolMeta.js";
+import { enrichGroupResults, jsonSchemaToParamMap, type GroupResult } from "../../src/registration/toolMeta.js";
 
 // ── Test fixtures ────────────────────────────────────────────────────
 
@@ -166,6 +166,64 @@ const extGroupCommands = new Map<string, ExtensionCmd>([["ext_custom", makeExtCm
   assert.ok(enriched[0].tools[1].parameters);
   // Second group: NOT enriched
   assert.equal(enriched[1].tools[0].parameters, undefined);
+}
+
+// ── jsonSchemaToParamMap ─────────────────────────────────────────────
+
+// Basic type mapping
+{
+  const schema = {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "The name" },
+      count: { type: "integer", description: "How many" },
+      active: { type: "boolean" },
+      items: { type: "array" },
+      data: { type: "unknown_type" },
+    },
+    required: ["name", "count"],
+  };
+  const params = jsonSchemaToParamMap(schema);
+  assert.deepEqual(params.name, { type: "string", required: true, description: "The name" });
+  assert.deepEqual(params.count, { type: "number", required: true, description: "How many" });
+  assert.deepEqual(params.active, { type: "boolean", required: false });
+  assert.deepEqual(params.items, { type: "array", required: false });
+  assert.deepEqual(params.data, { type: "string", required: false }); // default type
+}
+
+// Enum detection
+{
+  const schema = {
+    properties: { mode: { type: "string", enum: ["fast", "slow"] } },
+    required: ["mode"],
+  };
+  const params = jsonSchemaToParamMap(schema);
+  assert.equal(params.mode.type, "enum");
+  assert.equal(params.mode.required, true);
+}
+
+// Number type
+{
+  const schema = {
+    properties: { val: { type: "number" } },
+  };
+  const params = jsonSchemaToParamMap(schema);
+  assert.equal(params.val.type, "number");
+}
+
+// Empty properties → empty map
+{
+  const params = jsonSchemaToParamMap({ type: "object" });
+  assert.deepEqual(params, {});
+}
+
+// Description is omitted when not a string
+{
+  const schema = {
+    properties: { x: { type: "string", description: 42 } },
+  };
+  const params = jsonSchemaToParamMap(schema);
+  assert.equal(params.x.description, undefined);
 }
 
 console.log("All tool_meta tests passed.");

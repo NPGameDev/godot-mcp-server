@@ -4,7 +4,13 @@
  */
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { coerceStringValue, innerZodType, addStringCoercion, coercedBoolean } from "../../src/shared/schemaCoercion.js";
+import {
+  coerceStringValue,
+  innerZodType,
+  addStringCoercion,
+  coercedBoolean,
+  jsonCoerce,
+} from "../../src/shared/schemaCoercion.js";
 
 // ── coerceStringValue ───────────────────────────────────────────────
 
@@ -199,5 +205,39 @@ import { coerceStringValue, innerZodType, addStringCoercion, coercedBoolean } fr
   // Omitting optionals is accepted (they stay undefined):
   assert.deepEqual(obj.parse({ req: "5" }), { req: 5 });
 }
+
+// ── coercedBoolean ───────────────────────────────────────────────────
+
+{
+  const schema = coercedBoolean();
+  // String "true" → true
+  assert.equal(schema.parse("true"), true);
+  assert.equal(schema.parse("True"), true);
+  assert.equal(schema.parse("TRUE"), true);
+  // String "1" → true
+  assert.equal(schema.parse("1"), true);
+  // String "false" → false
+  assert.equal(schema.parse("false"), false);
+  assert.equal(schema.parse("False"), false);
+  // String "0" → false
+  assert.equal(schema.parse("0"), false);
+  // Native booleans pass through
+  assert.equal(schema.parse(true), true);
+  assert.equal(schema.parse(false), false);
+}
+
+// ── jsonCoerce ───────────────────────────────────────────────────────
+
+// JSON array string → parsed array
+assert.deepEqual(jsonCoerce('["a","b"]'), ["a", "b"]);
+// JSON object string → parsed object
+assert.deepEqual(jsonCoerce('{"key":"val"}'), { key: "val" });
+// Non-JSON string → passthrough
+assert.equal(jsonCoerce("hello"), "hello");
+// Non-string → passthrough
+assert.equal(jsonCoerce(42), 42);
+assert.equal(jsonCoerce(null), null);
+assert.equal(jsonCoerce(undefined), undefined);
+assert.deepEqual(jsonCoerce([1, 2]), [1, 2]);
 
 console.log("All string_coercion tests passed.");
