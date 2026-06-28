@@ -8,7 +8,7 @@
  *    override, so the file-writing blocks run only on win32/linux.
  *
  * LSP-discovery (liveLspClaimants / discoverLspEndpoint, plus isPidAlive's own
- * coverage) lives in discover_lsp.test.ts — that file owns the LSP feature.
+ * coverage) lives in discoverLsp.test.ts — that file owns the LSP feature.
  */
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
@@ -145,7 +145,7 @@ const REDIRECT: string | null =
 // This process is always alive — used as the default entry pid.
 const ALIVE = process.pid;
 // Never a live PID → process.kill(DEAD, 0) throws ESRCH on Linux, macOS and
-// Windows. Same value/convention as discover_lsp.test.ts (dead-PID filtering).
+// Windows. Same value/convention as discoverLsp.test.ts (dead-PID filtering).
 const DEAD = 2147483646;
 
 /** Build a complete RegistryEntry, overriding only what a case cares about. */

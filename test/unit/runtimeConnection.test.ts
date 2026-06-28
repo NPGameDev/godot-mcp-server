@@ -3,7 +3,7 @@
  * aggregate carved out of bridge.ts (concern 068, C4 — the integrator).
  *
  * Drives the aggregate through its injected `deps` seam (mirrors
- * extension_registrar.test.ts's fake-injection idiom): a fake createChannel
+ * extensionRegistrar.test.ts's fake-injection idiom): a fake createChannel
  * returning a controllable channel (call resolves/rejects on command, close is
  * a spy), a fake createHeartbeat returning start/stop spies, and a fake registry
  * whose six reader fns return scripted values (with watchRegistry capturing the

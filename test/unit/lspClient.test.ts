@@ -1,7 +1,7 @@
 /**
  * Unit tests for lsp_client.ts — pure logic tests with no mock LSP server.
  * Construction is inert; the endpoint is resolved at connect time
- * (resolveLspEndpoint, exercised in discover_lsp.test.ts). Here we cover the
+ * (resolveLspEndpoint, exercised in discoverLsp.test.ts). Here we cover the
  * singleton guard, connect-failure handling, and state management.
  */
 import assert from "node:assert/strict";

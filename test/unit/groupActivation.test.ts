@@ -18,7 +18,7 @@
  *
  * The fake server tracks each registration through the real tool_refs module
  * (registerToolWrapped calls setToolRef internally), so hasToolRef reflects
- * registration truth. Mirrors the fakes in groups.test.ts / extension_groups.test.ts.
+ * registration truth. Mirrors the fakes in groups.test.ts / extensionGroups.test.ts.
  */
 import assert from "node:assert/strict";
 import {
@@ -45,7 +45,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Bridge } from "../../src/shared/types.js";
 
 // A fake MCP server: registerTool returns a removable ref so the real tool_refs
-// module tracks each registration. Mirrors the fake in extension_groups.test.ts.
+// module tracks each registration. Mirrors the fake in extensionGroups.test.ts.
 function makeFakeServer(): McpServer {
   const handlers = new Map<string, unknown>();
   return {

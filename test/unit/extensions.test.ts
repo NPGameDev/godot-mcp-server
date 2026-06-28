@@ -27,7 +27,7 @@ import type { Bridge } from "../../src/shared/types.js";
 
 // A fake MCP server: registerTool returns a removable/updatable ref, so the real
 // tool_refs module tracks each registration (registerToolWrapped calls setToolRef
-// internally). Mirrors the fake in groups.test.ts / tool_helpers.test.ts.
+// internally). Mirrors the fake in groups.test.ts / toolHelpers.test.ts.
 function makeFakeServer(): McpServer {
   const handlers = new Map<string, unknown>();
   return {
