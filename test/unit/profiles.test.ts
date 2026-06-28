@@ -9,7 +9,7 @@ import {
   isExcludedByReadOnly,
   isReadOnly,
   resolveAllowedTools,
-  STANDARD_TOOLS,
+  EAGER_TOOLS,
 } from "../../src/security/profiles.js";
 
 // ── isAllowedInReadOnly ──────────────────────────────────────────────
@@ -105,17 +105,17 @@ assert.equal(isExcludedByReadOnly(true, {}), true);
 
 // ── resolveAllowedTools ──────────────────────────────────────────────
 
-// Returns a Set of all STANDARD_TOOLS
+// Returns a Set of all EAGER_TOOLS
 {
   const allowed = resolveAllowedTools();
   assert.ok(allowed instanceof Set);
-  assert.equal(allowed.size, STANDARD_TOOLS.length);
-  for (const tool of STANDARD_TOOLS) {
-    assert.ok(allowed.has(tool), `Missing standard tool: ${tool}`);
+  assert.equal(allowed.size, EAGER_TOOLS.length);
+  for (const tool of EAGER_TOOLS) {
+    assert.ok(allowed.has(tool), `Missing eager tool: ${tool}`);
   }
 }
 
-// Contains known standard tools
+// Contains known eager tools
 {
   const allowed = resolveAllowedTools();
   assert.ok(allowed.has("scene_get_tree"));
@@ -124,7 +124,7 @@ assert.equal(isExcludedByReadOnly(true, {}), true);
   assert.ok(allowed.has("game_start"));
   assert.ok(allowed.has("execute_code"));
   // Regression: scene_spatial_map (eager) was added to ALL_TOOL_DEFS but not to
-  // STANDARD_TOOLS in 41m-quinquies (a738182), making it counted-but-unregistered.
+  // EAGER_TOOLS in 41m-quinquies (a738182), making it counted-but-unregistered.
   assert.ok(allowed.has("scene_spatial_map"), "scene_spatial_map must be eagerly registered");
 }
 

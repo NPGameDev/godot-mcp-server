@@ -16,7 +16,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 ## Architecture
 
 - `src/index.ts` — entry. Resolves readOnly mode, constructs `McpServer` +
-  `Bridge`, registers Standard tools, connects `StdioServerTransport`.
+  `Bridge`, registers eager tools, connects `StdioServerTransport`.
 - `src/transport/bridge.ts` — WebSocket client (lazy-connect, pending-map keyed by uuid,
   per-call timeout). Exposes `Bridge.call(method, params, timeoutMs)` and `close()`.
 - `src/shared/types.ts` — `Bridge` interface, `ToolDef`, pure type/interface exports.
@@ -29,7 +29,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - `src/shared/errorContract.ts` — `toolError*` builders, `EXCEPTION_HINTS`, crash-context errors.
 - `src/shared/schemaCoercion.ts` — input coercion (`coercedBoolean`, `jsonCoerce`) + JSON-Schema→Zod.
 - `src/security/profiles.ts` — tool visibility (`resolveAllowedTools`, `isReadOnly`,
-  `isAllowedInReadOnly`, `isExcludedByReadOnly`). Defines `STANDARD_TOOLS`.
+  `isAllowedInReadOnly`, `isExcludedByReadOnly`). Defines `EAGER_TOOLS`.
 - `src/groups/groups.ts` — lazy-load group system. `registerGroupSystem` registers
   `discover_tools` meta-tool. `GROUP_TOOL_NAMES` tracks group membership.
 - `src/shared/schemaMin.ts` — `minifySchema` + `stableStringify` (sorted-key JSON for
@@ -67,7 +67,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 
 ## Tool catalogue
 
-Standard tools are always visible. Group tools are loaded on demand via
+Eager tools are always visible. Group tools are loaded on demand via
 `discover_tools`. `GODOT_MCP_READ_ONLY=1` hides all tools without
 `readOnlyHint: true` in their annotations (single source of truth).
 Source of truth: each tool's `annotations.readOnlyHint`, filtered by
@@ -76,7 +76,7 @@ Source of truth: each tool's `annotations.readOnlyHint`, filtered by
 ### Lazy-load groups
 
 24 groups (61 tools) loaded via `discover_tools`. `node_manage`,
-`node_groups`, `autoload_manage` were promoted to the Standard eager set
+`node_groups`, `autoload_manage` were promoted to the eager set
 (Claude Code does not process `tools/list_changed` notifications).
 
 Source of truth: `src/groups/groups.ts` — see `GROUPS` array for full list.
@@ -236,7 +236,7 @@ for end users with no further edits. See iter 13b + iter 20 in the plan repo.
    Include `annotations` (readOnlyHint, destructiveHint, idempotentHint,
    openWorldHint: false).
 2. Keep `description` ≤ 200 chars (I2).
-3. Decide placement: add the tool's name to `STANDARD_TOOLS` (always visible),
+3. Decide placement: add the tool's name to `EAGER_TOOLS` (always visible),
    or to a group's `tools` array in `src/groups/groups.ts` (lazy-loaded via
    `discover_tools`).
 4. If the tool returns non-text content (images, binary), handle it explicitly

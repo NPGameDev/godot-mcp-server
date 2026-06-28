@@ -28,13 +28,13 @@ const ROOT_MISMATCH_SUBSTRING = "might not work correctly with other projects";
 // setGodotVersionGetter). The recovery differs by version: 4.5+ auto-rebinds the
 // port when the other editor closes; 4.2-4.4 has no LSP bind retry, so it needs
 // distinct ports. Giving the LLM only the applicable path keeps the hint actionable.
-let _godotVersionGetter: (() => GodotVer | undefined) | undefined = undefined;
+let godotVersionGetter: (() => GodotVer | undefined) | undefined = undefined;
 export function setGodotVersionGetter(cb: () => GodotVer | undefined): void {
-  _godotVersionGetter = cb;
+  godotVersionGetter = cb;
 }
 
 function lspConflictHint(): string {
-  const v = _godotVersionGetter?.();
+  const v = godotVersionGetter?.();
   if (v != null && isVersionAtLeast(v, "4.5")) {
     return (
       "Another editor holds this project's GDScript LSP port. Close the other editor — " +

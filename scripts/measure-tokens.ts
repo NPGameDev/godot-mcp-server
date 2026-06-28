@@ -12,7 +12,7 @@
 // Dynamic imports.
 const { z } = await import("zod");
 const { minifySchema } = await import("../src/schema_min.js");
-const { STANDARD_TOOLS, isAllowedInReadOnly } = await import("../src/profiles.js");
+const { EAGER_TOOLS, isAllowedInReadOnly } = await import("../src/security/profiles.js");
 const { GROUPS } = await import("../src/groups.js");
 
 const { animationTools } = await import("../src/tools/animation.js");
@@ -162,8 +162,8 @@ const DISCOVER_TOOLS_ENTRY: McpToolEntry = {
 // Read-only: tools with readOnlyHint: true (annotation-derived, no hardcoded list)
 const readOnlyDefs = ALL_DEFS.filter((t) => isAllowedInReadOnly(t.annotations));
 
-// Standard (default): STANDARD_TOOLS + discover_tools
-const standardDefs = STANDARD_TOOLS.map((n) => byName.get(n)).filter(Boolean) as ToolDef[];
+// Standard (default): EAGER_TOOLS + discover_tools
+const standardDefs = EAGER_TOOLS.map((n) => byName.get(n)).filter(Boolean) as ToolDef[];
 
 // Full: every tool from every module
 const fullDefs = ALL_DEFS;

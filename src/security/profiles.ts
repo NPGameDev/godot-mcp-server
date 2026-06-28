@@ -1,10 +1,10 @@
 /**
- * Tool visibility — Standard tools are always available; read-only mode
+ * Tool visibility — eager tools are always registered up front; read-only mode
  * (GODOT_MCP_READ_ONLY=1) filters out mutating tools.
  */
 
-/** 33 standard tools (discover_tools + extensions_refresh added programmatically → 35 total). */
-export const STANDARD_TOOLS: readonly string[] = [
+/** 33 eager tools (discover_tools + extensions_refresh added programmatically → 35 total). */
+export const EAGER_TOOLS: readonly string[] = [
   // Scene (5)
   "scene_get_tree",
   "scene_create_node",
@@ -14,7 +14,7 @@ export const STANDARD_TOOLS: readonly string[] = [
   // Node (8) — node_manage, node_groups, autoload_manage promoted from
   // node_management group: dynamic activation via tools/list_changed is not
   // robust across MCP clients; keeping them eager is the stable choice.
-  // control_set_layout added as standard (all 3 validation agents needed layout).
+  // control_set_layout added as eager (all 3 validation agents needed layout).
   "node_get_property",
   "node_set_property",
   "node_get_property_list",
@@ -53,7 +53,7 @@ export const STANDARD_TOOLS: readonly string[] = [
   // Scene query (1)
   "scene_query",
   // Spatial (1) — eager read-only scene layout map (added 41m-quinquies).
-  // MUST be listed here: eager registration is gated by STANDARD_TOOLS, NOT by
+  // MUST be listed here: eager registration is gated by EAGER_TOOLS, NOT by
   // ALL_TOOL_DEFS (which only feeds --tools-count and the static catalogue
   // checks). Omitting it makes the tool counted-but-unregistered — absent from
   // tools/list on every session, with no client-side fix. (Regression: a738182;
@@ -103,11 +103,11 @@ export function isReadOnly(): boolean {
 
 /**
  * Build the allowed-tool set for initial registration.
- * Returns all standard tools. Read-only filtering happens at point-of-use
+ * Returns all eager tools. Read-only filtering happens at point-of-use
  * via isAllowedInReadOnly() — no pre-computed subtraction needed.
  */
 export function resolveAllowedTools(): Set<string> {
-  return new Set(STANDARD_TOOLS);
+  return new Set(EAGER_TOOLS);
 }
 
 /** Emit a one-time deprecation warning if legacy env vars are set. */

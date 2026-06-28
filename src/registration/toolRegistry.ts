@@ -21,15 +21,15 @@ import { callAndWrap, injectSuccessHint } from "./toolDispatch.js";
 type HookPipeline = { execute: (req: ToolRequest, next: () => Promise<ToolTextResult>) => Promise<ToolTextResult> };
 
 /** Global hook pipeline — set once at startup via setGlobalHookPipeline. */
-let _globalHookPipeline: HookPipeline | undefined = undefined;
+let globalHookPipeline: HookPipeline | undefined = undefined;
 
 /** Set the global hook pipeline. Called once at server startup. */
 export function setGlobalHookPipeline(pipeline: HookPipeline): void {
-  _globalHookPipeline = pipeline;
+  globalHookPipeline = pipeline;
 }
 
 /** Version gate map — populated by registerToolWrapped callers. */
-const _versionMap = new Map<string, { min?: string; max?: string }>();
+const versionMap = new Map<string, { min?: string; max?: string }>();
 
 /**
  * Plain-language, inclusive, range-aware support clause for a version-gated
@@ -51,7 +51,7 @@ export function versionSupportText(min?: string, max?: string): string {
  * path params before the bridge round-trip. Extension tools register without
  * pathParams, so they never have an entry here (toolkit enforces their guards).
  */
-const _pathParamMap = new Map<string, readonly PathGuard[]>();
+const pathParamMap = new Map<string, readonly PathGuard[]>();
 
 /**
  * Suppress per-tool sendToolListChanged() notifications during a batch
@@ -98,10 +98,10 @@ export function registerToolWrapped(
     config = { ...config, inputSchema: addStringCoercion(config.inputSchema) };
   }
   if (opts.godotMinVersion != null || opts.godotMaxVersion != null) {
-    _versionMap.set(name, { min: opts.godotMinVersion, max: opts.godotMaxVersion });
+    versionMap.set(name, { min: opts.godotMinVersion, max: opts.godotMaxVersion });
   }
   if (opts.pathParams != null && opts.pathParams.length > 0) {
-    _pathParamMap.set(name, opts.pathParams);
+    pathParamMap.set(name, opts.pathParams);
   }
 
   // Registration-time version filter: skip version-gated tools when the
@@ -133,7 +133,7 @@ export function registerToolWrapped(
     const signal = extra?.signal;
     // Defence-in-depth: runtime version check for version-gated tools
     // (catches reconnect to a different Godot version).
-    const verBounds = _versionMap.get(name);
+    const verBounds = versionMap.get(name);
     if (verBounds != null) {
       const connected = bridge.getGodotVersion();
       if (connected != null && !isVersionCompatible(connected, verBounds.min, verBounds.max)) {
@@ -149,7 +149,7 @@ export function registerToolWrapped(
     // Syntactic path pre-filter (built-in tools only) — fast-fail an
     // out-of-bounds path before the WS round-trip. Strict subset of the
     // toolkit's FileGuard (the authoritative boundary). See ADR 0009.
-    const guards = _pathParamMap.get(name);
+    const guards = pathParamMap.get(name);
     if (guards) {
       for (const g of guards) {
         const verdict = checkPathGuard(g, input?.[g.param]);
@@ -164,7 +164,7 @@ export function registerToolWrapped(
     }
 
     // Hook pipeline (explicit or global)
-    const pipeline = opts.hookPipeline ?? _globalHookPipeline;
+    const pipeline = opts.hookPipeline ?? globalHookPipeline;
     if (pipeline) {
       return pipeline.execute({ name, input: (input ?? {}) as Record<string, unknown> }, () => handler(input, signal));
     }
