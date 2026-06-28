@@ -128,6 +128,35 @@ export async function probePort(host: string, port: number, timeoutMs: number): 
   });
 }
 
+/**
+ * Call a bridge method, retrying ONLY on a transport timeout — never on a coded
+ * tool error (those are real and must surface immediately as a returned error
+ * envelope). A cold first-playtest launch leaves the editor briefly unresponsive
+ * while it imports/compiles and spawns the game, so a call issued right after
+ * game.start can time out with nothing actually wrong. A couple of retries absorb
+ * that cold-start latency without masking a genuine failure: only the thrown
+ * "timed out" transport error is retried; any returned value (success OR an error
+ * envelope) is handed back as-is on the first response.
+ */
+export async function callRetryOnTimeout(
+  bridge: BridgeInstance,
+  method: string,
+  params: unknown,
+  timeoutMs: number,
+  attempts = 3,
+  delayMs = 1000,
+): Promise<unknown> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await bridge.call(method, params, timeoutMs);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt >= attempts || !msg.includes("timed out")) throw err;
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
+  }
+}
+
 // `label` drives the log prefix and the re-run hint so the shared harness can
 // say "npm run flows" when the flow suite is what hit the closed port. Defaults
 // keep every existing caller (smoke, eval, csharp-audit) byte-identical.

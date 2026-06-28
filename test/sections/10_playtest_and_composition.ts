@@ -1,5 +1,13 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, assertHint, unwrapUntrusted } from "../helpers.js";
+import {
+  CALL_TIMEOUT,
+  SCREENSHOT_TIMEOUT,
+  MAIN_SCENE,
+  assertGuard,
+  assertHint,
+  unwrapUntrusted,
+  callRetryOnTimeout,
+} from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = [
   "game_start",
@@ -91,10 +99,14 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   }
 
   await new Promise((res) => setTimeout(res, 500));
+  // A cold first launch leaves the editor briefly busy spawning the game, so this
+  // immediately-following call can time out even though the game is starting fine.
+  // Retry the transport timeout (a coded error still surfaces on the first response)
+  // so a cold start can't fail this check and cascade the rest of the section.
   assertGuard(
     ctx,
     "game.start while already running",
-    await bridge.call("game.start", {}, CALL_TIMEOUT),
+    await callRetryOnTimeout(bridge, "game.start", {}, CALL_TIMEOUT),
     "ALREADY_PLAYING",
     "game.stop",
   );
