@@ -35,7 +35,7 @@ const caps = startupEnv.resolveResponseCaps();
 
 const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
   projectPath,
-  explicitRuntimePort: process.env.GODOT_MCP_RUNTIME_PORT ?? null,
+  explicitRuntimePort: process.env.GODOT_MCP_RUNTIME_PORT,
   explicitEditorPort: !!process.env.GODOT_MCP_PORT,
   scriptReadLimitBytes: caps.scriptReadLimitBytes,
   wsBufferLimitBytes: caps.wsBufferLimitBytes,

@@ -14,10 +14,10 @@
  *
  * Groups (design 068 §5 C4):
  *   1. discovery branches — explicit-port static channel; no-port/no-projectPath → GAME_NOT_RUNNING
- *   2. the watcher — onDiscovered swap/port/heartbeat.start/waiter-resolve; onRemoved heartbeat.stop/close/null
+ *   2. the watcher — onDiscovered swap/port/heartbeat.start/waiter-resolve; onRemoved heartbeat.stop/close/undefined
  *   3. callRuntime paths — fast / normal / explicit + the CONNECT_FAILED/DISCONNECTED → GAME_NOT_RUNNING mapping
- *   4. clearRuntime — heartbeat.stop + close + null both
- *   5. waitForRuntimeConnection timeout — no-projectPath → null; deadline+no-discovery → null after the timer
+ *   4. clearRuntime — heartbeat.stop + close + undefined both
+ *   5. waitForRuntimeConnection timeout — no-projectPath → undefined; deadline+no-discovery → undefined after the timer
  */
 
 import assert from "node:assert/strict";
@@ -167,7 +167,7 @@ async function testWatcher() {
   t.fireRemoved("/proj");
   assert.equal(t.hb.stopCalls, 1, "onRemoved stopped the heartbeat");
   assert.equal(t.channels[0].closeCalls, 1, "onRemoved closed the channel");
-  console.log("  PASS: watcher onDiscovered swap/port/heartbeat-start/waiter-resolve; onRemoved stop/close/null");
+  console.log("  PASS: watcher onDiscovered swap/port/heartbeat-start/waiter-resolve; onRemoved stop/close/undefined");
 }
 
 // ── 3. callRuntime paths ──────────────────────────────────────────────
@@ -319,27 +319,27 @@ async function testClearRuntime() {
   assert.equal(t.hb.stopCalls, stopBefore + 1, "clearRuntime stopped the heartbeat");
   assert.equal(t.channels[0].closeCalls, 1, "clearRuntime closed the channel");
 
-  // Both nulled → the next call falls back to the fast path (which now finds nothing).
+  // Both cleared → the next call falls back to the fast path (which now finds nothing).
   t.reg.discover = () => null;
   await assert.rejects(
     () => rc.callRuntime("again"),
     isGameNotRunning,
     "after clearRuntime, callRuntime restarts discovery",
   );
-  console.log("  PASS: clearRuntime stops the heartbeat, closes + nulls the channel");
+  console.log("  PASS: clearRuntime stops the heartbeat, closes + clears the channel");
 }
 
 // ── 5. waitForRuntimeConnection timeout ───────────────────────────────
 
 async function testWaitForRuntimeConnection() {
-  // No projectPath → immediate null.
+  // No projectPath → immediate undefined.
   {
     const t = makeDeps();
     const rc = createRuntimeConnection({}, t.deps);
-    assert.equal(await rc.waitForRuntimeConnection(5000), null, "no projectPath → immediate null");
+    assert.equal(await rc.waitForRuntimeConnection(5000), undefined, "no projectPath → immediate undefined");
   }
 
-  // Deadline elapses with no discovery → resolves null after the timer.
+  // Deadline elapses with no discovery → resolves undefined after the timer.
   {
     const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
     try {
@@ -356,12 +356,12 @@ async function testWaitForRuntimeConnection() {
       assert.equal(resolved, false, "still pending just before the deadline");
       await clock.tickAsync(1);
       assert.equal(resolved, true, "resolved at the deadline");
-      assert.equal(value, null, "the timeout resolves null");
+      assert.equal(value, undefined, "the timeout resolves undefined");
     } finally {
       clock.uninstall();
     }
   }
-  console.log("  PASS: waitForRuntimeConnection (no-projectPath → null; deadline+no-discovery → null)");
+  console.log("  PASS: waitForRuntimeConnection (no-projectPath → undefined; deadline+no-discovery → undefined)");
 }
 
 // ── Main ──────────────────────────────────────────────────────────────

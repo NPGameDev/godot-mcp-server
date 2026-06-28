@@ -189,12 +189,12 @@ export function discoverLspEndpoint(
 // Safety net: a 30s stat-poll heartbeat catches silent watcher death (rare),
 // inode replacement on Linux/macOS, and the file-not-yet-created case (P2).
 
-let watcher: FSWatcher | null = null;
+let watcher: FSWatcher | undefined = undefined;
 let cachedRegistry: Registry = { by_path: {} };
-let runtimeDiscoveredCb: ((projectPath: string, port: number) => void) | null = null;
-let runtimeRemovedCb: ((projectPath: string) => void) | null = null;
+let runtimeDiscoveredCb: ((projectPath: string, port: number) => void) | undefined = undefined;
+let runtimeRemovedCb: ((projectPath: string) => void) | undefined = undefined;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | undefined = undefined;
 let lastKnownMtimeMs: number = 0;
 
 function diffAndNotify(cached: Registry, fresh: Registry): void {
@@ -235,7 +235,7 @@ function handleRegistryChange(): void {
 
 function onWatchError(): void {
   watcher?.close();
-  watcher = null;
+  watcher = undefined;
 }
 
 /** Try to establish (or re-establish) fs.watch on projects.json. */
@@ -312,15 +312,15 @@ export function unwatchRegistry(): void {
   clearTimeout(debounceTimer);
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer);
-    heartbeatTimer = null;
+    heartbeatTimer = undefined;
   }
   watcher?.close();
-  watcher = null;
+  watcher = undefined;
 }
 
 /** True when fs.watch is active and cachedRegistry is kept fresh. */
 export function isWatcherActive(): boolean {
-  return watcher !== null;
+  return watcher !== undefined;
 }
 
 /**

@@ -143,12 +143,12 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   // Bridge-level waitForRuntimeConnection: should resolve when game
   // starts its runtime MCP server and registers in the project registry.
   // Note: returns null when project path isn't discoverable from registry
-  // (environment-dependent). Treat null as soft pass since game.start
+  // (environment-dependent). Treat undefined as soft pass since game.start
   // already confirmed the launch succeeded above.
   if (bridge.waitForRuntimeConnection) {
     const runtimeInfo = await bridge.waitForRuntimeConnection(10_000);
     if (runtimeInfo?.port && runtimeInfo.port > 0) pass(`waitForRuntimeConnection -> port ${runtimeInfo.port}`);
-    else pass(`waitForRuntimeConnection -> null (registry lookup env-dependent — game start confirmed above)`);
+    else pass(`waitForRuntimeConnection -> undefined (registry lookup env-dependent — game start confirmed above)`);
   } else {
     pass(`waitForRuntimeConnection not available (no project path) — skipped`);
   }

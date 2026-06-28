@@ -19,10 +19,10 @@ export interface Bridge {
   /** Parsed Godot version as [major, minor] tuple from the registry or auth, or undefined if unknown. */
   getGodotVersion(): GodotVer | undefined;
   /** Wait for a runtime port to appear in the registry (game_start async gap).
-   *  Resolves with {port} on discovery, null on timeout. Optional — only
+   *  Resolves with {port} on discovery, undefined on timeout. Optional — only
    *  available when the bridge was created with a projectPath and registry
    *  watcher. */
-  waitForRuntimeConnection?(timeoutMs: number): Promise<{ port: number } | null>;
+  waitForRuntimeConnection?(timeoutMs: number): Promise<{ port: number } | undefined>;
   /** Proactively tear down the runtime channel (e.g. on game_stopped notification).
    *  Next callRuntime() will fail immediately with GAME_NOT_RUNNING. */
   clearRuntime?(): void;

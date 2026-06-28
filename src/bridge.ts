@@ -22,7 +22,7 @@ export interface BridgeOptions {
    *  discovery (editor + runtime). Falls back to CWD if not set. */
   projectPath?: string;
   /** If set, bypass registry and use this static port for Mode B. */
-  explicitRuntimePort?: string | null;
+  explicitRuntimePort?: string | undefined;
   /** When true, editor URL is static (GODOT_MCP_PORT set). Skips
    *  registry re-discovery on editor connection loss. */
   explicitEditorPort?: boolean;
@@ -171,7 +171,7 @@ export function createBridge(
       if (!godotVersion) return undefined;
       return parseGodotVer(godotVersion);
     },
-    waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | null> {
+    waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | undefined> {
       return runtime.waitForRuntimeConnection(timeoutMs);
     },
     clearRuntime() {
