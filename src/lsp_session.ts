@@ -15,7 +15,7 @@ import { resToAbsolute, absoluteToFileUri } from "./lsp_uri.js";
 
 // ── Shared validation ──────────────────────────────────────────────
 
-export function validateGdscriptPath(filePath: string): ToolTextResult | null {
+function validateGdscriptPath(filePath: string): ToolTextResult | null {
   if (!filePath.startsWith("res://")) {
     return toolError("INVALID_PATH", "file_path must start with res://");
   }
@@ -78,7 +78,7 @@ export function lspConnectFailureHint(port: number): string {
   );
 }
 
-export async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClient> {
+async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClient> {
   const client = getLspClient(projectPath);
   try {
     await client.ensureConnected();
@@ -119,7 +119,7 @@ async function readFileContent(filePath: string, projectPath: string): Promise<s
   }
 }
 
-export async function openDocInLsp(
+async function openDocInLsp(
   client: LspClient,
   filePath: string,
   projectPath: string,
@@ -131,4 +131,27 @@ export async function openDocInLsp(
   const uri = absoluteToFileUri(absPath);
   await client.openDocument(uri, content);
   return { uri };
+}
+
+// ── Prologue fold ──────────────────────────────────────────────────
+
+/**
+ * The shared LSP-tool prologue, folded into a single call: validate the path,
+ * ensure the LSP connection, then open the document. Returns the connected
+ * client together with the opened document URI, or the first error result
+ * (checked in order: path → connect → open). Every LSP handler runs this before
+ * issuing its request.
+ */
+export async function withLspDoc(
+  filePath: string,
+  projectPath: string,
+): Promise<{ client: LspClient; uri: string } | ToolTextResult> {
+  const pathErr = validateGdscriptPath(filePath);
+  if (pathErr) return pathErr;
+  const clientOrErr = await ensureLsp(projectPath);
+  if ("content" in clientOrErr) return clientOrErr;
+  const client = clientOrErr;
+  const openResult = await openDocInLsp(client, filePath, projectPath);
+  if ("content" in openResult) return openResult;
+  return { client, uri: openResult.uri };
 }

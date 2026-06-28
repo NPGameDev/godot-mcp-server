@@ -10,7 +10,7 @@ import { toolError } from "../error_contract.js";
 import { untrustedWrap } from "../untrusted.js";
 import { fileUriToRes } from "../lsp_uri.js";
 import { severityLabel, completionKindLabel, formatSymbol } from "../lsp_labels.js";
-import { validateGdscriptPath, ensureLsp, openDocInLsp } from "../lsp_session.js";
+import { withLspDoc } from "../lsp_session.js";
 
 // Re-export the session-layer symbols that external modules still import from
 // here (lsp_status_reporter.ts, test/unit/lsp_tools.test.ts) so their paths stay stable.
@@ -163,18 +163,12 @@ export function createLspHandler(toolName: string, projectPath: string): (input:
 
 async function handleDiagnostics(input: unknown, projectPath: string): Promise<ToolTextResult> {
   const { file_path } = input as { file_path: string };
-  const pathErr = validateGdscriptPath(file_path);
-  if (pathErr) return pathErr;
-
-  const clientOrErr = await ensureLsp(projectPath);
-  if ("content" in clientOrErr) return clientOrErr;
-  const client = clientOrErr;
-
-  const openResult = await openDocInLsp(client, file_path, projectPath);
-  if ("content" in openResult) return openResult;
+  const doc = await withLspDoc(file_path, projectPath);
+  if ("content" in doc) return doc;
+  const { client, uri } = doc;
 
   // Wait for diagnostics notification from the LSP.
-  const diagnostics = await client.waitForDiagnostics(openResult.uri);
+  const diagnostics = await client.waitForDiagnostics(uri);
 
   const formatted = diagnostics.map((d) => ({
     line: d.line + 1, // Convert to 1-based for user display.
@@ -196,18 +190,12 @@ async function handleDiagnostics(input: unknown, projectPath: string): Promise<T
 
 async function handleHover(input: unknown, projectPath: string): Promise<ToolTextResult> {
   const { file_path, line, column } = input as { file_path: string; line: number; column: number };
-  const pathErr = validateGdscriptPath(file_path);
-  if (pathErr) return pathErr;
-
-  const clientOrErr = await ensureLsp(projectPath);
-  if ("content" in clientOrErr) return clientOrErr;
-  const client = clientOrErr;
-
-  const openResult = await openDocInLsp(client, file_path, projectPath);
-  if ("content" in openResult) return openResult;
+  const doc = await withLspDoc(file_path, projectPath);
+  if ("content" in doc) return doc;
+  const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/hover", {
-    textDocument: { uri: openResult.uri },
+    textDocument: { uri: uri },
     position: { line, character: column },
   })) as { contents?: unknown } | null;
 
@@ -258,18 +246,12 @@ async function handleCompletion(input: unknown, projectPath: string): Promise<To
     column: number;
     limit?: number;
   };
-  const pathErr = validateGdscriptPath(file_path);
-  if (pathErr) return pathErr;
-
-  const clientOrErr = await ensureLsp(projectPath);
-  if ("content" in clientOrErr) return clientOrErr;
-  const client = clientOrErr;
-
-  const openResult = await openDocInLsp(client, file_path, projectPath);
-  if ("content" in openResult) return openResult;
+  const doc = await withLspDoc(file_path, projectPath);
+  if ("content" in doc) return doc;
+  const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/completion", {
-    textDocument: { uri: openResult.uri },
+    textDocument: { uri: uri },
     position: { line, character: column },
   })) as { items?: unknown[] } | unknown[] | null;
 
@@ -319,18 +301,12 @@ async function handleCompletion(input: unknown, projectPath: string): Promise<To
 
 async function handleDefinition(input: unknown, projectPath: string): Promise<ToolTextResult> {
   const { file_path, line, column } = input as { file_path: string; line: number; column: number };
-  const pathErr = validateGdscriptPath(file_path);
-  if (pathErr) return pathErr;
-
-  const clientOrErr = await ensureLsp(projectPath);
-  if ("content" in clientOrErr) return clientOrErr;
-  const client = clientOrErr;
-
-  const openResult = await openDocInLsp(client, file_path, projectPath);
-  if ("content" in openResult) return openResult;
+  const doc = await withLspDoc(file_path, projectPath);
+  if ("content" in doc) return doc;
+  const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/definition", {
-    textDocument: { uri: openResult.uri },
+    textDocument: { uri: uri },
     position: { line, character: column },
   })) as { uri?: string; range?: { start?: { line?: number; character?: number } } } | unknown[] | null;
 
@@ -380,18 +356,12 @@ async function handleDefinition(input: unknown, projectPath: string): Promise<To
 
 async function handleSymbols(input: unknown, projectPath: string): Promise<ToolTextResult> {
   const { file_path } = input as { file_path: string };
-  const pathErr = validateGdscriptPath(file_path);
-  if (pathErr) return pathErr;
-
-  const clientOrErr = await ensureLsp(projectPath);
-  if ("content" in clientOrErr) return clientOrErr;
-  const client = clientOrErr;
-
-  const openResult = await openDocInLsp(client, file_path, projectPath);
-  if ("content" in openResult) return openResult;
+  const doc = await withLspDoc(file_path, projectPath);
+  if ("content" in doc) return doc;
+  const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/documentSymbol", {
-    textDocument: { uri: openResult.uri },
+    textDocument: { uri: uri },
   })) as unknown[] | null;
 
   if (!result || !Array.isArray(result)) {
@@ -414,18 +384,12 @@ async function handleSymbols(input: unknown, projectPath: string): Promise<ToolT
 
 async function handleReferences(input: unknown, projectPath: string): Promise<ToolTextResult> {
   const { file_path, line, column } = input as { file_path: string; line: number; column: number };
-  const pathErr = validateGdscriptPath(file_path);
-  if (pathErr) return pathErr;
-
-  const clientOrErr = await ensureLsp(projectPath);
-  if ("content" in clientOrErr) return clientOrErr;
-  const client = clientOrErr;
-
-  const openResult = await openDocInLsp(client, file_path, projectPath);
-  if ("content" in openResult) return openResult;
+  const doc = await withLspDoc(file_path, projectPath);
+  if ("content" in doc) return doc;
+  const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/references", {
-    textDocument: { uri: openResult.uri },
+    textDocument: { uri: uri },
     position: { line, character: column },
     context: { includeDeclaration: true },
   })) as unknown[] | null;
