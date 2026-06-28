@@ -1,4 +1,4 @@
-import { BridgeError } from "../../src/errors.js";
+import { BridgeError } from "../../src/shared/errors.js";
 
 import type { TestCtx } from "../helpers.js";
 import {

@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_registry.js";
+import type { Bridge, ToolDef } from "../shared/types.js";
+import { registerTools } from "../registration/toolRegistry.js";
 
 // save.* tools access user:// paths. The plugin-side file guard rejects
 // traversal, non-user:// prefixes, and the toolkit's own internal paths.

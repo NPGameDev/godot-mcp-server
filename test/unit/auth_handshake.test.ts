@@ -16,9 +16,9 @@ import assert from "node:assert/strict";
 import { WebSocketServer, WebSocket as WS } from "ws";
 import type { AddressInfo } from "node:net";
 import FakeTimers from "@sinonjs/fake-timers";
-import { authenticate } from "../../src/auth_handshake.js";
-import { BridgeError } from "../../src/errors.js";
-import { getServerVersion } from "../../src/version.js";
+import { authenticate } from "../../src/transport/authHandshake.js";
+import { BridgeError } from "../../src/shared/errors.js";
+import { getServerVersion } from "../../src/shared/version.js";
 
 // ── Connected real-socket pair ───────────────────────────────────────
 // Stand up a loopback WebSocketServer, open a real client to it, and resolve

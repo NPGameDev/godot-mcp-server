@@ -1,14 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { registerTools } from "../tool_registry.js";
-import { callAndWrap } from "../tool_dispatch.js";
-import { coercedBoolean } from "../schema_coercion.js";
-import { toolErrorFromPayload, runtimeErrorWithCrashContext } from "../error_contract.js";
-import { BridgeError } from "../errors.js";
-import { stableStringify } from "../schema_min.js";
-import { buildScreenshotResult } from "../screenshot_response.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../shared/types.js";
+import { registerTools } from "../registration/toolRegistry.js";
+import { callAndWrap } from "../registration/toolDispatch.js";
+import { coercedBoolean } from "../shared/schemaCoercion.js";
+import { toolErrorFromPayload, runtimeErrorWithCrashContext } from "../shared/errorContract.js";
+import { BridgeError } from "../shared/errors.js";
+import { stableStringify } from "../shared/schemaMin.js";
+import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:6570. Only works while the game is running in a debug build

@@ -6,7 +6,7 @@ import {
   isVersionCompatible,
   isVersionAtLeast,
   isVersionAtMost,
-} from "../../src/version.js";
+} from "../../src/shared/version.js";
 
 // ── compareVersions tests ───────────────────────────────────────────
 

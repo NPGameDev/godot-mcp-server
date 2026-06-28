@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_registry.js";
-import { jsonCoerce } from "../schema_coercion.js";
+import type { Bridge, ToolDef } from "../shared/types.js";
+import { registerTools } from "../registration/toolRegistry.js";
+import { jsonCoerce } from "../shared/schemaCoercion.js";
 
 export const tilemapTools: ToolDef[] = [
   {

@@ -6,7 +6,7 @@
  * width,height,bytes,path — with `path` for editor/group, dropped for runtime).
  */
 import assert from "node:assert/strict";
-import { buildScreenshotResult } from "../../src/screenshot_response.js";
+import { buildScreenshotResult } from "../../src/registration/screenshotResponse.js";
 
 // ── Editor / group shape: image-first + full metadata (with path) ────
 

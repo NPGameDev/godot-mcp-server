@@ -9,13 +9,13 @@
  */
 
 import { z } from "zod";
-import type { ToolDef } from "../src/types.js";
-import { isAllowedInReadOnly, STANDARD_TOOLS } from "../src/profiles.js";
-import { GROUP_TOOL_NAMES } from "../src/groups.js";
-import { addStringCoercion } from "../src/schema_coercion.js";
+import type { ToolDef } from "../src/shared/types.js";
+import { isAllowedInReadOnly, STANDARD_TOOLS } from "../src/security/profiles.js";
+import { GROUP_TOOL_NAMES } from "../src/groups/groups.js";
+import { addStringCoercion } from "../src/shared/schemaCoercion.js";
 
 // ── Canonical tool inventory (single source of truth) ───────────────
-import { ALL_TOOL_DEFS } from "../src/catalogue.js";
+import { ALL_TOOL_DEFS } from "../src/registration/catalogue.js";
 
 // ── Import TOOLS_TESTED from all 46 sections ────────────────────────
 import { TOOLS_TESTED as T01 } from "./sections/01_catalogue.js";

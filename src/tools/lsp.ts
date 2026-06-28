@@ -5,16 +5,16 @@
  */
 import { z } from "zod";
 
-import type { ToolDef, ToolTextResult } from "../types.js";
-import { toolError } from "../error_contract.js";
-import { untrustedWrap } from "../untrusted.js";
-import { fileUriToRes } from "../lsp_uri.js";
-import { severityLabel, completionKindLabel, formatSymbol } from "../lsp_labels.js";
-import { withLspDoc } from "../lsp_session.js";
+import type { ToolDef, ToolTextResult } from "../shared/types.js";
+import { toolError } from "../shared/errorContract.js";
+import { untrustedWrap } from "../security/untrusted.js";
+import { fileUriToRes } from "../lsp/lspUri.js";
+import { severityLabel, completionKindLabel, formatSymbol } from "../lsp/lspLabels.js";
+import { withLspDoc } from "../lsp/lspSession.js";
 
 // Re-export the session-layer symbols that external modules still import from
 // here (lsp_status_reporter.ts, test/unit/lsp_tools.test.ts) so their paths stay stable.
-export { setLspStatusReporter, lspConnectFailureHint } from "../lsp_session.js";
+export { setLspStatusReporter, lspConnectFailureHint } from "../lsp/lspSession.js";
 
 // ── Tool definitions ─────────────���───────────────────────────────────
 

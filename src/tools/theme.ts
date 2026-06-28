@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef } from "../types.js";
-import { registerTools } from "../tool_registry.js";
-import { jsonCoerce } from "../schema_coercion.js";
-import { PROJECT_FILE_PATH } from "../path_guard.js";
+import type { Bridge, ToolDef } from "../shared/types.js";
+import { registerTools } from "../registration/toolRegistry.js";
+import { jsonCoerce } from "../shared/schemaCoercion.js";
+import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 
 export const themeTools: ToolDef[] = [
   {

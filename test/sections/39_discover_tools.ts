@@ -1,4 +1,4 @@
-import { GROUPS, GROUP_TOOL_NAMES, findMatchesSingle } from "../../src/groups.js";
+import { GROUPS, GROUP_TOOL_NAMES, findMatchesSingle } from "../../src/groups/groups.js";
 
 import type { TestCtx } from "../helpers.js";
 

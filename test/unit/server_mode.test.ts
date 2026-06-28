@@ -8,9 +8,9 @@
  * GROUP_TOOL_NAMES (derived from the catalogue — no brittle hardcoded lists).
  */
 import assert from "node:assert/strict";
-import { MODULE_ALLOWED } from "../../src/server_mode.js";
-import { GROUP_TOOL_NAMES } from "../../src/groups.js";
-import { resolveAllowedTools } from "../../src/profiles.js";
+import { MODULE_ALLOWED } from "../../src/startup/serverMode.js";
+import { GROUP_TOOL_NAMES } from "../../src/groups/groups.js";
+import { resolveAllowedTools } from "../../src/security/profiles.js";
 
 // ── Shape ────────────────────────────────────────────────────────────
 

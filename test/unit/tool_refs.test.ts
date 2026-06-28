@@ -9,7 +9,7 @@ import {
   removeAllToolRefs,
   hasToolRef,
   toolRefCount,
-} from "../../src/tool_refs.js";
+} from "../../src/registration/toolRefs.js";
 
 // Start clean
 removeAllToolRefs();

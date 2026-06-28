@@ -30,10 +30,10 @@ import {
   reportExtGroupStatus,
   registerExtGroupTools,
   type ExtensionCmd,
-} from "../../src/extension_groups.js";
-import { hasToolRef, removeAllToolRefs } from "../../src/tool_refs.js";
+} from "../../src/groups/extensionGroups.js";
+import { hasToolRef, removeAllToolRefs } from "../../src/registration/toolRefs.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Bridge } from "../../src/types.js";
+import type { Bridge } from "../../src/shared/types.js";
 
 // A fake MCP server: registerTool returns a removable/updatable ref, so the real
 // tool_refs module tracks each registration (registerToolWrapped calls setToolRef

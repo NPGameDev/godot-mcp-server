@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDef } from "../types.js";
-import { PROJECT_FILE_PATH } from "../path_guard.js";
+import type { ToolDef } from "../shared/types.js";
+import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 
 const frameSchema = z.object({
   texture: z.string().describe("res:// path to frame texture"),

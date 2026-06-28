@@ -1,6 +1,6 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
-import { isVersionAtLeast } from "../../src/version.js";
+import { isVersionAtLeast } from "../../src/shared/version.js";
 
 export const TOOLS_TESTED: string[] = [
   "scene_create",

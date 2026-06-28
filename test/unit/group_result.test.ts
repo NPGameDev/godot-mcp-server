@@ -6,8 +6,13 @@
  * key; only the inline not-found returns omit it.
  */
 import assert from "node:assert/strict";
-import { activatedResult, alreadyLoadedResult, availableResult, readOnlyEmptyResult } from "../../src/group_result.js";
-import type { ToolMeta } from "../../src/tool_meta.js";
+import {
+  activatedResult,
+  alreadyLoadedResult,
+  availableResult,
+  readOnlyEmptyResult,
+} from "../../src/groups/groupResult.js";
+import type { ToolMeta } from "../../src/registration/toolMeta.js";
 
 // ── activatedResult: tool names → bare { name } metas ────────────────
 {

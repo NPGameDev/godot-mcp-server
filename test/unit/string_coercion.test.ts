@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { coerceStringValue, innerZodType, addStringCoercion, coercedBoolean } from "../../src/schema_coercion.js";
+import { coerceStringValue, innerZodType, addStringCoercion, coercedBoolean } from "../../src/shared/schemaCoercion.js";
 
 // ── coerceStringValue ───────────────────────────────────────────────
 

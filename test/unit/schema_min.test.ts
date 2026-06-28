@@ -3,7 +3,7 @@
  * Byte-identical output is the contract (prompt caching).
  */
 import assert from "node:assert/strict";
-import { stableStringify } from "../../src/schema_min.js";
+import { stableStringify } from "../../src/shared/schemaMin.js";
 
 // ── Sorted keys ──────────────────────────────────────────────────────
 

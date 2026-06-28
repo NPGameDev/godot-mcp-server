@@ -34,7 +34,7 @@
 
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT } from "../helpers.js";
-import { isVersionAtLeast } from "../../src/version.js";
+import { isVersionAtLeast } from "../../src/shared/version.js";
 import { FLOW_PROBE_DIR, ensureProbeDir, cleanupProbeDir } from "./_shared.js";
 
 export const TOOLS_TESTED: string[] = ["node_call_method", "node_set_script", "script_write"];

@@ -28,7 +28,7 @@ import { WebSocketServer, WebSocket as WS } from "ws";
 import type { AddressInfo } from "node:net";
 import FakeTimers from "@sinonjs/fake-timers";
 import { captureStderr } from "./helpers.js";
-import { BridgeError } from "../../src/errors.js";
+import { BridgeError } from "../../src/shared/errors.js";
 
 // Set up a fake token file before importing createChannel so performAuth's
 // readToken short-circuits to it (GODOT_MCP_TOKEN_PATH). The runner isolates
@@ -38,7 +38,7 @@ const tokenPath = join(tmpDir, "mcp_token");
 writeFileSync(tokenPath, "test-token-for-unit-tests");
 process.env.GODOT_MCP_TOKEN_PATH = tokenPath;
 
-const { createChannel } = await import("../../src/channel.js");
+const { createChannel } = await import("../../src/transport/channel.js");
 
 // ── Mock toolkit server (answers auth, dispatches RPCs by id) ─────────
 

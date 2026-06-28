@@ -5,7 +5,7 @@
  * actual map bodies, not guessed.
  */
 import assert from "node:assert/strict";
-import { severityLabel, symbolKindLabel, completionKindLabel, formatSymbol } from "../../src/lsp_labels.js";
+import { severityLabel, symbolKindLabel, completionKindLabel, formatSymbol } from "../../src/lsp/lspLabels.js";
 
 // ── severityLabel: concrete codes + the default/"Unknown" branch ────
 {

@@ -11,8 +11,8 @@
  *      from GROUPS in concern 094, C2) matches it element-for-element.
  */
 import assert from "node:assert/strict";
-import { GROUPS } from "../../src/builtin_groups.js";
-import { GROUP_NAMES } from "../../src/group_catalogue.js";
+import { GROUPS } from "../../src/groups/builtinGroups.js";
+import { GROUP_NAMES } from "../../src/groups/groupCatalogue.js";
 
 // ── Block 1 — assembly count + uniqueness ────────────────────────────
 

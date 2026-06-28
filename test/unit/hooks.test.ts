@@ -5,8 +5,8 @@
 import assert from "node:assert/strict";
 import FakeTimers from "@sinonjs/fake-timers";
 import { captureStderr } from "./helpers.js";
-import { HookPipeline, loggingHook, rateLimitHook } from "../../src/hooks.js";
-import type { ToolRequest, ToolTextResult } from "../../src/types.js";
+import { HookPipeline, loggingHook, rateLimitHook } from "../../src/startup/hooks.js";
+import type { ToolRequest, ToolTextResult } from "../../src/shared/types.js";
 
 const OK_RESULT: ToolTextResult = { content: [{ type: "text", text: '{"ok":true}' }] };
 const ERR_RESULT: ToolTextResult = { content: [{ type: "text", text: '{"ok":false}' }], isError: true };

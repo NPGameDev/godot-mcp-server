@@ -1,4 +1,4 @@
-import { createBridge } from "../../src/bridge.js";
+import { createBridge } from "../../src/transport/bridge.js";
 
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, makeFakeEchoServer, deepEqual } from "../helpers.js";

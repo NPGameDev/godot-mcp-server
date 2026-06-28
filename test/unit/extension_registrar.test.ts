@@ -19,10 +19,10 @@
  *   3. register/track separation — registerExtensionTool does NOT touch the ledger.
  */
 import assert from "node:assert/strict";
-import { createExtensionRegistrar } from "../../src/extension_registrar.js";
-import { hasToolRef, removeAllToolRefs } from "../../src/tool_refs.js";
+import { createExtensionRegistrar } from "../../src/extensions/extensionRegistrar.js";
+import { hasToolRef, removeAllToolRefs } from "../../src/registration/toolRefs.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Bridge } from "../../src/types.js";
+import type { Bridge } from "../../src/shared/types.js";
 
 // A fake MCP server: registerTool returns a removable/updatable ref, so the real
 // tool_refs module tracks each registration (registerToolWrapped calls setToolRef

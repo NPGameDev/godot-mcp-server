@@ -12,7 +12,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { normalizePath, discoverLspEndpoint, liveLspClaimants } from "../../src/registry.js";
-import { resolveLspEndpoint, LspResolutionError, getLspStatus, setGodotVersionGetter } from "../../src/lsp_client.js";
+import {
+  resolveLspEndpoint,
+  LspResolutionError,
+  getLspStatus,
+  setGodotVersionGetter,
+} from "../../src/lsp/lspClient.js";
 
 const ALIVE = process.pid; // this test process — always alive
 const ALIVE2 = process.ppid; // the runner (parent) — also alive, distinct PID

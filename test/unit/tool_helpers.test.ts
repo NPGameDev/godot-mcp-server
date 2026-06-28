@@ -3,20 +3,20 @@
  * and coercion helpers.
  */
 import assert from "node:assert/strict";
-import { registerToolWrapped, batchToolRegistration, versionSupportText } from "../../src/tool_registry.js";
-import { callAndWrap } from "../../src/tool_dispatch.js";
-import { jsonSchemaToParamMap } from "../../src/tool_meta.js";
-import { coercedBoolean, jsonCoerce } from "../../src/schema_coercion.js";
+import { registerToolWrapped, batchToolRegistration, versionSupportText } from "../../src/registration/toolRegistry.js";
+import { callAndWrap } from "../../src/registration/toolDispatch.js";
+import { jsonSchemaToParamMap } from "../../src/registration/toolMeta.js";
+import { coercedBoolean, jsonCoerce } from "../../src/shared/schemaCoercion.js";
 import {
   toolError,
   toolErrorFromPayload,
   toolErrorFromException,
   runtimeErrorWithCrashContext,
-} from "../../src/error_contract.js";
-import { BridgeError } from "../../src/errors.js";
-import { PROJECT_FILE_PATH } from "../../src/path_guard.js";
+} from "../../src/shared/errorContract.js";
+import { BridgeError } from "../../src/shared/errors.js";
+import { PROJECT_FILE_PATH } from "../../src/security/pathGuard.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Bridge, PathGuard, ToolTextResult } from "../../src/types.js";
+import type { Bridge, PathGuard, ToolTextResult } from "../../src/shared/types.js";
 
 // ── toolError ────────────────────────────────────────────────────────
 

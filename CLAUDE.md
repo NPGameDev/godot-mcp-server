@@ -17,27 +17,27 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 
 - `src/index.ts` — entry. Resolves readOnly mode, constructs `McpServer` +
   `Bridge`, registers Standard tools, connects `StdioServerTransport`.
-- `src/bridge.ts` — WebSocket client (lazy-connect, pending-map keyed by uuid,
+- `src/transport/bridge.ts` — WebSocket client (lazy-connect, pending-map keyed by uuid,
   per-call timeout). Exposes `Bridge.call(method, params, timeoutMs)` and `close()`.
-- `src/types.ts` — `Bridge` interface, `ToolDef`, pure type/interface exports.
-- `src/errors.ts` — `BridgeError` runtime error class.
-- `src/tool_registry.ts` — tool installation: `registerToolWrapped`/`registerTools`/
+- `src/shared/types.ts` — `Bridge` interface, `ToolDef`, pure type/interface exports.
+- `src/shared/errors.ts` — `BridgeError` runtime error class.
+- `src/registration/toolRegistry.ts` — tool installation: `registerToolWrapped`/`registerTools`/
   `batchToolRegistration` + the wrapped-handler pre-flight (version gate, path guard,
   hook pipeline).
-- `src/tool_dispatch.ts` — per-call dispatch: `callAndWrap` (bridge call + error-wrap +
+- `src/registration/toolDispatch.ts` — per-call dispatch: `callAndWrap` (bridge call + error-wrap +
   success-hint; uses `stableStringify` for deterministic output), `injectSuccessHint`.
-- `src/error_contract.ts` — `toolError*` builders, `EXCEPTION_HINTS`, crash-context errors.
-- `src/schema_coercion.ts` — input coercion (`coercedBoolean`, `jsonCoerce`) + JSON-Schema→Zod.
-- `src/profiles.ts` — tool visibility (`resolveAllowedTools`, `isReadOnly`,
+- `src/shared/errorContract.ts` — `toolError*` builders, `EXCEPTION_HINTS`, crash-context errors.
+- `src/shared/schemaCoercion.ts` — input coercion (`coercedBoolean`, `jsonCoerce`) + JSON-Schema→Zod.
+- `src/security/profiles.ts` — tool visibility (`resolveAllowedTools`, `isReadOnly`,
   `isAllowedInReadOnly`, `isExcludedByReadOnly`). Defines `STANDARD_TOOLS`.
-- `src/groups.ts` — lazy-load group system. `registerGroupSystem` registers
+- `src/groups/groups.ts` — lazy-load group system. `registerGroupSystem` registers
   `discover_tools` meta-tool. `GROUP_TOOL_NAMES` tracks group membership.
-- `src/schema_min.ts` — `minifySchema` + `stableStringify` (sorted-key JSON for
+- `src/shared/schemaMin.ts` — `minifySchema` + `stableStringify` (sorted-key JSON for
   prompt-cache hits).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
   `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,
-  `input_map`, `animation`, `tilemap`, `asset`, `file`, `save`, `classdb`,
-  `node_management`).
+  `inputMap`, `animation`, `tilemap`, `asset`, `file`, `save`, `classdb`,
+  `nodeManagement`).
   Each exports a typed `ToolDef[]` (with MCP annotations) and a
   `register(server, bridge, allowedTools)` function. Tools filter via the
   `allowedTools` Set.
@@ -49,7 +49,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 
 - **I1 — error contract.** Tools never throw past the bridge. Plugin-side errors
   come back as `{ success: false, error, code }` payloads; wrap them into MCP
-  responses with `isError: true`. Use the helpers in `src/types.ts`:
+  responses with `isError: true`. Use the helpers in `src/shared/types.ts`:
   `callAndWrap` for single-bridge-call handlers (default), `toolErrorFromException`
   + `toolErrorFromPayload` for custom handlers (screenshots).
   See **Error code reference** below for the canonical `ErrorCode` list.
@@ -71,7 +71,7 @@ Standard tools are always visible. Group tools are loaded on demand via
 `discover_tools`. `GODOT_MCP_READ_ONLY=1` hides all tools without
 `readOnlyHint: true` in their annotations (single source of truth).
 Source of truth: each tool's `annotations.readOnlyHint`, filtered by
-`isAllowedInReadOnly()` / `isExcludedByReadOnly()` in `src/profiles.ts`.
+`isAllowedInReadOnly()` / `isExcludedByReadOnly()` in `src/security/profiles.ts`.
 
 ### Lazy-load groups
 
@@ -79,7 +79,7 @@ Source of truth: each tool's `annotations.readOnlyHint`, filtered by
 `node_groups`, `autoload_manage` were promoted to the Standard eager set
 (Claude Code does not process `tools/list_changed` notifications).
 
-Source of truth: `src/groups.ts` — see `GROUPS` array for full list.
+Source of truth: `src/groups/groups.ts` — see `GROUPS` array for full list.
 Groups persist for the session.
 
 When activating tool groups via `discover_tools`, always pass
@@ -142,7 +142,7 @@ pre-populates the version from the registry entry's `godot_version` field
 (raw string) and `Bridge.getGodotVersion()` (returns `GodotVer` tuple
 `[major, minor]` or `null`).
 
-**Registration-time gating:** `src/tool_registry.ts` checks each tool's
+**Registration-time gating:** `src/registration/toolRegistry.ts` checks each tool's
 `godotMinVersion` / `godotMaxVersion` (string, `"major.minor"` format)
 against the connected Godot version at tool registration time. Incompatible
 tools are silently skipped — they never appear in `tools/list`. A runtime
@@ -237,19 +237,19 @@ for end users with no further edits. See iter 13b + iter 20 in the plan repo.
    openWorldHint: false).
 2. Keep `description` ≤ 200 chars (I2).
 3. Decide placement: add the tool's name to `STANDARD_TOOLS` (always visible),
-   or to a group's `tools` array in `src/groups.ts` (lazy-loaded via
+   or to a group's `tools` array in `src/groups/groups.ts` (lazy-loaded via
    `discover_tools`).
 4. If the tool returns non-text content (images, binary), handle it explicitly
    in the module's `register()` function — see `runtime.ts` `runtime_screenshot`
    for the image path. Group tools with custom handlers go in `createHandler`
-   in `src/groups.ts`.
+   in `src/groups/groups.ts`.
 5. Add a smoke-test section in `test/sections/` following the section naming
    convention, then import and register it in `test/smoke.ts`.
 6. Update tool counts and the toolkit-repo `CLAUDE.md` tool table.
 
 ## Error code reference (I1)
 
-Canonical `ErrorCode` union lives in `src/types.ts` (single source of truth on
+Canonical `ErrorCode` union lives in `src/shared/types.ts` (single source of truth on
 this side; mirrored as `MCP_ERROR_CODES` in the toolkit-repo `mcp_server.gd` +
 `mcp_runtime_server.gd`). Adding a new code requires updating BOTH sides AND
 this table. Codes are UPPER_SNAKE_CASE.

@@ -12,7 +12,7 @@
 // Exit codes: 0 = all passed, 1 = failures, 2 = precondition failure.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { createBridge } from "../src/bridge.js";
+import { createBridge } from "../src/transport/bridge.js";
 import { registryPath } from "../src/registry.js";
 import { readFileSync } from "node:fs";
 import {

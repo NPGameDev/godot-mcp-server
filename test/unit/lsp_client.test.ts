@@ -5,7 +5,7 @@
  * singleton guard, connect-failure handling, and state management.
  */
 import assert from "node:assert/strict";
-import { LspClient } from "../../src/lsp_client.js";
+import { LspClient } from "../../src/lsp/lspClient.js";
 
 const TEST_PROJECT = "/tmp/godot-mcp-test-project";
 

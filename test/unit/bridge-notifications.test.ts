@@ -23,7 +23,7 @@ const tokenPath = join(tmpDir, "mcp_token");
 writeFileSync(tokenPath, "test-token-for-unit-tests");
 process.env.GODOT_MCP_TOKEN_PATH = tokenPath;
 
-const { createBridge } = await import("../../src/bridge.js");
+const { createBridge } = await import("../../src/transport/bridge.js");
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

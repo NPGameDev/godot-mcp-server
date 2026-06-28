@@ -9,7 +9,7 @@
  * covers the integrated behavior.
  */
 import assert from "node:assert/strict";
-import { toolNameFromMethod, extensionAnnotations, toExtensionCommand } from "../../src/extension_command.js";
+import { toolNameFromMethod, extensionAnnotations, toExtensionCommand } from "../../src/extensions/extensionCommand.js";
 
 // ── toolNameFromMethod — dot→underscore mapping ──────────────────────
 

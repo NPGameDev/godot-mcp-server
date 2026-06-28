@@ -18,11 +18,11 @@
  * are exported and tested directly.
  */
 import assert from "node:assert/strict";
-import { findMatchesSingle, capFuzzyResults, coerceRequest } from "../../src/group_match.js";
-import { GROUPS } from "../../src/group_catalogue.js";
-import { type ExtensionCmd, addExtensionGroup, clearExtensionGroups } from "../../src/extension_groups.js";
-import { isAllowedInReadOnly } from "../../src/profiles.js";
-import { ALL_TOOL_DEFS } from "../../src/catalogue.js";
+import { findMatchesSingle, capFuzzyResults, coerceRequest } from "../../src/groups/groupMatch.js";
+import { GROUPS } from "../../src/groups/groupCatalogue.js";
+import { type ExtensionCmd, addExtensionGroup, clearExtensionGroups } from "../../src/groups/extensionGroups.js";
+import { isAllowedInReadOnly } from "../../src/security/profiles.js";
+import { ALL_TOOL_DEFS } from "../../src/registration/catalogue.js";
 
 // Minimal ExtensionCmd with a chosen read-only annotation. Tool/method/desc are
 // kept free of the query families below so the keyword term is the only scorer.

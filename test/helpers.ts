@@ -2,8 +2,8 @@ import net from "node:net";
 import { WebSocketServer, WebSocket as WS } from "ws";
 import type { AddressInfo } from "node:net";
 
-import { createBridge } from "../src/bridge.js";
-import { isVersionAtLeast, type GodotVer } from "../src/version.js";
+import { createBridge } from "../src/transport/bridge.js";
+import { isVersionAtLeast, type GodotVer } from "../src/shared/version.js";
 
 // ─── Constants ───────────────────────────────────────────────────────────
 export const HOST = "127.0.0.1";

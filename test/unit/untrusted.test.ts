@@ -6,7 +6,7 @@
  * generateNonce are private, so they are exercised through untrustedWrap.
  */
 import assert from "node:assert/strict";
-import { untrustedWrap } from "../../src/untrusted.js";
+import { untrustedWrap } from "../../src/security/untrusted.js";
 
 // ── Shape: matched nonce, verbatim attrs, newline-sandwiched body ─────
 

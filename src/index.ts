@@ -2,22 +2,22 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { createBridge } from "./bridge.js";
-import { warnDeprecatedEnvVars, isReadOnly } from "./profiles.js";
-import { toolRefCount } from "./tool_refs.js";
-import { createHookPipeline } from "./hooks.js";
-import { getServerVersion } from "./version.js";
-import { registerPrompts } from "./prompts.js";
-import { registerResources } from "./resources.js";
-import { init as initRoots, registerRoots } from "./roots.js";
-import { setGlobalHookPipeline } from "./tool_registry.js";
-import * as startupEnv from "./startup_env.js";
-import { MODULE_ALLOWED } from "./server_mode.js";
-import * as registrars from "./registrars.js";
-import { createExtensionManager } from "./extensions.js";
-import { createReconciler } from "./reconcile.js";
-import { createLspStatusReporter } from "./lsp_status_reporter.js";
-import { installProcessHandlers } from "./lifecycle.js";
+import { createBridge } from "./transport/bridge.js";
+import { warnDeprecatedEnvVars, isReadOnly } from "./security/profiles.js";
+import { toolRefCount } from "./registration/toolRefs.js";
+import { createHookPipeline } from "./startup/hooks.js";
+import { getServerVersion } from "./shared/version.js";
+import { registerPrompts } from "./mcp/prompts.js";
+import { registerResources } from "./mcp/resources.js";
+import { init as initRoots, registerRoots } from "./mcp/roots.js";
+import { setGlobalHookPipeline } from "./registration/toolRegistry.js";
+import * as startupEnv from "./startup/startupEnv.js";
+import { MODULE_ALLOWED } from "./startup/serverMode.js";
+import * as registrars from "./startup/registrars.js";
+import { createExtensionManager } from "./extensions/extensions.js";
+import { createReconciler } from "./startup/reconcile.js";
+import { createLspStatusReporter } from "./lsp/lspStatusReporter.js";
+import { installProcessHandlers } from "./startup/lifecycle.js";
 
 // ── Preflight (may exit) ─────────────────────────────────────────────
 startupEnv.enforceNodeVersion();

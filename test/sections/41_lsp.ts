@@ -6,7 +6,7 @@
  * or LSP disabled). This avoids false failures in CI or headless runs.
  */
 import { probePort, HOST } from "../helpers.js";
-import { LspClient, resolveLspEndpoint } from "../../src/lsp_client.js";
+import { LspClient, resolveLspEndpoint } from "../../src/lsp/lspClient.js";
 import { lspTools } from "../../src/tools/lsp.js";
 
 import type { TestCtx } from "../helpers.js";

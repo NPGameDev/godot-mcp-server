@@ -21,7 +21,7 @@
 
 import assert from "node:assert/strict";
 import FakeTimers from "@sinonjs/fake-timers";
-import { createHeartbeat } from "../../src/heartbeat.js";
+import { createHeartbeat } from "../../src/transport/heartbeat.js";
 
 // ── 1. fires ping every intervalMs ────────────────────────────────────
 

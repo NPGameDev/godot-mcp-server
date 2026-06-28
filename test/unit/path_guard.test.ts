@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
-import { checkPath, checkPathGuard, guardPrefixes, PROJECT_FILE_PATH, PATH_FIXTURE } from "../../src/path_guard.js";
-import { ALL_TOOL_DEFS } from "../../src/catalogue.js";
+import {
+  checkPath,
+  checkPathGuard,
+  guardPrefixes,
+  PROJECT_FILE_PATH,
+  PATH_FIXTURE,
+} from "../../src/security/pathGuard.js";
+import { ALL_TOOL_DEFS } from "../../src/registration/catalogue.js";
 
 // ── guardPrefixes ───────────────────────────────────────────────────
 

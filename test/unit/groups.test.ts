@@ -24,13 +24,13 @@ import {
   resetLoadedGroups,
   registerGroupSystem,
   type ExtensionCmd,
-} from "../../src/groups.js";
-import { ALL_TOOL_DEFS } from "../../src/catalogue.js";
-import { isAllowedInReadOnly } from "../../src/profiles.js";
-import { isGroupLoaded } from "../../src/group_state.js";
-import { hasToolRef, removeAllToolRefs } from "../../src/tool_refs.js";
+} from "../../src/groups/groups.js";
+import { ALL_TOOL_DEFS } from "../../src/registration/catalogue.js";
+import { isAllowedInReadOnly } from "../../src/security/profiles.js";
+import { isGroupLoaded } from "../../src/groups/groupState.js";
+import { hasToolRef, removeAllToolRefs } from "../../src/registration/toolRefs.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Bridge } from "../../src/types.js";
+import type { Bridge } from "../../src/shared/types.js";
 
 const allNames = new Set(ALL_TOOL_DEFS.map((t) => t.name));
 

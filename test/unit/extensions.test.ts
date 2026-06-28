@@ -14,11 +14,16 @@
  *   4. discoverExtensions — single-flight (two concurrent calls → one refresh RPC).
  */
 import assert from "node:assert/strict";
-import { createExtensionManager, type ExtensionManager } from "../../src/extensions.js";
-import { hasToolRef, removeAllToolRefs } from "../../src/tool_refs.js";
-import { resetLoadedGroups, hasExtensionGroups, findMatchesSingle, removeExtensionGroup } from "../../src/groups.js";
+import { createExtensionManager, type ExtensionManager } from "../../src/extensions/extensions.js";
+import { hasToolRef, removeAllToolRefs } from "../../src/registration/toolRefs.js";
+import {
+  resetLoadedGroups,
+  hasExtensionGroups,
+  findMatchesSingle,
+  removeExtensionGroup,
+} from "../../src/groups/groups.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Bridge } from "../../src/types.js";
+import type { Bridge } from "../../src/shared/types.js";
 
 // A fake MCP server: registerTool returns a removable/updatable ref, so the real
 // tool_refs module tracks each registration (registerToolWrapped calls setToolRef

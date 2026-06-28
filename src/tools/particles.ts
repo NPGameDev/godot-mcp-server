@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDef } from "../types.js";
+import type { ToolDef } from "../shared/types.js";
 
 const vec3 = z.object({ x: z.number(), y: z.number(), z: z.number() });
 const vec2 = z.object({ x: z.number(), y: z.number() });

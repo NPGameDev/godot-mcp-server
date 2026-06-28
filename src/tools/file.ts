@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { registerTools } from "../tool_registry.js";
-import { callAndWrap } from "../tool_dispatch.js";
-import { PROJECT_FILE_PATH } from "../path_guard.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../shared/types.js";
+import { registerTools } from "../registration/toolRegistry.js";
+import { callAndWrap } from "../registration/toolDispatch.js";
+import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 
 export const fileTools: ToolDef[] = [
   {

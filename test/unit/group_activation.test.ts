@@ -28,9 +28,9 @@ import {
   reportGroupStatusByName,
   deactivateGroups,
   buildDiscoverToolsDesc,
-} from "../../src/group_activation.js";
-import { GROUPS, allDefs } from "../../src/group_catalogue.js";
-import { loadedGroups } from "../../src/group_state.js";
+} from "../../src/groups/groupActivation.js";
+import { GROUPS, allDefs } from "../../src/groups/groupCatalogue.js";
+import { loadedGroups } from "../../src/groups/groupState.js";
 import {
   addExtensionGroup,
   clearExtensionGroups,
@@ -38,11 +38,11 @@ import {
   isExtensionGroupLoaded,
   reportExtGroupStatus,
   type ExtensionCmd,
-} from "../../src/extension_groups.js";
-import { isAllowedInReadOnly } from "../../src/profiles.js";
-import { hasToolRef, removeAllToolRefs } from "../../src/tool_refs.js";
+} from "../../src/groups/extensionGroups.js";
+import { isAllowedInReadOnly } from "../../src/security/profiles.js";
+import { hasToolRef, removeAllToolRefs } from "../../src/registration/toolRefs.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Bridge } from "../../src/types.js";
+import type { Bridge } from "../../src/shared/types.js";
 
 // A fake MCP server: registerTool returns a removable ref so the real tool_refs
 // module tracks each registration. Mirrors the fake in extension_groups.test.ts.

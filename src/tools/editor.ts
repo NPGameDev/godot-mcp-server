@@ -1,13 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { registerTools } from "../tool_registry.js";
-import { jsonCoerce, coercedBoolean } from "../schema_coercion.js";
-import { toolErrorFromException, toolErrorFromPayload } from "../error_contract.js";
-import { stableStringify } from "../schema_min.js";
-import { PROJECT_FILE_PATH } from "../path_guard.js";
-import { buildScreenshotResult } from "../screenshot_response.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../shared/types.js";
+import { registerTools } from "../registration/toolRegistry.js";
+import { jsonCoerce, coercedBoolean } from "../shared/schemaCoercion.js";
+import { toolErrorFromException, toolErrorFromPayload } from "../shared/errorContract.js";
+import { stableStringify } from "../shared/schemaMin.js";
+import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
+import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 
 // ── Tool definitions ─────────────────────────────────────────────────
 

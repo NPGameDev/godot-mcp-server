@@ -22,9 +22,9 @@
 
 import assert from "node:assert/strict";
 import FakeTimers from "@sinonjs/fake-timers";
-import { createRuntimeConnection, type RuntimeConnectionDeps } from "../../src/runtime_connection.js";
-import { BridgeError } from "../../src/errors.js";
-import type { Channel } from "../../src/channel.js";
+import { createRuntimeConnection, type RuntimeConnectionDeps } from "../../src/transport/runtimeConnection.js";
+import { BridgeError } from "../../src/shared/errors.js";
+import type { Channel } from "../../src/transport/channel.js";
 
 // ── Fake collaborators (the deps seam) ───────────────────────────────
 

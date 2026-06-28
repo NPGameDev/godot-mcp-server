@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDef } from "../types.js";
+import type { ToolDef } from "../shared/types.js";
 
 export const navigationTools: ToolDef[] = [
   {

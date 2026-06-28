@@ -43,7 +43,7 @@ writeFileSync(tokenPath, "test-token-for-unit-tests");
 process.env.GODOT_MCP_TOKEN_PATH = tokenPath;
 if (REDIRECT) process.env[REDIRECT] = tmpDir;
 
-const { createBridge } = await import("../../src/bridge.js");
+const { createBridge } = await import("../../src/transport/bridge.js");
 
 // ── Registry seeding helpers (no-op on darwin) ───────────────────────
 

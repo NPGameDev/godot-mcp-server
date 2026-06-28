@@ -19,7 +19,7 @@
 
 import { readFileSync } from "node:fs";
 
-import { createBridge } from "../src/bridge.js";
+import { createBridge } from "../src/transport/bridge.js";
 import { registryPath } from "../src/registry.js";
 
 import { HOST, PORT, RUNTIME_PORT, PROBE_TIMEOUT_MS, probePort, printUnreachable } from "./helpers.js";

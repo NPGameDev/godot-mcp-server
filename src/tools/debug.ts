@@ -5,8 +5,8 @@
  */
 import { z } from "zod";
 
-import type { ToolDef } from "../types.js";
-import { coercedBoolean } from "../schema_coercion.js";
+import type { ToolDef } from "../shared/types.js";
+import { coercedBoolean } from "../shared/schemaCoercion.js";
 
 export const debugTools: ToolDef[] = [
   {

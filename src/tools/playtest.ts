@@ -1,11 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { Bridge, ToolDef, ToolTextResult } from "../types.js";
-import { registerTools } from "../tool_registry.js";
-import { callAndWrap } from "../tool_dispatch.js";
-import { coercedBoolean } from "../schema_coercion.js";
-import { isGroupLoaded } from "../group_state.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../shared/types.js";
+import { registerTools } from "../registration/toolRegistry.js";
+import { callAndWrap } from "../registration/toolDispatch.js";
+import { coercedBoolean } from "../shared/schemaCoercion.js";
+import { isGroupLoaded } from "../groups/groupState.js";
 
 export const playtestTools: ToolDef[] = [
   {

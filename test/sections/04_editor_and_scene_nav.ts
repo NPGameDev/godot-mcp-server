@@ -1,6 +1,6 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
-import { isVersionAtLeast } from "../../src/version.js";
+import { isVersionAtLeast } from "../../src/shared/version.js";
 
 export const TOOLS_TESTED: string[] = [
   "editor_screenshot",

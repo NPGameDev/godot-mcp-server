@@ -4,7 +4,7 @@
  * arbitrary-string-code contract (transport codes outside the ErrorCode union).
  */
 import assert from "node:assert/strict";
-import { BridgeError } from "../../src/errors.js";
+import { BridgeError } from "../../src/shared/errors.js";
 
 // ── Construction wires code, message, and name ───────────────────────
 

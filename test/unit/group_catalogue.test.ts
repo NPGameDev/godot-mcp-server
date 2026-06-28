@@ -9,8 +9,15 @@
  *   5. GROUP_NAMES enumerates exactly the GROUPS names (set equality).
  */
 import assert from "node:assert/strict";
-import { GROUPS, GROUP_NAMES, GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS, allDefs } from "../../src/group_catalogue.js";
-import { ALL_TOOL_DEFS } from "../../src/catalogue.js";
+import {
+  GROUPS,
+  GROUP_NAMES,
+  GROUP_TOOL_NAMES,
+  RUNTIME_TOOLS,
+  LSP_TOOLS,
+  allDefs,
+} from "../../src/groups/groupCatalogue.js";
+import { ALL_TOOL_DEFS } from "../../src/registration/catalogue.js";
 
 // ── Block 1 — GROUPS integrity ───────────────────────────────────────
 

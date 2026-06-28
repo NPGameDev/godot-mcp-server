@@ -13,8 +13,8 @@
  *   5. a default tool → callAndWrap(runtime:false) → bridge.call.
  */
 import assert from "node:assert/strict";
-import { createHandler } from "../../src/group_tool_handlers.js";
-import type { Bridge, ToolDef } from "../../src/types.js";
+import { createHandler } from "../../src/groups/groupToolHandlers.js";
+import type { Bridge, ToolDef } from "../../src/shared/types.js";
 
 // The union of handler shapes createHandler returns is uniformly callable with
 // one unknown input and yields a promise; widen to this for the assertions.

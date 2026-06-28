@@ -10,7 +10,7 @@ import {
   isReadOnly,
   resolveAllowedTools,
   STANDARD_TOOLS,
-} from "../../src/profiles.js";
+} from "../../src/security/profiles.js";
 
 // ── isAllowedInReadOnly ──────────────────────────────────────────────
 

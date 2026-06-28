@@ -8,7 +8,7 @@ import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { snapshotEnv } from "./helpers.js";
-import { readMcpJsonEnv, applyEnvUpdate } from "../../src/config_reload.js";
+import { readMcpJsonEnv, applyEnvUpdate } from "../../src/startup/configReload.js";
 
 const tmpDir = mkdtempSync(join(tmpdir(), "mcp-cfg-test-"));
 

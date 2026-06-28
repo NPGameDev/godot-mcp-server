@@ -6,7 +6,7 @@
  * pass identically on POSIX CI and a Windows dev box.
  */
 import assert from "node:assert/strict";
-import { resToAbsolute, absoluteToFileUri, fileUriToRes, normalizeUri } from "../../src/lsp_uri.js";
+import { resToAbsolute, absoluteToFileUri, fileUriToRes, normalizeUri } from "../../src/lsp/lspUri.js";
 
 // ── Round-trip: Windows project path recovers res:// ────────────────
 //

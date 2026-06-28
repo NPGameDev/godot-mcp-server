@@ -14,8 +14,8 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { snapshotEnv } from "./helpers.js";
-import { readToken, resolveTokenPath, resolveProjectName } from "../../src/token_path.js";
-import { BridgeError } from "../../src/errors.js";
+import { readToken, resolveTokenPath, resolveProjectName } from "../../src/transport/tokenPath.js";
+import { BridgeError } from "../../src/shared/errors.js";
 
 /** Independent re-derivation of the per-instance hash (mirrors token_path.ts). */
 function deriveHash(projectPath: string): string {

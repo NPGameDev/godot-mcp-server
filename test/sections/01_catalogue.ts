@@ -1,7 +1,7 @@
 import { editorTools } from "../../src/tools/editor.js";
-import { ALL_TOOL_DEFS, ALL_TOOL_NAMES, META_TOOL_NAMES } from "../../src/catalogue.js";
-import { GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "../../src/groups.js";
-import type { ToolDef } from "../../src/types.js";
+import { ALL_TOOL_DEFS, ALL_TOOL_NAMES, META_TOOL_NAMES } from "../../src/registration/catalogue.js";
+import { GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "../../src/groups/groups.js";
+import type { ToolDef } from "../../src/shared/types.js";
 
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, deepEqual } from "../helpers.js";
