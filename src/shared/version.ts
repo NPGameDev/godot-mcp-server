@@ -21,8 +21,9 @@ let cachedVersion: string | undefined = undefined;
 export function getServerVersion(): string {
   if (cachedVersion) return cachedVersion;
   try {
-    // In dist/, package.json is one level up.
-    const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8")) as {
+    // package.json lives at the package root — two levels up from this module's
+    // home (dist/shared/version.js when built; src/shared/version.ts under tsx).
+    const pkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "package.json"), "utf-8")) as {
       version?: string;
     };
     cachedVersion = pkg.version ?? "0.0.0";

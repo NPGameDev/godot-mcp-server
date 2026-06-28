@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import {
+  getServerVersion,
   compareVersions,
   parseGodotVer,
   compareGodotVer,
@@ -109,5 +113,16 @@ assert.equal(isVersionAtMost([4, 3], "4.4"), true);
 assert.equal(isVersionAtMost([4, 5], "4.4"), false);
 assert.equal(isVersionAtMost([5, 0], "4.6"), false); // 5.x > 4.x
 assert.equal(isVersionAtMost([5, 0], "5.0"), true);
+
+// ── getServerVersion: the real package.json version, not the "0.0.0" fallback ──
+// Regression lock: getServerVersion() resolves package.json by a relative path from
+// this module's home, so a file move that miscounts the depth makes the read throw and
+// silently return "0.0.0". Assert it equals the actual version, so any future relocation
+// that breaks the path fails the gate instead of shipping a bogus version.
+{
+  const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const realVersion = (JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf-8")) as { version: string }).version;
+  assert.equal(getServerVersion(), realVersion);
+}
 
 console.log("All version tests passed.");
