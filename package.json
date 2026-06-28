@@ -42,6 +42,7 @@
     "test:integration:dispatch": "tsx test/integration/dispatch/run.ts",
     "stress:dispatch": "tsx test/integration/dispatch-safety-stress.ts",
     "lint": "eslint src/ test/",
+    "lint:fix": "eslint src/ test/ --fix",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "prepublishOnly": "npm run build"

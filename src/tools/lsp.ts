@@ -195,7 +195,7 @@ async function handleHover(input: unknown, projectPath: string): Promise<ToolTex
   const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/hover", {
-    textDocument: { uri: uri },
+    textDocument: { uri },
     position: { line, character: column },
   })) as { contents?: unknown } | null;
 
@@ -251,7 +251,7 @@ async function handleCompletion(input: unknown, projectPath: string): Promise<To
   const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/completion", {
-    textDocument: { uri: uri },
+    textDocument: { uri },
     position: { line, character: column },
   })) as { items?: unknown[] } | unknown[] | null;
 
@@ -306,7 +306,7 @@ async function handleDefinition(input: unknown, projectPath: string): Promise<To
   const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/definition", {
-    textDocument: { uri: uri },
+    textDocument: { uri },
     position: { line, character: column },
   })) as { uri?: string; range?: { start?: { line?: number; character?: number } } } | unknown[] | null;
 
@@ -330,10 +330,10 @@ async function handleDefinition(input: unknown, projectPath: string): Promise<To
       range?: { start?: { line?: number; character?: number } };
       targetRange?: { start?: { line?: number; character?: number } };
     };
-    const uri = l.uri ?? l.targetUri ?? "";
+    const locUri = l.uri ?? l.targetUri ?? "";
     const range = l.range ?? l.targetRange;
     return {
-      file_path: fileUriToRes(uri, projectPath),
+      file_path: fileUriToRes(locUri, projectPath),
       line: (range?.start?.line ?? 0) + 1,
       column: (range?.start?.character ?? 0) + 1,
     };
@@ -361,7 +361,7 @@ async function handleSymbols(input: unknown, projectPath: string): Promise<ToolT
   const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/documentSymbol", {
-    textDocument: { uri: uri },
+    textDocument: { uri },
   })) as unknown[] | null;
 
   if (!result || !Array.isArray(result)) {
@@ -389,7 +389,7 @@ async function handleReferences(input: unknown, projectPath: string): Promise<To
   const { client, uri } = doc;
 
   const result = (await client.sendRequest("textDocument/references", {
-    textDocument: { uri: uri },
+    textDocument: { uri },
     position: { line, character: column },
     context: { includeDeclaration: true },
   })) as unknown[] | null;

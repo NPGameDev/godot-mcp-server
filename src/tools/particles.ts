@@ -13,7 +13,7 @@ const rangeOrFixed = z.union([z.number(), z.object({ min: z.number(), max: z.num
 
 const colorRampPoint = z.object({
   offset: z.number(),
-  color: color,
+  color,
 });
 
 const curvePoint = z.object({
