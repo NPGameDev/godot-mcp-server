@@ -73,8 +73,8 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
   else pass("scene.open bogus -> NOT_FOUND");
 
   // scene.close is Godot 4.5+ only — on <4.5 it is unregistered (calls would throw
-  // JSON-RPC -32601); skip the whole block there so the rest of section 04 still runs
-  // (41m-ter A0/Q2). Mirrors section 08's gate. (Prettier reindents the wrapped block.)
+  // JSON-RPC -32601); skip the whole block there so the rest of section 04 still runs.
+  // Mirrors section 08's gate. (Prettier reindents the wrapped block.)
   const godotVer = bridge.getGodotVersion();
   if (godotVer != null && isVersionAtLeast(godotVer, "4.5")) {
     // scene.close round-trip.

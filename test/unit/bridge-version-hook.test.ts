@@ -1,6 +1,6 @@
 /**
  * Deterministic unit tests for the onGodotVersionKnown bridge primitive
- * (concern 071). The composition root registers a one-shot-friendly hook that
+ * The composition root registers a one-shot-friendly hook that
  * fires when the connected Godot version resolves (unknown → known) so it can
  * complete a tool surface registered before the editor reported its version
  * (version-gated tools + extension tools on a server-before-editor cold start).
@@ -256,7 +256,7 @@ async function testNoRefireOnReconnect() {
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("Bridge onGodotVersionKnown tests (concern 071):");
+  console.log("Bridge onGodotVersionKnown tests:");
   await testFiresOnceOnTransition();
   await testNoFireWhenPrePopulated();
   await testNoRefireOnReconnect();

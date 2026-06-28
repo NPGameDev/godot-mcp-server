@@ -15,7 +15,7 @@ export const TOOLS_TESTED: string[] = [
 export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
-  // A1 (41m-ter): TileMapLayer is 4.3+; on 4.2 use the legacy TileMap node so the tilemap
+  // TileMapLayer is 4.3+; on 4.2 use the legacy TileMap node so the tilemap
   // tools are exercised on their real 4.2 path (the tool handles both node types).
   const tmClass = tilemapNodeClass(bridge.getGodotVersion());
 

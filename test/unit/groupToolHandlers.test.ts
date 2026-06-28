@@ -1,6 +1,6 @@
 /**
  * Unit tests for group_tool_handlers.ts — createGroupToolHandler's per-tool routing
- * (concern 077, C3). Five blocks, each asserting REAL behavior via a recording
+ * Five blocks, each asserting REAL behavior via a recording
  * mock Bridge (which channel a handler hits + the method/params it forwards, and
  * the content shape it returns) — never fn === fn:
  *   1. signal_emit dual-mode — editor → bridge.call, runtime → bridge.callRuntime,
@@ -170,7 +170,7 @@ async function testDefaultToolRouting() {
 
 // ── Main ──────────────────────────────────────────────────────────────
 async function main() {
-  console.log("group_tool_handlers tests (concern 077 — C3):");
+  console.log("group_tool_handlers tests:");
   await testSignalEmitDualMode();
   await testEditorScreenshot();
   await testLspRouting();

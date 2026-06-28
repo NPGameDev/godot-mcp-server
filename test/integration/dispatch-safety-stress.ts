@@ -1,15 +1,15 @@
 #!/usr/bin/env tsx
 // ═══════════════════════════════════════════════════════════════════════════
-// Deferred-dispatch-safety stress driver  (iteration 41l-tricies)
+// Deferred-dispatch-safety stress driver
 //
 // WHAT THIS IS
 //   A high-speed WebSocket "hammer" that connects directly to the godot-mcp
 //   toolkit's WebSocket server (bypassing the MCP bridge, exactly like the
 //   dispatch integration harness in ./dispatch/) and fires the command
 //   sequences that race the editor's deferred-dispatch pipeline against:
-//     • a scene save's ProgressDialog re-entering Main::iteration()   (C1)
+//     • a scene save's ProgressDialog re-entering Main::iteration()
 //     • the raw open_scene_from_path() in the lease-acquire drain, on its own
-//       (#75669) and colliding with an active EditorFileSystem scan    (C2)
+//       (#75669) and colliding with an active EditorFileSystem scan
 //
 // SELF-DETECTING — YOU DO NOT HAVE TO WATCH THE EDITOR.
 //   A dedicated monitor connection runs alongside the storm and decides the
@@ -39,7 +39,7 @@
 //     active scene is pre-populated with --node-count nodes so save_scene's
 //     Main::iteration() re-entry spans the 4-frame poll-skip window, and we keep
 //     a backlog of scene.open switches buffered so a re-entrant poll has a
-//     conflicting command to dispatch (C1).
+//     conflicting command to dispatch.
 //   • Connections are kept OPEN through each storm (v1 closed after ~8 saves and
 //     proved nothing); each scenario drains before closing.
 //
@@ -95,12 +95,12 @@
 //                     Main::iteration() re-entry — the lease holder pumps
 //                     editor.save_scene + switches its scene away mid-save while a
 //                     second peer floods reads/mutations. Surfaced the
-//                     overlapping-save EditorProgress collision (41l-tricies).
+//                     overlapping-save EditorProgress collision.
 //     multi-save      Raw-open drain (#75669): repeated rounds where peer A
 //                     takes scene A's lease, peer B queues a scene command on
 //                     scene B, then A disconnects → the drain calls the raw
 //                     open_scene_from_path (mcp_server.gd ~L674).
-//     scan-collision  C2: the same raw-open drain, but a full filesystem scan
+//     scan-collision  the same raw-open drain, but a full filesystem scan
 //                     (editor.refresh) is kicked immediately before A drops, so
 //                     the raw open collides with the active scan.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -319,7 +319,7 @@ async function startHealthMonitor(
         flagCrash(crash, `editor did not answer a health-check read within ${args.healthTimeout}ms (crashed or froze)`);
         return;
       }
-      // Every ~5th cycle, also confirm MUTATIONS aren't wedged (C3). Reads pass
+      // Every ~5th cycle, also confirm MUTATIONS aren't wedged. Reads pass
       // even when _mutation_in_flight is stuck true, so a read-only monitor
       // false-greens on a mutation wedge. The timeout is generous so a merely
       // busy pipeline (heavy storm) doesn't false-flag — only a permanent wedge
@@ -510,7 +510,7 @@ async function scenarioRefreshStorm(port: number, token: string, args: Args, cra
         if (safeSend(conn, "script.write", { file_path: p, content: scriptBody(i % paths.length, rev++) })) sent++;
       }
       if (safeSend(conn, "editor.refresh")) sent++; // full: scan() + reload(true) all open scripts
-      if (safeSend(conn, "scene.open", { file_path: SCENE_B })) sent++; // races the active scan (C2)
+      if (safeSend(conn, "scene.open", { file_path: SCENE_B })) sent++; // races the active scan
       if (safeSend(conn, "editor.save_scene")) sent++; // save re-entry overlapping scan + reload churn
       if (safeSend(conn, "scene.open", { file_path: SCENE_A })) sent++;
       if (safeSend(conn, "editor.save_scene")) sent++;
@@ -596,11 +596,11 @@ async function scenarioMultiSave(port: number, token: string, args: Args, crash:
   }
 }
 
-// C2: the same raw-open drain, but a full filesystem scan is kicked from a third
+// The same raw-open drain, but a full filesystem scan is kicked from a third
 // peer immediately before A drops, so the raw open_scene_from_path collides with
 // the active EditorFileSystem scan.
 async function scenarioScanCollision(port: number, token: string, args: Args, crash: CrashState): Promise<void> {
-  console.log(`\n[stress] ── scan-collision (C2: raw open during scan) — ${args.iterations} rounds ──`);
+  console.log(`\n[stress] ── scan-collision (raw open during scan) — ${args.iterations} rounds ──`);
   const c = await connectAndAuth(port, token); // persistent scan trigger
   watch(c);
   let rounds = 0;
@@ -640,12 +640,12 @@ async function scenarioScanCollision(port: number, token: string, args: Args, cr
 // A's save re-enters Main::iteration(). A re-entrant _poll_connections then
 // dispatches a buffered command MID-SAVE — reads + scene.open bypass the mutation
 // lock, so they execute immediately even while the save is in flight, the exact
-// mid-save dispatch Fix 2's is_dispatching() guard must block. A also switches its
+// mid-save dispatch: the is_dispatching() guard must block. A also switches its
 // own active scene mid-save (the single-client vector), amplified by B's pressure.
 // Pre-fix: mid-save dispatch corrupts editor state (RED). Fixed: the guard skips
 // the re-entrant tick (GREEN).
 async function scenarioConcurrentSave(port: number, token: string, args: Args, crash: CrashState): Promise<void> {
-  console.log(`\n[stress] ── concurrent-save (C1: multi-client save re-entry) — ${args.iterations} rounds ──`);
+  console.log(`\n[stress] ── concurrent-save (multi-client save re-entry) — ${args.iterations} rounds ──`);
   const a = await connectAndAuth(port, token);
   const b = await connectAndAuth(port, token);
   const { state: liveA } = watch(a);
@@ -682,7 +682,7 @@ async function scenarioConcurrentSave(port: number, token: string, args: Args, c
 function printBanner(args: Args, port: number): void {
   const bar = "═".repeat(78);
   console.log(bar);
-  console.log("[stress] deferred-dispatch-safety stress driver (41l-tricies)");
+  console.log("[stress] deferred-dispatch-safety stress driver");
   console.log(
     `[stress]   port=${port}  scenario=${args.scenario}  iterations=${args.iterations}  node-count=${args.nodeCount}`,
   );

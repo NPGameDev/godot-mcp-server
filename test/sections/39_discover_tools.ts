@@ -16,7 +16,7 @@ export const TOOLS_TESTED: string[] = ["discover_tools"];
  * 4. GROUP_TOOL_NAMES accurately reflects GROUPS
  * 5. Over-activation threshold logic is sound (>5 groups)
  * 6. Dominant-match keyword filter prunes incidental noise but never hides a
- *    valid group (Item C, 41m-sexies — prune + recall-preservation guardrail)
+ *    valid group (prune + recall-preservation guardrail)
  *
  * Runs in CI mode (no bridge required) — wired into runCiMode() in smoke.ts.
  */
@@ -100,7 +100,7 @@ export async function testDiscoverTools(ctx: TestCtx): Promise<void> {
     fail("discover_tools: fewer than 6 groups makes over-activation warning pointless");
   }
 
-  // ── Dominant-match threshold (Item C, 41m-sexies) ──
+  // ── Dominant-match threshold ──────────────────────
   // PRUNE: a vague multi-word phrase must not over-activate. The §28 sweep saw
   // "placeholder texture sprite sound" activate placeholders + asset_ops +
   // path_editing; the dominant-match filter must now leave only placeholders.

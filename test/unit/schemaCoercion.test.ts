@@ -172,7 +172,7 @@ import {
 }
 
 // ── addStringCoercion preserves optionality in the emitted JSON Schema ──
-// Regression: z.preprocess() is a ZodPipe, not a ZodOptional, so wrapping an
+// z.preprocess() is a ZodPipe, not a ZodOptional, so wrapping an
 // optional field for string-coercion flipped it to `required` in the emitted
 // tools/list schema (e.g. scene_spatial_map advertised radius/max_nodes as
 // required even though the handler treats them as optional). Coercion must not

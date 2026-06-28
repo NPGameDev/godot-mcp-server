@@ -1,6 +1,6 @@
 /**
  * Unit tests for extension_groups.ts — the dynamic extension-group registry
- * carved out of groups.ts (concern 077, C1). Drives the private maps through
+ * carved out of groups.ts. Drives the private maps through
  * the public mutators + accessors (the maps never leave the module), proving:
  *   1. addExtensionGroup: new-group registration, dedupe-by-method, "; " desc
  *      merge, no-dup keyword merge.
@@ -11,7 +11,7 @@
  *   5. The accessors return private-map truth across a sequence of mutations
  *      (activate / re-activate / report-is-pure-query / deactivate).
  *   6. reportExtGroupStatus applies the read-only tool-filter when readOnly=true
- *      (the 081 split preserves the fused query's behavior); browse is unfiltered.
+ *      (preserves the fused query's filter behavior); browse is unfiltered.
  */
 import assert from "node:assert/strict";
 import {
@@ -224,7 +224,7 @@ reset();
   assert.ok(getExtensionGroup("e1"), "deactivate keeps the group registered (only unloads)");
 }
 
-// ── Block 6 — reportExtGroupStatus read-only filter (081 split preserves the fused query's filter) ─────
+// ── Block 6 — reportExtGroupStatus read-only filter (preserves the fused query's filter) ─────────────
 
 reset();
 {

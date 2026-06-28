@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Flow 02 — Hot-reload reachability, stale-live-instance characterisation, AND
-// the 41m-bis-bis stale-instance hint assertions.
+// the stale-instance hint assertions.
 //
 //   • UNSUPPORTED in-place edit of a LIVE instance: a script is attached to a
 //     live node; the file is then edited; the live node's method table / bytecode
-//     does NOT update until the editor reloads. The 2026-06-09 hazard
-//     (41l-duotricies): an agent edited a script and called a new method on a
+//     does NOT update until the editor reloads. The 2026-06-09 hazard:
+//     an agent edited a script and called a new method on a
 //     pre-existing live @tool node, got "method not found", relaunched.
 //
 // EMPIRICAL MATRIX (Step 0, characterised across 4.2.0/4.3.0/4.4.1/4.5.0/4.6.2 —
@@ -19,7 +19,7 @@
 //   D fresh node       | STALE (re-instantiate fails)| REACHABLE
 //
 // D proved a FRESH node is also stale on 4.2 AND 4.3 → both collapse to one
-// recovery: relaunch. The 41m-bis-bis hints make that opaque failure actionable:
+// recovery: relaunch. The stale-instance hints make that opaque failure actionable:
 //   - proactive: script.write of an EXISTING .gd that compiled OK on < 4.4 carries
 //     a stale-instance `hint` (suppressed on create / 4.4+ / compile-fail).
 //   - reactive: node.call_method → INVALID_METHOD carries the same hint when the
@@ -39,7 +39,7 @@ import { FLOW_PROBE_DIR, ensureProbeDir, cleanupProbeDir } from "./_shared.js";
 
 export const TOOLS_TESTED: string[] = ["node_call_method", "node_set_script", "script_write"];
 
-// Distinctive substring of the 41m-bis-bis stale-instance hint (in both the
+// Distinctive substring of the stale-instance hint (in both the
 // proactive write_hint and the reactive recovery_message).
 const STALE_MARKER = "keeps the OLD code";
 

@@ -1,6 +1,6 @@
 /**
  * Unit tests for group_catalogue.ts — the pure-data leaf carved out of groups.ts
- * (concern 077, C0). Asserts the static catalogue's derived invariants against
+ * Asserts the static catalogue's derived invariants against
  * the live GROUPS literal and the canonical ALL_TOOL_DEFS:
  *   1. GROUPS shape (exactly 28 entries, names unique, no tool in two groups).
  *   2. allDefs name→def lookup round-trips + covers every group tool.
@@ -93,7 +93,7 @@ import { ALL_TOOL_DEFS } from "../../src/registration/catalogue.js";
 // ── Block 5 — GROUP_NAMES enumerates exactly the GROUPS names ─────────
 
 {
-  // GROUP_NAMES is now DERIVED from GROUPS (concern 094, C2), so the two list the
+  // GROUP_NAMES is now DERIVED from GROUPS, so the two list the
   // same group names in the same order by construction. This assertion stays a
   // deliberately order-INDEPENDENT SET equality (both sides .sort()ed): it pins
   // the membership invariant — every GROUPS name is in GROUP_NAMES and vice

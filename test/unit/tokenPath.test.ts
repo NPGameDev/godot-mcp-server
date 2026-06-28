@@ -1,5 +1,5 @@
 /**
- * Unit tests for token_path.ts — the C-TOKEN leaf carved out of bridge.ts (C0).
+ * Unit tests for token_path.ts — the C-TOKEN leaf carved out of bridge.ts.
  * Pins the §10.1 token-LOCATION contract so the extraction stays byte-equivalent:
  * the env short-circuits, resolveProjectName precedence + config/name regex, the
  * per-OS path switch, the project_instance_<hash> SHA-256 recipe (lowercased on

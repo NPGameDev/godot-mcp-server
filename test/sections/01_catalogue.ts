@@ -82,10 +82,10 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     // Surfaced when the catalogue expanded to all modules (vicies-novies);
     // audio-bus editing has many sub-actions — 218 chars is intentional.
     "audiobus_edit",
-    // Byte-offset pagination guidance (41n concern 025) — the next_offset/
+    // Byte-offset pagination guidance — the next_offset/
     // total_bytes/truncated paging protocol must be spelled out for the agent.
     "save_read",
-    // Line-window pagination guidance (41n concern 054) — the next_start_line/
+    // Line-window pagination guidance — the next_start_line/
     // total_lines/truncated paging protocol must be spelled out (mirrors save_read).
     "script_read",
   ]);
@@ -97,8 +97,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
 
   // Readonly tool count canary — catches accidental annotation drift.
   // Count tools with readOnlyHint=true across the full canonical catalogue.
-  // 36 readonly tools (35 + scene_spatial_map, the read-only spatial map added
-  // in 41m-quinquies; was 25 when the catalogue under-counted at 75).
+  // 36 readonly tools (35 + scene_spatial_map; was 25 when the catalogue under-counted at 75).
   const expectedReadonly = 36;
   const readonlyCount = allTools.filter((t: ToolDef) => t.annotations?.readOnlyHint === true).length;
   if (readonlyCount !== expectedReadonly) fail(`readonly count: expected ${expectedReadonly}, got ${readonlyCount}`);

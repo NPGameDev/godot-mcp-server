@@ -2,8 +2,8 @@
  * Unit tests for server_mode.ts — the MODULE_ALLOWED registration input.
  *
  * MODULE_ALLOWED is the standard tool set minus group-managed tools: the set
- * handed to registerBuiltinModules at eager registration. Concern 090 collapsed
- * the former refreshMode() cache into this single computed-once constant; these
+ * handed to registerBuiltinModules at eager registration. The former refreshMode()
+ * cache was collapsed into this single computed-once constant; these
  * pins assert its invariant relationship to resolveAllowedTools() and
  * GROUP_TOOL_NAMES (derived from the catalogue — no brittle hardcoded lists).
  */

@@ -503,7 +503,7 @@ async function testNoReconnectRejectsFastWithoutBackoff() {
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("channel tests (concern 068 — C2):");
+  console.log("channel tests:");
   await testPendingMapCorrelation();
   await testQueuedResetsTimeout();
   await testBackoffResetsOnRoundTrip();

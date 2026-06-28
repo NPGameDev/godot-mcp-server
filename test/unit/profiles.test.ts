@@ -123,8 +123,8 @@ assert.equal(isExcludedByReadOnly(true, {}), true);
   assert.ok(allowed.has("editor_save_scene"));
   assert.ok(allowed.has("game_start"));
   assert.ok(allowed.has("execute_code"));
-  // Regression: scene_spatial_map (eager) was added to ALL_TOOL_DEFS but not to
-  // EAGER_TOOLS in 41m-quinquies (a738182), making it counted-but-unregistered.
+  // scene_spatial_map (eager) must be in EAGER_TOOLS — a tool in ALL_TOOL_DEFS
+  // but not EAGER_TOOLS is counted-but-unregistered.
   assert.ok(allowed.has("scene_spatial_map"), "scene_spatial_map must be eagerly registered");
 }
 

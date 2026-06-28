@@ -321,7 +321,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   }
   await new Promise((r) => setTimeout(r, 1000));
 
-  // A2/A3 (41m-ter): editor parse errors (editor.refresh recompiling a bogus script) are
+  // Editor parse errors (editor.refresh recompiling a bogus script) are
   // captured only by the 4.5+ Logger API (in-memory buffer). On 4.2-4.4 they are NOT
   // written to godot.log, so editor.get_console (buffer OR file) cannot surface them —
   // gate the parse-error-CAPTURE assertions (#2/#3/#6) to 4.5+. Filter MECHANICS that
@@ -387,7 +387,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   // 6. text_filter + level_filter composition (parse-error capture → 4.5+ only, see above).
   // Strengthened to require a hit (length>0) — the old empty-array .every() passed vacuously.
   // On 4.5+ the Logger entry carries the filename at error level (continuation lines are
-  // leveled by the toolkit's shared helper; see 41m-ter A2/A3 toolkit fix + units).
+  // leveled by the toolkit's shared helper; see toolkit fix + units).
   if (parseErrorsCaptured) {
     const tfLevel = (await bridge.call(
       "editor.get_console",

@@ -2,7 +2,7 @@
  * Unit tests for extensions.ts — the extension subsystem facade
  * (createExtensionManager → ExtensionManager).
  *
- * Tests the PUBLIC facade ONLY (concern 091: a later internal split of
+ * Tests the PUBLIC facade ONLY — a later internal split of
  * extensions.ts must keep these green), driving a fake server + fake bridge and
  * observing the resulting tool_refs / groups state through those modules' own
  * public API. getReadOnly is injected, so read-only cases need no env mutation.
@@ -27,7 +27,7 @@ import type { Bridge } from "../../src/shared/types.js";
 
 // A fake MCP server: registerTool returns a removable/updatable ref, so the real
 // tool_refs module tracks each registration (registerToolWrapped calls setToolRef
-// internally). Mirrors the fake in groups.test.ts / toolHelpers.test.ts.
+// internally). Mirrors the fake in groups.test.ts / toolDispatch.test.ts.
 function makeFakeServer(): McpServer {
   const handlers = new Map<string, unknown>();
   return {

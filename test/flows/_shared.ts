@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Shared helpers for the flow suite (41m-bis).
+// Shared helpers for the flow suite.
 //
 // Flows write real probe files into the dogfood project (res:// = the toolkit
 // repo root, same as smoke's `res://smoke_*` probes). Every flow MUST leave the

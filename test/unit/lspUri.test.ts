@@ -25,9 +25,9 @@ import { resToAbsolute, absoluteToFileUri, fileUriToRes, normalizeUri } from "..
 // res://a/b.gd → absolute → file:// URI → res://a/b.gd, exactly as the
 // Windows case above. fileUriToRes detects the non-drive-letter (POSIX)
 // form and KEEPS the leading "/", so the project-prefix match succeeds and
-// res:// is recovered. (Before concern 095 the slice(8) dropped that
-// leading "/", the match failed, and this wrongly returned the raw URI —
-// that bug-encoding assertion is flipped here to the correct behavior.)
+// res:// is recovered. (Previously slice(8) dropped that leading "/",
+// the match failed, and this wrongly returned the raw URI —
+// this asserts the correct behavior.)
 {
   const project = "/home/proj";
   const abs = resToAbsolute("res://a/b.gd", project);
@@ -39,7 +39,7 @@ import { resToAbsolute, absoluteToFileUri, fileUriToRes, normalizeUri } from "..
 // ── fileUriToRes: POSIX in-project absolute URI with a subfolder ─────
 //
 // A Mac/Linux absolute path under the project recovers its res:// path
-// (the direct regression case for concern 095).
+// (direct regression: POSIX file URI round-trip with a subfolder).
 {
   assert.equal(fileUriToRes("file:///home/proj/sub/x.gd", "/home/proj"), "res://sub/x.gd");
 }

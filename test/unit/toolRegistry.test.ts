@@ -126,7 +126,7 @@ function registerThenRemoveBurst(fake: ReturnType<typeof makeCountingServer>["fa
   assert.equal(count(), 6, "unbatched burst emits one per op (3 register + 3 remove)");
 }
 
-// ── version-gate registration recovery (concern 071) ─────────────────
+// ── version-gate registration recovery ───────────────────────────────
 // registerToolWrapped filters version-gated tools at registration time against
 // bridge.getGodotVersion(): unknown → fail-closed (skip), known-incompatible →
 // skip, known-compatible → register. The startup reconcile (index.ts) leans on
@@ -179,7 +179,7 @@ assert.equal(
   "4.4 within [4.2, 4.5] → registered",
 );
 
-// ── versionSupportText — range-aware UNSUPPORTED error-hint clause (concern 087) ──
+// ── versionSupportText — range-aware UNSUPPORTED error-hint clause ──────────────
 // The runtime version gate (registerToolWrapped) builds its UNSUPPORTED hint from
 // this pure helper. The gate guarantees at least one bound is set, so three cases
 // exist: min+max (inclusive range), min-only (or-newer), max-only (up-to). The "–"

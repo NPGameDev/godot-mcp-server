@@ -1,8 +1,8 @@
 /**
- * Unit tests for auth_handshake.ts — the C-AUTH leaf carved out of bridge.ts (C1).
+ * Unit tests for auth_handshake.ts — the C-AUTH leaf carved out of bridge.ts.
  * Pins the §10.1 auth-WIRE contract so the extraction stays byte-equivalent:
  * the `{ auth, version }` frame, the `{ authed, godot_version, version }` →
- * `{ godotVersion, toolkitVersion }` mapping (missing fields → null), the 5 s
+ * `{ godotVersion, toolkitVersion }` mapping (missing fields → undefined), the 5 s
  * AUTH_TIMEOUT_MS timeout, listener cleanup() on settle, the close-during-auth
  * reject, and the non-JSON-frame ignore.
  *
@@ -97,7 +97,7 @@ async function testSendsFrame() {
   }
 }
 
-// ── 2. resolves the mapped shape (+ missing fields → null) ───────────
+// ── 2. resolves the mapped shape (+ missing fields → undefined) ─────────
 
 async function testResolvesMappedShape() {
   // 2a — full fields map through verbatim.
@@ -117,7 +117,7 @@ async function testResolvesMappedShape() {
       await closeAll();
     }
   }
-  // 2b — absent fields coerce to null (the `?? null` branches).
+  // 2b — absent fields resolve to undefined (no wire value → undefined).
   {
     const { client, server, closeAll } = await connectPair();
     try {
@@ -130,7 +130,7 @@ async function testResolvesMappedShape() {
       await closeAll();
     }
   }
-  console.log("  PASS: resolves the mapped shape; missing fields → null");
+  console.log("  PASS: resolves the mapped shape; missing fields → undefined");
 }
 
 // ── 3. the 5 s AUTH_TIMEOUT_MS timeout ───────────────────────────────
@@ -227,7 +227,7 @@ async function testNonJsonIgnore() {
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("auth_handshake tests (concern 068 — C1):");
+  console.log("auth_handshake tests:");
   await testSendsFrame();
   await testResolvesMappedShape();
   await testTimeout();

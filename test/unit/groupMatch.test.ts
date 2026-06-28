@@ -1,6 +1,6 @@
 /**
  * Unit tests for group_match.ts — the keyword-scoring pipeline behind
- * discover_tools' fuzzy search (concern 077, C2). Six blocks:
+ * discover_tools' fuzzy search. Six blocks:
  *   1. matchKeywords weights (+3 exact / +2 contains / +1 contained len>=3),
  *      observed through findMatchesSingle on an isolated extension group.
  *   2. findMatchesSingle built-in scoring ("tilemap") + built-in tool-name-token

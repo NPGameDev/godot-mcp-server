@@ -45,7 +45,7 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
   if (bogusRead?.code !== "NOT_FOUND") fail(`script.read bogus: expected NOT_FOUND, got ${JSON.stringify(bogusRead)}`);
   else pass("script.read bogus path -> NOT_FOUND");
 
-  // ── script.read line-window pagination (uniform contract, concern 054) ──
+  // ── script.read line-window pagination (uniform contract) ───────────────
   // Mirrors save.read offset paging: a range read before EOF returns
   // truncated=true + next_start_line; a window reaching EOF returns
   // truncated=false with no next_start_line. Uses its OWN temp script (NOT

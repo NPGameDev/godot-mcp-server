@@ -10,7 +10,7 @@
  * tool WITH THE MCP SERVER (hasToolRef true) WITHOUT recording ledger membership
  * (isRegistered stays false) — callers own the ledger bookkeeping.
  *
- * Additive (concern 091 C1); the facade extensions.test.ts still covers the
+ * The facade extensions.test.ts still covers the
  * integrated discovery + change-application behavior.
  *
  * Blocks:

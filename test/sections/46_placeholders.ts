@@ -64,7 +64,7 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
       else fail(`texture.generate shape=${shape}: ${JSON.stringify(r).slice(0, 160)}`);
     }
 
-    // Item B (41m-sexies): the default path reports the constructed class with NO
+    // The default path reports the constructed class with NO
     // blocking import-settle — class is populated (never null), no "did not index"
     // warning, and elapsed_ms is ~0 (vs the pre-fix ~5000ms poll).
     const settleR = await genTexture("settle_contract", { shape: "solid", fill_color: "#abcdef" });

@@ -1,14 +1,13 @@
 /**
  * Unit tests for heartbeat.ts — the generic liveness primitive carved out of
- * bridge.ts's inline frozen-game detector (concern 068, C3 — the one
- * non-verbatim move on the decompose ladder). Pure: no bridge state, no
+ * bridge.ts's inline frozen-game detector. Pure: no bridge state, no
  * WebSocket, no registry — a controllable `ping` (resolve/reject on demand), an
  * `isAlive` flag, and an `onDead` spy drive the timer policy under fake timers.
  *
  * Each assertion is a genuinely derived outcome (ping-call counts, onDead-call
  * counts, the live timer count) — never a fn===fn tautology. They de-risk the
- * re-parameterized interval body so the C3 equivalence refuter
- * (`createHeartbeat({…}) ≡` the inline loop, design 068 §3 Module D) holds:
+ * re-parameterized interval body — asserting `createHeartbeat({…})` is
+ * equivalent to the original inline loop — by proving each contract holds:
  *   1. fires `ping` every `intervalMs`
  *   2. counts CONSECUTIVE failures → `onDead` once at `maxFailures`; a success
  *      in between resets the counter (no premature fire)
@@ -230,7 +229,7 @@ async function testUnrefInvoked() {
 // ── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("heartbeat tests (concern 068 — C3):");
+  console.log("heartbeat tests:");
   await testFiresEveryInterval();
   await testFailureThresholdWithReset();
   await testStopClears();

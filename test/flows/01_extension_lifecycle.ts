@@ -3,7 +3,7 @@
 //
 // This is the gap smoke structurally cannot cover: smoke tests each tool in
 // isolation and "intentionally does not create extension scripts"
-// (22_extensibility.ts). The 41l-tricies validation caught a Major regression —
+// (22_extensibility.ts). Flow validation once caught a major regression —
 // `extensions.refresh` returning commands:[] for a newly-created extension —
 // that full smoke passed right past (437/0). This flow exercises the
 // create → discovered → call → update → remove → gone lifecycle and would have
@@ -16,8 +16,8 @@
 // Version branch (decision #4): create→discovered and remove→gone are uniform
 // across all supported versions; only update-existing-in-session branches —
 // 4.3+ applies the edit live, 4.2 defers it with a restart hint (the
-// 41l-tricies-ter CACHE_MODE_REUSE gate). The 4.2 assertion here also
-// regression-guards that fix.
+// CACHE_MODE_REUSE gate). The 4.2 assertion here also regression-guards
+// that fix.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { TestCtx } from "../helpers.js";
@@ -164,7 +164,7 @@ export async function testExtensionLifecycle(ctx: TestCtx): Promise<void> {
     if (add?.success === true && add.result === 10) pass("ext lifecycle CALL: flow_ext.add(3,7) -> 10");
     else fail(`ext lifecycle CALL: flow_ext.add: ${JSON.stringify(add)}`);
 
-    // ── PATH GUARD (41m-quater): declarative extension guard enforced at dispatch ──
+    // ── PATH GUARD: declarative extension guard enforced at dispatch ────────────
     // flow_ext.guarded declared .guard_project_path("file_path"); the toolkit
     // dispatch must reject a traversal path with PATH_DENIED before the handler,
     // and allow a valid res:// path. This is the live end-to-end of the toolkit's
@@ -195,7 +195,7 @@ export async function testExtensionLifecycle(ctx: TestCtx): Promise<void> {
 
     // ── UPDATE-EXISTING (version-branched, decision #4) ────────────────────
     // Rewrite the SAME extension adding flow_ext.multiply. 4.3+ applies live;
-    // 4.2 defers with a restart hint (CACHE_MODE_REUSE gate, 41l-tricies-ter).
+    // 4.2 defers with a restart hint (CACHE_MODE_REUSE gate).
     const writeV2 = (await bridge.call("script.write", { file_path: EXT_PATH, content: EXT_V2 }, CALL_TIMEOUT)) as {
       success?: boolean;
     };

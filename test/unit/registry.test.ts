@@ -260,7 +260,7 @@ function withRawRegistry(raw: string | null, fn: () => void): void {
 // ── readRegistry: malformed / wrong-shape / missing → graceful empty ──
 
 {
-  // Malformed JSON → graceful empty (single parse attempt; concern 072 dropped the retry/busy-wait).
+  // Malformed JSON → graceful empty (single parse attempt; the retry/busy-wait was dropped).
   withRawRegistry("{ partial", () => {
     assert.equal(lookupProject("/anything"), null, "readRegistry: malformed JSON → null");
   });
@@ -274,12 +274,12 @@ function withRawRegistry(raw: string | null, fn: () => void): void {
   });
 }
 
-// ── 072: malformed registry degrades immediately (no retry / busy-wait) ──
+// ── malformed registry degrades immediately (no retry / busy-wait) ──
 //
 // readRegistry once retried a parse failure 3× with a synchronous busy-wait
 // (~300ms total), freezing Node's only thread. The toolkit writes atomically
 // (.tmp → rename), so a parse failure is genuine corruption that re-reading the
-// same bytes cannot fix — the retry was dropped (concern 072). A malformed file
+// same bytes cannot fix — the retry was dropped. A malformed file
 // must degrade through a public reader to empty: graceful (no throw) and fast
 // (no spin). Exercises discoverRuntime (the second public reader path).
 {
@@ -289,12 +289,12 @@ function withRawRegistry(raw: string | null, fn: () => void): void {
     // Primary guarantee: graceful degradation, no exception escapes.
     assert.doesNotThrow(() => {
       result = discoverRuntime("/proj/run");
-    }, "072: malformed JSON degrades without throwing");
-    assert.equal(result, null, "072: malformed JSON → discoverRuntime null");
+    }, "malformed JSON degrades without throwing");
+    assert.equal(result, null, "malformed JSON → discoverRuntime null");
     // Secondary: the dropped busy-wait spun ~300ms; a single parse attempt is
     // sub-millisecond. Generous bound keeps CI non-flaky while still excluding
     // the old spin (the structural removal of the loop is the real guarantee).
-    assert.ok(Date.now() - start < 200, "072: no busy-wait — returns well under the old ~300ms");
+    assert.ok(Date.now() - start < 200, "no busy-wait — returns well under the old ~300ms");
   });
 }
 

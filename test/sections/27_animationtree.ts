@@ -130,7 +130,7 @@ export async function testAnimationTree(ctx: TestCtx): Promise<void> {
     fail(`animationtree.edit list: ${JSON.stringify(listResult)}`);
   }
   // Node enumeration uses AnimationNodeStateMachine.get_node_list(), a 4.5+ script API
-  // (41m-ter A4/A5): nodes are listed on 4.5+, empty on 4.2-4.4. Transitions enumerate on
+  // Nodes are listed on 4.5+, empty on 4.2-4.4. Transitions enumerate on
   // all versions (get_transition_* are 4.2+), so list stays well-formed everywhere.
   const atVer = bridge.getGodotVersion();
   const listNodes = unwrapUntrusted(listResult?.nodes) as unknown[] | null;

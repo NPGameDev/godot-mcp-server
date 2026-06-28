@@ -5,7 +5,7 @@
  * Pure functions, so no fakes: asserts the method→toolName mapping, the
  * annotation defaulting, and the grouped ExtensionCmd shape (incl. the
  * description fallback + inputSchema default) the discovery / change-application
- * paths rely on. Additive (concern 091 C0); the facade extensions.test.ts still
+ * paths rely on. The facade extensions.test.ts still
  * covers the integrated behavior.
  */
 import assert from "node:assert/strict";

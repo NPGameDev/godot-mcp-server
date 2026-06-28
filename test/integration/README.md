@@ -7,7 +7,7 @@ enabled, opened on the toolkit dogfood project. They are **not** part of CI.
 | What | Command | Purpose |
 |------|---------|---------|
 | **Dispatch suite** | `GODOT_MCP_TOKEN=<t> npm run test:integration:dispatch` | 7 pass/fail flows: mutation ordering, read bypass, FIFO drain, notification timing, cancellation, peer disconnect, scene lease. |
-| **Dispatch-safety stress driver** | `GODOT_MCP_TOKEN=<t> npm run stress:dispatch -- [flags]` | Self-detecting crash/hang hammer for the deferred-dispatch race fixes (41l-tricies). |
+| **Dispatch-safety stress driver** | `GODOT_MCP_TOKEN=<t> npm run stress:dispatch -- [flags]` | Self-detecting crash/hang hammer for the deferred-dispatch race fixes. |
 
 Read the token from the toolkit's MCP dock, or from
 `%APPDATA%/Godot/app_userdata/<project>/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token`.

@@ -1,6 +1,6 @@
 /**
  * Deterministic unit tests for _queued/_executing notification handling
- * in bridge.ts (iter 41l-decies).
+ * in bridge.ts.
  *
  * Uses @sinonjs/fake-timers to control setTimeout/clearTimeout only,
  * leaving setImmediate and other I/O timers real so WebSocket works.
@@ -52,7 +52,7 @@ function makeMockServer(handler: (sock: WS, msg: { id: unknown; method?: string 
             method?: string;
           };
           if (msg.auth !== undefined) {
-            sock.send(JSON.stringify({ authed: true, godotVersion: "4.5", toolkitVersion: "1.0.0" }));
+            sock.send(JSON.stringify({ authed: true }));
             return;
           }
           if (msg.id != null) handler(sock, msg as { id: unknown; method?: string });
@@ -295,7 +295,7 @@ async function testUnknownRequestIdIgnored() {
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("Bridge notification tests (41l-decies):");
+  console.log("Bridge notification tests:");
   await testQueuedPreventsTimeout();
   await testExecutingPreventsTimeout();
   await testTimeoutWithoutNotifications();

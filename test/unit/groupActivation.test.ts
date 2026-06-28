@@ -1,6 +1,6 @@
 /**
  * Unit tests for group_activation.ts — the group-activation lifecycle carved
- * out of groups.ts (concern 077, C4). Drives the COMMAND/QUERY split + the
+ * out of groups.ts. Drives the COMMAND/QUERY split + the
  * built-in-vs-extension dispatchers through a fake server + bridge, proving:
  *   1. activateGroup: registers a built-in group's tools + marks it loaded;
  *      idempotent on re-activate (already_loaded, no double-count).

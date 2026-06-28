@@ -1,6 +1,6 @@
 /**
  * Unit tests for runtime_connection.ts — the playtest runtime-connection
- * aggregate carved out of bridge.ts (concern 068, C4 — the integrator).
+ * aggregate carved out of bridge.ts (the integrator: combines channel, heartbeat, and registry).
  *
  * Drives the aggregate through its injected `deps` seam (mirrors
  * extensionRegistrar.test.ts's fake-injection idiom): a fake createChannel
@@ -12,7 +12,7 @@
  * outcome (channel URLs, call/close counts, heartbeat start/stop counts,
  * resolved values, mapped error codes), never a fn===fn tautology.
  *
- * Groups (design 068 §5 C4):
+ * Groups:
  *   1. discovery branches — explicit-port static channel; no-port/no-projectPath → GAME_NOT_RUNNING
  *   2. the watcher — onDiscovered swap/port/heartbeat.start/waiter-resolve; onRemoved heartbeat.stop/close/undefined
  *   3. callRuntime paths — fast / normal / explicit + the CONNECT_FAILED/DISCONNECTED → GAME_NOT_RUNNING mapping
@@ -367,7 +367,7 @@ async function testWaitForRuntimeConnection() {
 // ── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("runtime_connection tests (concern 068 — C4):");
+  console.log("runtime_connection tests:");
   await testDiscoveryBranches();
   await testWatcher();
   await testCallRuntimePaths();

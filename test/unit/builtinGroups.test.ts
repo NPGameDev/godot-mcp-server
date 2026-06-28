@@ -1,14 +1,14 @@
 /**
  * Unit tests for builtin_groups.ts — the eager-assembly module that imports the
  * 28 per-group data modules (src/groups/*) and assembles the canonical ordered
- * GROUPS array (concern 094, C1). A belt-and-suspenders "forgotten-module" guard:
+ * GROUPS array. A belt-and-suspenders "forgotten-module" guard:
  * if a per-group file is dropped from (or duplicated in) the assembly, or a def
  * is malformed, these assertions fail independently of group_catalogue.ts.
  *   1. GROUPS assembles exactly 28 entries, with unique names.
  *   2. Every assembled name is a canonical GroupName (∈ GROUP_NAMES).
  *   3. Every entry has the GroupDef shape (non-empty name/description/tools/keywords).
  *   4. GROUPS assembles in the canonical PINNED order, and GROUP_NAMES (derived
- *      from GROUPS in concern 094, C2) matches it element-for-element.
+ *      from GROUPS) matches it element-for-element.
  */
 import assert from "node:assert/strict";
 import { GROUPS } from "../../src/groups/builtinGroups.js";
@@ -94,7 +94,7 @@ import { GROUP_NAMES } from "../../src/groups/groupCatalogue.js";
     "GROUPS assembles in the canonical pinned order",
   );
 
-  // GROUP_NAMES is derived from GROUPS (concern 094, C2), so it must equal the
+  // GROUP_NAMES is derived from GROUPS, so it must equal the
   // assembly order element-for-element — not merely as a set.
   assert.deepEqual(
     [...GROUP_NAMES],
