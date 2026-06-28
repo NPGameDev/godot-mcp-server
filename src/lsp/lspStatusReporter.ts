@@ -1,7 +1,7 @@
 /**
  * LSP status reporter — pushes the GDScript-LSP verdict to the editor dock
- * (editor.set_lsp_status, ADR 0008). The editor can't read its own LSP bind
- * status, so the server reports it.
+ * (editor.set_lsp_status). The editor can't read its own LSP bind status, so
+ * the server reports it.
  *
  * Two verdict sources share a single lastLspKey dedup so frequent LSP calls
  * don't spam the bridge:
@@ -29,8 +29,8 @@ export interface LspStatusReporter {
 export function createLspStatusReporter(deps: { bridge: Bridge; projectPath: string }): LspStatusReporter {
   const { bridge, projectPath } = deps;
 
-  // Push the GDScript LSP verdict to the editor dock (editor.set_lsp_status, ADR
-  // 0008) — the editor can't read its own LSP bind status, so the server reports it.
+  // Push the GDScript LSP verdict to the editor dock (editor.set_lsp_status) —
+  // the editor can't read its own LSP bind status, so the server reports it.
   function sendLspStatus(s: LspStatus): void {
     try {
       void bridge.call("editor.set_lsp_status", s, 3000).catch(() => {});

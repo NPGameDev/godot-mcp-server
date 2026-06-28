@@ -21,8 +21,8 @@ import type { Bridge, ToolTextResult } from "../shared/types.js";
  * Whether a success hint should be applied: the payload is a non-null
  * object with no existing hint. The server never overwrites a
  * toolkit-provided hint. Shared by both injection sites — the raw-object
- * path in callAndWrap (Site 1) and the parsed-text-block path in
- * injectSuccessHint (Site 2) — which keep their distinct serialization
+ * path in callAndWrap and the parsed-text-block path in injectSuccessHint —
+ * which keep their distinct serialization
  * steps; only this boolean decision is unified.
  */
 function shouldApplySuccessHint(payload: unknown): payload is Record<string, unknown> {

@@ -6,7 +6,7 @@
 
 # Interface: Bridge
 
-Defined in: [src/shared/types.ts:21](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/types.ts#L21)
+Defined in: [src/shared/types.ts:21](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L21)
 
 The transport facade the whole tool layer calls through — one connected Godot
 editor channel plus the lazy playtest-runtime channel. Built by `createBridge`
@@ -18,7 +18,7 @@ editor channel plus the lazy playtest-runtime channel. Built by `createBridge`
 
 > **call**(`method`, `params?`, `timeoutMs?`, `signal?`): `Promise`\<`unknown`\>
 
-Defined in: [src/shared/types.ts:22](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/types.ts#L22)
+Defined in: [src/shared/types.ts:22](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L22)
 
 #### Parameters
 
@@ -48,7 +48,7 @@ Defined in: [src/shared/types.ts:22](https://github.com/NPGameDev/godot-mcp-serv
 
 > **callRuntime**(`method`, `params?`, `timeoutMs?`, `signal?`): `Promise`\<`unknown`\>
 
-Defined in: [src/shared/types.ts:23](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/types.ts#L23)
+Defined in: [src/shared/types.ts:23](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L23)
 
 #### Parameters
 
@@ -78,7 +78,7 @@ Defined in: [src/shared/types.ts:23](https://github.com/NPGameDev/godot-mcp-serv
 
 > `optional` **clearRuntime**(): `void`
 
-Defined in: [src/shared/types.ts:36](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/types.ts#L36)
+Defined in: [src/shared/types.ts:36](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L36)
 
 Proactively tear down the runtime channel (e.g. on game_stopped notification).
  Next callRuntime() will fail immediately with GAME_NOT_RUNNING.
@@ -93,7 +93,7 @@ Proactively tear down the runtime channel (e.g. on game_stopped notification).
 
 > **close**(): `Promise`\<`void`\>
 
-Defined in: [src/shared/types.ts:24](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/types.ts#L24)
+Defined in: [src/shared/types.ts:24](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L24)
 
 #### Returns
 
@@ -105,7 +105,7 @@ Defined in: [src/shared/types.ts:24](https://github.com/NPGameDev/godot-mcp-serv
 
 > **getGodotVersion**(): [`GodotVer`](../../version/type-aliases/GodotVer.md) \| `undefined`
 
-Defined in: [src/shared/types.ts:28](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/types.ts#L28)
+Defined in: [src/shared/types.ts:28](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L28)
 
 Parsed Godot version as [major, minor] tuple from the registry or auth, or undefined if unknown.
 
@@ -119,7 +119,7 @@ Parsed Godot version as [major, minor] tuple from the registry or auth, or undef
 
 > **getGodotVersionString**(): `string` \| `undefined`
 
-Defined in: [src/shared/types.ts:26](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/types.ts#L26)
+Defined in: [src/shared/types.ts:26](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L26)
 
 Godot version string from the plugin auth handshake (e.g. "4.5.2"), or undefined if not yet connected / older plugin.
 
@@ -133,7 +133,7 @@ Godot version string from the plugin auth handshake (e.g. "4.5.2"), or undefined
 
 > `optional` **waitForRuntimeConnection**(`timeoutMs`): `Promise`\<\{ `port`: `number`; \} \| `undefined`\>
 
-Defined in: [src/shared/types.ts:33](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/types.ts#L33)
+Defined in: [src/shared/types.ts:33](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L33)
 
 Wait for a runtime port to appear in the registry (game_start async gap).
  Resolves with {port} on discovery, undefined on timeout. Optional — only

@@ -6,7 +6,7 @@
 
 # Interface: ExtensionCmd
 
-Defined in: [src/groups/extensionGroups.ts:27](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/extensionGroups.ts#L27)
+Defined in: [src/groups/extensionGroups.ts:21](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L21)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [src/groups/extensionGroups.ts:27](https://github.com/NPGameDev/godo
 
 > **annotations**: `Record`\<`string`, `boolean`\>
 
-Defined in: [src/groups/extensionGroups.ts:32](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/extensionGroups.ts#L32)
+Defined in: [src/groups/extensionGroups.ts:26](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L26)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [src/groups/extensionGroups.ts:32](https://github.com/NPGameDev/godo
 
 > **description**: `string`
 
-Defined in: [src/groups/extensionGroups.ts:30](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/extensionGroups.ts#L30)
+Defined in: [src/groups/extensionGroups.ts:24](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L24)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [src/groups/extensionGroups.ts:30](https://github.com/NPGameDev/godo
 
 > **inputSchema**: `Record`\<`string`, `unknown`\>
 
-Defined in: [src/groups/extensionGroups.ts:31](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/extensionGroups.ts#L31)
+Defined in: [src/groups/extensionGroups.ts:25](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L25)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [src/groups/extensionGroups.ts:31](https://github.com/NPGameDev/godo
 
 > **method**: `string`
 
-Defined in: [src/groups/extensionGroups.ts:28](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/extensionGroups.ts#L28)
+Defined in: [src/groups/extensionGroups.ts:22](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L22)
 
 ***
 
@@ -46,4 +46,4 @@ Defined in: [src/groups/extensionGroups.ts:28](https://github.com/NPGameDev/godo
 
 > **toolName**: `string`
 
-Defined in: [src/groups/extensionGroups.ts:29](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/extensionGroups.ts#L29)
+Defined in: [src/groups/extensionGroups.ts:23](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L23)

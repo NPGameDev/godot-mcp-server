@@ -6,7 +6,7 @@
 
 # Class: LspResolutionError
 
-Defined in: [src/lsp/lspClient.ts:70](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L70)
+Defined in: [src/lsp/lspClient.ts:70](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L70)
 
 Resolution failure carrying a specific tool error code + actionable hint.
 
@@ -20,7 +20,7 @@ Resolution failure carrying a specific tool error code + actionable hint.
 
 > **new LspResolutionError**(`code`, `message`, `hint`, `port`): `LspResolutionError`
 
-Defined in: [src/lsp/lspClient.ts:71](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L71)
+Defined in: [src/lsp/lspClient.ts:71](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L71)
 
 #### Parameters
 
@@ -66,7 +66,7 @@ Defined in: node\_modules/typescript/lib/lib.es2022.error.d.ts:24
 
 > `readonly` **code**: `"LSP_UNAVAILABLE"` \| `"LSP_PORT_CONFLICT"`
 
-Defined in: [src/lsp/lspClient.ts:72](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L72)
+Defined in: [src/lsp/lspClient.ts:72](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L72)
 
 ***
 
@@ -74,7 +74,7 @@ Defined in: [src/lsp/lspClient.ts:72](https://github.com/NPGameDev/godot-mcp-ser
 
 > `readonly` **hint**: `string`
 
-Defined in: [src/lsp/lspClient.ts:74](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L74)
+Defined in: [src/lsp/lspClient.ts:74](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L74)
 
 ***
 
@@ -106,7 +106,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1074
 
 > `readonly` **port**: `number`
 
-Defined in: [src/lsp/lspClient.ts:75](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L75)
+Defined in: [src/lsp/lspClient.ts:75](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L75)
 
 ***
 

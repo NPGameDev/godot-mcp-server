@@ -1,10 +1,8 @@
 /**
- * runtime_connection.ts — the playtest runtime-connection aggregate (concern
- * 068, C4 — the integrator).
+ * The playtest runtime-connection aggregate.
  *
- * Carved out of bridge.ts's runtime machinery: owns the ephemeral playtest
- * channel and everything that keeps it consistent — the
- * (runtimeChannel, cachedRuntimePort) pair, the registry watcher that
+ * Owns the ephemeral playtest channel and everything that keeps it consistent —
+ * the (runtimeChannel, cachedRuntimePort) pair, the registry watcher that
  * auto-connects/tears-down on playtest start/stop, the port-waiters that
  * waitForRuntimeConnection parks on, and a composed heartbeat that proactively
  * clears a frozen game. One reason to change: the runtime-process connection
@@ -16,8 +14,7 @@
  * fns are injected through an optional `deps` seam (production default = the
  * real imports) so the aggregate is unit-testable in isolation with fakes. The
  * seam destructures `deps ?? REAL` at the top into the same bare names the
- * relocated bodies reference, so every line below is a byte-verbatim move from
- * bridge.ts.
+ * bodies reference.
  *
  * Deps: channel (createChannel, Channel), heartbeat (createHeartbeat), registry
  * (six reader fns), errors (BridgeError). The composition root (bridge.ts)
@@ -62,10 +59,9 @@ export function createRuntimeConnection(
   deps?: RuntimeConnectionDeps,
 ): RuntimeConnection {
   // DI seam: destructure the injected (or real) collaborators into the same
-  // bare names the relocated bodies reference, so every line below is a
-  // byte-verbatim move from bridge.ts. The real imports are aliased
-  // (real*) so this default object can name them without shadowing the
-  // destructured locals (a temporal-dead-zone hazard otherwise).
+  // bare names the bodies reference. The real imports are aliased (real*) so
+  // this default object can name them without shadowing the destructured locals
+  // (a temporal-dead-zone hazard otherwise).
   const { createChannel, createHeartbeat, registry }: RuntimeConnectionDeps = deps ?? {
     createChannel: realCreateChannel,
     createHeartbeat: realCreateHeartbeat,

@@ -8,4 +8,4 @@
 
 > `const` **GROUPS**: [`GroupDef`](../../groupTypes/interfaces/GroupDef.md)[]
 
-Defined in: [src/groups/builtinGroups.ts:43](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/builtinGroups.ts#L43)
+Defined in: [src/groups/builtinGroups.ts:43](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/builtinGroups.ts#L43)

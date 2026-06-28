@@ -1,8 +1,7 @@
 /**
  * Pure LSP enum → human-readable label mappings: diagnostic severity, symbol
  * kind, and completion-item kind, plus document-symbol tree formatting. Leaf
- * module — zero project dependencies; consumed by the LSP tool layer
- * (`tools/lsp.ts`).
+ * module — zero project dependencies, consumed by the LSP tool layer.
  */
 
 /** Severity number → human-readable label. */

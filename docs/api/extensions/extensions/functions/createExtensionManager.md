@@ -8,7 +8,7 @@
 
 > **createExtensionManager**(`deps`): [`ExtensionManager`](../interfaces/ExtensionManager.md)
 
-Defined in: [src/extensions/extensions.ts:43](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/extensions/extensions.ts#L43)
+Defined in: [src/extensions/extensions.ts:43](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/extensions/extensions.ts#L43)
 
 Construct the extension manager. getReadOnly is injected (a live read of
 profiles.isReadOnly) so this module depends on no other composition module —

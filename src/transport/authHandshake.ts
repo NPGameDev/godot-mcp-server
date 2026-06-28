@@ -1,5 +1,5 @@
 /**
- * Auth handshake over an open socket (the C-AUTH leaf).
+ * Auth handshake over an open socket.
  *
  * One responsibility: the auth WIRE protocol — present the session token plus
  * the server version, then read the toolkit's handshake reply. Sends
@@ -10,8 +10,8 @@
  * `auth.gd` exchange.
  *
  * Near-pure leaf: no state, no lifecycle. Its deps (ws + version) are disjoint
- * from token_path's (fs/path/os/crypto) — the cohesion split that earns it its
- * own home. `createChannel` (bridge.ts) imports `authenticate`.
+ * from tokenPath's (fs/path/os/crypto) — the cohesion split that earns it its
+ * own home.
  */
 import type { WebSocket } from "ws";
 import { BridgeError } from "../shared/errors.js";

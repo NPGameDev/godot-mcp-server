@@ -8,7 +8,7 @@
 
 > **createBridge**(`editorUrl`, `opts?`): [`Bridge`](../../../shared/types/interfaces/Bridge.md) & `object`
 
-Defined in: [src/transport/bridge.ts:64](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/transport/bridge.ts#L64)
+Defined in: [src/transport/bridge.ts:64](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L64)
 
 Build the bridge for one Godot project. Connection is lazy — the first
 [Bridge.call](../../../shared/types/interfaces/Bridge.md#call) performs the WebSocket connect + auth handshake; the runtime

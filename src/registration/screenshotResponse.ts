@@ -1,8 +1,6 @@
 /**
  * Shared response builder for screenshot tools — the one place the image-first
- * multi-content shape lives. Used by editor_screenshot (its handler in
- * tools/editor.ts and the editor_advanced group path in groups.ts) and by
- * runtime_screenshot (tools/runtime.ts).
+ * multi-content shape lives, shared by the editor and runtime screenshot tools.
  */
 
 /**

@@ -24,9 +24,8 @@ export const inputMapTools: ToolDef[] = [
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     successHint: "Bind events with input_map_event after creating the action.",
   },
-  // I2 waiver: input_map_event description exceeds 200-char limit.
-  // All 4 event types (key, mouse_button, joypad_button, joypad_motion)
-  // need inline examples to avoid agent guesswork.
+  // Deliberately detailed description: all 4 event types (key, mouse_button,
+  // joypad_button, joypad_motion) need inline examples to avoid agent guesswork.
   {
     name: "input_map_event",
     method: "input_map.event",

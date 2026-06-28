@@ -12,8 +12,8 @@ import { fileUriToRes } from "../lsp/lspUri.js";
 import { severityLabel, completionKindLabel, formatSymbol } from "../lsp/lspLabels.js";
 import { withLspDoc } from "../lsp/lspSession.js";
 
-// Re-export the session-layer symbols that external modules still import from
-// here (lsp_status_reporter.ts, test/unit/lsp_tools.test.ts) so their paths stay stable.
+// Re-export the session-layer symbols that external modules import from here,
+// so their import paths stay stable.
 export { setLspStatusReporter, lspConnectFailureHint } from "../lsp/lspSession.js";
 
 // ── Tool definitions ─────────────���───────────────────────────────────

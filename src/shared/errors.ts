@@ -1,6 +1,6 @@
 /**
- * Runtime error classes. Separated from types.ts so that module remains
- * pure type/interface exports only (CR7).
+ * Runtime error classes. Kept out of types.ts so that module stays pure
+ * type/interface exports only.
  */
 
 export class BridgeError extends Error {

@@ -2,8 +2,8 @@
  * Extension discovery — the eager, deadline-wrapped, single-flight pull of
  * third-party extensions from the toolkit and their bulk registration.
  *
- * Owns the single-flight latch (concern 071): a concurrent caller JOINS the
- * in-flight discovery pass rather than starting a second one. Discovery owns
+ * Owns the single-flight latch: a concurrent caller JOINS the in-flight
+ * discovery pass rather than starting a second one. Discovery owns
  * nothing else — the register-one-tool recipe, the always-on refresh tool, and
  * the known-extension ledger all live on the INJECTED registrar (the same shared
  * instance the facade hands to change-application), so the ledger stays one
@@ -49,17 +49,17 @@ export function createExtensionDiscovery(deps: {
 }): ExtensionDiscovery {
   const { server, bridge, getReadOnly, registrar } = deps;
 
-  // Single-flight latch for discoverExtensions (concern 071 follow-up). Holds the
-  // currently-running discovery promise so a concurrent caller joins it instead of
-  // starting a second pass.
+  // Single-flight latch for discoverExtensions. Holds the currently-running
+  // discovery promise so a concurrent caller joins it instead of starting a
+  // second pass.
   let discoveryInFlight: Promise<void> | undefined = undefined;
 
   // Discover third-party extensions from the toolkit and register them as
   // MCP tools. Called eagerly before transport (deadline-wrapped) at startup,
   // and again from handleConfigReload on config changes.
   //
-  // Single-flight (concern 071 follow-up): if a discovery is already running,
-  // JOIN it rather than start a second concurrent pass. Without this, the eager
+  // Single-flight: if a discovery is already running, JOIN it rather than start
+  // a second concurrent pass. Without this, the eager
   // discovery losing the 8s Promise.race deadline stays in-flight, and the
   // immediate startup reconcile (maybeStartupReconcile → handleConfigReload) would
   // fire a second discoverExtensions() — two concurrent passes issuing duplicate

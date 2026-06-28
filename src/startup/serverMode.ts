@@ -7,8 +7,6 @@
  * module-allowed set (eager tools minus group-managed tools) is constant
  * across reloads (resolveAllowedTools() is the fixed EAGER_TOOLS set;
  * GROUP_TOOL_NAMES is immutable), so it is computed once here.
- *
- * Concern 090 collapsed the former refreshMode() cache — provably redundant.
  */
 import { resolveAllowedTools } from "../security/profiles.js";
 import { GROUP_TOOL_NAMES } from "../groups/groups.js";

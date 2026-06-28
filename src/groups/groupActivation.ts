@@ -8,13 +8,8 @@
  * description. Its sole caller is the residual groups.ts discover_tools
  * orchestrator — a cohesive service module + its caller, not anemic.
  *
- * Extracted from groups.ts (concern 077, C4). Applies the 081 CQS split:
- * activateOrReportGroup → activateGroup (command) + the existing reportGroupStatus
- * (query), with activateGroupByName / reportGroupStatusByName as the built-in-vs-
- * extension dispatchers. reportGroupStatusByName preserves the fused query's
- * routing (built-in → reportGroupStatus / ext → reportExtGroupStatus, readOnly
- * passed through). Reads extension state only through extension_groups accessors
- * (the maps stay private there — DP-S3). Behavior-preserving.
+ * Reads extension state only through the extensionGroups accessors — the
+ * extension maps stay private to that module.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -81,11 +76,10 @@ function formatGroupEntry(name: string, loaded: boolean, desc: string): string {
   return `${name} [${loaded ? "LOADED" : "available"}] — ${desc}`;
 }
 
-// I2 waiver: discover_tools description intentionally exceeds the 200-char
-// tool-description limit. As the gateway to 30+ hidden tools, discoverability
-// is more important than description brevity for this meta-tool.
+// Deliberately detailed description: as the gateway to 30+ hidden tools,
+// discoverability matters more than brevity for this meta-tool.
 //
-// Strategy D: group name + one-line description + status tag. No tool lists —
+// Format: group name + one-line description + status tag. No tool lists —
 // agents see individual tools only after activation or via no-params catalog.
 export function buildDiscoverToolsDesc(readOnly: boolean): string {
   const parts: string[] = [];
@@ -153,7 +147,7 @@ export function deactivateGroups(names: string[] | true, readOnly: boolean): str
   return deactivated;
 }
 
-// ── Activate / report (the 081 CQS split: command + query) ───────────
+// ── Activate / report (CQS split: command + query) ───────────
 
 /**
  * Activate a built-in group (the COMMAND half of the old fused

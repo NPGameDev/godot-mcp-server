@@ -19,9 +19,8 @@ export const nodeTools: ToolDef[] = [
     successHint:
       "For available properties use node_get_property_list. For tree-wide overview use scene_get_tree with include_properties.",
   },
-  // I2 waiver: node_set_property description exceeds 200-char limit.
-  // Editor-time vs runtime distinction (F21/F33) and anchors-preset
-  // pitfall (F24) both materially reduce mis-calls.
+  // Deliberately detailed description: spelling out the editor-time vs runtime
+  // distinction and the anchors-preset pitfall materially reduces mis-calls.
   {
     name: "node_set_property",
     method: "node.set_property",

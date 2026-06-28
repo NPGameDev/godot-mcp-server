@@ -42,9 +42,9 @@ export interface GroupResult {
 
 /**
  * Flatten a JSON Schema properties/required structure to a simplified
- * parameter map. Mirrors jsonSchemaToZodShape() in reverse — used by
- * tool_meta.ts to build human-readable param info for discover_tools
- * enrichment. Handles the same types as jsonSchemaToZodShape.
+ * parameter map. Mirrors jsonSchemaToZodShape() in reverse to build the
+ * human-readable param info for discover_tools enrichment. Handles the same
+ * types as jsonSchemaToZodShape.
  */
 export function jsonSchemaToParamMap(schema: Record<string, unknown>): Record<string, ParamInfo> {
   const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;

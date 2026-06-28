@@ -5,7 +5,7 @@
 // process.env / argv / the static catalogue, emits stderr (or stdout)
 // diagnostics, and — for the two gates — may process.exit. No subsystem
 // state lives here; the root calls these in sequence before constructing
-// the bridge. Extracted from index.ts (concern 062, commit C0).
+// the bridge.
 
 import { ALL_TOOL_DEFS, META_TOOL_NAMES } from "../registration/catalogue.js";
 import { GROUP_TOOL_NAMES, GROUPS } from "../groups/groups.js";

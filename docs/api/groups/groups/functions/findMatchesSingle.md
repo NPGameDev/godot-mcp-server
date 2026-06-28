@@ -8,11 +8,11 @@
 
 > **findMatchesSingle**(`keyword`, `readOnly`): `object`[]
 
-Defined in: [src/groups/groupMatch.ts:62](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/groupMatch.ts#L62)
+Defined in: [src/groups/groupMatch.ts:62](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/groupMatch.ts#L62)
 
 Score a single keyword against all groups, apply the dominant-match filter,
-and return surviving {name, score} sorted desc. Exported for the §39 smoke
-assertions (prune + recall-preservation guardrail).
+and return surviving {name, score} sorted desc. Exported so the prune +
+recall-preservation guardrail is directly testable.
 
 ## Parameters
 

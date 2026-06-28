@@ -8,7 +8,7 @@
 
 > **registerPrompts**(`server`): `void`
 
-Defined in: [src/mcp/prompts.ts:14](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/mcp/prompts.ts#L14)
+Defined in: [src/mcp/prompts.ts:14](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/mcp/prompts.ts#L14)
 
 Register the built-in prompt templates (`debug-scene`, `write-test`) on the server.
 

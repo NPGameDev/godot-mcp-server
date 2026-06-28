@@ -6,8 +6,8 @@ import { registerTools } from "../registration/toolRegistry.js";
 import { coercedBoolean, jsonCoerce } from "../shared/schemaCoercion.js";
 
 export const nodeManagementTools: ToolDef[] = [
-  // I2 waiver: node_manage description exceeds 200-char limit.
-  // Action-consolidated tool needs per-action param documentation.
+  // Deliberately detailed description: this action-consolidated tool needs
+  // per-action param documentation.
   {
     name: "node_manage",
     method: "node.manage",

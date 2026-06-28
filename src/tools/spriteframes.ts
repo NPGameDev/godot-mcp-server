@@ -96,7 +96,7 @@ export const spriteframesTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     // file_path is guarded; texture_path is NOT (toolkit calls load(), which is
-    // res://-scoped — guarding it server-side could false-reject. See ADR 0009.
+    // res://-scoped — guarding it server-side could false-reject).
     pathParams: [PROJECT_FILE_PATH],
   },
 ];

@@ -1,17 +1,11 @@
 /**
- * heartbeat.ts — a generic, bridge-agnostic liveness primitive (concern 068, C3).
- *
- * Carved out of bridge.ts's inline frozen-game detector: a self-stopping
- * interval that probes a resource, counts consecutive failures, and runs the
- * owner's teardown after a threshold. It knows nothing of channels, ports, or
- * the runtime — the resource-specific bits (the probe, the liveness check, the
- * teardown) are injected through `ping`/`isAlive`/`onDead`, so the timer policy
- * is unit-testable in isolation and reusable.
- *
- * The behavior is a line-for-line map of the former inline loop (design 068
- * §3 Module D): `createHeartbeat({ ping, isAlive, onDead, intervalMs: 15_000,
- * maxFailures: 4 })` ≡ the bridge's old 15s-cadence / 10s-ping / 4-fail
- * heartbeat.
+ * A generic, bridge-agnostic liveness primitive: a self-stopping interval that
+ * probes a resource, counts consecutive failures, and runs the owner's teardown
+ * after a threshold. It knows nothing of channels, ports, or the runtime — the
+ * resource-specific bits (the probe, the liveness check, the teardown) are
+ * injected through `ping`/`isAlive`/`onDead`, so the timer policy is
+ * unit-testable in isolation and reusable. The bridge composes it as the
+ * frozen-game detector for the playtest runtime channel.
  */
 
 /** A self-managing liveness timer. */

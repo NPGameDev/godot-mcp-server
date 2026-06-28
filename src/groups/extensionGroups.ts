@@ -5,12 +5,6 @@
  * empty-group auto-cleanup), the register / activate / report helpers for
  * extension-sourced tools, and the purpose read accessors the discover_tools
  * orchestrator reads ext state through — the maps never leave this module.
- *
- * Extracted from groups.ts (concern 077, C1): drops the dead
- * registerAllExtensionGroupTools (078) and splits the fused
- * activateOrReportExtGroup into activateExtGroup (command) + reportExtGroupStatus
- * (query — given a readOnly param so it keeps the fused query's read-only
- * tool-filter, symmetric with the built-in reportGroupStatus) (081). Behavior-preserving.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -149,7 +143,7 @@ export function registerExtGroupTools(
   return registered;
 }
 
-// ── Activate / report (the 081 CQS split: command + query) ───────────
+// ── Activate / report (CQS split: command + query) ───────────
 
 /**
  * Activate an extension group by name (the COMMAND half of the old fused
@@ -197,7 +191,7 @@ export function reportExtGroupStatus(name: string, readOnly: boolean = false): G
   return availableResult(name, tools, ext.description);
 }
 
-// ── Purpose accessors (the maps stay private — DP-S3, the 079 seam) ──
+// ── Purpose accessors (the maps stay private) ──
 
 /** Clear both registry maps (used by resetLoadedGroups). */
 export function clearExtensionGroups(): void {

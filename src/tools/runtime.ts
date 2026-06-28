@@ -55,9 +55,8 @@ export const runtimeTools: ToolDef[] = [
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
-    // I2 waiver: input_simulate description intentionally exceeds the 200-char
-    // tool-description limit. The events[] batch API has enough per-type
-    // nuance that a longer description materially reduces LLM mis-calls.
+    // Deliberately detailed description: the events[] batch API has enough
+    // per-type nuance that a longer description materially reduces LLM mis-calls.
     name: "input_simulate",
     method: "input.simulate",
     description:
@@ -117,9 +116,8 @@ export const runtimeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  // I2 waiver: runtime_set_property description exceeds 200-char limit.
-  // Inline examples eliminate the #1 agent confusion (F21/F33): reaching
-  // for execute_code .set() when a purpose-built tool exists.
+  // Deliberately detailed description: inline examples eliminate the #1 agent
+  // confusion — reaching for execute_code .set() when a purpose-built tool exists.
   {
     name: "runtime_set_property",
     method: "runtime.set_property",
@@ -142,8 +140,8 @@ export const runtimeTools: ToolDef[] = [
   },
   // execute_code is RCE-equivalent — risk communicated via destructiveHint
   // annotation. Agent-side tool filtering recommended (see security-recommendations.md).
-  // I2 waiver: expression-only examples are the fix for F23/F32 — agents
-  // repeatedly tried `score = 100` (assignment) and hit parse errors.
+  // The examples are expression-only on purpose: agents repeatedly tried
+  // `score = 100` (assignment) and hit parse errors.
   {
     name: "execute_code",
     method: "execute.code",
@@ -209,9 +207,9 @@ function inputSimulateHandler(bridge: Bridge, method: string, input: unknown) {
 
 /** debugger_get_log prefixes a line-count summary before the payload.
  *  Falls back to the editor-side cache when the game is not running.
- *  The editor-side handler (41l-quater-bis) now merges the debugger
- *  bridge's error_buffer + debug_state + log-file cache into a single
- *  response — no game.stop / sleep / editor_get_console hop needed. */
+ *  The editor-side handler merges the debugger bridge's error_buffer +
+ *  debug_state + log-file cache into a single response — no game.stop /
+ *  sleep / editor_get_console hop needed. */
 function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
   return (async () => {
     try {
@@ -271,7 +269,7 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
 
 export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
-  // Custom handlers for promoted tools
+  // Custom handlers for tools with non-standard response processing
   handlers.set(
     "runtime_screenshot",
     (input) => runtimeScreenshotHandler(bridge, "runtime.screenshot", input) as Promise<ToolTextResult>,

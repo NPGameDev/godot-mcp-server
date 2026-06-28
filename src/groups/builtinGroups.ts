@@ -1,11 +1,11 @@
 /**
- * Built-in group assembly — imports the 28 per-group data modules (src/groups/*)
- * and assembles the canonical ordered GROUPS array. The element order here is the
- * single source of truth for discover_tools enumeration and every derived index
- * (GROUP_TOOL_NAMES et al. in group_catalogue.ts), so it MUST stay byte-stable.
- * Pure eager assembly — each per-group module fully executes before this module's
- * body runs, so GROUPS is fully populated by the time any importer reads it.
- * Extracted from group_catalogue.ts (concern 094, C1).
+ * Built-in group assembly — imports the 28 per-group data modules
+ * (src/groups/defs/*) and assembles the canonical ordered GROUPS array. The
+ * element order here is the single source of truth for discover_tools
+ * enumeration and every derived index (GROUP_TOOL_NAMES et al. in
+ * groupCatalogue.ts), so it MUST stay byte-stable. Pure eager assembly — each
+ * per-group module fully executes before this module's body runs, so GROUPS is
+ * fully populated by the time any importer reads it.
  */
 import type { GroupDef } from "./groupTypes.js";
 
@@ -38,8 +38,8 @@ import { lspCodeNavigationGroup } from "./defs/lspCodeNavigation.js";
 import { debuggerGroup } from "./defs/debugger.js";
 import { classdbGroup } from "./defs/classdb.js";
 
-// Canonical group order — byte-identical to the pre-C1 group_catalogue.ts literal
-// (placeholders is 7th; classdb is last). Do NOT reorder.
+// Canonical group order — the single source of truth for discover_tools
+// enumeration (placeholders is 7th; classdb is last). Do NOT reorder.
 export const GROUPS: GroupDef[] = [
   runtimeAdvancedGroup,
   signalsGroup,

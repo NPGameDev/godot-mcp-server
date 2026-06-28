@@ -1,7 +1,6 @@
 /**
  * Reconnecting, authenticating WebSocket with JSON-RPC request/response
- * correlation — the transport Channel primitive (the C-CHAN home carved out of
- * bridge.ts, C2).
+ * correlation — the transport Channel primitive.
  *
  * One responsibility: run ONE reliable request/response conversation over a
  * flaky socket — connect, authenticate (re-reading the token every connect),
@@ -11,11 +10,6 @@
  * open). Kept whole: the correlation layer and the connection/reconnect
  * lifecycle co-vary — the backoff reset lives inside the response-correlation
  * path — so they do not separate without a mutual-callback cycle.
- *
- * Deps: token_path (readToken), auth_handshake (authenticate), errors, version
- * (getServerVersion + compareVersions), types (NotificationHandler, type-only),
- * ws, node:crypto. The composition root (bridge.ts) imports createChannel +
- * Channel; nothing imports the internal types.
  */
 import { WebSocket } from "ws";
 import { randomUUID } from "node:crypto";

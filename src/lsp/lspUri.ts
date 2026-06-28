@@ -2,7 +2,7 @@
  * Pure URI / path translation between Godot's `res://` virtual paths and
  * `file://` URIs (and back), plus URI normalization for diagnostics map
  * lookups. Leaf module — zero project dependencies; shared by the LSP tool
- * layer (`tools/lsp.ts`) and the LSP client (`lsp_client.ts`).
+ * layer and the LSP client.
  */
 import { join } from "node:path";
 

@@ -37,7 +37,7 @@ export const debugTools: ToolDef[] = [
       // ZodPipe) does not inherit an inner `.optional()` under the SDK's
       // io:"input" conversion, which would flip the param to `required` in
       // tools/list. The plugin defaults enabled→true (debug_commands.gd), so no
-      // server-side .default is needed. (Guarded by structural Check 7.)
+      // server-side .default is needed. A structural test guards against regression.
       enabled: coercedBoolean().optional().describe("true to set, false to clear (default true)"),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },

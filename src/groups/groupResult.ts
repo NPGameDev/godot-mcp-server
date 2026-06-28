@@ -1,21 +1,18 @@
 /**
  * GroupResult status-record builders — the four named constructors for the
- * { name, status, tools, description } records that the built-in lifecycle
- * (activateGroup / reportGroupStatus in group_activation.ts) and the extension
- * lifecycle (activateExtGroup / reportExtGroupStatus in extension_groups.ts)
- * emit. Names the status intent (activated / already_loaded / available /
- * read-only-empty) at each call site and collapses the duplicated record
- * literals into one shape (concern 079).
+ * { name, status, tools, description } records that the built-in and extension
+ * group lifecycles emit. Names the status intent (activated / already_loaded /
+ * available / read-only-empty) at each call site and collapses the duplicated
+ * record literals into one shape.
  *
- * Pure leaf: type-imports GroupResult + ToolMeta from tool_meta.ts (type-only —
- * no runtime cycle) and imports no behavior module, so group_activation.ts and
- * extension_groups.ts can value-import these builders without a cycle.
+ * Pure leaf: type-imports GroupResult + ToolMeta from toolMeta.ts (type-only —
+ * no runtime cycle) and imports no behavior module, so the group lifecycle
+ * modules can value-import these builders without a cycle.
  *
- * Byte-output-equivalent: each builder reproduces the EXACT key order + values
- * of the inline literal it replaces. The bare not-found
- * { name, status: "available", tools: [] } returns (no `description` key) stay
- * INLINE at their call sites — availableResult takes a REQUIRED description, so
- * routing them here would add a description key and change the object shape.
+ * The bare not-found { name, status: "available", tools: [] } returns (no
+ * `description` key) stay INLINE at their call sites: availableResult takes a
+ * REQUIRED description, so routing them here would add a description key and
+ * change the object shape.
  */
 import type { GroupResult, ToolMeta } from "../registration/toolMeta.js";
 

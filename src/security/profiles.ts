@@ -11,10 +11,11 @@ export const EAGER_TOOLS: readonly string[] = [
   "scene_delete_node",
   "scene_create",
   "scene_open",
-  // Node (8) — node_manage, node_groups, autoload_manage promoted from
-  // node_management group: dynamic activation via tools/list_changed is not
-  // robust across MCP clients; keeping them eager is the stable choice.
-  // control_set_layout added as eager (all 3 validation agents needed layout).
+  // Node (8) — node_manage, node_groups, autoload_manage are eager rather than
+  // in the node_management group: dynamic activation via tools/list_changed is
+  // not robust across MCP clients, so keeping them eager is the stable choice.
+  // control_set_layout is eager too — layout is needed broadly enough that lazy
+  // activation isn't worth it.
   "node_get_property",
   "node_set_property",
   "node_get_property_list",
@@ -26,38 +27,38 @@ export const EAGER_TOOLS: readonly string[] = [
   // Script (2)
   "script_read",
   "script_write",
-  // Editor (4) — editor_screenshot demoted to editor_advanced group;
-  // editor_get_errors removed (use editor_get_console with level_filter)
+  // Editor (4) — editor_screenshot lives in the editor_advanced group;
+  // there is no editor_get_errors (use editor_get_console with level_filter).
   "editor_save_scene",
   "editor_get_console",
   "project_get_settings",
   "project_set_setting",
-  // Playtest (6) — runtime tools promoted from lazy runtime group.
-  // runtime_set_property was demoted to the runtime_advanced group in
-  // 41m-quinquies; listing it here too is dead (MODULE_ALLOWED subtracts
-  // group tools from the eager set), so it is intentionally omitted.
+  // Playtest (6) — these runtime tools are eager, not in the lazy runtime group.
+  // runtime_set_property is intentionally NOT listed here: it is a
+  // runtime_advanced group tool, and MODULE_ALLOWED subtracts group tools from
+  // the eager set, so listing it would be dead.
   "game_start",
   "game_stop",
   "runtime_screenshot",
   "input_simulate",
   "runtime_get_script_vars",
   "debugger_get_log",
-  // Signals (2) — promoted from signals group: all 3 validation agents
-  // independently needed signal wiring.
+  // Signals (2) — eager rather than in the signals group: signal wiring is
+  // needed broadly enough to warrant always-on availability.
   "signal_list",
   "signal_manage",
-  // Assets (1) — asset_list demoted to asset_ops group (zero observed usage)
+  // Assets (1) — asset_list lives in the asset_ops group, not eager.
   "folder_create",
   // Script diagnostics (1)
   "script_check",
   // Scene query (1)
   "scene_query",
-  // Spatial (1) — eager read-only scene layout map (added 41m-quinquies).
-  // MUST be listed here: eager registration is gated by EAGER_TOOLS, NOT by
-  // ALL_TOOL_DEFS (which only feeds --tools-count and the static catalogue
-  // checks). Omitting it makes the tool counted-but-unregistered — absent from
-  // tools/list on every session, with no client-side fix. (Regression: a738182;
-  // the test/structural.ts reachability check now guards against recurrence.)
+  // Spatial (1) — eager read-only scene layout map. MUST be listed here: eager
+  // registration is gated by EAGER_TOOLS, NOT by ALL_TOOL_DEFS (which only feeds
+  // --tools-count and the static catalogue checks). Omitting it makes the tool
+  // counted-but-unregistered — absent from tools/list on every session, with no
+  // client-side fix. The test/structural.ts reachability check guards against
+  // recurrence.
   "scene_spatial_map",
   // High-risk tools — always eagerly registered. Risk communicated
   // via MCP annotations (destructiveHint); agent-side filtering recommended.

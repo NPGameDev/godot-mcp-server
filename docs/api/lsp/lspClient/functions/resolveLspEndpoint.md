@@ -8,7 +8,7 @@
 
 > **resolveLspEndpoint**(`projectPath`): [`LspEndpoint`](../type-aliases/LspEndpoint.md)
 
-Defined in: [src/lsp/lspClient.ts:94](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L94)
+Defined in: [src/lsp/lspClient.ts:94](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L94)
 
 Resolve a project's LSP endpoint at connect time. Priority:
   1. GODOT_MCP_LSP_PORT (+ GODOT_MCP_LSP_HOST) — explicit override, top

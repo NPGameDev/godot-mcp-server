@@ -8,7 +8,7 @@
 
 > **registerToolWrapped**(`server`, `bridge`, `name`, `config`, `handler`, `opts?`): `void`
 
-Defined in: [src/registration/toolRegistry.ts:123](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/registration/toolRegistry.ts#L123)
+Defined in: [src/registration/toolRegistry.ts:123](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registration/toolRegistry.ts#L123)
 
 Register one tool through the wrapped, pre-flighted path — the **only**
 sanctioned way to install a tool. Wraps the SDK handler with a runtime version

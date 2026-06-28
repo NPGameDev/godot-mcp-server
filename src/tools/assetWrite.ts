@@ -8,8 +8,8 @@ import { z } from "zod";
  * The path parameter itself is declared per-tool (asset_import uses `dest_path`;
  * the generators use `path`), so only the two identical fields live here.
  *
- * @internal Folder-internal to `tools/`; imported only by its siblings `asset.ts`,
- * `sound.ts`, and `texture.ts` (the role formerly signalled by the `_` filename prefix).
+ * @internal Folder-internal to `tools/` — shared only among the sibling
+ * asset-write tool modules, not part of the public surface.
  */
 export const assetWriteFields = {
   if_exists: z.enum(["return", "fail", "replace"]).optional(),

@@ -3,9 +3,7 @@
  * routing each tool to the right transport: signal_emit's dual-mode (editor vs
  * runtime) bridge call, editor_screenshot's multi-content image response, the
  * LSP tools' own TCP client, and the default callAndWrap path (runtime- vs
- * editor-bridge). A clean leaf — its sole caller is registerGroupTools; it
- * calls nothing group-internal above it. Extracted from groups.ts (concern
- * 077, C3).
+ * editor-bridge). A leaf factory — it depends on nothing group-internal above it.
  */
 import type { Bridge, ToolDef } from "../shared/types.js";
 import { callAndWrap } from "../registration/toolDispatch.js";

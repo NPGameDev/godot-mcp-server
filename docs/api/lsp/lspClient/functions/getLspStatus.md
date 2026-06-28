@@ -8,7 +8,7 @@
 
 > **getLspStatus**(`projectPath`): [`LspStatus`](../type-aliases/LspStatus.md)
 
-Defined in: [src/lsp/lspClient.ts:146](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L146)
+Defined in: [src/lsp/lspClient.ts:146](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L146)
 
 The authoritative LSP verdict for a project, computed without opening a
 connection (resolution + registry ownership only — reliable cross-platform

@@ -8,7 +8,7 @@
 
 > **isVersionAtMost**(`connected`, `max`): `boolean`
 
-Defined in: [src/shared/version.ts:58](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/shared/version.ts#L58)
+Defined in: [src/shared/version.ts:58](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L58)
 
 Check whether a connected Godot version is <= the given maximum.
 

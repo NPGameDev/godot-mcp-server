@@ -8,7 +8,7 @@
 
 > **hasExtensionGroups**(): `boolean`
 
-Defined in: [src/groups/extensionGroups.ts:115](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/groups/extensionGroups.ts#L115)
+Defined in: [src/groups/extensionGroups.ts:109](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L109)
 
 Whether any extension groups exist (used to decide if refresh needed).
 

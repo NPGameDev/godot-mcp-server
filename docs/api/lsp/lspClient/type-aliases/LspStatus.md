@@ -8,7 +8,7 @@
 
 > **LspStatus** = `object`
 
-Defined in: [src/lsp/lspClient.ts:131](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L131)
+Defined in: [src/lsp/lspClient.ts:131](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L131)
 
 The dock-facing LSP verdict for a project: whether this editor owns the LSP
 port (`active`), a live peer holds it (`conflict`), or it is unreachable
@@ -20,7 +20,7 @@ port (`active`), a live peer holds it (`conflict`), or it is unreachable
 
 > **detail**: `string`
 
-Defined in: [src/lsp/lspClient.ts:135](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L135)
+Defined in: [src/lsp/lspClient.ts:135](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L135)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [src/lsp/lspClient.ts:135](https://github.com/NPGameDev/godot-mcp-se
 
 > **host**: `string`
 
-Defined in: [src/lsp/lspClient.ts:133](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L133)
+Defined in: [src/lsp/lspClient.ts:133](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L133)
 
 ***
 
@@ -36,7 +36,7 @@ Defined in: [src/lsp/lspClient.ts:133](https://github.com/NPGameDev/godot-mcp-se
 
 > **port**: `number`
 
-Defined in: [src/lsp/lspClient.ts:134](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L134)
+Defined in: [src/lsp/lspClient.ts:134](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L134)
 
 ***
 
@@ -44,4 +44,4 @@ Defined in: [src/lsp/lspClient.ts:134](https://github.com/NPGameDev/godot-mcp-se
 
 > **state**: `"active"` \| `"conflict"` \| `"unavailable"`
 
-Defined in: [src/lsp/lspClient.ts:132](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/lsp/lspClient.ts#L132)
+Defined in: [src/lsp/lspClient.ts:132](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L132)

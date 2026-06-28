@@ -5,7 +5,7 @@
  *   - The debounced config_reloaded reload (re-read .mcp.json env → batched
  *     rebuild of the built-in surface → re-discover extensions).
  *   - The one-shot startup reconcile that completes a cold-start surface once the
- *     Godot version resolves (concern 071).
+ *     Godot version resolves.
  *
  * discover is injected (the ExtensionManager's discoverExtensions) so this module
  * does not import extensions.ts — keeping the dependency graph acyclic and the
@@ -49,8 +49,8 @@ export function createReconciler(deps: {
   // Debounce config_reloaded to prevent rapid config changes from causing
   // overlapping remove+rebuild cycles that leave the tool list empty.
   let configReloadTimer: ReturnType<typeof setTimeout> | undefined = undefined;
-  // One-shot latch for the startup reconcile (concern 071). Set by
-  // armStartupReconcile, cleared on the first effective reconcile.
+  // One-shot latch for the startup reconcile. Set by armStartupReconcile,
+  // cleared on the first effective reconcile.
   let needsStartupReconcile = false;
 
   function removeAllTools(): void {
@@ -96,7 +96,7 @@ export function createReconciler(deps: {
     }, 300);
   }
 
-  // ── Startup reconcile (concern 071) ──────────────────────────────────
+  // ── Startup reconcile ──────────────────────────────────
   // The eagerly-registered tool surface is INCOMPLETE when the Godot version was
   // unknown at eager registration (version-gated tools like scene_close were
   // filtered out) or extension discovery timed out (extension tools never

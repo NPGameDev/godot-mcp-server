@@ -64,7 +64,7 @@ import { tilesetStructuralTools, tilesetEditTools } from "../tools/tileset.js";
 /**
  * Every tool definition the server ships, across all src/tools/ modules.
  * Both eager and on-demand (group) tools live here — the eager/on-demand
- * split is a visibility partition over this set (see server_mode.ts
+ * split is a visibility partition over this set (see serverMode.ts
  * MODULE_ALLOWED and groups.ts GROUP_TOOL_NAMES), not two pools.
  */
 export const ALL_TOOL_DEFS: ToolDef[] = [

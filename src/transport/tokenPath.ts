@@ -1,5 +1,5 @@
 /**
- * Per-instance token-file location + read (the C-TOKEN leaf).
+ * Per-instance token-file location + read.
  *
  * One responsibility: the token-file LOCATION contract — resolve the Godot
  * project name, derive the per-OS `user://` path plus the per-instance
@@ -9,7 +9,7 @@
  *
  * Pure path/filesystem logic — no wire protocol, no channel/auth coupling.
  * `resolveTokenPath` + `resolveProjectName` are exported for direct unit testing
- * of the §10.1 token contract; `channel.ts`/`bridge.ts` import only `readToken`.
+ * of the token-path contract; the transport imports only `readToken`.
  */
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";

@@ -8,7 +8,7 @@
 
 > **registerRoots**(`server`): `void`
 
-Defined in: [src/mcp/roots.ts:37](https://github.com/NPGameDev/godot-mcp-server/blob/da81f25434d6169d7009e157eb7c4765a9c98ca6/src/mcp/roots.ts#L37)
+Defined in: [src/mcp/roots.ts:37](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/mcp/roots.ts#L37)
 
 Register a `godot://roots` resource that returns the project root(s).
 This lets MCP clients discover what Godot project this server is

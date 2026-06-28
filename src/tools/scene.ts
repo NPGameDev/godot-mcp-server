@@ -19,8 +19,8 @@ export const sceneTools: ToolDef[] = [
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint: "For filtered node search use scene_query. For specific node details use node_get_property.",
   },
-  // I2 waiver: param examples in scene_create_node and scene_instantiate
-  // fix parameter naming confusion (F2/F15/F20).
+  // Param examples in scene_create_node and scene_instantiate are deliberately
+  // included to fix parameter-naming confusion.
   {
     name: "scene_create_node",
     method: "scene.create_node",

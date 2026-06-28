@@ -21,6 +21,7 @@
     "src/transport/bridge.ts"
   ],
   "out": "docs/api",
+  "sourceLinkTemplate": "https://github.com/NPGameDev/godot-mcp-server/blob/main/{path}#L{line}",
   "readme": "none",
   "excludeInternal": true,
   "intentionallyNotExported": ["src/registration/toolRegistry.ts:HookPipeline"],

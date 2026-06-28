@@ -2,10 +2,10 @@
  * Group keyword matching — the query → scored → dominant-filtered → capped
  * scoring pipeline behind discover_tools' fuzzy search. Scores a keyword against
  * every built-in group (via the GROUPS catalogue) and every extension group (via
- * the extension_groups accessor), applies the recall-biased dominant-match
+ * the extensionGroups accessor), applies the recall-biased dominant-match
  * filter, and caps the fuzzy result set (3 per keyword, 5 total). Also coerces
  * the raw request param to a string[]. Pure leaf — no SDK, no registration, no
- * module state. Extracted from groups.ts (concern 077, C2).
+ * module state.
  */
 import { GROUPS, allDefs } from "./groupCatalogue.js";
 import { extensionGroupEntries } from "./extensionGroups.js";
@@ -32,7 +32,7 @@ function matchKeywords(query: string, keywords: string[]): number {
 // contributes +1 to `delta` when its normalized form substring-contains the query
 // (same query.length >= 3 floor as matchKeywords) and flips `exact` on a raw- or
 // normalized-name equality. The caller adds `delta` to its running score and ORs
-// `exact` into its running flag — byte-identical to the inline loops it replaces.
+// `exact` into its running flag.
 function scoreToolNameTokens(q: string, toolNames: string[]): { delta: number; exact: boolean } {
   let delta = 0;
   let exact = false;
@@ -44,7 +44,7 @@ function scoreToolNameTokens(q: string, toolNames: string[]): { delta: number; e
   return { delta, exact };
 }
 
-// Recall-biased dominant-match filter (Item C, 41m-sexies). A multi-word query
+// Recall-biased dominant-match filter. A multi-word query
 // substring-matches several unrelated groups' single keywords (+2 each) while
 // the intended group scores far higher; admitting those incidental matches
 // bloats the tool context. Drop candidates below this fraction of the top score
@@ -56,8 +56,8 @@ const DOMINANT_MATCH_RATIO = 0.5;
 
 /**
  * Score a single keyword against all groups, apply the dominant-match filter,
- * and return surviving {name, score} sorted desc. Exported for the §39 smoke
- * assertions (prune + recall-preservation guardrail).
+ * and return surviving {name, score} sorted desc. Exported so the prune +
+ * recall-preservation guardrail is directly testable.
  */
 export function findMatchesSingle(keyword: string, readOnly: boolean): { name: string; score: number }[] {
   const q = keyword.toLowerCase();

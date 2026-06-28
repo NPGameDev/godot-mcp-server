@@ -39,9 +39,8 @@ export const editorTools: ToolDef[] = [
     pathParams: [{ param: "save_path", prefixes: ["res://", "user://screenshots/"] }],
   },
   {
-    // I2 waiver: editor_refresh description exceeds 200-char limit.
-    // Clarity is critical — agents must know this handles ALL file types
-    // (not just scripts) and when to call it (after external file creation).
+    // Deliberately detailed description: agents must know this handles ALL file
+    // types (not just scripts) and when to call it (after external file creation).
     name: "editor_refresh",
     method: "editor.refresh",
     description:
