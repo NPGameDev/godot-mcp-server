@@ -11,16 +11,20 @@
  *   1. GODOT_MCP_PROJECT_PATH env var (highest precedence)
  *   2. Registry lookup matching the editor port
  *   3. process.cwd() (fallback)
+ *
+ * @module
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 /** Resolved project path — set once at startup via init(). */
 let projectRoot: string | undefined;
 
+/** Set the resolved project root (startup wiring). @internal */
 export function init(path: string | undefined): void {
   projectRoot = path;
 }
 
+/** The project root resolved at startup, or undefined if it was never set. */
 export function getProjectRoot(): string | undefined {
   return projectRoot;
 }

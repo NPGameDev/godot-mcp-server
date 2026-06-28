@@ -1,11 +1,14 @@
 /**
- * Group type leaf — the GroupName string-literal union (every built-in group's
- * canonical name) and the GroupDef shape (name/description/tools/keywords) that
- * each GROUPS entry conforms to. Pure types with zero runtime imports, so any
- * module can depend on the group vocabulary without pulling in the catalogue
- * data. Extracted from group_catalogue.ts (concern 094, C0).
+ * Group type leaf — the {@link GroupName} string-literal union (every built-in
+ * group's canonical name) and the {@link GroupDef} shape
+ * (name/description/tools/keywords) that each `GROUPS` entry conforms to. Pure
+ * types with zero runtime imports, so any module can depend on the group
+ * vocabulary without pulling in the catalogue data.
+ *
+ * @module
  */
 
+/** Canonical name of a built-in tool group. */
 export type GroupName =
   | "runtime_advanced"
   | "signals"
@@ -36,6 +39,7 @@ export type GroupName =
   | "classdb"
   | "placeholders";
 
+/** One built-in group catalogue entry: its name, blurb, member tool names, and discovery keywords. */
 export interface GroupDef {
   name: GroupName;
   description: string;

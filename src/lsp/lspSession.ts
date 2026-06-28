@@ -1,10 +1,12 @@
 /**
  * LSP session layer — the stateful connection core behind the LSP tools.
  *
- * Owns the lazy singleton LspClient, the verified-verdict status reporter
- * wired by lsp_status_reporter.ts, the connect prologue (ensureLsp) with its
- * code/hint mapping, and the file-read + document-open helpers the tool
- * handlers build on. tools/lsp.ts is the thin tool surface over this module.
+ * Owns the lazy singleton {@link LspClient}, the verified-verdict status reporter
+ * wired by the status-reporter module, the connect prologue (ensureLsp) with its
+ * code/hint mapping, and the file-read + document-open helpers the tool handlers
+ * build on. The thin LSP tool surface sits over {@link withLspDoc}.
+ *
+ * @module
  */
 import { readFile } from "node:fs/promises";
 
@@ -52,6 +54,7 @@ function getLspClient(projectPath: string): LspClient {
  *  reflects reality on actual use: it flips to active once a closed editor frees
  *  the port and this LSP rebinds (4.5+), or to unavailable on 4.2-4.4 (no retry). */
 let statusReporter: ((s: LspStatus) => void) | undefined = undefined;
+/** Inject the dock status reporter (startup wiring). @internal */
 export function setLspStatusReporter(cb: (s: LspStatus) => void): void {
   statusReporter = cb;
 }
@@ -67,6 +70,7 @@ export function setLspStatusReporter(cb: (s: LspStatus) => void): void {
  * may have been launched with --lsp-port (which the registry can't see), so the
  * server connected to the default and got ECONNREFUSED. Pure + exported so the
  * ordering/contents are unit-testable without a live client.
+ * @internal
  */
 export function lspConnectFailureHint(port: number): string {
   return (

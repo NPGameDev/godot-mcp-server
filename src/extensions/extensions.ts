@@ -10,6 +10,8 @@
  * delta), so the ledger stays one consistency boundary. getReadOnly is injected (a
  * live read of profiles.isReadOnly) so this module imports no other composition
  * module and unit-tests with a fake server + fake bridge.
+ *
+ * @module
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -34,6 +36,9 @@ export interface ExtensionManager {
  * Construct the extension manager. getReadOnly is injected (a live read of
  * profiles.isReadOnly) so this module depends on no other composition module —
  * maximising unit-testability with a fake bridge + fake server.
+ *
+ * @returns the {@link ExtensionManager} facade over one shared registrar (single
+ *   ledger), the discovery service, and the change-application service
  */
 export function createExtensionManager(deps: {
   server: McpServer;

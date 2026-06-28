@@ -16,6 +16,8 @@
  * syntactic filter here and are caught downstream by the toolkit — that is the
  * one accepted server-allow / toolkit-deny direction; the forbidden direction
  * (server-deny / toolkit-allow) is what the shared subset fixture guards.
+ *
+ * @module
  */
 import type { PathGuard } from "../shared/types.js";
 
@@ -28,6 +30,7 @@ export function guardPrefixes(g: PathGuard): readonly string[] {
   return g.guard === "user" ? ["user://"] : ["res://"];
 }
 
+/** Result of a path check — `ok: true`, or `ok: false` with a human-readable reason. */
 export type PathCheck = { ok: true } | { ok: false; reason: string };
 
 /**
@@ -90,6 +93,7 @@ export function checkPathGuard(g: PathGuard, value: unknown): PathCheck {
  * Note: canonicalization-only escapes (symlinks) are NOT here — they can't be
  * expressed syntactically; the server allows them and the toolkit denies them
  * (the accepted direction), exercised at the smoke/manual layer.
+ * @internal
  */
 export const PATH_FIXTURE = {
   /** [path, prefixes] both layers must ALLOW (no false rejections). */

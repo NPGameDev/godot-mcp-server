@@ -1,3 +1,12 @@
+/**
+ * Built-in tool-surface registration — the single place every built-in
+ * `<module>.register(...)` call is enumerated, plus the `discover_tools` group
+ * system. Pure delegation, no state: the composition root and the config-reload
+ * path both call through here, supplying the server, bridge, and the live
+ * registration inputs (module allowlist / read-only flag).
+ *
+ * @module
+ */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { Bridge } from "../shared/types.js";
@@ -26,12 +35,6 @@ import * as sceneQuery from "../tools/sceneQuery.js";
 import * as spatial from "../tools/spatial.js";
 import * as texture from "../tools/texture.js";
 import * as sound from "../tools/sound.js";
-
-// ── Built-in tool-surface registration (shared by startup + reload) ──
-// The single place every built-in <module>.register(...) call is enumerated,
-// plus the discover_tools group system. Pure delegation — no state. Callers
-// (composition root + the config-reload path) supply server/bridge and the
-// live registration inputs (moduleAllowed / readOnly).
 
 /** Register every built-in tool module onto the server (scene, node, script, … sound — 23 modules). */
 export function registerBuiltinModules(server: McpServer, bridge: Bridge, moduleAllowed: Set<string>): void {

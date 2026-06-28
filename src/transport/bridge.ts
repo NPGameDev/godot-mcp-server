@@ -1,3 +1,18 @@
+/**
+ * Transport bridge — the editor-side WebSocket facade the whole server calls
+ * through. {@link createBridge} returns the single {@link Bridge} the tool layer
+ * uses to reach the running Godot editor (and, lazily, the playtest runtime): it
+ * owns the auth handshake, the connected-version lifecycle, editor-port
+ * re-discovery on disconnect, and delegation of the runtime channel.
+ *
+ * @remarks
+ * The bridge is the reference implementation of the project's async discipline —
+ * every call it forwards is timeout-bounded and cancellation-aware. Project-hash,
+ * token path, and WS framing are cross-repo contract with the toolkit; changing
+ * them is a ledgered change, not a free refactor.
+ *
+ * @module
+ */
 import { Bridge, NotificationHandler } from "../shared/types.js";
 import { BridgeError } from "../shared/errors.js";
 import { createChannel, type Channel } from "./channel.js";
@@ -6,12 +21,12 @@ import { parseGodotVer } from "../shared/version.js";
 import type { GodotVer } from "../shared/version.js";
 import { lookupProject } from "../registry.js";
 
-// `NotificationHandler` now lives in types.ts; re-export it so the public bridge
-// surface is byte-stable (importers keep getting it from "./bridge.js").
+// Re-exported from types.ts so the public bridge surface stays byte-stable for
+// importers of "./bridge.js".
 export type { NotificationHandler } from "../shared/types.js";
 
-// `AuthResponse` now lives in auth_handshake.ts; re-export it so the public
-// bridge surface is byte-stable (importers keep getting it from "./bridge.js").
+// Re-exported from auth_handshake.ts so the public bridge surface stays
+// byte-stable for importers of "./bridge.js".
 export type { AuthResponse } from "./authHandshake.js";
 
 // ── Public bridge factory ────────────────────────────────────────────
@@ -32,6 +47,20 @@ export interface BridgeOptions {
   wsBufferLimitBytes?: number;
 }
 
+/**
+ * Build the bridge for one Godot project. Connection is lazy — the first
+ * {@link Bridge.call} performs the WebSocket connect + auth handshake; the runtime
+ * channel connects on demand when a playtest is discovered.
+ *
+ * @param editorUrl - the editor WebSocket URL (`ws://127.0.0.1:<port>`); the port
+ *   is re-discovered from the registry on disconnect unless `explicitEditorPort` is set
+ * @param opts - see {@link BridgeOptions}: project path for registry discovery,
+ *   static-port overrides, and the response/buffer caps pushed to the plugin after auth
+ * @returns the {@link Bridge}, augmented with `onNotification` (unsolicited plugin
+ *   pushes) and `onGodotVersionKnown` (fires once on the unknown → known version
+ *   transition, so the composition root can complete a tool surface registered
+ *   before the editor reported its version)
+ */
 export function createBridge(
   editorUrl: string,
   opts?: BridgeOptions,

@@ -1,8 +1,11 @@
 /**
- * Pure type definitions for the Godot MCP server.
- * Runtime implementation lives in the registration/dispatch modules —
- * registerTools in tool_registry.ts, callAndWrap in tool_dispatch.ts, the
- * error utilities in error_contract.ts — import from there for runtime functions.
+ * Pure type definitions for the Godot MCP server — the leaf type module the
+ * runtime graph depends on but which names no runtime symbol itself, so nothing
+ * ever cycles back through it. The core wire / {@link Bridge} / {@link ErrorCode}
+ * contracts are defined here; the functions that implement them live in the
+ * registration, dispatch, and transport modules.
+ *
+ * @module
  */
 import type { ZodRawShape } from "zod";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
@@ -10,6 +13,11 @@ import type { GodotVer } from "./version.js";
 
 // ── Bridge interface ─────────────────────────────────────────────────
 
+/**
+ * The transport facade the whole tool layer calls through — one connected Godot
+ * editor channel plus the lazy playtest-runtime channel. Built by `createBridge`
+ * (transport/bridge.ts); tool modules receive it and never touch sockets directly.
+ */
 export interface Bridge {
   call(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
   callRuntime(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
@@ -35,13 +43,13 @@ export type NotificationHandler = (type: string, params?: Record<string, unknown
 
 // ── Error codes ──────────────────────────────────────────────────────
 
-// Canonical list of MCP tool-error codes (UPPER_SNAKE_CASE). Keep in sync
-// with MCP_ERROR_CODES in mcp_server.gd + mcp_runtime_server.gd
-// (toolkit-repo) and the reference table in CLAUDE.md. New codes require
-// updates to BOTH sides (plugin emits them; bridge/tools may pass through
-// additional transport-level codes — CLOSED, NO_RUNTIME_URL, RPC_ERROR,
-// SEND_FAILED — which originate in bridge.ts and never travel through the
-// plugin).
+/**
+ * Canonical MCP tool-error codes (UPPER_SNAKE_CASE) — the cross-repo error
+ * contract. Must stay in sync with `MCP_ERROR_CODES` in the toolkit
+ * (`mcp_server.gd` + `mcp_runtime_server.gd`): a new plugin-emitted code touches
+ * both repos. The transport-level codes (`CLOSED`, `NO_RUNTIME_URL`, `RPC_ERROR`,
+ * `SEND_FAILED`) originate in the bridge and never travel through the plugin.
+ */
 export type ErrorCode =
   | "ALREADY_EXISTS"
   | "ALREADY_PLAYING"
@@ -115,6 +123,11 @@ export type PathGuard = { param: string; guard: "project" | "user" } | { param: 
 
 export type { ToolAnnotations };
 
+/**
+ * One built-in tool's static definition — the catalogue entry the registration
+ * layer turns into a live MCP tool. The catalogue is the SSOT; every field here
+ * is consumed at registration time.
+ */
 export type ToolDef = {
   name: string;
   method: string;
@@ -133,6 +146,7 @@ export type ToolDef = {
   pathParams?: readonly PathGuard[];
 };
 
+/** An MCP tool response — one or more text blocks; `isError` marks a tool-level failure. */
 export type ToolTextResult = {
   content: { type: "text"; text: string }[];
   isError?: true;

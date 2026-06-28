@@ -1,6 +1,11 @@
 /**
  * Lazy-load tool groups — specialized workflows loaded on demand via
- * discover_tools. 27 groups, 72 group tools (live: godot-mcp-server --tools-count).
+ * `discover_tools` rather than advertised eagerly (28 groups, 75 group tools;
+ * `godot-mcp-server --tools-count` is the live source of truth). This module owns
+ * the `discover_tools` meta-tool: keyword/name matching, group activation and
+ * deactivation, and the response enrichment that surfaces the activated surface.
+ *
+ * @module
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";

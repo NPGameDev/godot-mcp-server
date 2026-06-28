@@ -1,10 +1,17 @@
 /**
- * Tool registry — install tools through one wrapped, pre-flighted path
- * (version-gate, path-guard, hook-pipeline) and register them with the MCP
- * server. The per-call dispatch primitive lives in tool_dispatch.ts, error
- * shaping in error_contract.ts, input coercion in schema_coercion.ts.
- * Originally split from types.ts to keep pure type definitions free of
- * registration logic (Interface Segregation).
+ * Tool registry — the one wrapped, pre-flighted path for installing tools onto
+ * the MCP server. Every built-in and extension tool registers through
+ * {@link registerToolWrapped} (or the bulk {@link registerTools}), which layers
+ * version-gating, syntactic path-guarding, hook-pipeline wrapping, LLM string
+ * coercion, and tool-ref tracking around the SDK's raw `server.registerTool`.
+ * Registering with the SDK directly silently drops every one of those guarantees.
+ *
+ * @remarks
+ * Per-call dispatch, error shaping, and JSON-Schema → Zod coercion live in sibling
+ * modules under `registration/` and `shared/`; this module owns only the
+ * registration choke point and its two pre-flight maps (version bounds + path guards).
+ *
+ * @module
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { isReadOnly, isExcludedByReadOnly } from "../security/profiles.js";
@@ -18,12 +25,22 @@ import { callAndWrap, injectSuccessHint } from "./toolDispatch.js";
 
 // ── Registration helpers ────────────────────────────────────────────
 
+/**
+ * Structural shape of a hook pipeline accepted by the registration functions —
+ * anything that can `execute(req, next)`. The concrete pipeline is built by the
+ * startup hooks module; this internal alias keeps the registration surface
+ * decoupled from that construction.
+ * @internal
+ */
 type HookPipeline = { execute: (req: ToolRequest, next: () => Promise<ToolTextResult>) => Promise<ToolTextResult> };
 
 /** Global hook pipeline — set once at startup via setGlobalHookPipeline. */
 let globalHookPipeline: HookPipeline | undefined = undefined;
 
-/** Set the global hook pipeline. Called once at server startup. */
+/**
+ * Set the global hook pipeline. Called once at server startup.
+ * @internal
+ */
 export function setGlobalHookPipeline(pipeline: HookPipeline): void {
   globalHookPipeline = pipeline;
 }
@@ -38,6 +55,7 @@ const versionMap = new Map<string, { min?: string; max?: string }>();
  * schema description. The gate guarantees at least one bound is set, so the
  * final return covers the max-only case. The "–" between bounds is an en-dash
  * (U+2013).
+ * @internal
  */
 export function versionSupportText(min?: string, max?: string): string {
   if (min && max) return `Supported on Godot ${min}–${max} (inclusive).`;
@@ -70,9 +88,37 @@ export function batchToolRegistration(server: McpServer, fn: () => void): void {
 }
 
 /**
- * Register a tool with version-gating, hook pipeline wrapping, and
- * tool-ref tracking. All tool registrations should use this instead of
- * server.registerTool directly.
+ * Register one tool through the wrapped, pre-flighted path — the **only**
+ * sanctioned way to install a tool. Wraps the SDK handler with a runtime version
+ * gate, a syntactic path pre-filter, and the hook pipeline, then records the tool
+ * ref for later lookup and in-place description refresh.
+ *
+ * @param name - the tool's MCP wire name (what the client calls)
+ * @param config - the SDK tool config (description, `inputSchema`, annotations);
+ *   raw JSON-Schema from extensions is converted to Zod, and string coercion is
+ *   added so agents may pass JSON-encoded scalars for array/object/number params
+ * @param handler - the dispatch function invoked on a call, after every pre-flight check passes
+ * @param opts - version bounds, an explicit hook pipeline (falls back to the
+ *   global one), and path-guard declarations to pre-filter before the bridge round-trip
+ *
+ * @remarks
+ * Version-gated tools are filtered out at registration when the connected Godot
+ * version is known and incompatible, and **skipped** when the version is not yet
+ * known — the startup reconcile re-runs registration once it resolves. A second,
+ * defence-in-depth version check runs per call to catch a reconnect to a different
+ * Godot version.
+ *
+ * @example
+ * ```ts
+ * registerToolWrapped(
+ *   server,
+ *   bridge,
+ *   "my_tool",
+ *   { description: "…", inputSchema: { path: z.string() } },
+ *   (input) => handleMyTool(bridge, input),
+ *   { godotMinVersion: "4.5", pathParams: [{ param: "path", guard: "project" }] },
+ * );
+ * ```
  */
 export function registerToolWrapped(
   server: McpServer,
@@ -177,12 +223,20 @@ export function registerToolWrapped(
 }
 
 /**
- * Register an array of tool definitions with the standard callAndWrap
- * handler. Used by tool modules whose tools all follow the default
- * "call bridge, JSON-stringify result" pattern.
+ * Bulk-register an array of {@link ToolDef}s, each through
+ * {@link registerToolWrapped}. The default handler calls the bridge and
+ * JSON-stringifies the result — the path most built-in tool modules follow.
  *
- * Supports optional per-tool handler overrides for modules that have
- * custom response processing (screenshots, summary-first, etc.).
+ * @param tools - the tool definitions to register (catalogue order preserved)
+ * @param allowedTools - when set, an allowlist: a tool absent from the set is
+ *   skipped (the per-module surface filter); omit to register every tool
+ * @param opts - `handlers` supplies per-tool overrides for modules with custom
+ *   response shaping (screenshots, summary-first) — these still get `successHint`
+ *   injection; `hookPipeline` overrides the global pipeline
+ *
+ * @remarks
+ * In read-only mode, tools excluded by their annotations are skipped here — the
+ * same gate the live SDK surface enforces.
  */
 export function registerTools(
   server: McpServer,

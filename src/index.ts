@@ -1,4 +1,19 @@
 #!/usr/bin/env node
+/**
+ * Composition root + CLI entry (the npm `bin`). Constructs and wires the whole
+ * server in dependency order — bridge, MCP server, hook pipeline, the built-in
+ * tool surface, groups, prompts/resources/roots, the extension manager, and the
+ * config/version reconciler — then connects the stdio transport LAST so nothing is
+ * advertised before its guards are in place.
+ *
+ * @remarks
+ * Owns sequencing and wiring only — no domain logic (that lives in the modules it
+ * composes). The ordering is load-bearing: preflight may `process.exit` (Node
+ * version check, `--tools-count`); the transport connects only after the full tool
+ * surface and the notification router are ready.
+ *
+ * @module
+ */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 

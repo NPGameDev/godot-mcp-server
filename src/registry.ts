@@ -1,8 +1,12 @@
 /**
  * System-wide project registry reader.
  *
- * Mirrors the GDScript `registry_client.gd` — same file, same schema, same
- * path normalisation. The plugin writes; this module reads.
+ * Mirrors the GDScript `registry_client.gd` — same file, same schema, same path
+ * normalisation. The plugin writes; this module reads. Resolves a project's
+ * editor / runtime / LSP endpoints by absolute path, and optionally watches the
+ * registry file so runtime-port changes push to the bridge without per-RPC I/O.
+ *
+ * @module
  */
 
 import { readFileSync, watch, statSync } from "node:fs";
@@ -12,6 +16,11 @@ import { homedir } from "node:os";
 
 // -- Types -------------------------------------------------------------------
 
+/**
+ * One project's registry record, as written by the toolkit. Snake_case fields
+ * mirror the GDScript schema verbatim — this module reads the file the plugin
+ * owns, so the shapes must match byte-for-byte.
+ */
 export interface RegistryEntry {
   port: number;
   token_path: string;

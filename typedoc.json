@@ -7,6 +7,8 @@
     "src/registry.ts",
     "src/extensions/extensions.ts",
     "src/groups/groups.ts",
+    "src/groups/groupTypes.ts",
+    "src/lsp/lspClient.ts",
     "src/lsp/lspSession.ts",
     "src/mcp/prompts.ts",
     "src/mcp/resources.ts",
@@ -14,11 +16,13 @@
     "src/registration/toolRegistry.ts",
     "src/security/pathGuard.ts",
     "src/shared/types.ts",
+    "src/shared/version.ts",
     "src/startup/registrars.ts",
     "src/transport/bridge.ts"
   ],
   "out": "docs/api",
   "readme": "none",
   "excludeInternal": true,
+  "intentionallyNotExported": ["src/registration/toolRegistry.ts:HookPipeline"],
   "tsconfig": "tsconfig.json"
 }

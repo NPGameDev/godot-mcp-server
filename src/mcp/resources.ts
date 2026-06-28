@@ -1,13 +1,20 @@
 /**
  * MCP Resources registration.
  *
- * Exposes Godot project artifacts as URI-addressable resources that
- * the MCP client can list, fetch, and reference in conversation. Resources are
+ * Exposes Godot project artifacts as URI-addressable resources that the MCP
+ * client can list, fetch, and reference in conversation. Resources are
  * complementary to tools — reads vs actions.
+ *
+ * @module
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Bridge } from "../shared/types.js";
 
+/**
+ * Register the read-only Godot resources (`godot://scene/{path}`,
+ * `godot://script/{path}`, `godot://project/info`) on the server. Each fetches
+ * live state over the bridge and degrades to an error payload if the call fails.
+ */
 export function registerResources(server: McpServer, bridge: Bridge): void {
   // ── godot://scene/{path} ─────────────────────────────────────────────
   // Returns the scene tree snapshot for the given scene file path.

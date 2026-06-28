@@ -3,7 +3,9 @@
  * The endpoint is discovered PER PROJECT from the registry at connect time
  * (GODOT_MCP_LSP_PORT/_HOST override it); a collision fails visibly rather than
  * silently reaching the wrong editor. See ADR 0008 (toolkit). Lazy connection —
- * first request triggers connect + initialize handshake.
+ * the first request triggers connect + the initialize handshake.
+ *
+ * @module
  */
 import { createConnection, type Socket } from "node:net";
 
@@ -29,6 +31,7 @@ const ROOT_MISMATCH_SUBSTRING = "might not work correctly with other projects";
 // port when the other editor closes; 4.2-4.4 has no LSP bind retry, so it needs
 // distinct ports. Giving the LLM only the applicable path keeps the hint actionable.
 let godotVersionGetter: (() => GodotVer | undefined) | undefined = undefined;
+/** Inject the connected-version getter that tailors the conflict hint (startup wiring). @internal */
 export function setGodotVersionGetter(cb: () => GodotVer | undefined): void {
   godotVersionGetter = cb;
 }
@@ -76,6 +79,7 @@ export class LspResolutionError extends Error {
   }
 }
 
+/** A resolved GDScript-LSP endpoint — the host and port a connect will target. */
 export type LspEndpoint = { host: string; port: number };
 
 /**
@@ -119,6 +123,11 @@ export function resolveLspEndpoint(projectPath: string): LspEndpoint {
   );
 }
 
+/**
+ * The dock-facing LSP verdict for a project: whether this editor owns the LSP
+ * port (`active`), a live peer holds it (`conflict`), or it is unreachable
+ * (`unavailable`), with the endpoint and a human-readable detail.
+ */
 export type LspStatus = {
   state: "active" | "conflict" | "unavailable";
   host: string;
@@ -179,6 +188,7 @@ type Pending = {
   timer: NodeJS.Timeout;
 };
 
+/** One LSP diagnostic, flattened to 0-based line/character plus severity, message, and optional code. */
 export type DiagnosticEntry = {
   line: number;
   character: number;
