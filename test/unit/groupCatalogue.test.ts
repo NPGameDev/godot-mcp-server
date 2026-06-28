@@ -2,7 +2,7 @@
  * Unit tests for group_catalogue.ts — the pure-data leaf carved out of groups.ts
  * (concern 077, C0). Asserts the static catalogue's derived invariants against
  * the live GROUPS literal and the canonical ALL_TOOL_DEFS:
- *   1. GROUPS shape (exactly 28 entries, names unique).
+ *   1. GROUPS shape (exactly 28 entries, names unique, no tool in two groups).
  *   2. allDefs name→def lookup round-trips + covers every group tool.
  *   3. GROUP_TOOL_NAMES is the de-duped union of every group's tools.
  *   4. RUNTIME_TOOLS / LSP_TOOLS hold their exact members, all catalogue-resolvable.
@@ -25,6 +25,20 @@ import { ALL_TOOL_DEFS } from "../../src/registration/catalogue.js";
   assert.equal(GROUPS.length, 28, "GROUPS has exactly 28 entries");
   const names = GROUPS.map((g) => g.name);
   assert.equal(new Set(names).size, names.length, "group names are unique (no duplicate group)");
+}
+
+// ── Block 1b — cross-group tool-uniqueness (no tool in two groups) ───
+
+{
+  // Each tool belongs to exactly one group (no cross-group duplication).
+  const seen = new Map<string, string>();
+  for (const g of GROUPS) {
+    for (const t of g.tools) {
+      const prior = seen.get(t);
+      assert.equal(prior, undefined, `tool "${t}" in both "${prior}" and "${g.name}"`);
+      seen.set(t, g.name);
+    }
+  }
 }
 
 // ── Block 2 — allDefs lookup round-trip ──────────────────────────────

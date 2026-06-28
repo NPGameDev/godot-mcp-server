@@ -6,7 +6,7 @@
  * is malformed, these assertions fail independently of group_catalogue.ts.
  *   1. GROUPS assembles exactly 28 entries, with unique names.
  *   2. Every assembled name is a canonical GroupName (∈ GROUP_NAMES).
- *   3. Every entry has the GroupDef shape (non-empty name/description/tools).
+ *   3. Every entry has the GroupDef shape (non-empty name/description/tools/keywords).
  *   4. GROUPS assembles in the canonical PINNED order, and GROUP_NAMES (derived
  *      from GROUPS in concern 094, C2) matches it element-for-element.
  */
@@ -48,6 +48,7 @@ import { GROUP_NAMES } from "../../src/groups/groupCatalogue.js";
     );
     assert.ok(Array.isArray(g.tools) && g.tools.length > 0, `${g.name}: tools must be a non-empty array`);
     assert.ok(Array.isArray(g.keywords), `${g.name}: keywords must be an array`);
+    assert.ok(g.keywords.length > 0, `group ${g.name}: keywords non-empty`);
   }
 }
 

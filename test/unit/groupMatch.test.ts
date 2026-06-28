@@ -3,7 +3,8 @@
  * discover_tools' fuzzy search (concern 077, C2). Six blocks:
  *   1. matchKeywords weights (+3 exact / +2 contains / +1 contained len>=3),
  *      observed through findMatchesSingle on an isolated extension group.
- *   2. findMatchesSingle built-in scoring ("tilemap") + the recall-biased
+ *   2. findMatchesSingle built-in scoring ("tilemap") + built-in tool-name-token
+ *      discoverability ("input map action" → input_map) + the recall-biased
  *      dominant-match prune (keep top-1 + exact + >= score*0.5).
  *   3. Extension-group scoring + the read-only tool filter (mutation tools do
  *      not inflate the match).
@@ -85,6 +86,18 @@ clearExtensionGroups();
   assert.ok(tm.length > 0, "tilemap → at least one match");
   assert.equal(tm[0].name, "tilemap", "tilemap → top match is the tilemap group");
   assert.ok(tm[0].score >= 3, "tilemap exact keyword scores >= 3");
+
+  // Tool-name-derived phrase surfaces the input_map group.
+  const im = findMatchesSingle("input map action", false);
+  assert.ok(
+    im.some((m) => m.name === "input_map"),
+    "input map action → input_map group present",
+  );
+
+  // matches[0] holds the maximum score.
+  for (const m of im) {
+    assert.ok(m.score <= im[0].score, "top score is the maximum");
+  }
 
   // Dominant-match prune: three extension groups, controlled scores for query
   // "ztopkey" → top=3 (exact), keep=2 (>= 0.5*3 = 1.5), drop=1 (< 1.5, not exact).
