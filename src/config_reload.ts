@@ -10,10 +10,10 @@ import { join } from "node:path";
 
 /**
  * Read .mcp.json from the project root and return the env vars
- * for the godot-mcp-toolkit server entry.  Returns null on any failure
+ * for the godot-mcp-toolkit server entry.  Returns undefined on any failure
  * (missing file, parse error, no matching server key).
  */
-export function readMcpJsonEnv(projectPath: string): Record<string, string> | null {
+export function readMcpJsonEnv(projectPath: string): Record<string, string> | undefined {
   try {
     const mcpJsonPath = join(projectPath, ".mcp.json");
     const raw = readFileSync(mcpJsonPath, "utf-8");
@@ -21,7 +21,7 @@ export function readMcpJsonEnv(projectPath: string): Record<string, string> | nu
       mcpServers?: Record<string, { env?: Record<string, string> }>;
     };
     const servers = parsed?.mcpServers;
-    if (!servers) return null;
+    if (!servers) return undefined;
 
     // Find our server entry (mirrors mcp_json_sync.gd._find_server_key).
     let serverEntry = servers["godot-mcp-toolkit"];
@@ -33,10 +33,10 @@ export function readMcpJsonEnv(projectPath: string): Record<string, string> | nu
         }
       }
     }
-    if (!serverEntry?.env) return null;
+    if (!serverEntry?.env) return undefined;
     return serverEntry.env;
   } catch {
-    return null;
+    return undefined;
   }
 }
 

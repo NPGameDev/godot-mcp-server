@@ -208,7 +208,7 @@ export async function testExtensionLifecycle(ctx: TestCtx): Promise<void> {
       const updMethods = methodsOf(refreshUpdate);
       const hasMultiply = updMethods.includes("flow_ext.multiply");
 
-      if (godotVer !== null && isVersionAtLeast(godotVer, "4.3")) {
+      if (godotVer != null && isVersionAtLeast(godotVer, "4.3")) {
         // 4.3+: edit applied live; multiply present + callable.
         if (!hasMultiply) {
           fail(

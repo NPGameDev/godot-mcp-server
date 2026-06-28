@@ -61,8 +61,8 @@ export function loggingHook(): Hook {
  * Rate-limit hook — rejects calls that exceed `maxPerWindow` within
  * `windowMs`. Disabled when `maxPerWindow` is 0 (default).
  */
-export function rateLimitHook(maxPerWindow: number = 0, windowMs: number = 60_000): Hook | null {
-  if (maxPerWindow <= 0) return null;
+export function rateLimitHook(maxPerWindow: number = 0, windowMs: number = 60_000): Hook | undefined {
+  if (maxPerWindow <= 0) return undefined;
   const timestamps: number[] = [];
   return async (_req, next) => {
     const now = Date.now();

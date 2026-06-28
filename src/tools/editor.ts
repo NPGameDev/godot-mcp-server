@@ -202,7 +202,7 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
 
 // ── Registration ─────────────────────────────────────────────────────
 
-export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
   handlers.set("editor_get_console", (input) => consoleSummaryHandler(bridge, "editor.get_console", input));
   // Screenshot handler returns image+text multi-content; cast to ToolTextResult
@@ -211,5 +211,5 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
     "editor_screenshot",
     (input) => screenshotHandler(bridge, "editor.screenshot", input) as Promise<ToolTextResult>,
   );
-  registerTools(server, bridge, editorTools, allowedTools ? allowedTools : null, { handlers });
+  registerTools(server, bridge, editorTools, allowedTools, { handlers });
 }

@@ -30,7 +30,7 @@ assert.equal(compareVersions("2.0.0", "1.0.0"), "major");
 assert.equal(compareVersions("1.5.3", "3.0.0"), "major");
 
 // Unknown — null, undefined, empty
-assert.equal(compareVersions("1.0.0", null), "unknown");
+assert.equal(compareVersions("1.0.0", undefined), "unknown");
 assert.equal(compareVersions("1.0.0", undefined), "unknown");
 assert.equal(compareVersions("1.0.0", ""), "unknown");
 
@@ -54,14 +54,14 @@ assert.ok(compareGodotVer([5, 0], [4, 6]) > 0);
 // ── isVersionCompatible tests ──────────────────────────────────────
 
 // min only
-assert.equal(isVersionCompatible([4, 4], "4.5", null), false);
-assert.equal(isVersionCompatible([4, 5], "4.5", null), true);
-assert.equal(isVersionCompatible([4, 6], "4.5", null), true);
+assert.equal(isVersionCompatible([4, 4], "4.5", undefined), false);
+assert.equal(isVersionCompatible([4, 5], "4.5", undefined), true);
+assert.equal(isVersionCompatible([4, 6], "4.5", undefined), true);
 
 // max only
-assert.equal(isVersionCompatible([4, 5], null, "4.4"), false);
-assert.equal(isVersionCompatible([4, 4], null, "4.4"), true);
-assert.equal(isVersionCompatible([4, 3], null, "4.4"), true);
+assert.equal(isVersionCompatible([4, 5], undefined, "4.4"), false);
+assert.equal(isVersionCompatible([4, 4], undefined, "4.4"), true);
+assert.equal(isVersionCompatible([4, 3], undefined, "4.4"), true);
 
 // both min and max
 assert.equal(isVersionCompatible([4, 3], "4.2", "4.4"), true);
@@ -71,22 +71,22 @@ assert.equal(isVersionCompatible([4, 2], "4.2", "4.4"), true);
 assert.equal(isVersionCompatible([4, 4], "4.2", "4.4"), true);
 
 // no bounds
-assert.equal(isVersionCompatible([4, 5], null, null), true);
-assert.equal(isVersionCompatible([3, 0], null, null), true);
+assert.equal(isVersionCompatible([4, 5], undefined, undefined), true);
+assert.equal(isVersionCompatible([3, 0], undefined, undefined), true);
 
 // ── Godot 5.x compatibility ──────────────────────────────────────────
 
 // 5.x satisfies a 4.x minimum (5.0 >= 4.5)
-assert.equal(isVersionCompatible([5, 0], "4.5", null), true);
-assert.equal(isVersionCompatible([5, 2], "4.2", null), true);
+assert.equal(isVersionCompatible([5, 0], "4.5", undefined), true);
+assert.equal(isVersionCompatible([5, 2], "4.2", undefined), true);
 
 // 5.x exceeds a 4.x maximum (5.0 > 4.4)
-assert.equal(isVersionCompatible([5, 0], null, "4.4"), false);
-assert.equal(isVersionCompatible([5, 1], null, "4.6"), false);
+assert.equal(isVersionCompatible([5, 0], undefined, "4.4"), false);
+assert.equal(isVersionCompatible([5, 1], undefined, "4.6"), false);
 
 // 5.x within 5.x range
-assert.equal(isVersionCompatible([5, 0], "5.0", null), true);
-assert.equal(isVersionCompatible([5, 0], "5.1", null), false);
+assert.equal(isVersionCompatible([5, 0], "5.0", undefined), true);
+assert.equal(isVersionCompatible([5, 0], "5.1", undefined), false);
 assert.equal(isVersionCompatible([5, 2], "5.0", "5.3"), true);
 assert.equal(isVersionCompatible([5, 2], "5.0", "5.1"), false);
 

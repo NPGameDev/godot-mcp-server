@@ -48,7 +48,7 @@ export function createReconciler(deps: {
 
   // Debounce config_reloaded to prevent rapid config changes from causing
   // overlapping remove+rebuild cycles that leave the tool list empty.
-  let configReloadTimer: ReturnType<typeof setTimeout> | null = null;
+  let configReloadTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   // One-shot latch for the startup reconcile (concern 071). Set by
   // armStartupReconcile, cleared on the first effective reconcile.
   let needsStartupReconcile = false;
@@ -91,7 +91,7 @@ export function createReconciler(deps: {
   function scheduleConfigReload(): void {
     if (configReloadTimer) clearTimeout(configReloadTimer);
     configReloadTimer = setTimeout(() => {
-      configReloadTimer = null;
+      configReloadTimer = undefined;
       handleConfigReload();
     }, 300);
   }

@@ -43,9 +43,9 @@ export function createBridge(
   onGodotVersionKnown(handler: () => void): void;
 } {
   const projectPath = opts?.projectPath;
-  let godotVersion: string | null = null;
-  let notificationHandler: NotificationHandler | null = null;
-  let versionKnownHandler: (() => void) | null = null;
+  let godotVersion: string | undefined = undefined;
+  let notificationHandler: NotificationHandler | undefined = undefined;
+  let versionKnownHandler: (() => void) | undefined = undefined;
 
   // Record the connected Godot version. Fires the version-resolved hook on the
   // unknown → known transition (and only then) so the composition root can
@@ -167,8 +167,8 @@ export function createBridge(
     getGodotVersionString() {
       return godotVersion;
     },
-    getGodotVersion(): GodotVer | null {
-      if (!godotVersion) return null;
+    getGodotVersion(): GodotVer | undefined {
+      if (!godotVersion) return undefined;
       return parseGodotVer(godotVersion);
     },
     waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | null> {

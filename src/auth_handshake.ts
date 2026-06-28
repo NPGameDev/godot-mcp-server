@@ -21,8 +21,8 @@ const AUTH_TIMEOUT_MS = 5_000;
 
 /** Parsed auth response from the Godot plugin. */
 export interface AuthResponse {
-  godotVersion: string | null;
-  toolkitVersion: string | null;
+  godotVersion: string | undefined;
+  toolkitVersion: string | undefined;
 }
 
 /**
@@ -52,8 +52,8 @@ export function authenticate(ws: WebSocket, token: string): Promise<AuthResponse
         if (msg.authed === true) {
           cleanup();
           resolve({
-            godotVersion: msg.godot_version ?? null,
-            toolkitVersion: msg.version ?? null,
+            godotVersion: msg.godot_version,
+            toolkitVersion: msg.version,
           });
         }
       } catch {

@@ -320,7 +320,7 @@ assert.ok(
   "hint(4.4) → distinct-port (4.4 is pre-retry)",
 );
 
-setGodotVersionGetter(() => null);
+setGodotVersionGetter(() => undefined);
 {
   const h = conflictHint();
   assert.ok(
@@ -328,6 +328,6 @@ setGodotVersionGetter(() => null);
     "hint(unknown) → covers both version ranges",
   );
 }
-setGodotVersionGetter(() => null); // reset module-level state
+setGodotVersionGetter(() => undefined); // reset module-level state
 
 console.log("All discover_lsp tests passed.");

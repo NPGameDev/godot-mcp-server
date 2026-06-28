@@ -23,8 +23,8 @@ export const IMPORT_TIMEOUT = 15000;
  * tilemap branch so smoke sections exercise each version's native node type — the tilemap
  * tools handle both (41m-ter A1). Pass `bridge.getGodotVersion()`.
  */
-export function tilemapNodeClass(godotVer: GodotVer | null): "TileMapLayer" | "TileMap" {
-  return godotVer !== null && isVersionAtLeast(godotVer, "4.3") ? "TileMapLayer" : "TileMap";
+export function tilemapNodeClass(godotVer: GodotVer | undefined): "TileMapLayer" | "TileMap" {
+  return godotVer != null && isVersionAtLeast(godotVer, "4.3") ? "TileMapLayer" : "TileMap";
 }
 
 // ─── Bridge type alias ──────────────────────────────────────────────────

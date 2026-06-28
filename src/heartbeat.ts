@@ -55,7 +55,7 @@ export function createHeartbeat(opts: {
   const { ping, isAlive, onDead, intervalMs, maxFailures } = opts;
 
   // Closure state, constructed per primitive (no module-level mutable).
-  let interval: NodeJS.Timeout | null = null;
+  let interval: NodeJS.Timeout | undefined = undefined;
   let failures = 0;
 
   function start(): void {
@@ -83,7 +83,7 @@ export function createHeartbeat(opts: {
   function stop(): void {
     if (interval) {
       clearInterval(interval);
-      interval = null;
+      interval = undefined;
     }
     failures = 0;
   }

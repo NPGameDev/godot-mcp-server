@@ -32,10 +32,10 @@ export function toolError(code: ErrorCode | string, message: string, hint?: stri
  * (including idempotent create returns) have success absent or
  * truthy and pass through unchanged.
  */
-export function toolErrorFromPayload(result: unknown): ToolTextResult | null {
-  if (!result || typeof result !== "object") return null;
+export function toolErrorFromPayload(result: unknown): ToolTextResult | undefined {
+  if (!result || typeof result !== "object") return undefined;
   const obj = result as { success?: unknown; code?: unknown; error?: unknown; hint?: unknown };
-  if (obj.success !== false) return null;
+  if (obj.success !== false) return undefined;
   const code = typeof obj.code === "string" ? obj.code : "INTERNAL";
   const error = typeof obj.error === "string" ? obj.error : "unknown error";
   const hint = typeof obj.hint === "string" ? obj.hint : undefined;

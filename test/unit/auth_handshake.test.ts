@@ -125,7 +125,7 @@ async function testResolvesMappedShape() {
         server.send(JSON.stringify({ authed: true })); // no godot_version, no version
       });
       const resp = await authenticate(client, "tok");
-      assert.deepEqual(resp, { godotVersion: null, toolkitVersion: null }, "missing fields → null");
+      assert.deepEqual(resp, { godotVersion: undefined, toolkitVersion: undefined }, "missing fields → undefined");
     } finally {
       await closeAll();
     }

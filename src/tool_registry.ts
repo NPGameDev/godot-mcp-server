@@ -21,7 +21,7 @@ import { callAndWrap, injectSuccessHint } from "./tool_dispatch.js";
 type HookPipeline = { execute: (req: ToolRequest, next: () => Promise<ToolTextResult>) => Promise<ToolTextResult> };
 
 /** Global hook pipeline — set once at startup via setGlobalHookPipeline. */
-let _globalHookPipeline: HookPipeline | null = null;
+let _globalHookPipeline: HookPipeline | undefined = undefined;
 
 /** Set the global hook pipeline. Called once at server startup. */
 export function setGlobalHookPipeline(pipeline: HookPipeline): void {
@@ -188,7 +188,7 @@ export function registerTools(
   server: McpServer,
   bridge: Bridge,
   tools: readonly ToolDef[],
-  allowedTools: Set<string> | null = null,
+  allowedTools?: Set<string>,
   opts: {
     handlers?: Map<string, (input: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolTextResult>>;
     hookPipeline?: HookPipeline;

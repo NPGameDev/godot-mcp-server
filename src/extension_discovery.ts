@@ -52,7 +52,7 @@ export function createExtensionDiscovery(deps: {
   // Single-flight latch for discoverExtensions (concern 071 follow-up). Holds the
   // currently-running discovery promise so a concurrent caller joins it instead of
   // starting a second pass.
-  let discoveryInFlight: Promise<void> | null = null;
+  let discoveryInFlight: Promise<void> | undefined = undefined;
 
   // Discover third-party extensions from the toolkit and register them as
   // MCP tools. Called eagerly before transport (deadline-wrapped) at startup,
@@ -86,7 +86,7 @@ export function createExtensionDiscovery(deps: {
     if (discoveryInFlight) return discoveryInFlight;
     const run = runDiscovery().finally(() => {
       // Clear only if still ours — a later pass may have replaced the latch.
-      if (discoveryInFlight === run) discoveryInFlight = null;
+      if (discoveryInFlight === run) discoveryInFlight = undefined;
     });
     discoveryInFlight = run;
     return run;

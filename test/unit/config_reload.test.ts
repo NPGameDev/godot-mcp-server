@@ -58,24 +58,24 @@ function writeMcpJson(projectPath: string, content: unknown): void {
   assert.deepEqual(env, { GODOT_MCP_PORT: "6550" });
 }
 
-// Missing .mcp.json file → null
+// Missing .mcp.json file → undefined
 {
   const dir = join(tmpDir, "missing-file");
   mkdirSync(dir, { recursive: true });
   const env = readMcpJsonEnv(dir);
-  assert.equal(env, null);
+  assert.equal(env, undefined);
 }
 
-// Missing mcpServers key → null
+// Missing mcpServers key → undefined
 {
   const dir = join(tmpDir, "no-servers");
   mkdirSync(dir, { recursive: true });
   writeMcpJson(dir, { someOtherKey: {} });
   const env = readMcpJsonEnv(dir);
-  assert.equal(env, null);
+  assert.equal(env, undefined);
 }
 
-// No matching server key → null
+// No matching server key → undefined
 {
   const dir = join(tmpDir, "no-match");
   mkdirSync(dir, { recursive: true });
@@ -85,10 +85,10 @@ function writeMcpJson(projectPath: string, content: unknown): void {
     },
   });
   const env = readMcpJsonEnv(dir);
-  assert.equal(env, null);
+  assert.equal(env, undefined);
 }
 
-// Server entry without env → null
+// Server entry without env → undefined
 {
   const dir = join(tmpDir, "no-env");
   mkdirSync(dir, { recursive: true });
@@ -98,16 +98,16 @@ function writeMcpJson(projectPath: string, content: unknown): void {
     },
   });
   const env = readMcpJsonEnv(dir);
-  assert.equal(env, null);
+  assert.equal(env, undefined);
 }
 
-// Malformed JSON → null (no crash)
+// Malformed JSON → undefined (no crash)
 {
   const dir = join(tmpDir, "malformed");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, ".mcp.json"), "not valid json {{{", "utf-8");
   const env = readMcpJsonEnv(dir);
-  assert.equal(env, null);
+  assert.equal(env, undefined);
 }
 
 // ── applyEnvUpdate tests ─────────────────────────────────────────────

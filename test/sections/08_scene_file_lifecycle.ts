@@ -194,7 +194,7 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
     code?: string;
     warnings?: string[];
   };
-  if (godotVer !== null && isVersionAtLeast(godotVer, "4.5")) {
+  if (godotVer != null && isVersionAtLeast(godotVer, "4.5")) {
     // 4.5+: tab auto-closed, file deleted.
     if (editedSceneDelete?.success !== true || editedSceneDelete.tab_closed !== true)
       fail(
@@ -221,7 +221,7 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   }
 
   // scene.close: non-active tab (4.5+ only — requires close_scene API).
-  if (godotVer !== null && isVersionAtLeast(godotVer, "4.5")) {
+  if (godotVer != null && isVersionAtLeast(godotVer, "4.5")) {
     const closeProbeA = "res://smoke_close_a.tscn";
     const closeProbeB = "res://smoke_close_b.tscn";
     try {

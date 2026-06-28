@@ -133,11 +133,11 @@ function makeReq(name = "test_tool"): ToolRequest {
 
 // ── rateLimitHook ────────────────────────────────────────────────────
 
-// maxPerWindow <= 0 → returns null (disabled)
+// maxPerWindow <= 0 → returns undefined (disabled)
 {
-  assert.equal(rateLimitHook(0), null);
-  assert.equal(rateLimitHook(-1), null);
-  assert.equal(rateLimitHook(), null); // default is 0
+  assert.equal(rateLimitHook(0), undefined);
+  assert.equal(rateLimitHook(-1), undefined);
+  assert.equal(rateLimitHook(), undefined); // default is 0
 }
 
 // Enforces limit within window
@@ -145,7 +145,7 @@ function makeReq(name = "test_tool"): ToolRequest {
   const clock = FakeTimers.install({ toFake: ["Date"] });
   try {
     const hook = rateLimitHook(2, 1000)!;
-    assert.ok(hook !== null);
+    assert.ok(hook != null);
 
     // First 2 calls succeed
     const r1 = await hook(makeReq(), async () => OK_RESULT);

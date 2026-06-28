@@ -51,6 +51,6 @@ export const resourceTools: ToolDef[] = [
 // toolkit (resource_commands.gd wraps the whole JSON.stringify(properties) in
 // one envelope). Do NOT re-wrap here: the wrapper scrubs inner envelope tags,
 // so double-wrapping corrupts the envelope. See ADR 0009 (toolkit).
-export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   registerTools(server, bridge, resourceTools, allowedTools);
 }

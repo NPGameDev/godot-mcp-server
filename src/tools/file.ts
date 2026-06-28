@@ -36,7 +36,7 @@ function fileDeleteHint(filePath: string): string | undefined {
   return undefined;
 }
 
-export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   const handlers = new Map<string, (input: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolTextResult>>();
   handlers.set("file_delete", async (input, signal) => {
     const filePath = typeof input.file_path === "string" ? input.file_path : "";

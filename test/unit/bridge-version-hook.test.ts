@@ -159,7 +159,7 @@ async function testFiresOnceOnTransition() {
 
   try {
     // No registry entry for this path → version genuinely unknown pre-auth.
-    assert.equal(bridge.getGodotVersion(), null, "version is unknown before auth");
+    assert.equal(bridge.getGodotVersion(), undefined, "version is unknown before auth");
 
     // Warmup forces connect + auth, which resolves the version → transition.
     await bridge.call("warmup", {}, 5000);

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-let cachedVersion: string | null = null;
+let cachedVersion: string | undefined = undefined;
 
 /** Read the server version from package.json. Cached after first call. */
 export function getServerVersion(): string {
@@ -51,7 +51,7 @@ export function isVersionAtMost(connected: GodotVer, max: string): boolean {
 }
 
 /** Check whether a connected Godot version falls within [min, max] bounds. */
-export function isVersionCompatible(connected: GodotVer, min?: string | null, max?: string | null): boolean {
+export function isVersionCompatible(connected: GodotVer, min?: string, max?: string): boolean {
   if (min != null && compareGodotVer(connected, parseGodotVer(min)) < 0) return false;
   if (max != null && compareGodotVer(connected, parseGodotVer(max)) > 0) return false;
   return true;
@@ -68,9 +68,9 @@ export type VersionSeverity = "ok" | "minor" | "major" | "unknown";
  *   "ok"      — versions match (all components equal)
  *   "minor"   — same major, different minor or patch
  *   "major"   — different major version
- *   "unknown" — remote is undefined/null/empty (pre-handshake peer)
+ *   "unknown" — remote is undefined/empty (pre-handshake peer)
  */
-export function compareVersions(local: string, remote: string | undefined | null): VersionSeverity {
+export function compareVersions(local: string, remote: string | undefined): VersionSeverity {
   if (remote == null || remote === "") return "unknown";
   const localParts = local.split(".").map(Number);
   const remoteParts = remote.split(".").map(Number);

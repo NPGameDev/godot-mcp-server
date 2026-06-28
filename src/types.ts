@@ -14,10 +14,10 @@ export interface Bridge {
   call(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
   callRuntime(method: string, params?: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<unknown>;
   close(): Promise<void>;
-  /** Godot version string from the plugin auth handshake (e.g. "4.5.2"), or null if not yet connected / older plugin. */
-  getGodotVersionString(): string | null;
-  /** Parsed Godot version as [major, minor] tuple from the registry or auth, or null if unknown. */
-  getGodotVersion(): GodotVer | null;
+  /** Godot version string from the plugin auth handshake (e.g. "4.5.2"), or undefined if not yet connected / older plugin. */
+  getGodotVersionString(): string | undefined;
+  /** Parsed Godot version as [major, minor] tuple from the registry or auth, or undefined if unknown. */
+  getGodotVersion(): GodotVer | undefined;
   /** Wait for a runtime port to appear in the registry (game_start async gap).
    *  Resolves with {port} on discovery, null on timeout. Optional — only
    *  available when the bridge was created with a projectPath and registry

@@ -35,7 +35,7 @@ export const playtestTools: ToolDef[] = [
   },
 ];
 
-export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
   handlers.set("game_start", async (input) => {
     const result = await callAndWrap(bridge, "game.start", input);
@@ -98,5 +98,5 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
     }
     return result;
   });
-  registerTools(server, bridge, playtestTools, allowedTools ? allowedTools : null, { handlers });
+  registerTools(server, bridge, playtestTools, allowedTools, { handlers });
 }

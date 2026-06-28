@@ -62,6 +62,6 @@ export const scriptTools: ToolDef[] = [
 // script_read content is already <untrusted>-wrapped at origin by the toolkit
 // (script_commands.gd). Do NOT re-wrap here: the wrapper scrubs inner envelope
 // tags, so double-wrapping corrupts the envelope. See ADR 0009 (toolkit).
-export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   registerTools(server, bridge, scriptTools, allowedTools);
 }

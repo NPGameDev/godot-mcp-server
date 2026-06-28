@@ -28,13 +28,13 @@ const ROOT_MISMATCH_SUBSTRING = "might not work correctly with other projects";
 // setGodotVersionGetter). The recovery differs by version: 4.5+ auto-rebinds the
 // port when the other editor closes; 4.2-4.4 has no LSP bind retry, so it needs
 // distinct ports. Giving the LLM only the applicable path keeps the hint actionable.
-let _godotVersionGetter: (() => GodotVer | null) | null = null;
-export function setGodotVersionGetter(cb: () => GodotVer | null): void {
+let _godotVersionGetter: (() => GodotVer | undefined) | undefined = undefined;
+export function setGodotVersionGetter(cb: () => GodotVer | undefined): void {
   _godotVersionGetter = cb;
 }
 
 function lspConflictHint(): string {
-  const v = _godotVersionGetter?.() ?? null;
+  const v = _godotVersionGetter?.();
   if (v != null && isVersionAtLeast(v, "4.5")) {
     return (
       "Another editor holds this project's GDScript LSP port. Close the other editor — " +
@@ -190,12 +190,12 @@ export type DiagnosticEntry = {
 // ── LspClient ────────────────────────────────────────────────────────
 
 export class LspClient {
-  private socket: Socket | null = null;
+  private socket: Socket | undefined = undefined;
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private buffer = "";
   private initialized = false;
-  private connecting: Promise<void> | null = null;
+  private connecting: Promise<void> | undefined = undefined;
   private host = "127.0.0.1";
   private port = DEFAULT_LSP_PORT;
   private readonly projectPath: string;
@@ -230,7 +230,7 @@ export class LspClient {
     try {
       await this.connecting;
     } finally {
-      this.connecting = null;
+      this.connecting = undefined;
     }
   }
 
@@ -527,7 +527,7 @@ export class LspClient {
   private cleanup(): void {
     if (this.socket) {
       this.socket.destroy();
-      this.socket = null;
+      this.socket = undefined;
     }
     this.initialized = false;
     this.openDocuments.clear();

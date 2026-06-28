@@ -51,7 +51,7 @@ import type { Bridge, PathGuard, ToolTextResult } from "../../src/types.js";
 // success: false → error response
 {
   const result = toolErrorFromPayload({ success: false, error: "bad", code: "INVALID_PARAMS" });
-  assert.ok(result !== null);
+  assert.ok(result != null);
   assert.equal(result!.isError, true);
   const payload = JSON.parse(result!.content[0].text);
   assert.equal(payload.code, "INVALID_PARAMS");
@@ -61,33 +61,33 @@ import type { Bridge, PathGuard, ToolTextResult } from "../../src/types.js";
 // success: false with hint
 {
   const result = toolErrorFromPayload({ success: false, error: "bad", code: "X", hint: "try this" });
-  assert.ok(result !== null);
+  assert.ok(result != null);
   const payload = JSON.parse(result!.content[0].text);
   assert.equal(payload.hint, "try this");
 }
 
-// success: true → null (pass-through)
+// success: true → undefined (pass-through)
 {
   const result = toolErrorFromPayload({ success: true, data: "ok" });
-  assert.equal(result, null);
+  assert.equal(result, undefined);
 }
 
-// success absent → null (pass-through for normal results)
+// success absent → undefined (pass-through for normal results)
 {
   const result = toolErrorFromPayload({ data: "ok" });
-  assert.equal(result, null);
+  assert.equal(result, undefined);
 }
 
-// null / non-object → null
-assert.equal(toolErrorFromPayload(null), null);
-assert.equal(toolErrorFromPayload(undefined), null);
-assert.equal(toolErrorFromPayload("string"), null);
-assert.equal(toolErrorFromPayload(42), null);
+// null / non-object → undefined
+assert.equal(toolErrorFromPayload(null), undefined);
+assert.equal(toolErrorFromPayload(undefined), undefined);
+assert.equal(toolErrorFromPayload("string"), undefined);
+assert.equal(toolErrorFromPayload(42), undefined);
 
 // Missing code defaults to "INTERNAL"
 {
   const result = toolErrorFromPayload({ success: false, error: "oops" });
-  assert.ok(result !== null);
+  assert.ok(result != null);
   const payload = JSON.parse(result!.content[0].text);
   assert.equal(payload.code, "INTERNAL");
 }
@@ -95,7 +95,7 @@ assert.equal(toolErrorFromPayload(42), null);
 // Missing error defaults to "unknown error"
 {
   const result = toolErrorFromPayload({ success: false });
-  assert.ok(result !== null);
+  assert.ok(result != null);
   const payload = JSON.parse(result!.content[0].text);
   assert.equal(payload.error, "unknown error");
 }
@@ -103,7 +103,7 @@ assert.equal(toolErrorFromPayload(42), null);
 // Non-string code/error types handled gracefully
 {
   const result = toolErrorFromPayload({ success: false, code: 123, error: true });
-  assert.ok(result !== null);
+  assert.ok(result != null);
   const payload = JSON.parse(result!.content[0].text);
   assert.equal(payload.code, "INTERNAL");
   assert.equal(payload.error, "unknown error");

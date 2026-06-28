@@ -329,7 +329,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   // every version. (Runtime output IS captured on 4.2+ — see the level_filter=warning and
   // source=file shape checks above.) Empirically confirmed on 4.2: source=file count=0.
   const godotVer = bridge.getGodotVersion();
-  const parseErrorsCaptured = godotVer !== null && isVersionAtLeast(godotVer, "4.5");
+  const parseErrorsCaptured = godotVer != null && isVersionAtLeast(godotVer, "4.5");
 
   if (parseErrorsCaptured) {
     // 2. Plain-text keyword match — only "hit" entries returned.
@@ -532,7 +532,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     /* noop */
   }
   // scene.close is 4.5+ only (unregistered on <4.5 → -32601); guard the cleanup (Q2).
-  if (godotVer !== null && isVersionAtLeast(godotVer, "4.5")) {
+  if (godotVer != null && isVersionAtLeast(godotVer, "4.5")) {
     try {
       await bridge.call("scene.close", { file_path: smokeDeps }, CALL_TIMEOUT);
     } catch {

@@ -113,6 +113,6 @@ export const proceduralTools: ToolDef[] = [
   },
 ];
 
-export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   registerTools(server, bridge, proceduralTools, allowedTools);
 }

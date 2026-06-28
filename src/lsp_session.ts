@@ -15,12 +15,12 @@ import { resToAbsolute, absoluteToFileUri } from "./lsp_uri.js";
 
 // ── Shared validation ──────────────────────────────────────────────
 
-function validateGdscriptPath(filePath: string): ToolTextResult | null {
+function validateGdscriptPath(filePath: string): ToolTextResult | undefined {
   if (!filePath.startsWith("res://")) {
     return toolError("INVALID_PATH", "file_path must start with res://");
   }
   if (filePath.endsWith(".gd") || filePath.endsWith(".gdshader") || filePath.endsWith(".gdshaderinc")) {
-    return null; // Supported.
+    return undefined; // Supported.
   }
   // Unsupported file type — Godot's built-in LSP only serves GDScript and shaders.
   if (filePath.endsWith(".cs")) {
@@ -40,7 +40,7 @@ function validateGdscriptPath(filePath: string): ToolTextResult | null {
 // ── Connection state ───────────────────────────────────────────────
 
 /** Singleton LSP client (lazy, shared across all LSP tool calls). */
-let _lspClient: LspClient | null = null;
+let _lspClient: LspClient | undefined = undefined;
 
 function getLspClient(projectPath: string): LspClient {
   if (!_lspClient) _lspClient = new LspClient(projectPath);
@@ -51,7 +51,7 @@ function getLspClient(projectPath: string): LspClient {
  *  result) to the editor dock after each connection attempt — so the dock
  *  reflects reality on actual use: it flips to active once a closed editor frees
  *  the port and this LSP rebinds (4.5+), or to unavailable on 4.2-4.4 (no retry). */
-let _statusReporter: ((s: LspStatus) => void) | null = null;
+let _statusReporter: ((s: LspStatus) => void) | undefined = undefined;
 export function setLspStatusReporter(cb: (s: LspStatus) => void): void {
   _statusReporter = cb;
 }

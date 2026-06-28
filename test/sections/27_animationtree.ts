@@ -134,7 +134,7 @@ export async function testAnimationTree(ctx: TestCtx): Promise<void> {
   // all versions (get_transition_* are 4.2+), so list stays well-formed everywhere.
   const atVer = bridge.getGodotVersion();
   const listNodes = unwrapUntrusted(listResult?.nodes) as unknown[] | null;
-  if (atVer !== null && isVersionAtLeast(atVer, "4.5")) {
+  if (atVer != null && isVersionAtLeast(atVer, "4.5")) {
     if (Array.isArray(listNodes) && listNodes.length >= 2)
       pass(`animationtree.edit list nodes -> ${listNodes.length} (4.5+ enumerated)`);
     else fail(`animationtree.edit list nodes (4.5+): expected >=2, got ${JSON.stringify(listNodes)}`);

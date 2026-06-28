@@ -80,16 +80,16 @@ export function createChannel(
   url: string,
   projectPath?: string,
   onGodotVersion?: (version: string) => void,
-  onNotification?: () => NotificationHandler | null,
+  onNotification?: () => NotificationHandler | undefined,
   opts?: { noReconnect?: boolean; connectTimeoutMs?: number },
 ): Channel {
   const noReconnect = opts?.noReconnect ?? false;
   const connectTimeout = opts?.connectTimeoutMs ?? 30_000;
   const pending = new Map<string, Pending>();
   const openWaiters = new Set<Waiter>();
-  let ws: WebSocket | null = null;
-  let connectPromise: Promise<WebSocket> | null = null;
-  let reconnectTimer: NodeJS.Timeout | null = null;
+  let ws: WebSocket | undefined = undefined;
+  let connectPromise: Promise<WebSocket> | undefined = undefined;
+  let reconnectTimer: NodeJS.Timeout | undefined = undefined;
   let attempt = 0;
   let closed = false;
   // Cold vs hot disconnect distinction. Until the first successful open we
@@ -157,7 +157,7 @@ export function createChannel(
     attempt = Math.min(attempt + 1, RECONNECT_MAX_ATTEMPT);
     process.stderr.write(`[bridge] ${url} disconnected; reconnect in ${delay}ms (attempt ${attempt})\n`);
     reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
+      reconnectTimer = undefined;
       if (closed) return;
       // Failure path schedules the next attempt itself via socket.error.
       void connect().catch(() => {});
@@ -205,7 +205,7 @@ export function createChannel(
       resolveAllWaiters(socket);
       resolve(socket);
     } catch (err) {
-      ws = null;
+      ws = undefined;
       socket.close();
       const error = err instanceof BridgeError ? err : new BridgeError("AUTH_FAILED", (err as Error).message);
       rejectAllWaiters(error.code, error.message);
@@ -225,8 +225,8 @@ export function createChannel(
       // indefinitely. Editor channels use 30s (slow startups); runtime
       // channels use 10s (game is either there or dead).
       const connectTimer = setTimeout(() => {
-        connectPromise = null;
-        ws = null;
+        connectPromise = undefined;
+        ws = undefined;
         socket.removeAllListeners();
         socket.close();
         const error = new BridgeError(
@@ -239,10 +239,10 @@ export function createChannel(
       connectTimer.unref?.();
       socket.once("open", () => {
         clearTimeout(connectTimer);
-        connectPromise = null;
+        connectPromise = undefined;
         if (reconnectTimer) {
           clearTimeout(reconnectTimer);
-          reconnectTimer = null;
+          reconnectTimer = undefined;
         }
         // Note: attempt is reset on successful message round-trip (below),
         // not on open — open alone isn't proof the peer is healthy. A
@@ -252,8 +252,8 @@ export function createChannel(
       });
       socket.once("error", (err) => {
         clearTimeout(connectTimer);
-        connectPromise = null;
-        ws = null;
+        connectPromise = undefined;
+        ws = undefined;
         const error = new BridgeError("CONNECT_FAILED", `WebSocket error: ${(err as Error).message}`);
         // Hot path: keep waiters alive across this failure — they'll either
         // be picked up by a later successful reconnect or hit their per-call
@@ -310,7 +310,7 @@ export function createChannel(
         }
       });
       socket.on("close", () => {
-        ws = null;
+        ws = undefined;
         rejectAllPending("DISCONNECTED", "WebSocket closed before response");
         // Auto-reconnect unless the user explicitly closed us.
         if (!closed) scheduleReconnect();
@@ -376,7 +376,7 @@ export function createChannel(
       closed = true;
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
-        reconnectTimer = null;
+        reconnectTimer = undefined;
       }
       rejectAllPending("CLOSED", "channel closed by caller");
       rejectAllWaiters("CLOSED", "channel closed by caller");
@@ -386,7 +386,7 @@ export function createChannel(
           ws!.close();
         });
       }
-      ws = null;
+      ws = undefined;
     },
   };
 }

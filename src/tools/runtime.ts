@@ -269,7 +269,7 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
 
 // ── Registration ─────────────────────────────────────────────────────
 
-export function register(server: McpServer, bridge: Bridge, allowedTools: Set<string> | null = null): void {
+export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
   // Custom handlers for promoted tools
   handlers.set(
@@ -300,5 +300,5 @@ export function register(server: McpServer, bridge: Bridge, allowedTools: Set<st
       handlers.set(tool.name, (input) => callAndWrap(bridge, tool.method, input, { runtime: true }));
     }
   }
-  registerTools(server, bridge, runtimeTools, allowedTools ? allowedTools : null, { handlers });
+  registerTools(server, bridge, runtimeTools, allowedTools, { handlers });
 }
