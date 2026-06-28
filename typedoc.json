@@ -1,0 +1,24 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "plugin": ["typedoc-plugin-markdown"],
+  "entryPointStrategy": "resolve",
+  "entryPoints": [
+    "src/index.ts",
+    "src/registry.ts",
+    "src/extensions/extensions.ts",
+    "src/groups/groups.ts",
+    "src/lsp/lspSession.ts",
+    "src/mcp/prompts.ts",
+    "src/mcp/resources.ts",
+    "src/mcp/roots.ts",
+    "src/registration/toolRegistry.ts",
+    "src/security/pathGuard.ts",
+    "src/shared/types.ts",
+    "src/startup/registrars.ts",
+    "src/transport/bridge.ts"
+  ],
+  "out": "docs/api",
+  "readme": "none",
+  "excludeInternal": true,
+  "tsconfig": "tsconfig.json"
+}
