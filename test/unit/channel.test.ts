@@ -10,6 +10,7 @@
  *   5. call timeout (TIMEOUT after timeoutMs with no response)
  *   6. cooperative cancel — abort → CANCELLED + a _cancel notification {request_id}
  *   7. close() rejects an in-flight pending request AND a parked waiter (CLOSED)
+ *   8. a noReconnect channel rejects DISCONNECTED fast on a drop, scheduling no backoff
  *
  * Mirrors bridge-notifications.test.ts's makeMockServer (auth + dispatch-by-id)
  * and @sinonjs/fake-timers idiom, plus bridge-version-hook.test.ts's dropClients/
@@ -458,6 +459,47 @@ async function testCloseRejectsPendingAndWaiters() {
   console.log("  PASS: close() rejects both a pending request and a parked waiter with CLOSED");
 }
 
+// ── 8. noReconnect channel rejects DISCONNECTED fast, with no backoff ─
+
+async function testNoReconnectRejectsFastWithoutBackoff() {
+  // Runtime channels are built with { noReconnect: true }: when the playtest
+  // dies, the next call must fail FAST so callRuntime can map it to
+  // GAME_NOT_RUNNING in milliseconds — it must NOT ride out the drop with the
+  // editor channel's reconnect backoff. This pins scheduleReconnect's
+  // reconnect-suppression branch, whose sole production caller is the runtime
+  // channel; the reconnecting cases above (which never pass noReconnect) skip it.
+  const server = await makeMockServer((sock, msg) => respond(sock, msg.id, { ok: true }));
+  const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined, { noReconnect: true });
+  await ch.call("warmup", {}, 5000); // connect + auth → hot (hasConnectedOnce)
+  const cap = captureStderr();
+  try {
+    // Kill the peer outright (port freed), then let the client observe the drop
+    // so the next call takes the await-open path rather than a doomed send on
+    // the dying socket.
+    await server.close();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // The call parks as an open-waiter; awaitOpenSocket kicks a fresh connect
+    // that is refused (dead port) → the noReconnect branch rejects the waiter.
+    // Its distinctive "no reconnect — runtime channel" message proves the
+    // rejection is that branch, not the close-path or the await-timeout text.
+    await assert.rejects(
+      ch.call("after", {}, 5000),
+      (err: unknown) =>
+        err instanceof BridgeError && err.code === "DISCONNECTED" && err.message.includes("no reconnect"),
+      "noReconnect drop → DISCONNECTED from the reconnect-suppression branch",
+    );
+    assert.ok(
+      !cap.output().includes("(attempt 1)"),
+      "a noReconnect channel schedules no backoff (no reconnect-ladder stderr)",
+    );
+    console.log("  PASS: a noReconnect channel rejects DISCONNECTED fast on drop with no backoff");
+  } finally {
+    cap.restore();
+    await ch.close();
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -469,7 +511,8 @@ async function main() {
   await testCallTimeout();
   await testCooperativeCancel();
   await testCloseRejectsPendingAndWaiters();
-  console.log("All 7 channel tests passed.");
+  await testNoReconnectRejectsFastWithoutBackoff();
+  console.log("All 8 channel tests passed.");
 }
 
 main()
