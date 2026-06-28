@@ -8,7 +8,7 @@
 
 > **createBridge**(`editorUrl`, `opts?`): [`Bridge`](../../../shared/types/interfaces/Bridge.md) & `object`
 
-Defined in: [src/transport/bridge.ts:64](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L64)
+Defined in: [src/transport/bridge.ts:65](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L65)
 
 Build the bridge for one Godot project. Connection is lazy — the first
 [Bridge.call](../../../shared/types/interfaces/Bridge.md#call) performs the WebSocket connect + auth handshake; the runtime
@@ -21,7 +21,8 @@ channel connects on demand when a playtest is discovered.
 `string`
 
 the editor WebSocket URL (`ws://127.0.0.1:<port>`); the port
-  is re-discovered from the registry on disconnect unless `explicitEditorPort` is set
+  is re-discovered from the registry on disconnect unless `explicitEditorPort` is
+  set or the project path is unknown
 
 ### opts?
 

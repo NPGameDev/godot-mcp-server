@@ -2,7 +2,7 @@
  * Transport bridge — the editor-side WebSocket facade the whole server calls
  * through. {@link createBridge} returns the single {@link Bridge} the tool layer
  * uses to reach the running Godot editor (and, lazily, the playtest runtime): it
- * owns the auth handshake, the connected-version lifecycle, editor-port
+ * drives the auth handshake, the connected-version lifecycle, editor-port
  * re-discovery on disconnect, and delegation of the runtime channel.
  *
  * @remarks
@@ -53,7 +53,8 @@ export interface BridgeOptions {
  * channel connects on demand when a playtest is discovered.
  *
  * @param editorUrl - the editor WebSocket URL (`ws://127.0.0.1:<port>`); the port
- *   is re-discovered from the registry on disconnect unless `explicitEditorPort` is set
+ *   is re-discovered from the registry on disconnect unless `explicitEditorPort` is
+ *   set or the project path is unknown
  * @param opts - see {@link BridgeOptions}: project path for registry discovery,
  *   static-port overrides, and the response/buffer caps pushed to the plugin after auth
  * @returns the {@link Bridge}, augmented with `onNotification` (unsolicited plugin

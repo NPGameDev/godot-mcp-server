@@ -47,8 +47,8 @@ export type NotificationHandler = (type: string, params?: Record<string, unknown
  * Canonical MCP tool-error codes (UPPER_SNAKE_CASE) — the cross-repo error
  * contract. Must stay in sync with `MCP_ERROR_CODES` in the toolkit
  * (`mcp_server.gd` + `mcp_runtime_server.gd`): a new plugin-emitted code touches
- * both repos. The transport-level codes (`CLOSED`, `NO_RUNTIME_URL`, `RPC_ERROR`,
- * `SEND_FAILED`) originate in the bridge and never travel through the plugin.
+ * both repos. The transport-level codes (`CLOSED`, `RPC_ERROR`, `SEND_FAILED`)
+ * originate in the bridge and never travel through the plugin.
  */
 export type ErrorCode =
   | "ALREADY_EXISTS"

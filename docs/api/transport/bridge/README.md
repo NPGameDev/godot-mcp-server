@@ -9,7 +9,7 @@
 Transport bridge — the editor-side WebSocket facade the whole server calls
 through. [createBridge](functions/createBridge.md) returns the single [Bridge](../../shared/types/interfaces/Bridge.md) the tool layer
 uses to reach the running Godot editor (and, lazily, the playtest runtime): it
-owns the auth handshake, the connected-version lifecycle, editor-port
+drives the auth handshake, the connected-version lifecycle, editor-port
 re-discovery on disconnect, and delegation of the runtime channel.
 
 ## Remarks
