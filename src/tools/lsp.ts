@@ -4,38 +4,17 @@
  * (lazy-loaded via discover_tools → lsp_tools group).
  */
 import { z } from "zod";
-import { readFile } from "node:fs/promises";
 
 import type { ToolDef, ToolTextResult } from "../types.js";
 import { toolError } from "../error_contract.js";
-import { LspClient, LspResolutionError, type LspStatus } from "../lsp_client.js";
 import { untrustedWrap } from "../untrusted.js";
-import { resToAbsolute, absoluteToFileUri, fileUriToRes } from "../lsp_uri.js";
+import { fileUriToRes } from "../lsp_uri.js";
 import { severityLabel, completionKindLabel, formatSymbol } from "../lsp_labels.js";
+import { validateGdscriptPath, ensureLsp, openDocInLsp } from "../lsp_session.js";
 
-// ── Shared validation ───────���────────────────────────────────────────
-
-function validateGdscriptPath(filePath: string): ToolTextResult | null {
-  if (!filePath.startsWith("res://")) {
-    return toolError("INVALID_PATH", "file_path must start with res://");
-  }
-  if (filePath.endsWith(".gd") || filePath.endsWith(".gdshader") || filePath.endsWith(".gdshaderinc")) {
-    return null; // Supported.
-  }
-  // Unsupported file type — Godot's built-in LSP only serves GDScript and shaders.
-  if (filePath.endsWith(".cs")) {
-    return toolError(
-      "UNSUPPORTED_FILE_TYPE",
-      "Godot's built-in LSP only covers GDScript (.gd) and shaders (.gdshader). " +
-        "C# (.cs) diagnostics come from the .NET language server in your IDE (VS Code, Rider).",
-    );
-  }
-  return toolError(
-    "UNSUPPORTED_FILE_TYPE",
-    "Godot's built-in LSP only covers .gd and .gdshader/.gdshaderinc files. " +
-      "Other languages (C++, Rust, Python via GDExtension) use external toolchains with no Godot LSP integration.",
-  );
-}
+// Re-export the session-layer symbols that external modules still import from
+// here (lsp_status_reporter.ts, test/unit/lsp_tools.test.ts) so their paths stay stable.
+export { setLspStatusReporter, lspConnectFailureHint } from "../lsp_session.js";
 
 // ── Tool definitions ─────────────���───────────────────────────────────
 
@@ -153,31 +132,6 @@ export const lspTools: ToolDef[] = [...lspAnalysisTools, ...lspNavigationTools];
 
 // ── Handler factory ────────���─────────────────────────────────────────
 
-/** Singleton LSP client (lazy, shared across all LSP tool calls). */
-let _lspClient: LspClient | null = null;
-
-function getLspClient(projectPath: string): LspClient {
-  if (!_lspClient) _lspClient = new LspClient(projectPath);
-  return _lspClient;
-}
-
-/** Set by index.ts to push the VERIFIED LSP verdict (the actual connection
- *  result) to the editor dock after each connection attempt — so the dock
- *  reflects reality on actual use: it flips to active once a closed editor frees
- *  the port and this LSP rebinds (4.5+), or to unavailable on 4.2-4.4 (no retry). */
-let _statusReporter: ((s: LspStatus) => void) | null = null;
-export function setLspStatusReporter(cb: (s: LspStatus) => void): void {
-  _statusReporter = cb;
-}
-
-/** Reset the LSP client (for config reload). */
-export function resetLspClient(): void {
-  if (_lspClient) {
-    _lspClient.close().catch(() => {});
-    _lspClient = null;
-  }
-}
-
 /**
  * Create a handler for an LSP tool. Each handler:
  * 1. Validates input (rejects .cs files)
@@ -206,79 +160,6 @@ export function createLspHandler(toolName: string, projectPath: string): (input:
 }
 
 // ── Individual handlers ──────────────────────────────────────────────
-
-/**
- * Build the connect-failure hint for the LSP_UNAVAILABLE branch below. Causes
- * are ordered by likelihood given the editor is usually up — the calling agent
- * is already using other MCP tools that need it — so the "editor not running"
- * theory (the cause most callers can already rule out) comes LAST. The common
- * real cause is the GDScript LSP not listening on the port we tried: the editor
- * may have been launched with --lsp-port (which the registry can't see), so the
- * server connected to the default and got ECONNREFUSED. Pure + exported so the
- * ordering/contents are unit-testable without a live client.
- */
-export function lspConnectFailureHint(port: number): string {
-  return (
-    `Could not reach the GDScript LSP on port ${port}. Most likely the LSP is listening on a ` +
-    `different port — the editor may have been launched with --lsp-port, or its ` +
-    `network/language_server/remote_port setting differs from ${port}; set GODOT_MCP_LSP_PORT to ` +
-    `the actual LSP port to match. The LSP may also still be initializing — retry shortly. ` +
-    `Only if no other MCP tool works at all is the editor not running.`
-  );
-}
-
-async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClient> {
-  const client = getLspClient(projectPath);
-  try {
-    await client.ensureConnected();
-    const ep = client.getEndpoint();
-    _statusReporter?.({ state: "active", host: ep.host, port: ep.port, detail: "Connected and verified." });
-    return client;
-  } catch (err) {
-    // Resolution errors carry a specific code + hint (LSP_PORT_CONFLICT /
-    // LSP_UNAVAILABLE); a raw connect failure is a generic LSP_UNAVAILABLE.
-    if (err instanceof LspResolutionError) {
-      _statusReporter?.({
-        state: err.code === "LSP_PORT_CONFLICT" ? "conflict" : "unavailable",
-        host: "127.0.0.1",
-        port: err.port,
-        detail: err.message,
-      });
-      return toolError(err.code, err.message, err.hint);
-    }
-    // Connect failure (e.g. ECONNREFUSED) — report the endpoint we actually tried.
-    const ep = client.getEndpoint();
-    _statusReporter?.({ state: "unavailable", host: ep.host, port: ep.port, detail: (err as Error).message });
-    return toolError(
-      "LSP_UNAVAILABLE",
-      `GDScript LSP unavailable: ${(err as Error).message}.`,
-      lspConnectFailureHint(ep.port),
-    );
-  }
-}
-
-async function readFileContent(filePath: string, projectPath: string): Promise<string | ToolTextResult> {
-  const absPath = resToAbsolute(filePath, projectPath);
-  try {
-    return await readFile(absPath, "utf-8");
-  } catch (err) {
-    return toolError("READ_FAILED", `Cannot read ${filePath}: ${(err as Error).message}`);
-  }
-}
-
-async function openDocInLsp(
-  client: LspClient,
-  filePath: string,
-  projectPath: string,
-): Promise<{ uri: string } | ToolTextResult> {
-  const content = await readFileContent(filePath, projectPath);
-  if (typeof content !== "string") return content; // Error result.
-
-  const absPath = resToAbsolute(filePath, projectPath);
-  const uri = absoluteToFileUri(absPath);
-  await client.openDocument(uri, content);
-  return { uri };
-}
 
 async function handleDiagnostics(input: unknown, projectPath: string): Promise<ToolTextResult> {
   const { file_path } = input as { file_path: string };
