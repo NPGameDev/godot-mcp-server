@@ -1,5 +1,5 @@
 /**
- * Unit tests for group_tool_handlers.ts — createHandler's per-tool routing
+ * Unit tests for group_tool_handlers.ts — createGroupToolHandler's per-tool routing
  * (concern 077, C3). Five blocks, each asserting REAL behavior via a recording
  * mock Bridge (which channel a handler hits + the method/params it forwards, and
  * the content shape it returns) — never fn === fn:
@@ -13,10 +13,10 @@
  *   5. a default tool → callAndWrap(runtime:false) → bridge.call.
  */
 import assert from "node:assert/strict";
-import { createHandler } from "../../src/groups/groupToolHandlers.js";
+import { createGroupToolHandler } from "../../src/groups/groupToolHandlers.js";
 import type { Bridge, ToolDef } from "../../src/shared/types.js";
 
-// The union of handler shapes createHandler returns is uniformly callable with
+// The union of handler shapes createGroupToolHandler returns is uniformly callable with
 // one unknown input and yields a promise; widen to this for the assertions.
 type Handler = (input: unknown) => Promise<unknown>;
 
@@ -47,7 +47,7 @@ function makeBridge(ret: unknown = { success: true, value: 1 }) {
   return { bridge, calls };
 }
 
-// Minimal ToolDef — createHandler + the handlers read only `name` and `method`.
+// Minimal ToolDef — createGroupToolHandler + the handlers read only `name` and `method`.
 const def = (name: string, method: string): ToolDef => ({
   name,
   method,
@@ -59,7 +59,7 @@ const def = (name: string, method: string): ToolDef => ({
 async function testSignalEmitDualMode() {
   // Editor mode (default) → bridge.call; params reshaped to node_path/signal_name/args.
   const editor = makeBridge();
-  const editorHandler: Handler = createHandler(editor.bridge, def("signal_emit", "scene.emit_signal"));
+  const editorHandler: Handler = createGroupToolHandler(editor.bridge, def("signal_emit", "scene.emit_signal"));
   await editorHandler({ node_path: "/root/Btn", signal_name: "pressed", args: [1, 2], mode: "editor" });
   assert.equal(editor.calls.length, 1, "signal_emit editor → exactly one bridge dispatch");
   assert.equal(editor.calls[0].channel, "call", "mode=editor → bridge.call (not callRuntime)");
@@ -72,7 +72,7 @@ async function testSignalEmitDualMode() {
 
   // Runtime mode → bridge.callRuntime; omitted args default to [].
   const runtime = makeBridge();
-  const runtimeHandler: Handler = createHandler(runtime.bridge, def("signal_emit", "scene.emit_signal"));
+  const runtimeHandler: Handler = createGroupToolHandler(runtime.bridge, def("signal_emit", "scene.emit_signal"));
   await runtimeHandler({ node_path: "/root/Btn", signal_name: "pressed", mode: "runtime" });
   assert.equal(runtime.calls[0].channel, "callRuntime", "mode=runtime → bridge.callRuntime");
   assert.deepEqual(
@@ -94,7 +94,7 @@ async function testEditorScreenshot() {
     bytes: 4096,
     path: "res://shot.png",
   });
-  const shotHandler: Handler = createHandler(ok.bridge, def("editor_screenshot", "editor.screenshot"));
+  const shotHandler: Handler = createGroupToolHandler(ok.bridge, def("editor_screenshot", "editor.screenshot"));
   const shot = (await shotHandler({})) as {
     content: ({ type: "image"; data: string; mimeType: string } | { type: "text"; text: string })[];
   };
@@ -114,7 +114,7 @@ async function testEditorScreenshot() {
 
   // An empty payload (no image_base64) → EMPTY_CONTENT error.
   const empty = makeBridge({});
-  const emptyHandler: Handler = createHandler(empty.bridge, def("editor_screenshot", "editor.screenshot"));
+  const emptyHandler: Handler = createGroupToolHandler(empty.bridge, def("editor_screenshot", "editor.screenshot"));
   const errRes = (await emptyHandler({})) as { isError?: true; content: { type: "text"; text: string }[] };
   assert.equal(errRes.isError, true, "empty screenshot payload → isError");
   assert.equal(
@@ -132,7 +132,7 @@ async function testLspRouting() {
   // LSP-specific UNSUPPORTED_FILE_TYPE error proves the LSP route, and the bridge
   // stays cold (no editor/runtime dispatch).
   const { bridge, calls } = makeBridge();
-  const lspHandler: Handler = createHandler(bridge, def("lsp_hover", "lsp.hover"));
+  const lspHandler: Handler = createGroupToolHandler(bridge, def("lsp_hover", "lsp.hover"));
   const res = (await lspHandler({ file_path: "res://player.cs", line: 0, column: 0 })) as {
     isError?: true;
     content: { type: "text"; text: string }[];
@@ -149,7 +149,7 @@ async function testLspRouting() {
 // ── Block 4 — runtime tool → callAndWrap(runtime:true) ───────────────
 async function testRuntimeToolRouting() {
   const { bridge, calls } = makeBridge();
-  const handler: Handler = createHandler(bridge, def("runtime_get_node_state", "runtime.get_node_state"));
+  const handler: Handler = createGroupToolHandler(bridge, def("runtime_get_node_state", "runtime.get_node_state"));
   await handler({ node_path: "/root/Game" });
   assert.equal(calls.length, 1, "runtime tool → one dispatch");
   assert.equal(calls[0].channel, "callRuntime", "RUNTIME_TOOLS member → callAndWrap(runtime:true) → callRuntime");
@@ -160,7 +160,7 @@ async function testRuntimeToolRouting() {
 // ── Block 5 — default tool → callAndWrap(runtime:false) ──────────────
 async function testDefaultToolRouting() {
   const { bridge, calls } = makeBridge();
-  const handler: Handler = createHandler(bridge, def("node_create", "scene.create_node"));
+  const handler: Handler = createGroupToolHandler(bridge, def("node_create", "scene.create_node"));
   await handler({ parent_path: "/root", type: "Node2D" });
   assert.equal(calls.length, 1, "default tool → one dispatch");
   assert.equal(calls[0].channel, "call", "default tool → callAndWrap(runtime:false) → editor bridge.call");

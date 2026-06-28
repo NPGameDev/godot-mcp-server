@@ -69,7 +69,7 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
  * Create the handler for a given tool, respecting runtime routing
  * and special-case tools.
  */
-export function createHandler(bridge: Bridge, def: ToolDef) {
+export function createGroupToolHandler(bridge: Bridge, def: ToolDef) {
   switch (def.name) {
     case "signal_emit":
       return handleSignalEmit(bridge, def);

@@ -241,8 +241,8 @@ for end users with no further edits. See iter 13b + iter 20 in the plan repo.
    `discover_tools`).
 4. If the tool returns non-text content (images, binary), handle it explicitly
    in the module's `register()` function — see `runtime.ts` `runtime_screenshot`
-   for the image path. Group tools with custom handlers go in `createHandler`
-   in `src/groups/groups.ts`.
+   for the image path. Group tools with custom handlers go in `createGroupToolHandler`
+   in `src/groups/groupToolHandlers.ts`.
 5. Add a smoke-test section in `test/sections/` following the section naming
    convention, then import and register it in `test/smoke.ts`.
 6. Update tool counts and the toolkit-repo `CLAUDE.md` tool table.

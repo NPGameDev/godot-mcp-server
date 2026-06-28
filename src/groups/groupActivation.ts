@@ -29,7 +29,7 @@ import {
   loadedExtensionGroupNames,
   deactivateExtensionGroup,
 } from "./extensionGroups.js";
-import { createHandler } from "./groupToolHandlers.js";
+import { createGroupToolHandler } from "./groupToolHandlers.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "../security/profiles.js";
 import { registerToolWrapped } from "../registration/toolRegistry.js";
 import { removeToolByName } from "../registration/toolRefs.js";
@@ -59,7 +59,7 @@ export function registerGroupTools(server: McpServer, bridge: Bridge, group: Gro
         inputSchema: def.inputSchema,
         annotations: def.annotations,
       },
-      createHandler(bridge, def) as (
+      createGroupToolHandler(bridge, def) as (
         input: Record<string, unknown>,
       ) => Promise<import("../shared/types.js").ToolTextResult>,
       { godotMinVersion: def.godotMinVersion, godotMaxVersion: def.godotMaxVersion },
