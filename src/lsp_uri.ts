@@ -23,10 +23,16 @@ export function absoluteToFileUri(absPath: string): string {
 }
 
 export function fileUriToRes(uri: string, projectPath: string): string {
-  // file:///C:/project/foo.gd → res://foo.gd
+  // file:///C:/project/foo.gd → res://foo.gd  (Windows)
+  // file:///home/project/foo.gd → res://foo.gd  (POSIX)
   let absPath: string;
   if (uri.startsWith("file:///")) {
-    absPath = uri.slice(8); // Remove file:///
+    // A Windows drive-letter URI (file:///C:/…) carries no leading slash in
+    // its path, so drop it; a POSIX URI (file:///home/…) MUST keep its
+    // leading slash or the project-prefix test below never matches. Detect
+    // the `/<letter>:` drive form and slice accordingly — host-independent,
+    // so the same URI converts identically on Windows and POSIX.
+    absPath = /^\/[A-Za-z]:/.test(uri.slice(7)) ? uri.slice(8) : uri.slice(7);
   } else if (uri.startsWith("file://")) {
     absPath = uri.slice(7); // Remove file://
   } else {
