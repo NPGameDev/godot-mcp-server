@@ -317,4 +317,45 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
       pass(`classdb.search offset=5 count decreased (${searchNoOffset.count} -> ${searchWithOffset.count})`);
     }
   }
+
+  // ─── classdb.get_info: offset AT the exact end → truncated:false, no cursor ───
+  // An offset that lands at/after the last page must drop both truncated and the
+  // next_offset cursor; a dangling cursor with nothing left to fetch is the regression.
+  if (typeof controlInherited?.total_methods === "number") {
+    const atEnd = (await bridge.call(
+      "classdb.get_info",
+      { class_name: "Control", include_inherited: true, sections: ["methods"], offset: controlInherited.total_methods },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; truncated?: boolean; next_offset?: number };
+    if (!atEnd?.success) {
+      fail(`classdb.get_info offset==total_methods: expected success`);
+    } else if (atEnd.truncated !== false) {
+      fail(`classdb.get_info offset==total_methods: expected truncated=false, got ${atEnd.truncated}`);
+    } else if (atEnd.next_offset !== undefined) {
+      fail(`classdb.get_info offset==total_methods: should not emit next_offset at the end`);
+    } else {
+      pass(`classdb.get_info offset==total_methods (${controlInherited.total_methods}) -> truncated=false, no cursor`);
+    }
+  }
+
+  // ─── classdb.search: offset PAST the end → truncated:false, no self-loop ───
+  // Guards the documented "page until truncated=false" loop against never
+  // terminating: past the last page, search must not echo next_offset == offset.
+  if (searchNoOffset?.success && typeof searchNoOffset.total_classes === "number") {
+    const pastOffset = searchNoOffset.total_classes + 50;
+    const pastEnd = (await bridge.call(
+      "classdb.search",
+      { base_class: "Node", pattern: "2D", offset: pastOffset },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; count?: number; truncated?: boolean; next_offset?: number };
+    if (!pastEnd?.success) {
+      fail(`classdb.search offset past end: expected success`);
+    } else if (pastEnd.truncated !== false) {
+      fail(`classdb.search offset past end: expected truncated=false, got ${pastEnd.truncated}`);
+    } else if (pastEnd.next_offset !== undefined) {
+      fail(`classdb.search offset past end: should not emit next_offset (infinite-loop guard)`);
+    } else {
+      pass(`classdb.search offset past end (${pastOffset}) -> truncated=false, no cursor`);
+    }
+  }
 }

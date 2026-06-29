@@ -7,7 +7,7 @@
  */
 import { probePort, HOST } from "../helpers.js";
 import { LspClient, resolveLspEndpoint } from "../../src/lsp/lspClient.js";
-import { lspTools } from "../../src/tools/lsp.js";
+import { lspTools, createLspHandler } from "../../src/tools/lsp.js";
 
 import type { TestCtx } from "../helpers.js";
 
@@ -133,6 +133,22 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
         ? (completion as { items: unknown[] }).items
         : [];
     pass(`lsp: textDocument/completion returned ${items.length} item(s)`);
+
+    // Omitted-limit completion → the schema default caps results at 10 (not the
+    // former stray 20). Exercises the real tool handler end-to-end, so the
+    // default-resolution path is covered — unlike the raw-client probe above.
+    {
+      const completionHandler = createLspHandler("lsp_completion", projectPath);
+      const handlerResult = (await completionHandler({ file_path: testFile, line: 0, column: 0 })) as {
+        content: { text: string }[];
+      };
+      const payload = JSON.parse(handlerResult.content[0].text) as { success?: boolean; count?: number };
+      if (payload.success && typeof payload.count === "number" && payload.count <= 10) {
+        pass(`lsp_completion omitted limit -> count ${payload.count} <= default cap 10`);
+      } else {
+        fail(`lsp_completion omitted limit: expected count <= 10, got ${JSON.stringify(payload)}`);
+      }
+    }
 
     // Definition — go-to-definition at a position (may return null for non-symbol positions).
     try {

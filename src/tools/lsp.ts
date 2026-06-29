@@ -89,7 +89,7 @@ export const lspNavigationTools: ToolDef[] = [
         ),
       line: z.coerce.number().int().min(0).describe("Zero-based line number"),
       column: z.coerce.number().int().min(0).describe("Zero-based column number"),
-      limit: z.coerce.number().int().min(1).max(50).default(10).optional().describe("Max items to return (default 10)"),
+      limit: z.coerce.number().int().min(1).max(50).default(10).describe("Max items to return (default 10)"),
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -266,7 +266,7 @@ async function handleCompletion(input: unknown, projectPath: string): Promise<To
   }
 
   // Cap at limit and extract relevant fields.
-  const maxItems = limit ?? 20;
+  const maxItems = limit ?? 10;
   const completions = items.slice(0, maxItems).map((item: unknown) => {
     const c = item as { label?: string; kind?: number; detail?: string; documentation?: unknown; sortText?: string };
     return {

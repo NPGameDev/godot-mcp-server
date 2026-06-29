@@ -25,22 +25,27 @@ export function absoluteToFileUri(absPath: string): string {
 export function fileUriToRes(uri: string, projectPath: string): string {
   // file:///C:/project/foo.gd → res://foo.gd  (Windows)
   // file:///home/project/foo.gd → res://foo.gd  (POSIX)
-  let absPath: string;
-  if (uri.startsWith("file:///")) {
-    // A Windows drive-letter URI (file:///C:/…) carries no leading slash in
-    // its path, so drop it; a POSIX URI (file:///home/…) MUST keep its
-    // leading slash or the project-prefix test below never matches. Detect
-    // the `/<letter>:` drive form and slice accordingly — host-independent,
-    // so the same URI converts identically on Windows and POSIX.
-    absPath = /^\/[A-Za-z]:/.test(uri.slice(7)) ? uri.slice(8) : uri.slice(7);
-  } else if (uri.startsWith("file://")) {
-    absPath = uri.slice(7); // Remove file://
-  } else {
+  if (!uri.startsWith("file://")) {
     return uri; // Not a file URI, return as-is.
   }
+  let absPath = uri.slice(7); // Strip "file://"; a drive form keeps a leading "/".
 
-  // Decode percent-encoding.
+  // Decode percent-encoding BEFORE the drive-letter test below. Godot's LSP
+  // emits the Windows drive colon as %3A (file:///C%3A/…); decoding first
+  // makes it a literal ":" so the `/<letter>:` drive form is recognized.
+  // Testing the still-encoded URI would miss %3A, keep the spurious leading
+  // slash, and break the project-prefix match — leaking a raw file:// URI for
+  // an in-project file.
   absPath = decodeURIComponent(absPath);
+
+  // A Windows drive-letter URI (file:///C:/…) carries a leading slash that a
+  // POSIX URI (file:///home/…) MUST keep — or the project-prefix test below
+  // never matches — but the drive form must shed. Drop it only for the drive
+  // form; host-independent, so the same URI converts identically on Windows
+  // and POSIX.
+  if (/^\/[A-Za-z]:/.test(absPath)) {
+    absPath = absPath.slice(1);
+  }
 
   // Normalize slashes.
   const normalizedProject = projectPath.replace(/\\/g, "/").replace(/\/$/, "");

@@ -44,6 +44,17 @@ import { resToAbsolute, absoluteToFileUri, fileUriToRes, normalizeUri } from "..
   assert.equal(fileUriToRes("file:///home/proj/sub/x.gd", "/home/proj"), "res://sub/x.gd");
 }
 
+// ── fileUriToRes: Windows in-project URI with a %3A-encoded drive colon ──
+//
+// Godot's LSP percent-encodes the Windows drive colon (file:///C%3A/…). The
+// %3A must decode to ":" BEFORE the drive-letter test, or the spurious leading
+// slash survives, the project-prefix match fails, and a raw file:// URI leaks
+// for an in-project file. Asserts the res:// contract holds for the %3A form
+// (the literal-colon file:///C:/ form is already covered by the round-trip).
+{
+  assert.equal(fileUriToRes("file:///C%3A/Users/me/project/sub/x.gd", "C:\\Users\\me\\project"), "res://sub/x.gd");
+}
+
 // ── fileUriToRes: file URI outside the project → returned unchanged ──
 {
   assert.equal(fileUriToRes("file:///D:/other/x.gd", "C:\\proj"), "file:///D:/other/x.gd");
