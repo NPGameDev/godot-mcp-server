@@ -2,7 +2,12 @@ import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
 import { isVersionAtLeast } from "../../src/shared/version.js";
 
-export const TOOLS_TESTED: string[] = ["scene_create_node", "scene_delete_node", "animationtree_edit"];
+export const TOOLS_TESTED: string[] = [
+  "scene_create_node",
+  "scene_delete_node",
+  "animationtree_edit",
+  "animationtree_list",
+];
 export async function testAnimationTree(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
@@ -119,15 +124,17 @@ export async function testAnimationTree(ctx: TestCtx): Promise<void> {
   }
 
   // ── list: verify structure ──
-  const listResult = (await bridge.call(
-    "animationtree.edit",
-    { node_path: treePath, action: "list" },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; root_type?: string; nodes?: unknown; transitions?: unknown; code?: string };
+  const listResult = (await bridge.call("animationtree.list", { node_path: treePath }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    root_type?: string;
+    nodes?: unknown;
+    transitions?: unknown;
+    code?: string;
+  };
   if (listResult?.success === true && listResult.root_type === "AnimationNodeStateMachine") {
-    pass(`animationtree.edit list -> root_type=${listResult.root_type}`);
+    pass(`animationtree.list -> root_type=${listResult.root_type}`);
   } else {
-    fail(`animationtree.edit list: ${JSON.stringify(listResult)}`);
+    fail(`animationtree.list: ${JSON.stringify(listResult)}`);
   }
   // Node enumeration uses AnimationNodeStateMachine.get_node_list(), a 4.5+ script API
   // Nodes are listed on 4.5+, empty on 4.2-4.4. Transitions enumerate on
@@ -136,12 +143,12 @@ export async function testAnimationTree(ctx: TestCtx): Promise<void> {
   const listNodes = unwrapUntrusted(listResult?.nodes) as unknown[] | null;
   if (atVer != null && isVersionAtLeast(atVer, "4.5")) {
     if (Array.isArray(listNodes) && listNodes.length >= 2)
-      pass(`animationtree.edit list nodes -> ${listNodes.length} (4.5+ enumerated)`);
-    else fail(`animationtree.edit list nodes (4.5+): expected >=2, got ${JSON.stringify(listNodes)}`);
+      pass(`animationtree.list nodes -> ${listNodes.length} (4.5+ enumerated)`);
+    else fail(`animationtree.list nodes (4.5+): expected >=2, got ${JSON.stringify(listNodes)}`);
   } else {
     if (Array.isArray(listNodes) && listNodes.length === 0)
-      pass(`animationtree.edit list nodes -> [] (4.2-4.4: get_node_list is 4.5+)`);
-    else fail(`animationtree.edit list nodes (4.2-4.4): expected [], got ${JSON.stringify(listNodes)}`);
+      pass(`animationtree.list nodes -> [] (4.2-4.4: get_node_list is 4.5+)`);
+    else fail(`animationtree.list nodes (4.2-4.4): expected [], got ${JSON.stringify(listNodes)}`);
   }
 
   // ── remove_transition: run -> idle ──
@@ -178,8 +185,8 @@ export async function testAnimationTree(ctx: TestCtx): Promise<void> {
 
   assertGuard(
     ctx,
-    "animationtree.edit non-AnimationTree",
-    await bridge.call("animationtree.edit", { node_path: spritePath, action: "list" }, CALL_TIMEOUT),
+    "animationtree.list non-AnimationTree",
+    await bridge.call("animationtree.list", { node_path: spritePath }, CALL_TIMEOUT),
     "INVALID_CLASS",
     "AnimationTree",
   );

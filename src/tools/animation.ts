@@ -37,11 +37,11 @@ export const animationTools: ToolDef[] = [
     name: "animationtree_edit",
     method: "animationtree.edit",
     description:
-      "Configure AnimationTree state machines: set root, add/remove nodes and transitions, set properties, or list structure.",
+      "Configure AnimationTree state machines: set root, add/remove nodes and transitions, or set properties.",
     inputSchema: {
       node_path: z.string().describe("Path to an AnimationTree node in the edited scene."),
       action: z
-        .enum(["set_root", "add_node", "remove_node", "add_transition", "remove_transition", "set_property", "list"])
+        .enum(["set_root", "add_node", "remove_node", "add_transition", "remove_transition", "set_property"])
         .describe("Operation to perform on the AnimationTree."),
       root_type: z
         .enum(["AnimationNodeStateMachine", "AnimationNodeBlendTree"])
@@ -76,6 +76,16 @@ export const animationTools: ToolDef[] = [
       value: z.unknown().optional().describe("For set_property: value to assign."),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: true },
+  },
+  {
+    name: "animationtree_list",
+    method: "animationtree.list",
+    description:
+      "List an AnimationTree state machine's structure: root type, nodes, and transitions. Read-only; no mutation.",
+    inputSchema: {
+      node_path: z.string().describe("Path to an AnimationTree node in the edited scene."),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
 ];
 

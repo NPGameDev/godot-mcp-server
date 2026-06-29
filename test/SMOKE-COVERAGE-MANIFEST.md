@@ -3,7 +3,7 @@
 **Last updated:** 2026-06-14 (41m-quinquies — scene_spatial_map + placeholder generators)
 **Server commit:** S:6fa6143 (+ 41m-quinquies; final SHA recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
-**Total tools (including on-demand groups):** 108 (33 eager + 75 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
+**Total tools (including on-demand groups):** 110 (33 eager + 77 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
 **Smoke sections:** 47 (sections 01–47)
 **Flow suite:** 3 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
@@ -173,13 +173,14 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | input_map_action | 12 | ✓ | ✓ (INVALID_PARAMS: empty name, built-in UI action) | ✓ (add/remove, idempotency, deadzone) | — | In input_map group |
 | input_map_event | 12 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: bogus type/keycode) | ✓ (bind/unbind, key/joypad_button, idempotency) | — | In input_map group |
 
-### Animation (3 tools)
+### Animation (4 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | animation_keyframe | 13 | — | ✓ (NOT_FOUND, INVALID_CLASS, INVALID_PARAMS: bare NodePath) | — | — | **GAP:** happy path (add/update/remove) not tested |
 | animation_get_keys | 13 | — | ✓ (INVALID_CLASS, NOT_FOUND) | — | — | Guard coverage. Happy-path needs animation setup |
-| animationtree_edit | 27 | ✓ | ✓ (INVALID_CLASS, NOT_FOUND) | ✓ (set_root, add_node, add_transition, remove_transition, remove_node, list) | — | All 6 sub-ops. §27 version-aware: list node-enum is 4.5+ (nodes>=2 on 4.5+, [] on 4.2-4.4 — `get_node_list` is 4.5; transitions+counts all versions) (41m-ter A4/A5) |
+| animationtree_edit | 27 | ✓ | ✓ (NOT_FOUND) | ✓ (set_root, add_node, add_transition, remove_transition, remove_node) | — | 5 mutating sub-ops (list extracted to animationtree_list, ledger #3 CQS split) |
+| animationtree_list | 27 | ✓ | ✓ (INVALID_CLASS) | — | — | Read-only structure list (extracted from animationtree_edit, ledger #3). §27 version-aware: node-enum is 4.5+ (nodes>=2 on 4.5+, [] on 4.2-4.4 — `get_node_list` is 4.5; transitions+counts all versions) (41m-ter A4/A5) |
 
 ### Tilemap & Tileset (13 tools)
 
@@ -229,11 +230,12 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | procedural_edit_curve | 32 | ✓ | — | ✓ (set points) | — | In procedural group. **GAP:** add_point, remove_point, set_range sub-ops |
 | procedural_edit_noise | 32 | ✓ | ✓ (INVALID_PARAMS: invalid noise_type) | ✓ (frequency, noise_type) | — | In procedural group |
 
-### Audio (1 tool)
+### Audio (2 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| audiobus_edit | 34 | ✓ | ✓ (INVALID_PARAMS: Master removal) | ✓ (add_bus, add_effect, list, remove_bus) | — | In audio group. **GAP:** set_volume, remove_effect, move_effect sub-ops |
+| audiobus_edit | 34 | ✓ | ✓ (INVALID_PARAMS: Master removal) | ✓ (add_bus, add_effect, remove_bus) | — | In audio group. list extracted to audiobus_list (ledger #3 CQS split). **GAP:** set_volume, remove_effect, move_effect sub-ops |
+| audiobus_list | 34 | ✓ | — | — | — | In audio group; read-only bus-layout snapshot (extracted from audiobus_edit, ledger #3) |
 
 ### SpriteFrames (3 tools)
 

@@ -4,7 +4,7 @@ import type { GroupDef } from "../groupTypes.js";
 export const animationAuthoringGroup: GroupDef = {
   name: "animation_authoring",
   description: "Inspect and author keyframes, edit tracks, and configure AnimationTree state machines",
-  tools: ["animation_keyframe", "animation_get_keys", "animationtree_edit"],
+  tools: ["animation_keyframe", "animation_get_keys", "animationtree_edit", "animationtree_list"],
   keywords: [
     "animation",
     "keyframe",

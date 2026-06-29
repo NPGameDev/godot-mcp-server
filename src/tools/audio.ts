@@ -9,11 +9,9 @@ export const audioTools: ToolDef[] = [
     name: "audiobus_edit",
     method: "audiobus.edit",
     description:
-      "Manage audio buses: add/remove buses, set volume/send/solo/mute, add/remove effects. bus_name takes priority over bus_index. Effect type: full class (AudioEffectReverb) or suffix (Reverb). 'list' shows full bus layout.",
+      "Manage audio buses: add/remove buses, set volume/send/solo/mute, add/remove effects. bus_name takes priority over bus_index. Effect type: full class (AudioEffectReverb) or suffix (Reverb).",
     inputSchema: {
-      action: z
-        .enum(["add_bus", "remove_bus", "set_bus", "add_effect", "remove_effect", "list"])
-        .describe("Bus operation"),
+      action: z.enum(["add_bus", "remove_bus", "set_bus", "add_effect", "remove_effect"]).describe("Bus operation"),
       bus_name: z.string().optional().describe("Bus name"),
       bus_index: z.number().int().optional().describe("Bus index (alternative to name)"),
       send_to: z.string().optional().describe("Parent bus name (default: Master)"),
@@ -32,6 +30,14 @@ export const audioTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
     successHint: "Effect types must be full class names (e.g., AudioEffectReverb not Reverb).",
+  },
+  {
+    name: "audiobus_list",
+    method: "audiobus.list",
+    description:
+      "List all audio buses with volume/send/solo/mute and per-bus effects. Read-only snapshot of the bus layout.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
 ];
 

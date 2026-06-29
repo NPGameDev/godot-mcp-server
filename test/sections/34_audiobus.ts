@@ -1,7 +1,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
 
-export const TOOLS_TESTED: string[] = ["audiobus_edit"];
+export const TOOLS_TESTED: string[] = ["audiobus_edit", "audiobus_list"];
 export async function testAudiobus(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
@@ -32,16 +32,16 @@ export async function testAudiobus(ctx: TestCtx): Promise<void> {
   }
 
   // List all buses
-  const listResult = (await bridge.call("audiobus.edit", { action: "list" }, CALL_TIMEOUT)) as {
+  const listResult = (await bridge.call("audiobus.list", {}, CALL_TIMEOUT)) as {
     success?: boolean;
     bus_count?: number;
     buses?: unknown[];
   };
 
   if (listResult?.success === true && (listResult.bus_count ?? 0) >= 2) {
-    pass(`audiobus.edit list -> bus_count=${listResult.bus_count}`);
+    pass(`audiobus.list -> bus_count=${listResult.bus_count}`);
   } else {
-    fail(`audiobus.edit list: ${JSON.stringify(listResult)}`);
+    fail(`audiobus.list: ${JSON.stringify(listResult)}`);
   }
 
   // Guard: remove Master bus
