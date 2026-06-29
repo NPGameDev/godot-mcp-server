@@ -230,22 +230,29 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   )) as {
     success?: boolean;
     methods?: unknown[];
-    methods_total?: number;
+    total_methods?: number;
     truncated?: boolean;
+    next_offset?: number;
   };
 
   if (!controlInherited?.success) {
     fail(`classdb.get_info Control inherited: expected success`);
   } else {
-    if (typeof controlInherited.methods_total !== "number") {
-      fail(`classdb.get_info Control inherited: missing methods_total`);
+    if (typeof controlInherited.total_methods !== "number") {
+      fail(`classdb.get_info Control inherited: missing total_methods`);
     } else {
-      pass(`classdb.get_info Control inherited has methods_total=${controlInherited.methods_total}`);
+      pass(`classdb.get_info Control inherited has total_methods=${controlInherited.total_methods}`);
     }
-    if (controlInherited.methods_total! > 200 && !controlInherited.truncated) {
+    if (controlInherited.total_methods! > 200 && !controlInherited.truncated) {
       fail(`classdb.get_info Control inherited: expected truncated=true when methods exceed 200`);
-    } else if (controlInherited.methods_total! > 200) {
-      pass(`classdb.get_info Control inherited truncated=true (methods_total=${controlInherited.methods_total})`);
+    } else if (controlInherited.total_methods! > 200) {
+      pass(`classdb.get_info Control inherited truncated=true (total_methods=${controlInherited.total_methods})`);
+    }
+    // A truncated single-section read carries a next_offset resume cursor.
+    if (controlInherited.truncated) {
+      if (typeof controlInherited.next_offset === "number")
+        pass(`classdb.get_info next_offset present on truncated single-section read (${controlInherited.next_offset})`);
+      else fail(`classdb.get_info: truncated single-section read missing next_offset`);
     }
   }
 
@@ -257,7 +264,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   )) as {
     success?: boolean;
     methods?: { name: string }[];
-    methods_total?: number;
+    total_methods?: number;
   };
 
   if (!controlPage2?.success) {
@@ -269,19 +276,19 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     } else {
       pass(`classdb.get_info Control offset=200 returned ${page2Methods} further methods`);
     }
-    if (controlPage2.methods_total !== controlInherited?.methods_total) {
+    if (controlPage2.total_methods !== controlInherited?.total_methods) {
       fail(
-        `classdb.get_info Control offset=200: methods_total mismatch (${controlPage2.methods_total} vs ${controlInherited?.methods_total})`,
+        `classdb.get_info Control offset=200: total_methods mismatch (${controlPage2.total_methods} vs ${controlInherited?.total_methods})`,
       );
     } else {
-      pass(`classdb.get_info Control offset=200 methods_total consistent`);
+      pass(`classdb.get_info Control offset=200 total_methods consistent`);
     }
   }
 
   // ─── classdb.search: offset pagination ───────────────────────────────────
   const searchNoOffset = (await bridge.call("classdb.search", { base_class: "Node", pattern: "2D" }, CALL_TIMEOUT)) as {
     success?: boolean;
-    total?: number;
+    total_classes?: number;
     count?: number;
   };
 
@@ -289,16 +296,21 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     "classdb.search",
     { base_class: "Node", pattern: "2D", offset: 5 },
     CALL_TIMEOUT,
-  )) as { success?: boolean; total?: number; count?: number };
+  )) as { success?: boolean; total_classes?: number; count?: number };
 
   if (!searchNoOffset?.success || !searchWithOffset?.success) {
     fail(`classdb.search offset: expected success on both calls`);
   } else {
-    if (searchWithOffset.total !== searchNoOffset.total) {
-      fail(`classdb.search offset=5: total changed (${searchNoOffset.total} -> ${searchWithOffset.total})`);
+    // total_classes: the full (pre-cap) class count.
+    if (searchWithOffset.total_classes !== searchNoOffset.total_classes) {
+      fail(
+        `classdb.search offset=5: total_classes changed (${searchNoOffset.total_classes} -> ${searchWithOffset.total_classes})`,
+      );
     } else {
-      pass(`classdb.search offset=5 total unchanged (${searchWithOffset.total})`);
+      pass(`classdb.search offset=5 total_classes unchanged (${searchWithOffset.total_classes})`);
     }
+    if (typeof searchNoOffset.total_classes !== "number") fail(`classdb.search: missing canonical total_classes field`);
+    else pass(`classdb.search total_classes present (${searchNoOffset.total_classes})`);
     if ((searchWithOffset.count ?? 0) >= (searchNoOffset.count ?? 0)) {
       fail(`classdb.search offset=5: count should decrease`);
     } else {

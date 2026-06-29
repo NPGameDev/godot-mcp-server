@@ -88,6 +88,11 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     // Line-window pagination guidance — the next_start_line/
     // total_lines/truncated paging protocol must be spelled out (mirrors save_read).
     "script_read",
+    // Long-form reads whose total_<unit>/truncated paging note pushes the description
+    // past 200 chars (mirrors save_read) — descWaiver granted.
+    "asset_list",
+    "editor_get_console",
+    "scene_spatial_map",
   ]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;

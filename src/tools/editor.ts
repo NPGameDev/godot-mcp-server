@@ -86,6 +86,7 @@ export const editorTools: ToolDef[] = [
     method: "editor.get_console",
     description:
       "Tail editor Output panel. source='buffer'|'file'. level_filter, since_id, text_filter (is_regex=true for regex). " +
+      "Carries total_lines/next_id/truncated — page via since_id. " +
       "Primary post-crash diagnostic tool — reads runtime errors even after game_stop.",
     inputSchema: {
       limit: z.coerce.number().optional(),
@@ -152,7 +153,8 @@ async function consoleSummaryHandler(bridge: Bridge, method: string, input: unkn
     if (err) return err;
     const obj = result as Record<string, unknown>;
     const count = typeof obj.count === "number" ? obj.count : 0;
-    const total = typeof obj.total === "number" ? obj.total : count;
+    // total_lines: the pre-cap line count (full number of lines before the tail slice).
+    const total = typeof obj.total_lines === "number" ? obj.total_lines : count;
     const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
     const text = stableStringify({ _summary: summary, ...obj });
     return { content: [{ type: "text" as const, text }] };

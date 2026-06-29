@@ -26,7 +26,7 @@ type SpatialResult = {
   nodes?: SpatialNode[];
   truncated?: boolean;
   returned?: number;
-  node_count?: number;
+  total_nodes?: number;
 };
 
 /**
@@ -140,6 +140,13 @@ export async function testSpatialMap(ctx: TestCtx): Promise<void> {
     )) as SpatialResult;
     if (cap?.success && cap.truncated === true && cap.returned === 1) pass("spatial: max_nodes truncation + counts");
     else fail(`spatial: truncation — ${JSON.stringify({ truncated: cap?.truncated, returned: cap?.returned })}`);
+    // total_nodes: full match count (>= returned; counted past the cap).
+    if (cap?.success && typeof cap.total_nodes === "number" && cap.total_nodes >= (cap.returned ?? 0))
+      pass(`spatial: total_nodes present (${cap.total_nodes} >= returned ${cap.returned})`);
+    else
+      fail(
+        `spatial: total_nodes missing/invalid — ${JSON.stringify({ total_nodes: cap?.total_nodes, returned: cap?.returned })}`,
+      );
 
     // Guards.
     assertGuard(

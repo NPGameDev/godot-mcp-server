@@ -321,12 +321,20 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     const readEmpty = (await bridge.call("tilemap.read_cells", { node_path: tmlPath }, CALL_TIMEOUT)) as {
       success?: boolean;
       cell_count?: number;
-      cells_total?: number;
+      total_cells?: number;
+      truncated?: boolean;
       bounds?: Record<string, number>;
     };
     if (readEmpty?.success !== true || readEmpty.cell_count !== 0)
       fail(`tilemap.read_cells empty: ${JSON.stringify(readEmpty)}`);
     else pass(`tilemap.read_cells empty ${tmClass} -> cell_count=0`);
+    // Canonical naming: total_cells; an empty read reports total_cells=0, truncated=false.
+    if (readEmpty?.success === true && readEmpty.total_cells === 0 && readEmpty.truncated === false)
+      pass(`tilemap.read_cells empty -> total_cells=0 truncated=false`);
+    else
+      fail(
+        `tilemap.read_cells empty pagination shape: ${JSON.stringify({ total_cells: readEmpty?.total_cells, truncated: readEmpty?.truncated })}`,
+      );
 
     await bridge.call("scene.delete_node", { node_path: tmlPath }, CALL_TIMEOUT);
   } else {

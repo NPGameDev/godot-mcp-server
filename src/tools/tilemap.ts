@@ -11,7 +11,7 @@ export const tilemapTools: ToolDef[] = [
     method: "tilemap.read_cells",
     description:
       "Read placed tile data from a TileMapLayer (4.3+) or deprecated TileMap. " +
-      "Returns cell coords, source_id, atlas_coords. 500-cell cap with spatial pagination via region.",
+      "Returns cell coords, source_id, atlas_coords. 500-cell cap, paginate via region; +total_cells/truncated (cursor-less).",
     inputSchema: {
       node_path: z.string().describe("Path to TileMapLayer or TileMap node"),
       region: z

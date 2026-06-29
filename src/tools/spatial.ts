@@ -10,7 +10,8 @@ export const spatialTools: ToolDef[] = [
     name: "scene_spatial_map",
     method: "scene.spatial_map",
     description:
-      "Spatial layout of the current scene: per-node world position, bounds (2D Rect2 / 3D AABB), size, plus computed overlaps/gaps/containment. Call before placing or moving nodes to find clear space.",
+      "Spatial layout of the current scene: per-node world position, bounds (2D Rect2 / 3D AABB), size, plus computed overlaps/gaps/containment. Call before placing or moving nodes to find clear space. " +
+      "+total_nodes/truncated (cursor-less).",
     inputSchema: {
       detail: z
         .enum(["brief", "normal", "full"])

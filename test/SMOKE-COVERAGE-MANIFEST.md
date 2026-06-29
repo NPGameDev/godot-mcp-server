@@ -81,7 +81,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | editor_save_scene | 04, 07, 10, 14 | ✓ | — | — | — | |
-| editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id, source=buffer/file) | — | **GAP:** clear_buffer param. **Editor parse-error capture is 4.5+ only** (Logger); 4.2-4.4 don't file-log editor parse errors → §14 gates the parse-error-filter assertions (#2/#3/#6) to 4.5+. "at:" continuation leveling for captured multi-line errors is toolkit-side + unit-tested (41m-ter A2/A3) |
+| editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id, source=buffer/file) | — | **GAP:** clear_buffer param. ledger #9: total_lines/next_id/truncated. **Editor parse-error capture is 4.5+ only** (Logger); 4.2-4.4 don't file-log editor parse errors → §14 gates the parse-error-filter assertions (#2/#3/#6) to 4.5+. "at:" continuation leveling for captured multi-line errors is toolkit-side + unit-tested (41m-ter A2/A3) |
 | editor_screenshot | 04, 18 | ✓ (inline + save_path) | ✓ (18: PATH_DENIED) | — | — | In editor_advanced group |
 | editor_refresh | 03, 14, 16, 23 | ✓ | — | — | — | Renamed from editor_reload_scripts (S:6964946) |
 
@@ -105,15 +105,15 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| classdb_get_info | 23 | ✓ | ✓ (UNKNOWN_CLASS) | ✓ (sections filter, inherited props, offset pagination, global class) | — | |
-| classdb_search | 23 | ✓ | ✓ (UNKNOWN_CLASS) | ✓ (base_class, pattern, offset pagination) | — | |
+| classdb_get_info | 23 | ✓ | ✓ (UNKNOWN_CLASS) | ✓ (sections filter, inherited props, offset pagination, global class) | ✓ (next_offset on truncation) | ledger #9: total_<section>/truncated/next_offset |
+| classdb_search | 23 | ✓ | ✓ (UNKNOWN_CLASS) | ✓ (base_class, pattern, offset pagination) | — | ledger #9: total_classes (was total)/truncated/next_offset |
 
 ### Asset Management (3 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| asset_list | 14, 15 | ✓ | ✓ (14: PATH_DENIED) | ✓ (name_glob, class_filter, extension_filter, max_results) | — | |
-| asset_get_dependencies | 14 | ✓ | ✓ (NOT_FOUND) | — | — | In asset_ops group |
+| asset_list | 14, 15 | ✓ | ✓ (14: PATH_DENIED) | ✓ (name_glob, class_filter, extension_filter, max_results) | — | ledger #9: total_assets/truncated (cursor-less) |
+| asset_get_dependencies | 14 | ✓ | ✓ (NOT_FOUND) | — | — | In asset_ops group; ledger #9: total_dependencies/truncated (cursor-less) |
 | asset_import | 15 | ✓ | ✓ (PATH_DENIED, ALREADY_EXISTS, INVALID_PARAMS) | ✓ (base64, if_exists modes) | — | In asset_ops group |
 
 ### Resource Management (3 tools)
@@ -159,7 +159,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 |---|---|---|---|---|---|---|
 | runtime_screenshot | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | |
 | runtime_get_node_state | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | In runtime_advanced group |
-| debugger_get_log | 17 | ✓ | — | — | — | **GAP:** cache fallback after game stop |
+| debugger_get_log | 17 | ✓ | — | — | — | **GAP:** cache fallback after game stop. ledger #9: total_lines (was total)/truncated (capped tail) |
 | input_simulate | 17 | ✓ | — | — | — | **GAP:** world_position hint |
 | animation_player_control | 17 | ✓ | — | — | — | In runtime_advanced group |
 | runtime_get_script_vars | 17 | ✓ | — | — | — | |
@@ -187,7 +187,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | tilemap_set_cells | 13 | ✓ (clear) | ✓ (NOT_FOUND, INVALID_PARAMS: malformed cell, INVALID_STATE: no tileset) | — | — | In tilemap group. **GAP:** regions param. §13 node version-branched: TileMapLayer 4.3+ / legacy TileMap 4.2 (41m-ter A1) |
-| tilemap_read_cells | 13 | ✓ (empty; TileMapLayer 4.3+ / TileMap 4.2) | ✓ (INVALID_CLASS, NOT_FOUND) | — | — | Redistributed from S43; node version-branched (41m-ter A1) |
+| tilemap_read_cells | 13 | ✓ (empty; TileMapLayer 4.3+ / TileMap 4.2) | ✓ (INVALID_CLASS, NOT_FOUND) | ✓ (total_cells/truncated on empty) | — | Redistributed from S43; node version-branched (41m-ter A1); ledger #9: total_cells (was cells_total)/truncated |
 | tileset_create | 13, 44 | ✓ | ✓ (missing texture) | — | ✓ (S44: "TileMap") | In tilemap group |
 | tileset_add_source | 44 | ✓ | — | — | ✓ ("tilemap.set_cells") | |
 | tileset_remove_source | 44 | ✓ | ✓ (NOT_FOUND: invalid source) | — | ✓ ("tilemap.read_cells") | |
@@ -317,7 +317,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| scene_spatial_map | 45 | ✓ (2D overlaps / containment / nearest) | ✓ (INVALID_PARAMS: detail, region size) | ✓ (detail brief/normal/full, class, region, radius, subtree, max_nodes truncation) | — | eager; read-only |
+| scene_spatial_map | 45 | ✓ (2D overlaps / containment / nearest) | ✓ (INVALID_PARAMS: detail, region size) | ✓ (detail brief/normal/full, class, region, radius, subtree, max_nodes truncation) | ✓ (total_nodes on truncation) | eager; read-only; ledger #9: total_nodes (was node_count)/truncated |
 | texture_generate | 46 | ✓ (all 7 shapes, class=Texture2D) | ✓ (INVALID_PATH png, PATH_DENIED, INVALID_PARAMS transparent/shape — bridge/direct path; cf. sweep -32602 via server) | ✓ (colour hex/named/[0-1]/[0-255], hollow, label, dim cap, if_exists, **default-path settle: class populated + no warning + elapsed_ms<1000 — Item B, 41m-sexies**) | — | placeholders group |
 | sound_generate | 46 | ✓ (all 5 waveforms, class=AudioStreamWAV) | ✓ (INVALID_PATH wav, PATH_DENIED, INVALID_PARAMS waveform — bridge/direct path; cf. sweep -32602) | ✓ (sweep, decay, duration cap, if_exists) | — | placeholders group |
 

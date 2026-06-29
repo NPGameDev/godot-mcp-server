@@ -40,7 +40,8 @@ export const runtimeTools: ToolDef[] = [
     method: "debugger.get_log",
     description:
       "Game output log. Works during gameplay AND after crash (auto-serves cached output). " +
-      "source='buffer'|'file'. limit=200. text_filter + is_regex for search.",
+      "source='buffer'|'file'. limit=200. text_filter + is_regex for search. " +
+      "+total_lines/truncated (capped tail).",
     inputSchema: {
       limit: z.coerce.number().int().positive().optional(),
       source: z.enum(["buffer", "file"]).optional(),
@@ -221,7 +222,8 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
       if (err) return err;
       const obj = result as Record<string, unknown>;
       const count = typeof obj.count === "number" ? obj.count : 0;
-      const total = typeof obj.total === "number" ? obj.total : count;
+      // total_lines: the full (pre-cap) line count from the runtime debugger log.
+      const total = typeof obj.total_lines === "number" ? obj.total_lines : count;
       const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
       const text = stableStringify({ _summary: summary, ...obj });
       return { content: [{ type: "text" as const, text }] };

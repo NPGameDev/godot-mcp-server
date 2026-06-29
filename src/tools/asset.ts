@@ -12,7 +12,8 @@ export const assetTools: ToolDef[] = [
     name: "asset_list",
     method: "asset.list",
     description:
-      "Enumerate res:// assets with filters (path_prefix, name_glob, class_filter ancestry-aware, extension_filter). Returns [{path,class,modified_unix}]. Cap max_results 2000.",
+      "Enumerate res:// assets with filters (path_prefix, name_glob, class_filter ancestry-aware, extension_filter). Returns [{path,class,modified_unix}]. Cap max_results 2000. " +
+      "+total_assets/truncated (cursor-less — narrow filters or raise max_results).",
     inputSchema: {
       path_prefix: z.string().optional(),
       name_glob: z.string().optional(),
@@ -27,7 +28,8 @@ export const assetTools: ToolDef[] = [
     name: "asset_get_dependencies",
     method: "asset.get_dependencies",
     description:
-      "Forward dependencies of a res:// resource/scene via EditorFileSystem cache. include_transitive walks deps-of-deps. Returns [{path,raw_path,class}].",
+      "Forward dependencies of a res:// resource/scene via EditorFileSystem cache. include_transitive walks deps-of-deps. Returns [{path,raw_path,class}]. " +
+      "+total_dependencies/truncated (cursor-less).",
     inputSchema: {
       file_path: z.string(),
       include_transitive: coercedBoolean().optional(),
