@@ -75,7 +75,7 @@ export const animationTools: ToolDef[] = [
       property: z.string().optional().describe("For set_property: property name to set."),
       value: z.unknown().optional().describe("For set_property: value to assign."),
     },
-    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: true },
   },
 ];
 

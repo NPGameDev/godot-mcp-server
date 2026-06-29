@@ -107,7 +107,7 @@ export const sceneTools: ToolDef[] = [
             "as_name and transform are ignored in batch mode.",
         ),
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     successHint: "Configure instance properties with node_set_property. Save with editor_save_scene.",
     pathParams: [{ param: "scene_path", guard: "project" }],
   },

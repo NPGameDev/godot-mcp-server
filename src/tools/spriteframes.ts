@@ -33,7 +33,7 @@ export const spriteframesTools: ToolDef[] = [
       file_path: z.string().describe("Output .tres file path (res://)"),
       animations: z.array(animationSchema).min(1).describe("Animations with their frames"),
     },
-    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     successHint: "Add/modify frames with spriteframes_edit. For spritesheets use spriteframes_from_spritesheet.",
     pathParams: [PROJECT_FILE_PATH],
   },
@@ -94,7 +94,7 @@ export const spriteframesTools: ToolDef[] = [
         .min(1)
         .describe("Animation definitions mapping to spritesheet regions"),
     },
-    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     // file_path is guarded; texture_path is NOT (toolkit calls load(), which is
     // res://-scoped — guarding it server-side could false-reject).
     pathParams: [PROJECT_FILE_PATH],

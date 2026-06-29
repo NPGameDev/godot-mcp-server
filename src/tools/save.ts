@@ -39,7 +39,7 @@ export const saveTools: ToolDef[] = [
       path: z.string(),
       content: z.string(),
     },
-    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
     pathParams: [{ param: "path", guard: "user" }],
   },
   {

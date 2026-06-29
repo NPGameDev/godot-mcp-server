@@ -20,7 +20,7 @@ export const navigationTools: ToolDef[] = [
         .describe("For 'add_outline': single outline as array of {x,y} points"),
       index: z.number().int().optional().describe("For 'remove_outline': outline index"),
     },
-    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
     successHint: "After defining polygons, call with action 'bake' to generate the navigation mesh.",
   },
 ];

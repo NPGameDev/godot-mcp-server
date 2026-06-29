@@ -237,7 +237,7 @@ const tilesetEditDefs: ToolDef[] = [
           "probability?: number}]",
       ),
     },
-    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
     successHint: "Visual properties set. Other per-tile tools: tileset_edit_physics, tileset_edit_terrain.",
   },
   {
