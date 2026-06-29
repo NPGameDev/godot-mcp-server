@@ -46,6 +46,7 @@
     "lint:fix": "eslint src/ test/ --fix",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
+    "check:arch": "bash scripts/check_arch_freshness.sh",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

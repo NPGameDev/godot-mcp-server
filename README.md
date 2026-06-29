@@ -6,6 +6,8 @@
 
 [MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 61 tools for scene manipulation, script editing, resource management, playtesting, and more.
 
+> **[Architecture &rarr;](docs/architecture/README.md)** — how the server is built: the entrypoint & startup, the WebSocket bridge, the catalogue/dispatch pipeline, `discover_tools`, the GDScript LSP client, and the registry consumer. Also rendered at [npgamedev.github.io/godot-mcp-server/architecture](https://npgamedev.github.io/godot-mcp-server/architecture/).
+
 ## What it does
 
 This Node.js process bridges your AI coding assistant to a running Godot editor. It speaks MCP over stdio to the assistant and forwards tool calls over a localhost WebSocket to the companion [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) plugin.
