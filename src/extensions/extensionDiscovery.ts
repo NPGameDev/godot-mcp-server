@@ -16,6 +16,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { registerGroupSystem, addExtensionGroup } from "../groups/groups.js";
 import { batchToolRegistration } from "../registration/toolRegistry.js";
+import { extensionNameCollides } from "../registration/extensionCollision.js";
 import { extensionAnnotations, toolNameFromMethod, toExtensionCommand } from "./extensionCommand.js";
 import type { ExtensionRegistrar } from "./extensionRegistrar.js";
 import type { ExtensionCmdWire, Bridge } from "../shared/types.js";
@@ -117,6 +118,9 @@ export function createExtensionDiscovery(deps: {
         const ungrouped: typeof result.commands = [];
         for (const cmd of result.commands) {
           const toolName = toolNameFromMethod(cmd.method);
+          // Skip a name that shadows a built-in or another tool before it can enter
+          // the known-extension ledger or a deferred group — the incumbent wins.
+          if (extensionNameCollides(toolName)) continue;
           registrar.register(toolName);
           const annotations = extensionAnnotations(cmd);
           if (cmd.group?.name) {

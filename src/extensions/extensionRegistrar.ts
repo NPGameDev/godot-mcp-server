@@ -20,6 +20,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { isExcludedByReadOnly } from "../security/profiles.js";
 import { hasToolRef } from "../registration/toolRefs.js";
 import { registerToolWrapped } from "../registration/toolRegistry.js";
+import { extensionNameCollides } from "../registration/extensionCollision.js";
 import { callAndWrap } from "../registration/toolDispatch.js";
 import { extensionAnnotations, toolNameFromMethod } from "./extensionCommand.js";
 import type { ToolTextResult, ExtensionCmdWire, Bridge } from "../shared/types.js";
@@ -112,6 +113,9 @@ export function createExtensionRegistrar(deps: {
    */
   function registerExtensionTool(cmd: ExtensionCmdWire): boolean {
     const toolName = toolNameFromMethod(cmd.method);
+    // Refuse a name that shadows a built-in or an already-registered tool — the
+    // incumbent keeps the name (defence-in-depth at the registration choke point).
+    if (extensionNameCollides(toolName)) return false;
     const annotations = extensionAnnotations(cmd);
     // Read-only mode: skip extension tools that aren't read-only.
     if (isExcludedByReadOnly(getReadOnly(), annotations)) return false;

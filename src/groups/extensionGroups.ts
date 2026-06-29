@@ -14,6 +14,7 @@ import { activatedResult, alreadyLoadedResult, availableResult, readOnlyEmptyRes
 import { registerToolWrapped } from "../registration/toolRegistry.js";
 import { callAndWrap } from "../registration/toolDispatch.js";
 import { removeToolByName } from "../registration/toolRefs.js";
+import { extensionNameCollides } from "../registration/extensionCollision.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "../security/profiles.js";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -122,6 +123,10 @@ export function registerExtGroupTools(
   const registered: string[] = [];
   for (const cmd of group.commands) {
     if (isExcludedByReadOnly(readOnly, cmd.annotations)) continue;
+    // A grouped extension tool can only clash with a built-in or another group's
+    // tool at activation time (registration is deferred + order-dependent) — refuse
+    // it here so the incumbent is never overwritten.
+    if (extensionNameCollides(cmd.toolName)) continue;
     registerToolWrapped(
       server,
       bridge,

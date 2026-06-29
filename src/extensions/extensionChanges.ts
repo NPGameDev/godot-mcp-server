@@ -24,6 +24,7 @@ import {
 } from "../groups/groups.js";
 import { removeToolByName, updateToolRef, hasToolRef } from "../registration/toolRefs.js";
 import { batchToolRegistration } from "../registration/toolRegistry.js";
+import { extensionNameCollides } from "../registration/extensionCollision.js";
 import { extensionAnnotations, toolNameFromMethod, toExtensionCommand } from "./extensionCommand.js";
 import type { ExtensionRegistrar } from "./extensionRegistrar.js";
 import type { ExtensionCmdWire, Bridge } from "../shared/types.js";
@@ -134,7 +135,9 @@ export function createExtensionChangeHandler(deps: {
           continue;
         }
 
-        // New tool — partition into grouped/ungrouped.
+        // New tool — refuse a name that shadows a built-in or another tool (before
+        // it can enter the ledger or a group; the incumbent wins), then partition.
+        if (extensionNameCollides(toolName)) continue;
         if (cmd.group?.name) {
           const extCmd = toExtensionCommand(cmd, annotations);
           addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);

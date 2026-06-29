@@ -12,16 +12,21 @@
  *   2. handleExtensionsChanged — remove via removed[].
  *   3. handleExtensionsChanged — read-only exclusion + the eligibility transitions.
  *   4. discoverExtensions — single-flight (two concurrent calls → one refresh RPC).
+ *   5. handleExtensionsChanged — a grouped extension whose name shadows an eager
+ *      built-in never overwrites it (collision skipped + warned; a free grouped
+ *      tool in the same push still loads, so the guard is surgical).
  */
 import assert from "node:assert/strict";
 import { createExtensionManager, type ExtensionManager } from "../../src/extensions/extensions.js";
-import { hasToolRef, removeAllToolRefs } from "../../src/registration/toolRefs.js";
+import { hasToolRef, removeAllToolRefs, setToolRef } from "../../src/registration/toolRefs.js";
+import { ALL_TOOL_NAMES } from "../../src/registration/catalogue.js";
 import {
   resetLoadedGroups,
   hasExtensionGroups,
   findMatchesSingle,
   removeExtensionGroup,
 } from "../../src/groups/groups.js";
+import { captureStderr } from "./helpers.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Bridge } from "../../src/shared/types.js";
 
@@ -170,6 +175,76 @@ reset();
   // A fresh discovery after the in-flight pass settled runs a NEW refresh RPC.
   await mgr.discoverExtensions();
   assert.equal(refreshCalls, 2, "single-flight: a post-settle discovery starts a fresh pass");
+}
+
+// ── Block 5 — reconcile cannot let a grouped extension shadow a built-in ──
+
+reset();
+{
+  // An eager built-in holds its name from startup; seed its ref with an update spy
+  // so any in-place overwrite by the reconcile path becomes observable.
+  const aBuiltin = [...ALL_TOOL_NAMES][0];
+  assert.ok(aBuiltin, "the catalogue is non-empty");
+  let builtinUpdates = 0;
+  setToolRef(aBuiltin, {
+    remove() {},
+    update() {
+      builtinUpdates++;
+    },
+  });
+
+  const mgr = createExtensionManager({ server: makeFakeServer(), bridge: makeFakeBridge(), getReadOnly: () => false });
+
+  // One push carrying a GROUPED extension command whose name shadows the built-in,
+  // next to a free grouped command. A method with no dots maps onto an identical
+  // tool name, so the first command collides head-on with the built-in.
+  const payload = {
+    commands: [
+      {
+        method: aBuiltin,
+        description: "shadow",
+        annotations: { readOnlyHint: true },
+        group: { name: "collide_grp", description: "Colliding group", keywords: ["collidekw"] },
+      },
+      {
+        method: "free.surgical.tool",
+        description: "ok",
+        annotations: { readOnlyHint: true },
+        group: { name: "free_grp", description: "Free group", keywords: ["freesurgicalkw"] },
+      },
+    ],
+  };
+
+  // Push the same delta twice. A re-push is the route that — unguarded — would let
+  // the now-"known" colliding name reach the in-place update branch and clobber the
+  // built-in's annotations; the guard must keep it out of the ledger on every pass.
+  const cap = captureStderr();
+  mgr.handleExtensionsChanged(payload);
+  mgr.handleExtensionsChanged(payload);
+  cap.restore();
+
+  // The built-in's ref is never overwritten, it keeps its name, and the colliding
+  // command never reaches the group registry.
+  assert.equal(builtinUpdates, 0, "a colliding grouped extension never overwrites the built-in's tool ref");
+  assert.equal(hasToolRef(aBuiltin), true, "the built-in keeps its name");
+  assert.ok(
+    !findMatchesSingle("collidekw", false).some((m) => m.name === "collide_grp"),
+    "the colliding command never enters the group registry",
+  );
+
+  // The collision is skipped with a loud warning.
+  const warnings = cap.output();
+  assert.ok(warnings.includes(`extension tool '${aBuiltin}' collides`), "the reconcile collision warns loudly");
+  assert.ok(warnings.includes("skipped"), "the warning states the colliding tool was skipped");
+
+  // The free grouped tool in the SAME push still registers — the guard skips only
+  // the clash, it does not abort the whole reconcile.
+  assert.ok(
+    findMatchesSingle("freesurgicalkw", false).some((m) => m.name === "free_grp"),
+    "a non-colliding grouped tool in the same push still registers",
+  );
+
+  removeExtensionGroup("free_grp"); // isolate: clear the extension group we added
 }
 
 reset();

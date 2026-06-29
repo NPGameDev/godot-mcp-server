@@ -119,3 +119,12 @@ export const ALL_TOOL_NAMES: Set<string> = new Set(ALL_TOOL_DEFS.map((t) => t.na
  * are dynamic.
  */
 export const META_TOOL_NAMES: readonly string[] = ["discover_tools", "extensions_refresh"];
+
+/**
+ * Whether `name` is one of the server's own built-in tool names — any tool in the
+ * static catalogue (eager or on-demand) or an always-on meta tool. The authority
+ * for "this name belongs to the server, not to an extension."
+ */
+export function isBuiltinToolName(name: string): boolean {
+  return ALL_TOOL_NAMES.has(name) || META_TOOL_NAMES.includes(name);
+}
