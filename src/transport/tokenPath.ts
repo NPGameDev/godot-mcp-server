@@ -1,116 +1,113 @@
 /**
- * Per-instance token-file location + read.
+ * Read the per-instance session token the toolkit published into the registry.
  *
- * One responsibility: the token-file LOCATION contract — resolve the Godot
- * project name, derive the per-OS `user://` path plus the per-instance
- * `project_instance_<hash>` subdirectory, and read the session token off disk.
- * Mirrors the toolkit's GDScript `project_paths.gd` derivation byte-for-byte so
- * two worktrees of the same repo resolve to the same directory on both sides.
+ * The toolkit is authoritative for the token's on-disk LOCATION. At its registry
+ * publish sites it globalizes the `user://` token path to an absolute path —
+ * honoring `application/config/use_custom_user_dir` live — and writes that into the
+ * project's registry entry. This module looks up `entry.token_path`, asserts the
+ * published path STRUCTURALLY (absolute, no traversal, the invariant
+ * `…/project_instance_<hash>/mcp_token` shape), confirms it is a regular file, and
+ * returns its contents. It does NOT re-derive the path: no project-name resolution,
+ * no per-OS user-dir reconstruction, no hash recompute.
+ *
+ * `GODOT_MCP_TOKEN_PATH` is an explicit operator override — a trusted absolute path
+ * to an existing file, read directly without the registry or the suffix shape check
+ * (it may point anywhere, e.g. a test-harness temp dir).
  *
  * Pure path/filesystem logic — no wire protocol, no channel/auth coupling.
- * `resolveTokenPath` + `resolveProjectName` are exported for direct unit testing
- * of the token-path contract; the transport imports only `readToken`.
+ * `assertPublishedTokenPath` is exported for direct unit testing; the transport
+ * imports only `readToken`.
  */
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { homedir } from "node:os";
+import { readFile, stat } from "node:fs/promises";
 import { BridgeError } from "../shared/errors.js";
+import { lookupProject } from "../registry.js";
+
+/** Absolute path: POSIX `/…`, Windows `<drive>:/…`, or UNC `//…` (normalize `\`→`/` first). */
+const ABSOLUTE_PATH = /^([A-Za-z]:\/|\/)/;
 
 /**
- * Resolve the Godot project name.
- *
- * Precedence:
- *   1. GODOT_MCP_PROJECT_NAME env var  (set by smoke harness / CI)
- *   2. config/name in project.godot at projectPath (from registry)
- *   3. config/name in project.godot in cwd
- *   4. "[unnamed project]"  (matches Godot's actual appdata dir name)
+ * Validate a registry-published token path before opening it. The toolkit
+ * publishes an absolute, globalized path; this re-asserts the shape a moved or
+ * stale registry (or a hand-set value) could otherwise corrupt. Lexical only —
+ * symlink resolution is out of scope (single-user localhost threat model). Throws
+ * `AUTH_FAILED` on any violation.
  */
-export async function resolveProjectName(projectPath?: string): Promise<string> {
-  const envName = process.env.GODOT_MCP_PROJECT_NAME;
-  if (envName) return envName;
-  // Try the known project directory first, then fall back to cwd.
-  const candidates = projectPath ? [join(projectPath, "project.godot"), "project.godot"] : ["project.godot"];
-  for (const path of candidates) {
-    try {
-      const content = await readFile(path, "utf-8");
-      const match = content.match(/config\/name="([^"]+)"/);
-      if (match) return match[1];
-    } catch {
-      // Not found at this location — try next.
-    }
+export function assertPublishedTokenPath(published: string): void {
+  const norm = published.replace(/\\/g, "/");
+  // A regex (not path.isAbsolute) keeps the check platform-independent, so a
+  // Windows-shaped path validates the same on a POSIX CI runner.
+  if (!ABSOLUTE_PATH.test(norm)) {
+    throw new BridgeError("AUTH_FAILED", `published token path is not absolute: ${published}`);
   }
-  return "[unnamed project]";
-}
-
-/**
- * Cross-platform Godot user:// path resolution.
- *   win32:  %APPDATA%/Godot/app_userdata/<project>/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token
- *   darwin: ~/Library/Application Support/Godot/app_userdata/<project>/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token
- *   linux:  ~/.local/share/godot/app_userdata/<project>/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token
- *
- * Per-instance: when projectPath is known, the token lives in a hash-named
- * subdirectory matching the plugin's project_paths.gd derivation. Two
- * worktrees of the same repo get distinct directories.
- */
-export async function resolveTokenPath(projectPath?: string): Promise<string> {
-  const envPath = process.env.GODOT_MCP_TOKEN_PATH;
-  if (envPath) return envPath;
-
-  const projectName = await resolveProjectName(projectPath);
-
-  // Per-instance: hash the canonical project path so two worktrees of the
-  // same repo (same config/name → same user://) get distinct directories.
-  // The plugin writes the token to
-  //   user://addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token
-  // (see project_paths.gd + auth.gd), so the subdir must match here.
-  let instanceDir = "addons/godot_mcp_toolkit";
-  if (projectPath) {
-    let canonical = projectPath.replace(/\\/g, "/").replace(/\/+$/, "");
-    // Windows/macOS: lowercase to match GDScript project_paths.gd hash.
-    if (process.platform === "win32" || process.platform === "darwin") canonical = canonical.toLowerCase();
-    const hash = createHash("sha256").update(canonical).digest("hex").slice(0, 12);
-    instanceDir = join("addons", "godot_mcp_toolkit", `project_instance_${hash}`);
+  if (norm.split("/").includes("..")) {
+    throw new BridgeError("AUTH_FAILED", `published token path contains '..': ${published}`);
   }
-
-  const tokenFile = "mcp_token";
-
-  switch (process.platform) {
-    case "win32":
-      return join(
-        process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
-        "Godot",
-        "app_userdata",
-        projectName,
-        instanceDir,
-        tokenFile,
-      );
-    case "darwin":
-      return join(
-        homedir(),
-        "Library",
-        "Application Support",
-        "Godot",
-        "app_userdata",
-        projectName,
-        instanceDir,
-        tokenFile,
-      );
-    default:
-      return join(homedir(), ".local", "share", "godot", "app_userdata", projectName, instanceDir, tokenFile);
+  // Invariant suffix — a FORMAT check on the 12-hex instance segment, never a
+  // recomputed hash (recomputing would re-add the cross-repo derivation this module
+  // exists to remove).
+  if (!/(?:^|\/)addons\/godot_mcp_toolkit\/project_instance_[0-9a-f]{12}\/mcp_token$/.test(norm)) {
+    throw new BridgeError(
+      "AUTH_FAILED",
+      `published token path has an unexpected shape: ${published} — expected …/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token`,
+    );
   }
 }
 
 /**
- * Read the session token from disk. Re-reads on every call (no caching) so
- * reconnects after a plugin restart pick up the rotated token.
+ * Read the session token from disk. Re-reads on every call (no caching) so a
+ * reconnect after a plugin restart picks up the rotated token.
+ *
+ * @param projectPath absolute project root, used as the registry key. Production
+ *   always passes a concrete path; the cwd fallback is a test-only convenience.
+ * @returns the trimmed token contents.
+ * @throws BridgeError `AUTH_FAILED` — no registry entry, an empty or malformed
+ *   published path, or a missing/unreadable token file (each with a distinct,
+ *   actionable message).
  */
 export async function readToken(projectPath?: string): Promise<string> {
-  const tokenPath = await resolveTokenPath(projectPath);
+  // Operator override: a trusted absolute path read directly, bypassing the
+  // registry and the suffix shape check (still required to be an existing file).
+  const envPath = process.env.GODOT_MCP_TOKEN_PATH;
+  if (envPath) {
+    if (!ABSOLUTE_PATH.test(envPath.replace(/\\/g, "/"))) {
+      throw new BridgeError("AUTH_FAILED", `GODOT_MCP_TOKEN_PATH must be an absolute path: ${envPath}`);
+    }
+    return readRegularFile(envPath, `GODOT_MCP_TOKEN_PATH points at no readable file: ${envPath}`);
+  }
+
+  const key = projectPath ?? process.cwd();
+  const entry = lookupProject(key);
+  if (!entry) {
+    throw new BridgeError(
+      "AUTH_FAILED",
+      `no registry entry for ${key} — is the Godot editor running with the MCP toolkit plugin? Reconnect or relaunch.`,
+    );
+  }
+  const published = entry.token_path;
+  if (!published) {
+    throw new BridgeError(
+      "AUTH_FAILED",
+      `registry entry for ${key} has no token path — the editor may not have published yet; relaunch the editor.`,
+    );
+  }
+  assertPublishedTokenPath(published);
+  return readRegularFile(
+    published,
+    `token file not found at published path ${published} — the project may have moved; reconnect or relaunch the editor.`,
+  );
+}
+
+/**
+ * Read a regular file's trimmed contents, throwing `AUTH_FAILED` with `failMsg` if
+ * it is missing, not a regular file, or unreadable. Shared by the operator-override
+ * and registry-published read paths so both fail with one actionable message.
+ */
+async function readRegularFile(path: string, failMsg: string): Promise<string> {
   try {
-    const token = (await readFile(tokenPath, "utf-8")).trim();
-    return token;
-  } catch (err) {
-    throw new BridgeError("AUTH_FAILED", `cannot read token file at ${tokenPath}: ${(err as Error).message}`);
+    const info = await stat(path);
+    if (!info.isFile()) throw new Error("not a regular file");
+    return (await readFile(path, "utf-8")).trim();
+  } catch {
+    throw new BridgeError("AUTH_FAILED", failMsg);
   }
 }

@@ -1,197 +1,204 @@
 /**
- * Unit tests for token_path.ts — the C-TOKEN leaf carved out of bridge.ts.
- * Pins the §10.1 token-LOCATION contract so the extraction stays byte-equivalent:
- * the env short-circuits, resolveProjectName precedence + config/name regex, the
- * per-OS path switch, the project_instance_<hash> SHA-256 recipe (lowercased on
- * win32/darwin), and readToken's re-read-every-call + AUTH_FAILED-with-path throw.
+ * Unit tests for tokenPath.ts — the server's token-LOCATION authority.
  *
- * Each assertion is genuinely derived (concrete paths / an independently
- * re-computed hash) — never a fn===fn tautology.
+ * The toolkit publishes an absolute, globalized token path into the registry; the
+ * server validates that published path STRUCTURALLY and reads it, never re-deriving
+ * it. These pin:
+ *   - assertPublishedTokenPath: accepts the published shape (POSIX + Windows, with
+ *     `\` normalized); rejects relative, traversal, wrong-suffix, and non-12-hex
+ *     instance segments — each as BridgeError("AUTH_FAILED", …).
+ *   - readToken via the registry: returns the token at a conforming published path,
+ *     re-reads every call, and fails LOUD (AUTH_FAILED) on a missing file, a
+ *     malformed or empty token_path, or an absent entry — each naming the reason.
+ *   - readToken via the GODOT_MCP_TOKEN_PATH operator override: reads the file
+ *     directly (suffix check bypassed), re-reads every call, and rejects a relative
+ *     or missing override loud.
+ *
+ * Registry cases reuse the APPDATA/XDG_DATA_HOME redirect that registryPath()
+ * honors; darwin has no such override, so those cases skip there.
  */
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir, homedir } from "node:os";
-import { join } from "node:path";
+import { writeFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { snapshotEnv } from "./helpers.js";
-import { readToken, resolveTokenPath, resolveProjectName } from "../../src/transport/tokenPath.js";
+import { normalizePath, registryPath, type RegistryEntry } from "../../src/registry.js";
+import { readToken, assertPublishedTokenPath } from "../../src/transport/tokenPath.js";
 import { BridgeError } from "../../src/shared/errors.js";
 
-/** Independent re-derivation of the per-instance hash (mirrors token_path.ts). */
-function deriveHash(projectPath: string): string {
-  let canonical = projectPath.replace(/\\/g, "/").replace(/\/+$/, "");
-  if (process.platform === "win32" || process.platform === "darwin") canonical = canonical.toLowerCase();
-  return createHash("sha256").update(canonical).digest("hex").slice(0, 12);
+// ── Hermetic environment (registry redirect; operator override OFF) ──
+const REDIRECT: string | null =
+  process.platform === "win32" ? "APPDATA" : process.platform === "linux" ? "XDG_DATA_HOME" : null;
+
+const tmpDir = mkdtempSync(join(tmpdir(), "mcp-tokpath-"));
+if (REDIRECT) process.env[REDIRECT] = tmpDir;
+// The registry-path cases must exercise lookupProject, not the operator override.
+delete process.env.GODOT_MCP_TOKEN_PATH;
+
+const HEX12 = "0123456789ab";
+const PREFIX = "/home/u/.local/share/godot/app_userdata/Proj/addons/godot_mcp_toolkit";
+const POSIX_OK = `${PREFIX}/project_instance_${HEX12}/mcp_token`;
+const WIN_OK = `C:/Users/u/AppData/Roaming/Godot/app_userdata/Proj/addons/godot_mcp_toolkit/project_instance_${HEX12}/mcp_token`;
+const WIN_BACKSLASH_OK = `C:\\Users\\u\\Godot\\app_userdata\\Proj\\addons\\godot_mcp_toolkit\\project_instance_${HEX12}\\mcp_token`;
+
+function makeEntry(over: Partial<RegistryEntry>): RegistryEntry {
+  return {
+    port: 6550,
+    token_path: "",
+    pid: process.pid,
+    started_at: 1000,
+    runtime_port: null,
+    runtime_pid: null,
+    ...over,
+  };
 }
 
-/** Independent re-derivation of the full token path (mirrors token_path.ts). */
-function deriveTokenPath(projectPath: string, projectName: string): string {
-  const instanceDir = join("addons", "godot_mcp_toolkit", `project_instance_${deriveHash(projectPath)}`);
-  const tokenFile = "mcp_token";
-  switch (process.platform) {
-    case "win32":
-      return join(
-        process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
-        "Godot",
-        "app_userdata",
-        projectName,
-        instanceDir,
-        tokenFile,
-      );
-    case "darwin":
-      return join(
-        homedir(),
-        "Library",
-        "Application Support",
-        "Godot",
-        "app_userdata",
-        projectName,
-        instanceDir,
-        tokenFile,
-      );
-    default:
-      return join(homedir(), ".local", "share", "godot", "app_userdata", projectName, instanceDir, tokenFile);
-  }
+/** Write projects.json under the redirected registry root. No-op on darwin. */
+function writeRegistry(byPath: Record<string, RegistryEntry>): void {
+  if (!REDIRECT) return;
+  mkdirSync(dirname(registryPath()), { recursive: true });
+  writeFileSync(registryPath(), JSON.stringify({ by_path: byPath }));
 }
 
-// ── 1. GODOT_MCP_TOKEN_PATH short-circuit (skips the per-OS switch) ───
-{
-  const restore = snapshotEnv();
-  try {
-    const explicit = join(tmpdir(), "explicit", "mcp_token");
-    process.env.GODOT_MCP_TOKEN_PATH = explicit;
-    // Even with a projectPath that would otherwise drive the per-OS switch,
-    // the env value wins verbatim.
-    assert.equal(await resolveTokenPath("/some/other/project"), explicit);
-  } finally {
-    restore();
-  }
+/** Create a real token file at a conforming …/project_instance_<hex>/mcp_token path. */
+function makeTokenFile(slug: string, token: string): string {
+  const dir = join(tmpDir, slug, "addons", "godot_mcp_toolkit", `project_instance_${HEX12}`);
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "mcp_token");
+  writeFileSync(file, token);
+  return file;
 }
 
-// ── 2. GODOT_MCP_PROJECT_NAME short-circuit (precedence rung 1) ───────
-{
-  const restore = snapshotEnv();
-  try {
-    process.env.GODOT_MCP_PROJECT_NAME = "EnvWins";
-    // Env beats a project.godot on disk: write one with a different name and
-    // confirm the env value still comes back.
-    const dir = mkdtempSync(join(tmpdir(), "tokpath-name-"));
-    try {
-      writeFileSync(join(dir, "project.godot"), 'config/name="FromFile"\n');
-      assert.equal(await resolveProjectName(dir), "EnvWins");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  } finally {
-    restore();
-  }
+/** assertPublishedTokenPath accepts a conforming published path. */
+function guardAccepts(published: string): void {
+  assert.doesNotThrow(() => assertPublishedTokenPath(published), `expected ${published} to validate`);
 }
 
-// ── 3. resolveProjectName precedence + config/name regex ─────────────
-{
-  const restore = snapshotEnv();
-  try {
-    delete process.env.GODOT_MCP_PROJECT_NAME;
-    const dir = mkdtempSync(join(tmpdir(), "tokpath-cfg-"));
-    try {
-      // A realistic project.godot stanza — the regex must pull "Foo Bar".
-      writeFileSync(
-        join(dir, "project.godot"),
-        '; Engine configuration file.\n[application]\nconfig/name="Foo Bar"\nrun/main_scene="res://Main.tscn"\n',
-      );
-      assert.equal(await resolveProjectName(dir), "Foo Bar");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-    // No file at projectPath and none in cwd (the server repo root has no
-    // project.godot) → the "[unnamed project]" fallback.
-    const empty = mkdtempSync(join(tmpdir(), "tokpath-empty-"));
-    try {
-      assert.equal(await resolveProjectName(empty), "[unnamed project]");
-    } finally {
-      rmSync(empty, { recursive: true, force: true });
-    }
-  } finally {
-    restore();
-  }
+/** assertPublishedTokenPath rejects with AUTH_FAILED (optionally pinning the reason). */
+function guardRejects(published: string, needle?: string): void {
+  assert.throws(
+    () => assertPublishedTokenPath(published),
+    (err: unknown) =>
+      err instanceof BridgeError &&
+      err.code === "AUTH_FAILED" &&
+      (needle === undefined || err.message.includes(needle)),
+    `expected AUTH_FAILED for ${published}`,
+  );
 }
 
-// ── 4. Per-OS path switch (root + tail), env cleared ─────────────────
-{
-  const restore = snapshotEnv();
-  try {
-    delete process.env.GODOT_MCP_TOKEN_PATH;
-    process.env.GODOT_MCP_PROJECT_NAME = "SwitchProj";
-    const projectPath = join(tmpdir(), "switch", "project");
-    const got = await resolveTokenPath(projectPath);
-    // Independently reconstructed full path for the current platform.
-    assert.equal(got, deriveTokenPath(projectPath, "SwitchProj"));
-    // And it carries the platform-correct root + the contract tail.
-    const root =
-      process.platform === "win32"
-        ? join("Godot", "app_userdata")
-        : process.platform === "darwin"
-          ? join("Application Support", "Godot", "app_userdata")
-          : join(".local", "share", "godot", "app_userdata");
-    assert.ok(got.includes(root), `expected platform root ${root} in ${got}`);
-    assert.ok(
-      got.endsWith(join("addons", "godot_mcp_toolkit", `project_instance_${deriveHash(projectPath)}`, "mcp_token")),
+async function main() {
+  console.log("tokenPath tests:");
+
+  // ── 1. Structural guard — direct (pure) cases ──────────────────────
+  guardAccepts(POSIX_OK);
+  guardAccepts(WIN_OK);
+  guardAccepts(WIN_BACKSLASH_OK); // `\` normalized before the checks
+  guardRejects(`addons/godot_mcp_toolkit/project_instance_${HEX12}/mcp_token`, "not absolute"); // relative
+  guardRejects(`${PREFIX}/project_instance_${HEX12}/../mcp_token`, "'..'"); // traversal segment
+  guardRejects(`${PREFIX}/mcp_token`, "unexpected shape"); // no instance dir
+  guardRejects(`${PREFIX}/project_instance_${HEX12}/other`, "unexpected shape"); // wrong filename
+  guardRejects(`${PREFIX}/project_instance_XYZdef012345/mcp_token`, "unexpected shape"); // non-hex segment
+  guardRejects(`${PREFIX}/project_instance_0123456789a/mcp_token`, "unexpected shape"); // 11-hex (too short)
+  guardRejects(`${PREFIX}/project_instance_0123456789abc/mcp_token`, "unexpected shape"); // 13-hex (too long)
+  console.log("  PASS: structural guard accepts the published shape and rejects malformed paths");
+
+  // ── 2. readToken via the registry ──────────────────────────────────
+  if (REDIRECT) {
+    const okProject = "/__godot_mcp_unit_test__/tokpath-ok";
+    const tokenFile = makeTokenFile("tokpath-ok", "  registry-token\n");
+    writeRegistry({ [normalizePath(okProject)]: makeEntry({ token_path: tokenFile }) });
+    assert.equal(await readToken(okProject), "registry-token", "reads + trims the published token");
+    // Re-read every call (no caching): a rotated file is picked up.
+    writeFileSync(tokenFile, "rotated-registry\n");
+    assert.equal(await readToken(okProject), "rotated-registry", "re-reads the rotated token");
+    // Missing file → loud AUTH_FAILED naming the published path.
+    rmSync(tokenFile, { force: true });
+    await assert.rejects(
+      () => readToken(okProject),
+      (err: unknown) => err instanceof BridgeError && err.code === "AUTH_FAILED" && err.message.includes(tokenFile),
+      "missing token file → AUTH_FAILED with the path",
     );
-  } finally {
-    restore();
-  }
-}
 
-// ── 5. project_instance_<hash> SHA-256 recipe + win32/darwin lowercase ─
-{
-  const restore = snapshotEnv();
-  try {
-    delete process.env.GODOT_MCP_TOKEN_PATH;
-    process.env.GODOT_MCP_PROJECT_NAME = "HashProj";
-    // A mixed-case path with a trailing slash + backslashes — exercises the
-    // canonicalization (slash-normalize, trailing-slash strip) and the
-    // win32/darwin lowercasing branch.
-    const projectPath = "C:\\Users\\Dev\\MixedCase\\Project\\";
-    const expectedHash = deriveHash(projectPath);
-    const got = await resolveTokenPath(projectPath);
-    assert.ok(got.includes(`project_instance_${expectedHash}`), `expected hash ${expectedHash} in ${got}`);
-    // On win32/darwin the lowercased canonical yields a DIFFERENT hash than the
-    // raw mixed-case input — proves the lowercasing branch actually fired.
-    if (process.platform === "win32" || process.platform === "darwin") {
-      const rawHash = createHash("sha256").update("C:/Users/Dev/MixedCase/Project").digest("hex").slice(0, 12);
-      assert.notEqual(expectedHash, rawHash, "lowercasing branch must change the hash");
-    }
-  } finally {
-    restore();
-  }
-}
+    // A published path that fails the structural guard surfaces through readToken.
+    const badProject = "/__godot_mcp_unit_test__/tokpath-badshape";
+    writeRegistry({ [normalizePath(badProject)]: makeEntry({ token_path: join(tmpDir, "nope", "mcp_token") }) });
+    await assert.rejects(
+      () => readToken(badProject),
+      (err: unknown) =>
+        err instanceof BridgeError && err.code === "AUTH_FAILED" && err.message.includes("unexpected shape"),
+      "malformed published path → AUTH_FAILED (guard wired into readToken)",
+    );
 
-// ── 6. readToken re-reads every call + throws AUTH_FAILED with the path ─
-{
-  const restore = snapshotEnv();
-  try {
-    const dir = mkdtempSync(join(tmpdir(), "tokpath-read-"));
-    const tokenFile = join(dir, "mcp_token");
+    // Empty token_path → loud AUTH_FAILED.
+    const emptyProject = "/__godot_mcp_unit_test__/tokpath-empty";
+    writeRegistry({ [normalizePath(emptyProject)]: makeEntry({ token_path: "" }) });
+    await assert.rejects(
+      () => readToken(emptyProject),
+      (err: unknown) =>
+        err instanceof BridgeError && err.code === "AUTH_FAILED" && err.message.includes("no token path"),
+      "empty token_path → AUTH_FAILED",
+    );
+
+    // Absent entry → loud AUTH_FAILED.
+    const absentProject = "/__godot_mcp_unit_test__/tokpath-absent";
+    writeRegistry({});
+    await assert.rejects(
+      () => readToken(absentProject),
+      (err: unknown) =>
+        err instanceof BridgeError && err.code === "AUTH_FAILED" && err.message.includes("no registry entry"),
+      "absent entry → AUTH_FAILED",
+    );
+    console.log("  PASS: readToken reads a conforming published path and fails loud on every gap");
+  } else {
+    console.log("  SKIP (darwin: no registry path override): readToken registry cases");
+  }
+
+  // ── 3. readToken via the GODOT_MCP_TOKEN_PATH operator override ─────
+  {
+    const restore = snapshotEnv();
+    const dir = mkdtempSync(join(tmpdir(), "tokpath-env-"));
+    // A non-conforming filename on purpose: the override bypasses the suffix check.
+    const overrideFile = join(dir, "mcp_token");
     try {
-      process.env.GODOT_MCP_TOKEN_PATH = tokenFile;
-      // Trims surrounding whitespace/newline.
-      writeFileSync(tokenFile, "  secret-abc\n");
-      assert.equal(await readToken(), "secret-abc");
-      // Re-read every call (no caching): a rotated file is picked up.
-      writeFileSync(tokenFile, "rotated-xyz\n");
-      assert.equal(await readToken(), "rotated-xyz");
-      // Missing file → BridgeError("AUTH_FAILED", …) with the path in the message.
-      rmSync(tokenFile, { force: true });
+      process.env.GODOT_MCP_TOKEN_PATH = overrideFile;
+      writeFileSync(overrideFile, "  override-abc\n");
+      assert.equal(await readToken(), "override-abc", "override reads + trims");
+      writeFileSync(overrideFile, "override-rotated\n");
+      assert.equal(await readToken(), "override-rotated", "override re-reads every call");
+      // Missing override file → loud AUTH_FAILED with the path.
+      rmSync(overrideFile, { force: true });
       await assert.rejects(
         () => readToken(),
-        (err: unknown) => err instanceof BridgeError && err.code === "AUTH_FAILED" && err.message.includes(tokenFile),
+        (err: unknown) =>
+          err instanceof BridgeError && err.code === "AUTH_FAILED" && err.message.includes(overrideFile),
+        "missing override → AUTH_FAILED with the path",
       );
+      // Relative override → loud AUTH_FAILED (must be absolute).
+      process.env.GODOT_MCP_TOKEN_PATH = "relative/mcp_token";
+      await assert.rejects(
+        () => readToken(),
+        (err: unknown) => err instanceof BridgeError && err.code === "AUTH_FAILED" && err.message.includes("absolute"),
+        "relative override → AUTH_FAILED",
+      );
+      console.log("  PASS: the operator override reads directly, re-reads, and rejects relative/missing");
     } finally {
+      restore();
       rmSync(dir, { recursive: true, force: true });
     }
-  } finally {
-    restore();
   }
+
+  console.log("All tokenPath tests passed.");
 }
 
-console.log("All 6 token_path tests passed.");
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
+  });

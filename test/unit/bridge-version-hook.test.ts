@@ -29,7 +29,7 @@ import { normalizePath, registryPath, type RegistryEntry } from "../../src/regis
 // ── Hermetic environment (token + registry redirect) ─────────────────
 // One temp dir holds the auth token AND (via the APPDATA/XDG_DATA_HOME redirect
 // that registryPath() honors) the projects.json registry. GODOT_MCP_TOKEN_PATH
-// short-circuits token resolution (bridge.ts resolveTokenPath), so auth works
+// is the operator override readToken reads directly, so auth works
 // regardless of the redirected registry. darwin hardcodes ~/Library with no
 // override, so the registry-seeding case (test 2) is skipped there — matching
 // registry.test.ts. The runner isolates each file in its own subprocess, so
