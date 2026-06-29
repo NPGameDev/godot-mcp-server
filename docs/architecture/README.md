@@ -6,12 +6,14 @@ nav_order: 2
 
 # Godot MCP Server — Architecture
 
-> **Architecture as of `aedb6c2`** — 41n-bis server cohesion refactor: the six
-> god-files (`index`, `bridge`, `tool_helpers`, `groups`, the LSP tools, `extensions`)
-> were decomposed into thin orchestrators over single-responsibility modules, and
-> `src/` was reorganised into bounded-context folders (`shared/ transport/
-> registration/ groups/ tools/ extensions/ lsp/ security/ startup/ mcp/`) with
-> `camelCase` filenames.
+> **Architecture as of `af9c5b4`** — 41n-ter cross-repo contract alignment: token-path
+> authority ([ADR 0011](#16-key-decisions); the server now reads + structurally validates
+> the toolkit-published token path instead of re-deriving it), uniform pagination
+> (`total_<unit>` / `truncated` / `next_<cursor>`), the audiobus / animationtree
+> command-query (CQS) split (tool count 108 → 110), and the extension-collision guard.
+> Structural baseline unchanged from the 41n-bis cohesion refactor (thin orchestrators over
+> single-responsibility modules; bounded-context `camelCase` folders `shared/ transport/
+> registration/ groups/ tools/ extensions/ lsp/ security/ startup/ mcp/`).
 
 This document explains how the server is built, for users and contributors who want
 to understand it without reading every TypeScript module. It covers the major
@@ -59,7 +61,9 @@ The rules that keep it honest:
    depicted files moved since their `data-verified` SHA. It over-flags by design — a false
    re-check costs a glance; a missed drift ships a lying diagram.
 
-Diagrams below are verified against `aedb6c2` (the tip of the 41n-bis refactor).
+Diagrams below are verified against `aedb6c2` (the 41n-bis refactor), except those on the seams
+the 41n-ter contract alignment touched, which are re-verified to `af9c5b4` — each diagram's own
+`data-verified` comment is authoritative.
 
 ---
 
@@ -189,7 +193,7 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="af9c5b4" -->
 ```mermaid
 flowchart TD
     pre["startupEnv preflight (may process.exit)<br/>Node ≥ 20 gate · --tools-count exit<br/>editor-port (env → registry → 6550) · response caps · config-version warn"]
@@ -204,7 +208,7 @@ flowchart TD
     recon["reconciler.armStartupReconcile<br/>(complete the surface once the version is known)"]
     conn["installProcessHandlers → server.connect(StdioServerTransport) — LAST"]
     pre --> bridge --> srv --> hooks --> subsys --> reg --> mcpcap --> eager --> notif --> recon --> conn
-    part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 33)<br/>+ 2 meta = 35-tool startup surface; group tools absent (no stubs).<br/>108 total / 33 eager / 75 on-demand / 28 groups"]
+    part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 33)<br/>+ 2 meta = 35-tool startup surface; group tools absent (no stubs).<br/>110 total / 33 eager / 77 on-demand / 28 groups"]
     reg -.-> part
 ```
 *Figure 3 — composition-root boot order · verified aedb6c2*
@@ -222,7 +226,7 @@ flowchart TD
   tools** (`discover_tools`, `extensions_refresh`, registered directly). On-demand
   **group tools are absent (no stubs)** until `discover_tools` activates them
   ([§7](#7-tool-surface-management-discover_tools)). The counts (also printed by
-  `--tools-count`): **108 total / 33 eager / 75 on-demand / 28 groups**; startup surface
+  `--tools-count`): **110 total / 33 eager / 77 on-demand / 28 groups**; startup surface
   = 35.
 - **The cold-start completion** (`startup/reconcile.ts`, concern 071): when the editor
   reports its version *after* eager registration, the startup reconcile re-registers the
@@ -273,8 +277,9 @@ sequenceDiagram
 The handshake (`authHandshake.ts`) sends `{ auth: token, version }` and resolves on
 `{ authed: true }`; the **editor** ack additionally carries `godot_version` + the plugin
 `version` (the version-gate input), while a **runtime** ack carries `{ authed: true }`
-only. The token is **re-read from disk on every connect** (`tokenPath.ts`, mirroring the
-toolkit's `project_paths.gd` derivation byte-for-byte), so a rotated token after a plugin
+only. The token is **re-read from disk on every connect** (`tokenPath.ts`, which reads the
+toolkit-published `token_path` from the registry and structurally validates it rather than
+re-deriving the path — [ADR 0011](#16-key-decisions)), so a rotated token after a plugin
 restart is picked up. A version-mismatch check after auth is human-only (stderr), never
 on the MCP wire.
 
@@ -401,7 +406,7 @@ not drift.
 
 ## 7. Tool-surface management: `discover_tools`
 
-The on-demand tool surface (28 groups, 75 group tools) is one bounded context carved into
+The on-demand tool surface (28 groups, 77 group tools) is one bounded context carved into
 `groups/`: `groupCatalogue.ts` (the static `GROUPS` array assembled from 28 one-per-file
 data modules in `groups/defs/`, plus the derived `GROUP_TOOL_NAMES` / `RUNTIME_TOOLS` /
 `LSP_TOOLS` index sets and the `allDefs` lookup), `groupMatch.ts` (pure keyword scoring),
@@ -559,7 +564,7 @@ crash.
 The server is a **read-only consumer** of the toolkit's `projects.json` (`registry.ts`):
 `readRegistry` reads only the aggregate file, never the per-instance `entries/` dir.
 
-<!-- data-depicts="src/registry.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/registry.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="af9c5b4" -->
 ```mermaid
 flowchart TD
     pj[("projects.json — the toolkit writes")] --> read["registry.readRegistry → by_path[ normalizePath(projectPath) ]<br/>(PATH key — NOT the sha256 project hash)"]
@@ -568,18 +573,23 @@ flowchart TD
     read --> rport["runtime_port / runtime_pid → discoverRuntime (isPidAlive gate)"]
     read --> lsp["lsp_port / lsp_host → discoverLspEndpoint"]
     read --> watch["diffAndNotify watcher — ONLY runtime_port transitions<br/>(editor port / version / lsp_port do NOT flow through it)"]
-    tok["token: NOT read from the entry's token_path field —<br/>tokenPath.ts DERIVES it independently<br/>(project name + sha256(canonical path)[:12], mirrors project_paths.gd)"]
-    pj -. "token_path field present in the schema, UNUSED by the consumer" .-> tok
+    tok["token: tokenPath.ts READS entry.token_path<br/>(toolkit-published · globalized-absolute) and<br/>STRUCTURALLY VALIDATES it — assertPublishedTokenPath:<br/>absolute · no '..' · existing file · …/project_instance_&lt;12-hex&gt;/mcp_token suffix"]
+    pj -. "token_path: READ + structurally validated (ADR-0011)" .-> tok
 ```
 *Figure 11 — the registry consume path · verified aedb6c2*
 
 **Path key, not hash.** `by_path` is keyed by the **canonical project path**; the server
 forms the same key via `normalizePath` (backslash → `/`, strip trailing `/`, lowercase on
 Windows/macOS). It does **not** recompute the sha256 12-char hash — that is a
-toolkit-internal filename token. **Token-path is the subtle case**: the `RegistryEntry`
-schema *declares* a `token_path` field, but the server **never reads it** — `tokenPath.ts`
-**derives** the token path independently (project name + `sha256(path)[:12]`, a
-byte-for-byte mirror of `project_paths.gd`). The server reads `port`, `godot_version`,
+toolkit-internal filename token. **Token-path authority flipped (ADR 0011)**: the server now
+**reads** `entry.token_path` — the toolkit-published, **globalized-absolute** path — and
+**structurally validates** it (`assertPublishedTokenPath`: absolute, no `..`, an existing
+regular file, and a `…/project_instance_<12-hex>/mcp_token` suffix — a *format* check, never a
+recomputed hash). The old independent derivation (`resolveTokenPath` / `resolveProjectName`)
+was **deleted**; honoring the published path is what makes a relocated `user://`
+(`use_custom_user_dir`) resolve, closing a silent `AUTH_FAILED`. `GODOT_MCP_TOKEN_PATH` remains
+an operator override (read directly, bypassing the suffix check). The server reads `port`,
+`godot_version`,
 `runtime_port` / `runtime_pid`, and `lsp_port` / `lsp_host`, and tolerates
 stale / runtime-only / ping-pong entries gracefully. The `diffAndNotify` watcher reacts
 **only** to `runtime_port` transitions. Liveness uses `isPidAlive` (`process.kill(pid, 0)`
@@ -637,14 +647,14 @@ ADR 0009). `extensions.ts` is a pure-composition facade over one shared registra
 single known-extension ledger), the discovery service, and the change-application service
 — so the ledger stays one consistency boundary.
 
-<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="af9c5b4" -->
 ```mermaid
 flowchart TD
     mgr["createExtensionManager — facade<br/>(one shared registrar = one ledger)"]
     mgr --> disc["extensionDiscovery.discoverExtensions (single-flight)"]
     disc --> rpc["bridge.call('extensions.refresh') (fallback 'extensions.list')"]
     rpc --> part{"cmd.group?.name ?"}
-    part -->|"ungrouped"| ung["batch → extensionRegistrar.registerExtensionTool<br/>(annotations · read-only skip · version gate · registerToolWrapped)"]
+    part -->|"ungrouped"| ung["batch → extensionRegistrar.registerExtensionTool<br/>(annotations · read-only skip · collision guard · version gate · registerToolWrapped)"]
     part -->|"grouped"| grp["addExtensionGroup (extensionGroups.ts — dynamic mirror)"]
     ung --> once["one tools/list_changed"]
     grp --> desc["registerGroupSystem — refresh discover_tools description"]
@@ -660,8 +670,13 @@ flowchart TD
 `extensions.list`), builds `{ readOnlyHint / destructiveHint / idempotentHint ?? false }`
 annotations, applies the read-only skip, and routes each command to
 `registerToolWrapped` (ungrouped, batched) or `addExtensionGroup` (grouped, the dynamic
-`extensionGroups` mirror). Discovery is **single-flight** (a concurrent caller joins the
-in-flight pass) and the eager boot pass is deadline-wrapped. **Live reconcile**: the
+`extensionGroups` mirror). Every extension name is **collision-guarded** first
+(`extensionNameCollides` — a name that is already a built-in *or* already registered is
+**skipped with a warning**, the incumbent always winning and never crashing) at all four
+registration sites, so a clash can't abort the batch — the MCP SDK's `registerTool` **throws**
+on a duplicate (defence-in-depth under the [ADR 0009](#16-key-decisions) full-trust model).
+Discovery is **single-flight** (a concurrent caller joins the in-flight pass) and the eager
+boot pass is deadline-wrapped. **Live reconcile**: the
 toolkit's `extensions.changed` broadcast → `extensionChanges.handleExtensionsChanged`
 applies the whole delta (removes, adds, in-place updates, read-only transitions) inside
 **one batch** → one `tools/list_changed`. `extensions_refresh` is the always-on meta-tool
@@ -728,6 +743,7 @@ this document:
 | [ADR 0002 — extension annotation API](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/adr/0002-extension-annotation-api.md) | [§13](#13-the-extension-system) |
 | [ADR 0008 — LSP port discovery is registry-authoritative](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/adr/0008-lsp-port-registry-authoritative.md) | [§9](#9-the-gdscript-lsp-client) |
 | [ADR 0009 — filesystem-content trust boundary; extensions full-trust](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/adr/0009-fs-content-trust-boundary.md) | [§8](#8-security--trust-boundaries), [§13](#13-the-extension-system) |
+| [ADR 0011 — token-path authority (toolkit publishes globalized-absolute; server reads + structurally validates)](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/adr/0011-token-path-authority.md) | [§4](#4-transport-the-websocket-bridge), [§11](#11-multi-project-registry) |
 
 Server-side decisions worth recording:
 
