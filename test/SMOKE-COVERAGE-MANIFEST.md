@@ -21,6 +21,15 @@ This manifest is the server-repo counterpart of the toolkit repo's
 `Validations/SWEEP-COVERAGE-MANIFEST.md`. Both are referenced from
 the plan repo's CLAUDE.md for cross-repo visibility.
 
+> **Version-parity invariant (hand-maintained — D-#1).** A version-gated built-in
+> needs BOTH a toolkit gate (`.with_min_godot_version`) AND a matching
+> server-catalogue bound (`ToolDef.godotMinVersion`). The **server bound is
+> authoritative for the `UNSUPPORTED` error message** (`"… (connected:
+> <maj>.<min>)"`). No automated cross-repo parity check ships for 1.0 — keep the
+> two version tables in sync **by hand** whenever you add or change a version-gated
+> built-in. Currently exactly one: `scene_close` (toolkit `scene.close`) @ 4.5+.
+> Automated guard deferred to PostRelease.
+
 ---
 
 ## Tool → Smoke Test Matrix
