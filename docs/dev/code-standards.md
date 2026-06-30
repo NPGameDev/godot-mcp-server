@@ -501,6 +501,19 @@ bridge.
 
 ---
 
+## 8. Untrusted data at OS sinks (input validation)
+
+Before handing a value that originates from untrusted or data-derived input (a downloaded catalog, a
+client-supplied URL or path, anything crossing the wire) to an OS sink — a shell / `child_process` /
+`exec` call, an `open`, or a filesystem operation outside the path guard — validate it: for a URL,
+allowlist the scheme (`http` / `https`) and reject the rest (`file:`, `javascript:`, custom
+handlers); for a path, canonicalize and confirm it stays inside the permitted root. *Rationale: an
+attacker-controlled scheme or traversal reaching an OS sink is an input-validation boundary breach.
+(This bridge has no current data-derived shell sink — it is the standing rule for any that is
+added.)*
+
+---
+
 # Part II — Project bindings
 
 This part records what is specific to *this* repo: the Bridge, the MCP/SDK surface, the cross-repo
@@ -715,6 +728,8 @@ durable anchor**.
   swallow is a commented fire-and-forget.
 - [ ] No floating promises (`void` / `await` / `.catch`); cancellation + timeout honored; **no
   synchronous event-loop blocking** ([§7.1](#7-async-promises-and-the-event-loop)).
+- [ ] Any data-derived value at an OS / shell / exec / open sink is validated (URL scheme allowlisted;
+  path canonicalized inside the guard) ([§8](#8-untrusted-data-at-os-sinks-input-validation)).
 - [ ] Cacheable surface via `stableStringify`; stdout never written outside the transport.
 - [ ] Tools registered through `registerToolWrapped`, not the SDK directly; multi-tool changes wrapped
   in `batchToolRegistration` → one `tools/list_changed`.
