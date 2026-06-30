@@ -296,6 +296,20 @@ async function testSendText(ctx: TestCtx): Promise<void> {
   if (submitted.success !== true) fail(`send_text submit: ${JSON.stringify(submitted)}`);
   else pass("send_text submit=true -> success");
 
+  // (6) Multiline TextEdit — Enter inserts a newline (not a submit), so submit:true
+  // on a TextEdit appends "\n" to the real text rather than firing text_submitted.
+  const multi = (await sendText({
+    text: "line",
+    node_path: "/root/SendTextSmoke/SmokeMultiEdit",
+    submit: true,
+  })) as SendTextResult;
+  const multiEv = multi.last_event;
+  if (multi.success !== true || multiEv?.text_changed !== true || !(multiEv.text_after ?? "").includes("\n")) {
+    fail(`send_text multiline: expected text_changed + newline in text_after, got ${JSON.stringify(multi)}`);
+  } else {
+    pass(`send_text multiline TextEdit -> newline inserted (text_after=${JSON.stringify(multiEv.text_after)})`);
+  }
+
   // Teardown — best-effort; the next section probes the port fresh.
   await bridge.call("game.stop", {}, CALL_TIMEOUT).catch(() => undefined);
 }
