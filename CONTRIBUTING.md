@@ -115,6 +115,30 @@ silent drift from caret ranges. When adding a dependency, pin it:
 npm install --save-exact some-package
 ```
 
+## Code standards
+
+This repo ships its own coding standards. Read them before writing code, along
+with the cross-repo contract — which lives in the toolkit repo, since the toolkit
+owns the command surface. New to the codebase? Read these in order:
+
+1. [`docs/architecture/README.md`](docs/architecture/README.md) — the
+   subsystems, the contract surface, and the transport, with diagrams. Start here
+   for the big picture.
+2. [`docs/dev/code-standards.md`](docs/dev/code-standards.md) — idiomatic
+   TypeScript/Node style, naming, static typing, async discipline, and comment
+   conventions, plus the MCP/SDK and deterministic-JSON rules every contribution
+   must respect.
+3. [Toolkit `docs/dev/contract.md`](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md)
+   — the request/response and transport contract between the toolkit and the
+   server. The toolkit owns it; read it before touching the bridge, response
+   handling, or anything on the wire.
+4. [`docs/dev/glossary.md`](docs/dev/glossary.md) — the shared vocabulary used
+   throughout the code and docs.
+
+For the rationale behind larger design choices, the trail is the commit history
+and the architecture document above — this repo does not keep a separate
+decision-record directory.
+
 ## Submitting changes
 
 ### Branch naming
@@ -146,6 +170,8 @@ per logical change.
 - [ ] `npm run lint` passes
 - [ ] `npm run format` passes
 - [ ] Smoke test passes (`npm run smoke`)
+- [ ] Code follows the [coding standards](docs/dev/code-standards.md)
+- [ ] Contract changes are reflected in the [toolkit contract](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md)
 - [ ] No unrelated changes included
 - [ ] Commit message follows Conventional Commits format
 - [ ] CHANGELOG.md updated if user-facing
@@ -163,11 +189,14 @@ checklist.
 
 ## Architecture overview
 
-For detailed context on the project's architecture, iteration history, and
-design decisions, see the execution plan in the
-[`godot-mcp-creation`](https://github.com/NPGameDev/godot-mcp-creation) repo:
+For an in-depth, up-to-date explanation of the server's subsystems, the contract
+surface it shares with the toolkit, and the key design decisions, read the
+in-repo architecture document:
 
-`Plan/ExecutionPlan/00-index.md`
+[`docs/architecture/README.md`](docs/architecture/README.md)
+
+It renders on GitHub with diagrams inline and is the canonical reference for how
+the server fits together.
 
 ## Code of conduct
 
