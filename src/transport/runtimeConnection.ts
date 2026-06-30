@@ -82,6 +82,10 @@ export function createRuntimeConnection(
     createChannel(`ws://127.0.0.1:${port}`, projectPath, undefined, undefined, {
       noReconnect: true,
       connectTimeoutMs: 10_000,
+      // The editor connection runs the authoritative server/toolkit version
+      // check; the runtime ack carries no version, so skip the redundant
+      // (false-positive) check on the runtime channel.
+      skipVersionCheck: true,
     });
   let runtimeChannel: Channel | undefined = opts?.explicitRuntimePort
     ? createRuntimeChannel(opts.explicitRuntimePort)

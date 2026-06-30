@@ -75,10 +75,14 @@ export function createChannel(
   projectPath?: string,
   onGodotVersion?: (version: string) => void,
   onNotification?: () => NotificationHandler | undefined,
-  opts?: { noReconnect?: boolean; connectTimeoutMs?: number },
+  opts?: { noReconnect?: boolean; connectTimeoutMs?: number; skipVersionCheck?: boolean },
 ): Channel {
   const noReconnect = opts?.noReconnect ?? false;
   const connectTimeout = opts?.connectTimeoutMs ?? 30_000;
+  // Skip the server/toolkit version-compat check on the runtime channel — the
+  // editor connection runs the authoritative check, and the runtime auth ack
+  // carries no version, so re-checking only false-warns about the same plugin.
+  const skipVersionCheck = opts?.skipVersionCheck ?? false;
   const pending = new Map<string, Pending>();
   const openWaiters = new Set<Waiter>();
   let ws: WebSocket | undefined = undefined;
@@ -177,20 +181,22 @@ export function createChannel(
       const verNote = authResp.godotVersion ? ` (Godot ${authResp.godotVersion})` : "";
       process.stderr.write(`[bridge] ${url} authenticated${verNote}\n`);
       // Version mismatch check — human-only (stderr), nothing on MCP wire.
-      const serverVer = getServerVersion();
-      const severity = compareVersions(serverVer, authResp.toolkitVersion);
-      if (severity === "major") {
-        process.stderr.write(
-          `[bridge] ERROR: major version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Update both to the same major version.\n`,
-        );
-      } else if (severity === "minor") {
-        process.stderr.write(
-          `[bridge] WARNING: version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Consider updating.\n`,
-        );
-      } else if (severity === "unknown") {
-        process.stderr.write(
-          `[bridge] WARNING: toolkit did not report version (pre-handshake build?). Consider updating the toolkit plugin.\n`,
-        );
+      if (!skipVersionCheck) {
+        const serverVer = getServerVersion();
+        const severity = compareVersions(serverVer, authResp.toolkitVersion);
+        if (severity === "major") {
+          process.stderr.write(
+            `[bridge] ERROR: major version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Update both to the same major version.\n`,
+          );
+        } else if (severity === "minor") {
+          process.stderr.write(
+            `[bridge] WARNING: version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Consider updating.\n`,
+          );
+        } else if (severity === "unknown") {
+          process.stderr.write(
+            `[bridge] WARNING: toolkit did not report version (pre-handshake build?). Consider updating the toolkit plugin.\n`,
+          );
+        }
       }
       // Notify on reconnect so the server can re-read config.
       if (wasReconnect) {

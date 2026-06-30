@@ -60,11 +60,15 @@ interface MockServer {
   close: () => Promise<void>;
 }
 
-function makeMockServer(handler?: (sock: WS, msg: ReceivedMsg) => void): Promise<MockServer> {
+function makeMockServer(
+  handler?: (sock: WS, msg: ReceivedMsg) => void,
+  authAck?: Record<string, unknown>,
+): Promise<MockServer> {
   return new Promise((resolve) => {
     const wss = new WebSocketServer({ port: 0, host: "127.0.0.1" });
     const sockets = new Set<WS>();
     const received: ReceivedMsg[] = [];
+    const ack = authAck ?? { authed: true, godot_version: "4.5", version: "1.0.0" };
     let auths = 0;
     wss.on("listening", () => {
       resolve({
@@ -93,7 +97,7 @@ function makeMockServer(handler?: (sock: WS, msg: ReceivedMsg) => void): Promise
         }
         if (msg.auth !== undefined) {
           auths++;
-          sock.send(JSON.stringify({ authed: true, godot_version: "4.5", version: "1.0.0" }));
+          sock.send(JSON.stringify(ack));
           return;
         }
         received.push(msg);
@@ -500,6 +504,51 @@ async function testNoReconnectRejectsFastWithoutBackoff() {
   }
 }
 
+// ── 9. skipVersionCheck suppresses the runtime-channel version warning ─
+
+async function testSkipVersionCheckSuppressesWarning() {
+  // An auth ack WITHOUT a version field → the compat check would hit "unknown".
+  // The runtime channel is built with skipVersionCheck:true so it stays silent;
+  // the default (editor) channel still warns. Pins the false-positive fix — the
+  // runtime ack legitimately carries no version (mcp_runtime_server.gd sends a
+  // bare {authed:true}), so the editor connection owns the authoritative check.
+  const noVerAck = { authed: true, godot_version: "4.5" };
+  const WARN = "toolkit did not report version";
+
+  // 9a — a default channel WARNS when the ack omits the version.
+  {
+    const server = await makeMockServer((sock, msg) => respond(sock, msg.id, { ok: true }), noVerAck);
+    const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined);
+    const cap = captureStderr();
+    try {
+      await ch.call("warmup", {}, 5000);
+      assert.ok(cap.output().includes(WARN), "default channel warns when the ack omits the version");
+    } finally {
+      cap.restore();
+      await ch.close();
+      await server.close();
+    }
+  }
+
+  // 9b — a skipVersionCheck channel stays SILENT on the same versionless ack.
+  {
+    const server = await makeMockServer((sock, msg) => respond(sock, msg.id, { ok: true }), noVerAck);
+    const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined, {
+      skipVersionCheck: true,
+    });
+    const cap = captureStderr();
+    try {
+      await ch.call("warmup", {}, 5000);
+      assert.ok(!cap.output().includes(WARN), "skipVersionCheck suppresses the runtime-channel version warning");
+    } finally {
+      cap.restore();
+      await ch.close();
+      await server.close();
+    }
+  }
+  console.log("  PASS: skipVersionCheck suppresses the runtime-channel version warning");
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -512,7 +561,8 @@ async function main() {
   await testCooperativeCancel();
   await testCloseRejectsPendingAndWaiters();
   await testNoReconnectRejectsFastWithoutBackoff();
-  console.log("All 8 channel tests passed.");
+  await testSkipVersionCheckSuppressesWarning();
+  console.log("All 9 channel tests passed.");
 }
 
 main()
