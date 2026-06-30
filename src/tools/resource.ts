@@ -42,7 +42,9 @@ export const resourceTools: ToolDef[] = [
       "Delete the .tres/.res and its .uid companion at file_path. No active-use guard (Godot refs survive file deletion; detect orphans via editor_get_console).",
     inputSchema: { file_path: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
-    successHint: "For scenes use scene_delete. For scripts use script_delete. Non-resource files: file_delete.",
+    successHint:
+      "For scenes use scene_delete. For scripts use script_delete. Non-resource files: file_delete. " +
+      "On Windows/OneDrive a transient lock can leave the .tres on disk despite deindexed:true — retry the delete to clear it.",
     pathParams: [PROJECT_FILE_PATH],
   },
 ];

@@ -41,7 +41,8 @@ export const runtimeTools: ToolDef[] = [
     description:
       "Game output log. Works during gameplay AND after crash (auto-serves cached output). " +
       "source='buffer'|'file'. limit=200. text_filter + is_regex for search. " +
-      "+total_lines/truncated (capped tail).",
+      "+total_lines/truncated (capped tail). " +
+      "Right after game_stop the first call may return GAME_NOT_RUNNING while the session registry settles — retry once (the cache serves the next call).",
     inputSchema: {
       limit: z.coerce.number().int().positive().optional(),
       source: z.enum(["buffer", "file"]).optional(),

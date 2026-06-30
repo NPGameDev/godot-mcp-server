@@ -33,7 +33,8 @@ export const scriptTools: ToolDef[] = [
       "Not idempotent. Use script.delete to remove; resource.create for .tres; scene.create for .tscn.",
     inputSchema: { file_path: z.string(), content: z.string() },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
-    successHint: "Validate with script_check or lsp_diagnostics. Errors also appear in editor_get_console.",
+    successHint:
+      "Validate .gd with script_check (offline) or lsp_diagnostics; for .gdshader/.gdshaderinc use lsp_diagnostics (editor required — script_check is .gd-only). Errors also appear in editor_get_console.",
     pathParams: [PROJECT_FILE_PATH],
   },
   {

@@ -22,6 +22,8 @@ export const assetTools: ToolDef[] = [
       max_results: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    successHint:
+      "A just-deindexed asset (e.g. after resource_delete) can linger in this list until EditorFileSystem re-scans — call editor_refresh to force a rescan if a deleted asset still appears.",
     pathParams: [{ param: "path_prefix", guard: "project" }],
   },
   {

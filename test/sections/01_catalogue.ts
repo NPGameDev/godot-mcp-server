@@ -93,6 +93,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     "asset_list",
     "editor_get_console",
     "scene_spatial_map",
+    // The post-game_stop retry note (the first call may return GAME_NOT_RUNNING until the
+    // session registry settles) must be spelled out for the agent — pushes past 200.
+    "debugger_get_log",
   ]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;
