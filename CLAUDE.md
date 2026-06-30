@@ -6,6 +6,25 @@ repo's `CLAUDE.md` (user-facing tool list + conventions).
 
 ---
 
+## Contributor docs — read first
+
+**Before changing the wire protocol, error handling, or tool contracts, read the
+toolkit-owned contract doc
+[`docs/dev/contract.md`](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md);
+write all code per [`docs/dev/code-standards.md`](docs/dev/code-standards.md).**
+Those are the authoritative SSOTs (the OSS comment canon is inlined into the code
+standard). This `CLAUDE.md` is orientation + operational gotchas, not the contract.
+
+Full dev-doc map, in read order:
+
+1. [`docs/architecture/README.md`](docs/architecture/README.md) — how the server is built (bridge, registration, dispatch, groups).
+2. [`docs/dev/code-standards.md`](docs/dev/code-standards.md) — TypeScript / Node + MCP-bridge conventions + hard gates (Portable core + Project bindings).
+3. **Cross-repo contract** — toolkit [`docs/dev/contract.md`](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md) (toolkit-owned; this repo is the consumer).
+4. [`docs/dev/glossary.md`](docs/dev/glossary.md) — server-owned terms; cross-links the toolkit glossary (the shared-vocabulary SSOT).
+5. **Rationale trail** — commit history + [`docs/architecture/README.md`](docs/architecture/README.md). (This repo has no `docs/adr/`.)
+
+---
+
 ## What this repo is
 
 The TypeScript MCP server that bridges Claude Code (stdio) to the `godot-mcp-toolkit`
@@ -86,52 +105,37 @@ When activating tool groups via `discover_tools`, always pass
 `include_schemas: true` to receive full parameter schemas in the response.
 This avoids a separate tool lookup for each activated tool.
 
-## Idempotency — status discriminator (iter 15 / 15b)
+## Idempotency — `status` + `if_exists` (pure passthrough)
 
-Every `create_*` success payload carries a `status` field:
+The idempotency contract — the `status` discriminator (`created` / `returned` /
+`replaced`), the `if_exists` modes (`return` / `fail` / `replace`), and which tools
+are file-level vs node-level — is owned by the toolkit and specified as **contract
+C6** in the toolkit's
+[`docs/dev/contract.md`](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md).
+The server is **pure passthrough (REFLECT)**: `if_exists` is a request param the LLM
+sets and `status` is a response field the bridge forwards verbatim — the server adds
+no idempotency logic of its own. Not restated here.
 
-- `"created"` — fresh create.
-- `"returned"` — idempotent no-op; the thing already existed. This is the
-  default silent-success path for `scene_create_node`, `signal_connect`,
-  `folder_create`, and file-level `scene_create` / `resource_create` with
-  the default `if_exists: "return"`.
-- `"replaced"` — file-level `scene_create` / `resource_create` with
-  `if_exists: "replace"` only; the response also carries
-  `previous_root_type` / `previous_class` respectively.
-
-`resource_save` is the odd one out: it is an UPDATE, not a create, so it
-carries NO `status` field. The absence is itself the discriminator between
-create and update paths (`resource_create` has `status`; `resource_save`
-does not).
-
-Success payloads do NOT carry `code` — `status` is the single discriminator
-consumers check. `code` is reserved for error payloads.
-
-File-level creates (`scene_create`, `resource_create`) accept
-`if_exists: "return" | "fail" | "replace"`:
-- `"return"` (default) — idempotent no-op. `{ status: "returned", path }`
-  for `scene_create`; `{ status: "returned", path, class }` for
-  `resource_create`.
-- `"fail"` — hard error `ALREADY_EXISTS` with a message suggesting `replace`.
-- `"replace"` — overwrite. `{ status: "replaced", path, root_type,
-  previous_root_type }` for `scene_create`; `{ status: "replaced", path,
-  class, previous_class, properties, warnings }` for `resource_create`.
-
-Node-level creates (`scene_create_node`, `signal_connect`, `folder_create`)
-intentionally do NOT accept `if_exists` — their blast radius is small and
-silent-success is the right default. If a future create tool gains the
-param, copy this shape (zod `z.enum(["return","fail","replace"]).optional()`,
-toolkit-side default `"return"`, three-branch switch in the GDScript
-handler).
+**When adding a server-side create tool** that needs collision handling, mirror that
+shape: `if_exists` as `z.enum(["return","fail","replace"]).optional()` in the
+`inputSchema` (toolkit-side default `"return"`), and let the `status` field pass
+through untouched.
 
 ## Environment variables
 
-| Variable                    | Default                 | Purpose |
-|-----------------------------|-------------------------|---------|
-| `GODOT_MCP_PORT`            | `6550`                  | Editor WebSocket port |
-| `GODOT_MCP_RUNTIME_PORT`    | `6570`                  | Game runtime WebSocket port |
-| `GODOT_MCP_TOKEN_PATH`      | (resolved from project) | Absolute override for the session-token file |
-| `GODOT_MCP_PROJECT_NAME`    | (read from project.godot, else `[unnamed project]`) | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
+The full env-var contract — which side consumes each var, and the cross-repo set
+(`GODOT_MCP_PORT`, `GODOT_MCP_RUNTIME_PORT`, `GODOT_MCP_TOKEN_PATH`,
+`GODOT_MCP_READ_ONLY`, `GODOT_MCP_LSP_PORT` / `GODOT_MCP_LSP_HOST`,
+`GODOT_MCP_PROJECT_PATH`, `GODOT_MCP_CONFIG_VERSION`, and the deprecated
+`GODOT_MCP_PROFILE`) — is **contract C10** in the toolkit's
+[`docs/dev/contract.md`](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md);
+not restated here.
+
+One server-side operational var is **not** part of that contract surface:
+
+| Variable                 | Default                                                | Purpose |
+|--------------------------|--------------------------------------------------------|---------|
+| `GODOT_MCP_PROJECT_NAME` | (read from `project.godot`, else `[unnamed project]`)  | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
 
 ## Version-aware tool catalog (iters 37, 41l-undecies)
 
@@ -156,6 +160,11 @@ To version-gate a new tool, add `godotMinVersion: "X.Y"` and/or
 `godotMaxVersion: "X.Y"` to its `ToolDef`.
 
 ## Linting & formatting
+
+Write all TypeScript per [`docs/dev/code-standards.md`](docs/dev/code-standards.md)
+— the authoritative standard (TS/Node + MCP-bridge conventions, hard gates, async
+discipline, and the inlined OSS comment canon). The tooling below enforces only the
+mechanical sliver.
 
 - **ESLint** — `eslint.config.js` (flat config, typescript-eslint recommended +
   eslint-config-prettier). `npm run lint` checks `src/` and `test/`.
@@ -248,6 +257,11 @@ for end users with no further edits. See iter 13b + iter 20 in the plan repo.
 6. Update tool counts and the toolkit-repo `CLAUDE.md` tool table.
 
 ## Error code reference (I1)
+
+This table is the **operational SSOT** for the human-readable error-code list — it is
+deliberately **not** duplicated in the contract doc, whose **C4** describes the
+error-code *wire framing* + stability tier and points to source for the full
+enumeration. C4 is the contract; this table is the lookup — keep them consistent.
 
 Canonical `ErrorCode` union lives in `src/shared/types.ts` (single source of truth on
 this side; mirrored as `MCP_ERROR_CODES` in the toolkit-repo `mcp_server.gd` +
