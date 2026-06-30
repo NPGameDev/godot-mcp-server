@@ -64,8 +64,10 @@ export const runtimeTools: ToolDef[] = [
     description:
       "Inject input into the running game. events: single {event_type, event_data?, delay_before_ms?, delay_after_ms?} for one action, " +
       "or an array for a sequence of actions (prefer a single call with multiple events over separate calls). " +
-      "Types: key|mouse_button|mouse_motion|action|click|click_node. click is a composite: auto-focus + warp_mouse + press + 50ms delay + release via push_input (GUI-safe). " +
-      "click_node takes {node_path} — calls grab_focus + emits pressed on BaseButtons (no coordinate guessing).\n\n" +
+      "Types: key|mouse_button|mouse_motion|action|click|click_node|send_text. click is a composite: auto-focus + warp_mouse + press + 50ms delay + release via push_input (GUI-safe). " +
+      "click_node takes {node_path} — calls grab_focus + emits pressed on BaseButtons (no coordinate guessing). " +
+      "send_text types a string into the focused text field (or the event_data.node_path-targeted Control) by synthesizing per-character key events via push_input, firing the real text_changed/text_submitted signals that setting .text skips. " +
+      "send_text event_data: text (required), node_path? (a Control to focus first), submit? (append Enter); it returns focus_target, focus_source, text_changed, text_after (secret fields redacted), chars_sent, and a hint.\n\n" +
       "Mouse coordinate modes:\n" +
       "- position: {x, y} — raw viewport/screen coordinates (default). Use for UI elements (buttons, menus).\n" +
       "- world_position: {x, y} — game-world coordinates, auto-translated via canvas transform (accounts for camera offset and zoom). " +
@@ -74,7 +76,7 @@ export const runtimeTools: ToolDef[] = [
     inputSchema: {
       events: z.union([
         z.object({
-          event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click", "click_node"]),
+          event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click", "click_node", "send_text"]),
           event_data: z.record(z.string(), z.unknown()).optional(),
           delay_before_ms: z.coerce.number().int().nonnegative().optional(),
           delay_after_ms: z.coerce.number().int().nonnegative().optional(),
@@ -82,7 +84,7 @@ export const runtimeTools: ToolDef[] = [
         z
           .array(
             z.object({
-              event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click", "click_node"]),
+              event_type: z.enum(["key", "mouse_button", "mouse_motion", "action", "click", "click_node", "send_text"]),
               event_data: z.record(z.string(), z.unknown()).optional(),
               delay_before_ms: z.coerce.number().int().nonnegative().optional(),
               delay_after_ms: z.coerce.number().int().nonnegative().optional(),

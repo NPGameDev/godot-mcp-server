@@ -9,6 +9,7 @@ import {
   SCREENSHOT_TIMEOUT,
   probePort,
   assertHint,
+  callRetryOnTimeout,
 } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = [
@@ -32,6 +33,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       ["runtime.get_node_state", { node_path: "/root" }],
       ["debugger.get_log", { limit: 50 }],
       ["input.simulate", { event_type: "action", event_data: { action: "ui_accept" } }],
+      ["input.simulate", { event_type: "send_text", event_data: { text: "x" } }],
       ["animation_player.control", { node_path: "/root/NoSuchAP", operation: "pause" }],
       ["runtime.get_script_vars", { node_path: "/root" }],
       ["runtime.set_property", { node_path: "/root", property: "process_mode", value: 0 }],
@@ -166,4 +168,116 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       pass(`input_simulate with world_position -> ${JSON.stringify(inputWithPos).slice(0, 80)}`);
     }
   }
+
+  await testSendText(ctx);
+}
+
+// send_text (input_simulate event_type, added 41n-sexies). Unlike the other
+// mode-B checks, this drives its OWN playtest of the dogfood fixture scene — two
+// LineEdits (one with secret=true) give it a deterministic text surface no
+// matter what a prior section left running. It skips cleanly when the fixture is
+// absent (a smoke run against a non-dogfood project), where the toolkit sweep
+// (Validations/Sections/20-runtime.md 20.17a–g) owns the positive coverage.
+//
+// callRuntime talks straight to the toolkit, bypassing the server's
+// single→events[] normalization, so each call wraps its event in events:[…]
+// exactly as the runtime handler requires; the per-event diagnostics live in
+// last_event (summary mode is the toolkit default).
+type SendTextEvent = {
+  chars_sent?: number;
+  focus_source?: string;
+  focus_target?: { path?: string; class?: string } | null;
+  text_changed?: boolean | null;
+  text_after?: string;
+  hint?: string;
+};
+type SendTextResult = { success?: boolean; last_event?: SendTextEvent; code?: string };
+
+async function testSendText(ctx: TestCtx): Promise<void> {
+  const { bridge, pass, fail } = ctx;
+  const FIXTURE = "res://test/fixtures/send_text_smoke.tscn";
+
+  // Best-effort: clear any scene a prior section left running so the fixture can
+  // launch. A failure here (nothing was running) is safe to drop.
+  await bridge.call("game.stop", {}, CALL_TIMEOUT).catch(() => undefined);
+
+  const started = (await callRetryOnTimeout(
+    bridge,
+    "game.start",
+    { scene_path: FIXTURE, wait_for_runtime: true },
+    SCREENSHOT_TIMEOUT,
+  )) as { success?: boolean; code?: string };
+  if (started?.success !== true) {
+    // Non-dogfood project / fixture missing — positive path is sweep-owned.
+    pass(`send_text: fixture launch skipped (${started?.code ?? "no success"}) — positive coverage in sweep`);
+    return;
+  }
+
+  const sendText = (eventData: Record<string, unknown>): Promise<unknown> =>
+    bridge.callRuntime(
+      "input.simulate",
+      { events: [{ event_type: "send_text", event_data: eventData }] },
+      CALL_TIMEOUT,
+    );
+
+  // (1) No focus, no node_path — scene-independent. Run first, before any
+  // node_path grabs focus: nothing is focused on load, so focus_source is "none"
+  // and the hint steers to node_path. chars_sent is asserted unconditionally.
+  const noFocus = (await sendText({ text: "hello" })) as SendTextResult;
+  const noFocusEv = noFocus.last_event;
+  if (noFocus.success !== true || noFocusEv?.chars_sent !== 5) {
+    fail(`send_text no-focus: expected success + chars_sent=5, got ${JSON.stringify(noFocus)}`);
+  } else if (noFocusEv.focus_source === "none") {
+    assertHint(ctx, "send_text no-focus -> node_path hint", noFocusEv, "node_path");
+  } else {
+    // A field happened to hold focus on load — still a valid dispatch.
+    pass(`send_text no-focus -> focus_source=${noFocusEv.focus_source} (chars_sent=5)`);
+  }
+
+  // (2) Bogus node_path — scene-independent. The hint names the unresolved path.
+  const bogus = (await sendText({ text: "x", node_path: "/root/NoSuchField" })) as SendTextResult;
+  assertHint(ctx, "send_text bogus node_path -> hint", bogus.last_event, "node_path");
+
+  // (3) Positive — type into the editable LineEdit; the real text_changed fires.
+  const typed = (await sendText({ text: "abc", node_path: "/root/SendTextSmoke/SmokeLineEdit" })) as SendTextResult;
+  const typedEv = typed.last_event;
+  if (
+    typed.success !== true ||
+    typedEv?.focus_source !== "node_path" ||
+    typedEv.focus_target?.class !== "LineEdit" ||
+    typedEv.text_changed !== true ||
+    typedEv.text_after !== "abc" ||
+    typedEv.chars_sent !== 3
+  ) {
+    fail(`send_text into LineEdit: ${JSON.stringify(typed)}`);
+  } else {
+    pass("send_text into LineEdit -> text_changed, text_after='abc', focus_target=LineEdit");
+  }
+
+  // (4) Secret field — the change still registers, but text_after is redacted and
+  // the raw secret must not appear anywhere in the response.
+  const SECRET = "hunter2";
+  const secret = (await sendText({ text: SECRET, node_path: "/root/SendTextSmoke/SmokeSecretEdit" })) as SendTextResult;
+  const secretEv = secret.last_event;
+  if (secret.success !== true || secretEv?.text_changed !== true) {
+    fail(`send_text secret: expected success + text_changed, got ${JSON.stringify(secret)}`);
+  } else if (JSON.stringify(secret).includes(SECRET)) {
+    fail(`send_text secret: raw value leaked in response ${JSON.stringify(secret)}`);
+  } else if (!/\[redacted/.test(secretEv.text_after ?? "")) {
+    fail(`send_text secret: text_after not redacted, got ${JSON.stringify(secretEv.text_after)}`);
+  } else {
+    pass(`send_text secret -> redacted (${JSON.stringify(secretEv.text_after)}), raw value not in response`);
+  }
+
+  // (5) submit — append Enter via the same push_input path.
+  const submitted = (await sendText({
+    text: "go",
+    node_path: "/root/SendTextSmoke/SmokeLineEdit",
+    submit: true,
+  })) as SendTextResult;
+  if (submitted.success !== true) fail(`send_text submit: ${JSON.stringify(submitted)}`);
+  else pass("send_text submit=true -> success");
+
+  // Teardown — best-effort; the next section probes the port fresh.
+  await bridge.call("game.stop", {}, CALL_TIMEOUT).catch(() => undefined);
 }

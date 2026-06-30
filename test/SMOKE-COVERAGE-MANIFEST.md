@@ -1,6 +1,6 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-06-14 (41m-quinquies — scene_spatial_map + placeholder generators)
+**Last updated:** 2026-06-30 (41n-sexies — send_text input_simulate event)
 **Server commit:** S:6fa6143 (+ 41m-quinquies; final SHA recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 110 (33 eager + 77 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
@@ -160,7 +160,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | runtime_screenshot | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | |
 | runtime_get_node_state | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | In runtime_advanced group |
 | debugger_get_log | 17 | ✓ | — | — | — | **GAP:** cache fallback after game stop; file source under a `text_filter` (smoke calls the default buffer source, no filter). ledger #9: total_lines (was total)/truncated (capped tail); 41n-ter-bis #7a: the file source now filters-then-slices, uniform with the buffer source (supersedes the file-path capped-tail `truncated=start>0`) |
-| input_simulate | 17 | ✓ | — | — | — | **GAP:** world_position hint |
+| input_simulate | 17 | ✓ (incl. send_text into fixture LineEdit) | — | ✓ (send_text event_type: node_path focus, submit, secret) | ✓ (send_text no-focus + bogus-node_path hints) | send_text (41n-sexies): §17 self-launches `test/fixtures/send_text_smoke.tscn` (skips if absent → positive coverage is sweep-owned), asserts text_changed/text_after + secret redaction (no raw-value leak) + submit. **GAP:** world_position hint |
 | animation_player_control | 17 | ✓ | — | — | — | In runtime_advanced group |
 | runtime_get_script_vars | 17 | ✓ | — | — | — | |
 | runtime_set_property | 17 | ✓ | — | — | — | |
