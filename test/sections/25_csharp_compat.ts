@@ -279,18 +279,26 @@ export async function testCsharpCompat(ctx: TestCtx): Promise<void> {
   }
 
   // ─── classdb.search with C# class name ─────────────────────────────
-  // ClassDB pagination (W1 Lane 2) added offset + total_count. Verify
+  // ClassDB pagination (W1 Lane 2) added offset + total_classes. Verify
   // the paginated response works for C# [GlobalClass] types.
   const classSearchR = (await bridge.call(
     "classdb.search",
     { query: String(assemblyName), limit: 5 },
     CALL_TIMEOUT,
-  )) as { success?: boolean; classes?: unknown[]; total_count?: number; offset?: number };
+  )) as { success?: boolean; classes?: unknown[]; total_classes?: number; offset?: number };
 
   if (classSearchR?.success !== false) {
-    pass(
-      `C# classdb.search "${assemblyName}": ${classSearchR.classes?.length ?? 0} result(s), total=${classSearchR.total_count ?? "?"}`,
-    );
+    // Assert the canonical pagination field exists and is numeric — the prior
+    // dead total_count read could not catch total_classes vanishing.
+    if (typeof classSearchR.total_classes !== "number") {
+      fail(
+        `C# classdb.search "${assemblyName}": missing/non-numeric total_classes (${JSON.stringify(classSearchR).slice(0, 200)})`,
+      );
+    } else {
+      pass(
+        `C# classdb.search "${assemblyName}": ${classSearchR.classes?.length ?? 0} result(s), total=${classSearchR.total_classes}`,
+      );
+    }
   } else {
     // ClassDB search may not index C# classes — acceptable limitation.
     pass(`C# classdb.search: not available for C# classes (expected)`);
