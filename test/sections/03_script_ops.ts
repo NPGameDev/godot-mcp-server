@@ -6,7 +6,7 @@ export const TOOLS_TESTED: string[] = [
   "script_read",
   "script_delete",
   "editor_refresh",
-  "editor_get_errors",
+  "editor_get_console",
 ];
 export async function testScriptOps(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -145,15 +145,15 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
     /* noop */
   }
 
-  // editor.get_errors — response shape depends on <untrusted> wrapping.
-  const errorsResult = (await bridge.call("editor.get_errors", null, CALL_TIMEOUT)) as {
-    errors?: unknown;
+  // editor.get_console (level_filter:["error"]) — response shape depends on <untrusted> wrapping.
+  const errorsResult = (await bridge.call("editor.get_console", { level_filter: ["error"] }, CALL_TIMEOUT)) as {
+    entries?: unknown;
     count?: number;
     success?: boolean;
   };
-  if (errorsResult?.errors === undefined || typeof errorsResult.count !== "number") {
-    fail(`editor.get_errors shape: ${JSON.stringify(errorsResult)}`);
+  if (errorsResult?.entries === undefined || typeof errorsResult.count !== "number") {
+    fail(`editor.get_console shape: ${JSON.stringify(errorsResult)}`);
   } else {
-    pass(`editor.get_errors -> count=${errorsResult.count}`);
+    pass(`editor.get_console -> count=${errorsResult.count}`);
   }
 }

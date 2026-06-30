@@ -478,17 +478,20 @@ async function main(): Promise<void> {
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  section("16. editor.get_errors — C# compilation errors");
+  section("16. editor.get_console (errors only) — C# compilation errors");
   // ──────────────────────────────────────────────────────────────────────
   try {
-    const r = (await bridge.call("editor.get_errors", {}, CALL_TIMEOUT)) as { success?: boolean; errors?: unknown[] };
+    const r = (await bridge.call("editor.get_console", { level_filter: ["error"] }, CALL_TIMEOUT)) as {
+      success?: boolean;
+      entries?: unknown[];
+    };
     if (r.success !== false) {
-      pass(`editor.get_errors succeeded: ${(r.errors as unknown[])?.length ?? 0} errors`);
+      pass(`editor.get_console succeeded: ${(r.entries as unknown[])?.length ?? 0} errors`);
     } else {
-      fail(`editor.get_errors failed: ${JSON.stringify(r)}`);
+      fail(`editor.get_console failed: ${JSON.stringify(r)}`);
     }
   } catch (e) {
-    fail(`editor.get_errors threw: ${e}`);
+    fail(`editor.get_console threw: ${e}`);
   }
 
   // ──────────────────────────────────────────────────────────────────────

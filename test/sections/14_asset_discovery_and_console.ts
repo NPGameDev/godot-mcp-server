@@ -6,7 +6,6 @@ export const TOOLS_TESTED: string[] = [
   "asset_list",
   "asset_get_dependencies",
   "editor_get_console",
-  "editor_get_errors",
   "resource_write",
   "script_write",
   "script_delete",
@@ -447,14 +446,6 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     pass(`editor.get_console clear_buffer=true -> ${clearResult?.code ?? "unsupported"} (acceptable)`);
   }
 
-  // 8. editor.get_errors text_filter
-  const tfErrors = (await bridge.call("editor.get_errors", { text_filter: "txtflt_hit" }, CALL_TIMEOUT)) as {
-    success?: boolean;
-    count?: number;
-  };
-  if (tfErrors?.success) pass(`editor.get_errors text_filter -> count=${tfErrors.count}`);
-  else fail(`editor.get_errors text_filter: ${JSON.stringify(tfErrors)}`);
-
   // Cleanup text_filter probe files
   try {
     await bridge.call("script.delete", { file_path: filterHit }, CALL_TIMEOUT);
@@ -467,47 +458,9 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     /* noop */
   }
 
-  // Invalid source rejected for get_errors too.
-  assertGuard(
-    ctx,
-    "editor.get_errors invalid source",
-    await bridge.call("editor.get_errors", { source: "bogus" }, CALL_TIMEOUT),
-    "INVALID_PARAMS",
-    "source must be",
-  );
-
-  // ── editor.get_errors upgrade verification ──
-  const consoleErr = "res://smoke_console_err.gd";
-  try {
-    await bridge.call("script.write", { file_path: consoleErr, content: "extends Nbdoe" }, CALL_TIMEOUT);
-  } catch {
-    /* noop */
-  }
-  try {
-    await bridge.call("editor.refresh", {}, CALL_TIMEOUT);
-  } catch {
-    /* noop */
-  }
-  await new Promise((r) => setTimeout(r, 1000));
-  const errorsUpgrade = (await bridge.call("editor.get_errors", {}, CALL_TIMEOUT)) as {
-    success?: boolean;
-    errors?: { level?: string; message?: string }[];
-    count?: number;
-    stub?: boolean;
-    code?: string;
-  };
-  if (errorsUpgrade?.stub === true) fail(`editor.get_errors: still returning stub`);
-  else if (!errorsUpgrade?.success) fail(`editor.get_errors: ${JSON.stringify(errorsUpgrade)}`);
-  else pass(`editor.get_errors -> count=${errorsUpgrade.count} (stub replaced)`);
-
   // ── Cleanup ──
   try {
     await bridge.call("script.delete", { file_path: consoleProbe }, CALL_TIMEOUT);
-  } catch {
-    /* noop */
-  }
-  try {
-    await bridge.call("script.delete", { file_path: consoleErr }, CALL_TIMEOUT);
   } catch {
     /* noop */
   }
