@@ -345,8 +345,14 @@ export class LspClient {
         contentChanges: [{ text: content }],
       });
     } else {
+      // Open shaders as "gdshader", not "gdscript": Godot's LSP has no shader
+      // documentSymbol/diagnostics provider, so a "gdscript" languageId makes the
+      // engine parse valid shader source as GDScript and emit bogus parse-error
+      // diagnostics. A non-GDScript languageId makes it skip parsing — clean empty
+      // symbols + no false diagnostics, uniform across 4.2-4.7.
+      const languageId = uri.endsWith(".gdshader") || uri.endsWith(".gdshaderinc") ? "gdshader" : "gdscript";
       this.sendNotification("textDocument/didOpen", {
-        textDocument: { uri, languageId: "gdscript", version: 1, text: content },
+        textDocument: { uri, languageId, version: 1, text: content },
       });
       this.openDocuments.add(uri);
     }

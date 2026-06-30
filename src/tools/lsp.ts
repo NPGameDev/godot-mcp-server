@@ -224,6 +224,11 @@ async function handleHover(input: unknown, projectPath: string): Promise<ToolTex
     hoverText = JSON.stringify(result.contents);
   }
 
+  // Hover markdown can embed file:// links to symbol definitions; convert the
+  // in-project ones to res:// for consistency with lsp_definition/references
+  // (fileUriToRes leaves out-of-project URIs untouched).
+  hoverText = hoverText.replace(/file:\/\/[^\s)<>"'`\]]+/g, (fileUri) => fileUriToRes(fileUri, projectPath));
+
   return {
     content: [
       {
