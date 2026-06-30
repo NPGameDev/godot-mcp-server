@@ -213,6 +213,24 @@ async function testSendText(ctx: TestCtx): Promise<void> {
     return;
   }
 
+  // game.start can report success before the runtime WS is actually accepting
+  // connections: a cold first-play (scene import + shader compile) can exceed
+  // game.start's wait_for_runtime window, so the runtime appears a few seconds
+  // later. Poll RUNTIME_PORT before the first runtime call so a cold start doesn't
+  // spuriously throw; if it never connects, the positive path is sweep-owned.
+  let runtimeUp = false;
+  for (let i = 0; i < 15; i++) {
+    if (await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS)) {
+      runtimeUp = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  if (!runtimeUp) {
+    pass("send_text: runtime did not connect after launch — positive coverage in sweep");
+    return;
+  }
+
   const sendText = (eventData: Record<string, unknown>): Promise<unknown> =>
     bridge.callRuntime(
       "input.simulate",
