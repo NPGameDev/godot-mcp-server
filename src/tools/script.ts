@@ -34,7 +34,7 @@ export const scriptTools: ToolDef[] = [
     inputSchema: { file_path: z.string(), content: z.string() },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     successHint:
-      "Validate .gd with script_check (offline) or lsp_diagnostics; for .gdshader/.gdshaderinc use lsp_diagnostics (editor required — script_check is .gd-only). Errors also appear in editor_get_console.",
+      "Validate .gd with script_check (offline) or lsp_diagnostics. Shaders (.gdshader/.gdshaderinc) have no offline validator — neither script_check nor lsp_diagnostics check them; shader errors surface when the editor imports/compiles the shader (open it, or run the game), via editor_get_console (level_filter:['error']).",
     pathParams: [PROJECT_FILE_PATH],
   },
   {

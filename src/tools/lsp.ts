@@ -26,7 +26,7 @@ export const lspAnalysisTools: ToolDef[] = [
     name: "lsp_diagnostics",
     method: "lsp.diagnostics",
     description:
-      "Rich GDScript/shader diagnostics with column positions and severity (Error/Warning/Info/Hint). Needs editor running. " +
+      "Rich GDScript diagnostics with column positions and severity (Error/Warning/Info/Hint). Needs editor running. " +
       "Call editor_refresh first if files were just created.",
     inputSchema: {
       file_path: z
@@ -161,8 +161,37 @@ export function createLspHandler(toolName: string, projectPath: string): (input:
 
 // ── Individual handlers ──────────────────────────────────────────────
 
+// Shader files get no real diagnostics from the Godot LSP — it analyzes GDScript
+// only, and Godot exposes no offline shader-compile API. Every diagnostic the LSP
+// would emit on a .gdshader/.gdshaderinc is a bogus GDScript-parse artifact (the
+// 4.6/4.7 languageId:"gdshader" workaround suppresses them, but 4.2-4.5 ignore
+// languageId). Short-circuit BEFORE touching the LSP so the empty result is
+// uniform across 4.2-4.7 and needs no editor connection.
+const SHADER_DIAGNOSTICS_NOTE =
+  "lsp_diagnostics does not validate shader files — Godot's LSP analyzes GDScript only. " +
+  "Real shader errors surface when the editor imports/compiles the shader (open it, or run the game); " +
+  "read them with editor_get_console (level_filter:['error']).";
+
 async function handleDiagnostics(input: unknown, projectPath: string): Promise<ToolTextResult> {
   const { file_path } = input as { file_path: string };
+
+  if (file_path.endsWith(".gdshader") || file_path.endsWith(".gdshaderinc")) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: true,
+            file_path,
+            diagnostics: [],
+            count: 0,
+            note: SHADER_DIAGNOSTICS_NOTE,
+          }),
+        },
+      ],
+    };
+  }
+
   const doc = await withLspDoc(file_path, projectPath);
   if ("content" in doc) return doc;
   const { client, uri } = doc;

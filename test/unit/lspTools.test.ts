@@ -9,7 +9,7 @@
  */
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { lspConnectFailureHint, lspTools } from "../../src/tools/lsp.js";
+import { lspConnectFailureHint, lspTools, createLspHandler } from "../../src/tools/lsp.js";
 
 // ── lspConnectFailureHint — names the env lever and the tried port ──
 
@@ -39,6 +39,45 @@ import { lspConnectFailureHint, lspTools } from "../../src/tools/lsp.js";
 
   const explicit = schema.parse({ file_path: "res://x.gd", line: 0, column: 5, limit: 3 }) as { limit?: number };
   assert.equal(explicit.limit, 3, "an explicit limit is respected");
+}
+
+// ── lsp_diagnostics: shader files short-circuit BEFORE the LSP ──
+// A .gdshader/.gdshaderinc returns an empty, version-uniform result with an
+// explanatory note and NEVER opens an LSP connection (the Godot LSP analyzes
+// GDScript only — every diagnostic it would emit on a shader is a bogus parse
+// artifact). Proof that no connect happens: point GODOT_MCP_LSP_PORT at a closed
+// port — a real connect attempt would yield an LSP_UNAVAILABLE error result, so a
+// clean success here means the handler returned before touching the socket.
+{
+  const prevPort = process.env.GODOT_MCP_LSP_PORT;
+  process.env.GODOT_MCP_LSP_PORT = "59999"; // Closed — a connect would fail loudly.
+  try {
+    const handler = createLspHandler("lsp_diagnostics", process.cwd());
+
+    for (const ext of [".gdshader", ".gdshaderinc"]) {
+      const result = (await handler({ file_path: `res://fx/test${ext}` })) as {
+        content: { text: string }[];
+        isError?: true;
+      };
+      assert.ok(!result.isError, `${ext}: short-circuit returns a success result, not an error`);
+
+      const payload = JSON.parse(result.content[0].text) as {
+        success?: boolean;
+        diagnostics?: unknown[];
+        count?: number;
+        note?: string;
+      };
+      assert.equal(payload.success, true, `${ext}: success is true`);
+      assert.deepEqual(payload.diagnostics, [], `${ext}: diagnostics is empty`);
+      assert.equal(payload.count, 0, `${ext}: count is 0`);
+      assert.ok(typeof payload.note === "string" && payload.note.length > 0, `${ext}: carries an explanatory note`);
+      assert.match(payload.note!, /shader/i, `${ext}: note explains shaders are not validated`);
+      assert.ok(payload.note!.includes("editor_get_console"), `${ext}: note points to editor_get_console`);
+    }
+  } finally {
+    if (prevPort === undefined) delete process.env.GODOT_MCP_LSP_PORT;
+    else process.env.GODOT_MCP_LSP_PORT = prevPort;
+  }
 }
 
 console.log("All lsp_tools tests passed.");
