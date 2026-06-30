@@ -67,6 +67,7 @@ export const sceneTools: ToolDef[] = [
     inputSchema: {
       file_path: z.string(),
       root_type: z.string().optional(),
+      root_name: z.string().optional().describe("Root node name override (default: filename stem)."),
       if_exists: z.enum(["return", "fail", "replace"]).optional(),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },

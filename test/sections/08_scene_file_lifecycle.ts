@@ -95,6 +95,38 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
     fail(`scene.create invalid if_exists: expected INVALID_PARAMS, got ${JSON.stringify(sceneBadIfExists)}`);
   } else pass(`scene.create if_exists='explode' -> INVALID_PARAMS`);
 
+  // root_name: explicit override is honored; omission falls back to the filename stem.
+  const rootNamePath = "res://smoke_root_name.tscn";
+  const rootStemPath = "res://smoke_root_stem.tscn";
+  try {
+    await bridge.call("scene.delete", { file_path: rootNamePath }, CALL_TIMEOUT);
+    await bridge.call("scene.delete", { file_path: rootStemPath }, CALL_TIMEOUT);
+  } catch {
+    /* orphan cleanup */
+  }
+  const rootNameOverride = (await bridge.call(
+    "scene.create",
+    { file_path: rootNamePath, root_type: "Node2D", root_name: "CustomRoot" },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; status?: string; root_name?: string };
+  if (rootNameOverride?.status !== "created" || rootNameOverride.root_name !== "CustomRoot") {
+    fail(`scene.create root_name override: expected root_name='CustomRoot', got ${JSON.stringify(rootNameOverride)}`);
+  } else pass(`scene.create root_name='CustomRoot' -> override honored`);
+  const rootNameDefault = (await bridge.call(
+    "scene.create",
+    { file_path: rootStemPath, root_type: "Node2D" },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; root_name?: string };
+  if (rootNameDefault?.root_name !== "smoke_root_stem") {
+    fail(`scene.create root_name omitted: expected stem 'smoke_root_stem', got ${JSON.stringify(rootNameDefault)}`);
+  } else pass(`scene.create root_name omitted -> stem 'smoke_root_stem'`);
+  try {
+    await bridge.call("scene.delete", { file_path: rootNamePath }, CALL_TIMEOUT);
+    await bridge.call("scene.delete", { file_path: rootStemPath }, CALL_TIMEOUT);
+  } catch {
+    /* best-effort cleanup */
+  }
+
   // Guard rejections.
   assertGuard(
     ctx,

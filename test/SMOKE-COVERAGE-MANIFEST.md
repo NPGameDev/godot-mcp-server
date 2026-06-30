@@ -41,7 +41,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 | scene_get_tree | 02, 06 | ✓ | — | — | — | |
 | scene_create_node | 02, 06, 13, 16, 27, 29, 30, 31, 33, 37, 38 | ✓ | ✓ (07: INVALID_CLASS) | ✓ (unique_name; 02: inline properties incl. typed-dict Color + readback) | — | |
 | scene_delete_node | 02, 06, 10, 37 | ✓ | — | — | — | |
-| scene_create | 08, 10, 14, 33 | ✓ | ✓ (08: ALREADY_EXISTS, INVALID_PATH) | ✓ (if_exists modes) | — | |
+| scene_create | 08, 10, 14, 33 | ✓ | ✓ (08: ALREADY_EXISTS, INVALID_PATH) | ✓ (if_exists modes; 08: root_name override + stem default) | — | |
 | scene_open | 04, 10 | ✓ | ✓ (04: NOT_FOUND) | — | — | |
 | scene_close | 01, 04 | ✓ (04, 4.5+) | ✓ (04: PATH_DENIED, NOT_FOUND, EDITED_SCENE last-tab; 4.5+) | — | ✓ (01: godotMinVersion=4.5) | 4.5+ only; §04 happy+guards gated `godotVer>=4.5` (skips on <4.5 — 41m-ter A0); structural in §01 |
 | scene_delete | 08 | ✓ | ✓ (08: NOT_FOUND) | — | — | Scene file deletion (distinct from scene_delete_node) |
