@@ -32,8 +32,8 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       ["runtime.screenshot", {}],
       ["runtime.get_node_state", { node_path: "/root" }],
       ["debugger.get_log", { limit: 50 }],
-      ["input.simulate", { event_type: "action", event_data: { action: "ui_accept" } }],
-      ["input.simulate", { event_type: "send_text", event_data: { text: "x" } }],
+      ["input.simulate", { events: [{ event_type: "action", event_data: { action: "ui_accept" } }] }],
+      ["input.simulate", { events: [{ event_type: "send_text", event_data: { text: "x" } }] }],
       ["animation_player.control", { node_path: "/root/NoSuchAP", operation: "pause" }],
       ["runtime.get_script_vars", { node_path: "/root" }],
       ["runtime.set_property", { node_path: "/root", property: "process_mode", value: 0 }],
@@ -86,7 +86,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
 
     const inputSimulate = (await bridge.callRuntime(
       "input.simulate",
-      { event_type: "action", event_data: { action: "ui_accept", pressed: true } },
+      { events: [{ event_type: "action", event_data: { action: "ui_accept", pressed: true } }] },
       CALL_TIMEOUT,
     )) as { success?: boolean; code?: string };
     if (!inputSimulate?.success) fail(`input.simulate ui_accept: ${JSON.stringify(inputSimulate)}`);
@@ -155,9 +155,17 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     }
 
     // Hint assertion: input_simulate with world_position should include coordinate hint.
+    // (world_position lives in event_data — a mouse coordinate mode; ignored for action events.)
     const inputWithPos = (await bridge.callRuntime(
       "input.simulate",
-      { event_type: "action", event_data: { action: "ui_accept", pressed: true }, world_position: { x: 100, y: 200 } },
+      {
+        events: [
+          {
+            event_type: "action",
+            event_data: { action: "ui_accept", pressed: true, world_position: { x: 100, y: 200 } },
+          },
+        ],
+      },
       CALL_TIMEOUT,
     )) as { success?: boolean; hint?: string; error?: string };
     if (inputWithPos?.success) {
