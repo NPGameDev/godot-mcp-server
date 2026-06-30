@@ -159,7 +159,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 |---|---|---|---|---|---|---|
 | runtime_screenshot | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | |
 | runtime_get_node_state | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | In runtime_advanced group |
-| debugger_get_log | 17 | ✓ | — | — | — | **GAP:** cache fallback after game stop. ledger #9: total_lines (was total)/truncated (capped tail) |
+| debugger_get_log | 17 | ✓ | — | — | — | **GAP:** cache fallback after game stop; file source under a `text_filter` (smoke calls the default buffer source, no filter). ledger #9: total_lines (was total)/truncated (capped tail); 41n-ter-bis #7a: the file source now filters-then-slices, uniform with the buffer source (supersedes the file-path capped-tail `truncated=start>0`) |
 | input_simulate | 17 | ✓ | — | — | — | **GAP:** world_position hint |
 | animation_player_control | 17 | ✓ | — | — | — | In runtime_advanced group |
 | runtime_get_script_vars | 17 | ✓ | — | — | — | |
