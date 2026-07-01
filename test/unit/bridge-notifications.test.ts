@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { WebSocketServer, WebSocket as WS } from "ws";
 import type { AddressInfo } from "node:net";
 import FakeTimers from "@sinonjs/fake-timers";
+import { getServerVersion } from "../../src/shared/version.js";
 
 // Set up a fake token file before importing createBridge.
 const tmpDir = mkdtempSync(join(tmpdir(), "mcp-test-"));
@@ -52,7 +53,11 @@ function makeMockServer(handler: (sock: WS, msg: { id: unknown; method?: string 
             method?: string;
           };
           if (msg.auth !== undefined) {
-            sock.send(JSON.stringify({ authed: true }));
+            // Report the server's own version so the editor-channel compat check
+            // stays silent — a bare {authed:true} trips "toolkit did not report
+            // version" on stderr. These tests exercise notification timing, not
+            // version handling; getServerVersion() keeps them quiet across bumps.
+            sock.send(JSON.stringify({ authed: true, version: getServerVersion() }));
             return;
           }
           if (msg.id != null) handler(sock, msg as { id: unknown; method?: string });
