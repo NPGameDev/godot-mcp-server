@@ -1,5 +1,11 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard, tilemapNodeClass } from "../helpers.js";
+import {
+  CALL_TIMEOUT,
+  SCREENSHOT_TIMEOUT,
+  assertGuard,
+  tilemapNodeClass,
+  passIfHeadlessUnsupported,
+} from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = [
   "scene_create_node",
@@ -255,7 +261,9 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     { node_path: screenshotNodePath },
     SCREENSHOT_TIMEOUT,
   )) as { image_base64?: string; width?: number; height?: number; code?: string };
-  if (nodeScreenshotResult?.image_base64 && nodeScreenshotResult.image_base64.length >= 100) {
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot node_path", nodeScreenshotResult)) {
+    // headless — no viewport capture
+  } else if (nodeScreenshotResult?.image_base64 && nodeScreenshotResult.image_base64.length >= 100) {
     pass(
       `editor.screenshot node_path=${screenshotNodePath} -> ${nodeScreenshotResult.width}x${nodeScreenshotResult.height} base64=${nodeScreenshotResult.image_base64.length}`,
     );
@@ -265,24 +273,19 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     pass(`editor.screenshot node_path=${screenshotNodePath} -> null (timing-dependent; viewport capture skipped)`);
   }
 
-  assertGuard(
-    ctx,
-    "editor.screenshot node_path missing",
-    await bridge.call("editor.screenshot", { node_path: "/root/NoSuch_15d_xyz" }, CALL_TIMEOUT),
-    "NOT_FOUND",
-    "node",
+  const missingNodeShot = await bridge.call("editor.screenshot", { node_path: "/root/NoSuch_15d_xyz" }, CALL_TIMEOUT);
+  if (!passIfHeadlessUnsupported(ctx, "editor.screenshot node_path missing", missingNodeShot)) {
+    assertGuard(ctx, "editor.screenshot node_path missing", missingNodeShot, "NOT_FOUND", "node");
+  }
+
+  const tinySizeShot = await bridge.call(
+    "editor.screenshot",
+    { node_path: screenshotNodePath, size: { width: 32, height: 32 } },
+    CALL_TIMEOUT,
   );
-  assertGuard(
-    ctx,
-    "editor.screenshot node_path tiny size",
-    await bridge.call(
-      "editor.screenshot",
-      { node_path: screenshotNodePath, size: { width: 32, height: 32 } },
-      CALL_TIMEOUT,
-    ),
-    "INVALID_PARAMS",
-    ["64", "4096"],
-  );
+  if (!passIfHeadlessUnsupported(ctx, "editor.screenshot node_path tiny size", tinySizeShot)) {
+    assertGuard(ctx, "editor.screenshot node_path tiny size", tinySizeShot, "INVALID_PARAMS", ["64", "4096"]);
+  }
 
   try {
     await bridge.call("scene.delete_node", { node_path: screenshotNodePath }, CALL_TIMEOUT);

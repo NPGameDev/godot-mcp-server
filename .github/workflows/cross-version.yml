@@ -1,0 +1,123 @@
+# Behavioral cross-version tier (C# / .NET) — opt-in, editor-required.
+#
+# Companion to the editor-free csharp-build floor in ci.yml (which compiles the
+# fixture against every Godot.NET.Sdk). This tier launches a real headless MONO
+# editor against the committed C# fixture and round-trips smoke §25 (C# autodetect
+# + .cs write/read/delete + node-level probe of the [GlobalClass] node) through the
+# WS bridge, one job per supported minor. NOT a merge gate — opt-in only:
+#   • [run-cross-version-ci] in the push commit message
+#   • a v* release tag (backstop: never SHIP a C# cross-version regression)
+#   • workflow_dispatch
+# No schedule: (see the toolkit cross-version.yml rationale). 4.2 is excluded — its
+# editor scan aborts on class_name cross-refs; 4.2 §25 runs via the local release gate.
+#
+# Feasibility proven 2026-07-01 (41n-quater Stage-2): a display-less runner serves
+# the mono WS round-trip (§25 15/0, real Speed 200->201 + Poked signal on Godot 4.5).
+#
+# The addon lives in the TOOLKIT repo, so it's checked out as a sibling and injected
+# into the fixture at run time (never committed). Private-repo checkout uses the
+# read-only PAT (CROSS_REPO_READ_TOKEN); the || github.token fallback goes tokenless
+# once the repos are public.
+name: cross-version (C# behavioral)
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+jobs:
+  csharp-behavioral:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      contains(github.event.head_commit.message, '[run-cross-version-ci]')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # SDK version == editor version (mono editor + Godot.NET.Sdk must match).
+      # TFM tracks the net6->net8 boundary at 4.4 (source-verified) so the editor's
+      # on-open build produces an assembly its bundled runtime can load: a 4.3 editor
+      # ships the .NET 6 runtime and cannot load a net8.0 assembly.
+      matrix:
+        include:
+          - godot-version: "4.3.0"
+            tfm: "net6.0"
+          - godot-version: "4.4.0"
+            tfm: "net8.0"
+          - godot-version: "4.5.0"
+            tfm: "net8.0"
+          - godot-version: "4.6.2"
+            tfm: "net8.0"
+          - godot-version: "4.7.0"
+            tfm: "net8.0"
+    name: C# behavioral §25 (Godot ${{ matrix.godot-version }} / ${{ matrix.tfm }})
+    steps:
+      - uses: actions/checkout@v4 # server (self) = harness + C# fixture
+
+      - uses: actions/checkout@v4 # toolkit = addon source (injected into fixture)
+        with:
+          repository: NPGameDev/godot-mcp-toolkit
+          path: toolkit
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
+
+      - name: Setup Godot (.NET / mono)
+        uses: chickensoft-games/setup-godot@v2.4.1
+        with:
+          version: "${{ matrix.godot-version }}"
+          use-dotnet: true
+
+      - name: Setup .NET SDKs (8 + 6 ref packs for both TFMs)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            6.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install + build harness
+        run: npm ci && npm run build
+
+      - name: Inject toolkit addon into the fixture
+        run: npm run fixture:inject-addon
+        env:
+          TOOLKIT_ADDON_SRC: ${{ github.workspace }}/toolkit/addons/godot_mcp_toolkit
+
+      # The committed csproj pins the 4.7.0 ceiling; retarget both the SDK version
+      # AND the TargetFramework to this row so the editor's on-open build matches its
+      # bundled runtime. Ephemeral — never committed.
+      - name: Pin fixture Godot.NET.Sdk + TFM to matrix row
+        run: node -e 'const fs=require("node:fs");const f="test/fixtures/csharp-project/McpValCs.csproj";let s=fs.readFileSync(f,"utf8");s=s.replace(/Godot\.NET\.Sdk\/[0-9.]+/,"Godot.NET.Sdk/"+process.env.SDK).replace(/<TargetFramework>[^<]+<\/TargetFramework>/,"<TargetFramework>"+process.env.TFM+"</TargetFramework>");fs.writeFileSync(f,s);console.log(s);'
+        env:
+          SDK: ${{ matrix.godot-version }}
+          TFM: ${{ matrix.tfm }}
+
+      # Build BEFORE launching the editor: a cold on-open build means §25's node-level
+      # probe skips (McpValCsNode not yet registered in classdb). Warm it first.
+      - name: dotnet build fixture (warm C# before launch)
+        run: dotnet build test/fixtures/csharp-project/McpValCs.csproj -c Debug -p:TargetFramework=${{ matrix.tfm }}
+
+      - name: Launch mono editor headless + poll 6550 (<=60s)
+        run: |
+          godot --headless --editor --path test/fixtures/csharp-project > editor.log 2>&1 &
+          echo "EDITOR_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            node -e 'const n=require("net");const s=n.connect(6550,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1));s.setTimeout(1000,()=>process.exit(1))' && break
+            sleep 1
+          done
+
+      - name: Smoke §25 (C# autodetect + roundtrip + node-level probe)
+        env:
+          GODOT_MCP_PROJECT_PATH: ${{ github.workspace }}/test/fixtures/csharp-project
+          GODOT_MCP_PROJECT_NAME: "MCP CSharp Fixture"
+        run: npm run smoke:single -- --only 25
+
+      - if: always()
+        run: kill "$EDITOR_PID" 2>/dev/null || true
+      - name: Editor log (always)
+        if: always()
+        run: cat editor.log || true

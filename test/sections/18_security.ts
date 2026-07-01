@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard, passIfHeadlessUnsupported } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = [
   "script_read",
@@ -71,16 +71,15 @@ export async function testSecurity(ctx: TestCtx): Promise<void> {
     image_base64?: string;
     code?: string;
   };
-  if (userScreenshot?.path !== userShotPath || !userScreenshot.image_base64)
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot user://screenshots/ whitelist", userScreenshot)) {
+    // headless — no capture
+  } else if (userScreenshot?.path !== userShotPath || !userScreenshot.image_base64)
     fail(`editor.screenshot user://screenshots/ whitelist: ${JSON.stringify(userScreenshot)}`);
   else pass(`editor.screenshot user://screenshots/ whitelist -> ${userScreenshot.path}`);
-  assertGuard(
-    ctx,
-    "editor.screenshot user://other/x.png",
-    await bridge.call("editor.screenshot", { save_path: "user://other/x.png" }, CALL_TIMEOUT),
-    "PATH_DENIED",
-    "user://screenshots",
-  );
+  const otherShot = await bridge.call("editor.screenshot", { save_path: "user://other/x.png" }, CALL_TIMEOUT);
+  if (!passIfHeadlessUnsupported(ctx, "editor.screenshot user://other/x.png", otherShot)) {
+    assertGuard(ctx, "editor.screenshot user://other/x.png", otherShot, "PATH_DENIED", "user://screenshots");
+  }
 
   // Untrusted envelope check — script.read wraps content.
   const envelopeScriptPath = "res://smoke_probe.gd"; // written in testScriptOps

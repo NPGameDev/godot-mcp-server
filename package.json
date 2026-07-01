@@ -38,6 +38,7 @@
     "smoke:ci": "tsx test/smoke.ts --ci",
     "flows": "tsx test/run-flows.ts",
     "flows:single": "tsx test/flows.ts",
+    "fixture:inject-addon": "node scripts/inject-fixture-addon.mjs",
     "eval": "tsx test/eval/eval-runner.ts",
     "test:unit": "tsx test/unit/run-all.ts",
     "test:integration:dispatch": "tsx test/integration/dispatch/run.ts",

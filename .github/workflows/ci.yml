@@ -48,3 +48,52 @@ jobs:
       # See test/README.md or CONTRIBUTING.md for setup instructions.
       - name: Smoke test (CI mode — catalogue + structural validation)
         run: npm run smoke:ci
+
+  # ── C# (.NET) build floor — editor-free, all six Godot.NET.Sdk versions ──────
+  # dotnet build needs no Godot editor: Godot.NET.Sdk + GodotSharp restore from
+  # nuget.org. Proves the toolkit's C# surface compiles against every supported
+  # SDK. Behavioral C# (§25) rides the spike-gated cross-version.yml, not here.
+  # TFM boundary is 4.4 (net6.0 for 4.2/4.3, net8.0 for 4.4+) — source-verified
+  # via Godot's ProjectGenerator.GodotMinimumRequiredTfm (see build-packet §7b).
+  csharp-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - godot-sdk: "4.2.0"
+            tfm: "net6.0"
+          - godot-sdk: "4.3.0"
+            tfm: "net6.0"
+          - godot-sdk: "4.4.0"
+            tfm: "net8.0"
+          - godot-sdk: "4.5.0"
+            tfm: "net8.0"
+          - godot-sdk: "4.6.2"
+            tfm: "net8.0"
+          - godot-sdk: "4.7.0"
+            tfm: "net8.0"
+    name: C# build (Godot.NET.Sdk ${{ matrix.godot-sdk }} / ${{ matrix.tfm }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDKs (6 + 8)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            6.0.x
+
+      # Retarget only the SDK version (the Sdk="…/X" attribute cannot be
+      # -p-overridden); the committed csproj pins the 4.7.0 ceiling so it builds
+      # locally as-is. Ephemeral — never committed.
+      - name: Pin Godot.NET.Sdk to matrix row
+        run: |
+          node -e 'const fs=require("node:fs");const f="test/fixtures/csharp-project/McpValCs.csproj";let s=fs.readFileSync(f,"utf8");s=s.replace(/Godot\.NET\.Sdk\/[0-9.]+/,"Godot.NET.Sdk/"+process.env.SDK);fs.writeFileSync(f,s);console.log(s);'
+        env:
+          SDK: ${{ matrix.godot-sdk }}
+
+      - name: dotnet build (editor-free)
+        run: >
+          dotnet build test/fixtures/csharp-project/McpValCs.csproj
+          -c Debug -p:TargetFramework=${{ matrix.tfm }}

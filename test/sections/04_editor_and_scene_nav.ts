@@ -1,5 +1,12 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertGuard, unwrapUntrusted } from "../helpers.js";
+import {
+  CALL_TIMEOUT,
+  SCREENSHOT_TIMEOUT,
+  MAIN_SCENE,
+  assertGuard,
+  unwrapUntrusted,
+  passIfHeadlessUnsupported,
+} from "../helpers.js";
 import { isVersionAtLeast } from "../../src/shared/version.js";
 
 export const TOOLS_TESTED: string[] = [
@@ -22,7 +29,9 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     height?: number;
     bytes?: number;
   };
-  if (!screenshotResult?.image_base64) {
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot inline", screenshotResult)) {
+    // Display-less CI: no viewport — the deterministic guard IS the correct result.
+  } else if (!screenshotResult?.image_base64) {
     fail(`editor.screenshot: ${JSON.stringify(screenshotResult)}`);
   } else {
     const buf = Buffer.from(screenshotResult.image_base64, "base64");
@@ -40,7 +49,9 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     path?: string;
     code?: string;
   };
-  if (savedScreenshot?.path !== savePath || !savedScreenshot.image_base64)
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot save_path", savedScreenshot)) {
+    // headless — no capture
+  } else if (savedScreenshot?.path !== savePath || !savedScreenshot.image_base64)
     fail(`editor.screenshot save_path: ${JSON.stringify(savedScreenshot)}`);
   else pass(`editor.screenshot save_path -> ${savedScreenshot.path}`);
 
@@ -50,7 +61,9 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     { save_path: "user://bad.png" },
     CALL_TIMEOUT,
   )) as { code?: string };
-  if (rejectedScreenshot?.code !== "PATH_DENIED")
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot save_path user://", rejectedScreenshot)) {
+    // headless: the display-server guard fires before path validation
+  } else if (rejectedScreenshot?.code !== "PATH_DENIED")
     fail(`editor.screenshot save_path user://: expected PATH_DENIED, got ${JSON.stringify(rejectedScreenshot)}`);
   else pass("editor.screenshot save_path user:// -> PATH_DENIED");
 

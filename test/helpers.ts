@@ -62,6 +62,29 @@ export function assertGuard(
 }
 
 /**
+ * Render-dependent tools (editor.screenshot and friends) return a deterministic
+ * `HEADLESS_UNSUPPORTED` error envelope when the editor runs without a display
+ * server — see the toolkit's editor_screenshot.gd (`is_headless()` early guard).
+ * On a display-less CI runner (cross-version.yml) that IS the correct, expected
+ * result, so smoke records a pass; with a real display the caller's normal
+ * assertions run. The toolkit guard is an early return, so EVERY editor.screenshot
+ * call returns this code headless — including calls a section otherwise expects to
+ * fail with NOT_FOUND / INVALID_PARAMS / PATH_DENIED (that validation is
+ * unreachable headless). Wrap those assertions with this check.
+ *
+ * Keyed off the tool's own contract, not an env flag, so it behaves identically in
+ * CI and in any local headless run. Returns true (and records the pass) when
+ * `result` is the headless guard, false otherwise.
+ */
+export function passIfHeadlessUnsupported(ctx: TestCtx, label: string, result: unknown): boolean {
+  if ((result as { code?: string })?.code === "HEADLESS_UNSUPPORTED") {
+    ctx.pass(`${label} -> HEADLESS_UNSUPPORTED (deterministic headless guard, no display)`);
+    return true;
+  }
+  return false;
+}
+
+/**
  * Assert that a result carries a non-empty hint containing mustInclude.
  * Checks the dedicated `hint` field first; if absent, falls back to
  * searching inside the `error` string (some tools embed guidance there).
