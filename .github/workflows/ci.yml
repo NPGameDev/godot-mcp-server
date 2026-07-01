@@ -84,16 +84,20 @@ jobs:
             8.0.x
             6.0.x
 
-      # Retarget only the SDK version (the Sdk="…/X" attribute cannot be
-      # -p-overridden); the committed csproj pins the 4.7.0 ceiling so it builds
-      # locally as-is. Ephemeral — never committed.
-      - name: Pin Godot.NET.Sdk to matrix row
+      # Retarget BOTH the SDK version and the TargetFramework to the matrix row.
+      # The Sdk="…/X" attribute cannot be -p-overridden, and setting
+      # TargetFramework as a -p: global property breaks NuGet restore: the
+      # implicit restore reads the csproj's own <TargetFramework>, so an
+      # overridden build then can't find that framework's assets (the net6.0
+      # rows failed exactly this way). Rewriting both in the csproj keeps restore
+      # and build consistent. The committed csproj pins the 4.7.0 / net8.0
+      # ceiling so it builds locally as-is. Ephemeral — never committed.
+      - name: Pin Godot.NET.Sdk + TargetFramework to matrix row
         run: |
-          node -e 'const fs=require("node:fs");const f="test/fixtures/csharp-project/McpValCs.csproj";let s=fs.readFileSync(f,"utf8");s=s.replace(/Godot\.NET\.Sdk\/[0-9.]+/,"Godot.NET.Sdk/"+process.env.SDK);fs.writeFileSync(f,s);console.log(s);'
+          node -e 'const fs=require("node:fs");const f="test/fixtures/csharp-project/McpValCs.csproj";let s=fs.readFileSync(f,"utf8");s=s.replace(/Godot\.NET\.Sdk\/[0-9.]+/,"Godot.NET.Sdk/"+process.env.SDK);s=s.replace(/<TargetFramework>[^<]*<\/TargetFramework>/,"<TargetFramework>"+process.env.TFM+"</TargetFramework>");fs.writeFileSync(f,s);console.log(s);'
         env:
           SDK: ${{ matrix.godot-sdk }}
+          TFM: ${{ matrix.tfm }}
 
       - name: dotnet build (editor-free)
-        run: >
-          dotnet build test/fixtures/csharp-project/McpValCs.csproj
-          -c Debug -p:TargetFramework=${{ matrix.tfm }}
+        run: dotnet build test/fixtures/csharp-project/McpValCs.csproj -c Debug
