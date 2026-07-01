@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket as WS } from "ws";
 import type { AddressInfo } from "node:net";
 
 import { createBridge } from "../src/transport/bridge.js";
-import { isVersionAtLeast, type GodotVer } from "../src/shared/version.js";
+import { getServerVersion, isVersionAtLeast, type GodotVer } from "../src/shared/version.js";
 
 // ─── Constants ───────────────────────────────────────────────────────────
 export const HOST = "127.0.0.1";
@@ -209,8 +209,13 @@ export async function makeFakeEchoServer(): Promise<{ port: number; dropAll: () 
       try {
         const msg = JSON.parse(data.toString()) as { auth?: unknown; id?: unknown; method?: string; params?: unknown };
         // Accept any auth handshake so the bridge's token-auth completes.
+        // Report the server's own version in the ack: this is an editor-style
+        // channel (no skipVersionCheck), so a versionless ack would trip the
+        // "toolkit did not report version" compat warning on stderr — noise a
+        // real toolkit peer never produces. Echoing getServerVersion() makes
+        // compareVersions() return "ok" and stays in lockstep across bumps.
         if (msg.auth !== undefined) {
-          sock.send(JSON.stringify({ authed: true }));
+          sock.send(JSON.stringify({ authed: true, version: getServerVersion() }));
           return;
         }
         if (msg.method === "echo") {
