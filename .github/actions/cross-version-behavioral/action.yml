@@ -1,0 +1,179 @@
+name: Cross-version behavioral (smoke + flows)
+description: >
+  Language-parameterized cross-version behavioral harness. Launches a real
+  headless Godot editor (standard for GDScript, .NET/mono for C#) against a
+  target project, then round-trips the FULL server smoke + flows suites through
+  the WS bridge. The `language` flag swaps ONLY the environment (editor build,
+  project path/name, per-row TFM, addon injection, the 4.2 class-cache warm-up);
+  the smoke/flows invocation is byte-identical across languages, so the GDScript
+  and C# tiers cannot drift on the section set. Shared by the toolkit
+  cross-version.yml (language: gdscript, reached via the server sibling checkout)
+  and the server cross-version.yml (language: dotnet, local). See iter
+  41n-quater-ter. The caller must check out both repos (self + sibling) first.
+
+inputs:
+  language:
+    description: "gdscript (standard editor + dogfood) | dotnet (mono editor + C# fixture)"
+    required: true
+  godot-version:
+    description: "Godot version to provision (e.g. 4.5.0)"
+    required: true
+  project-path:
+    description: "Absolute path to the editor project (--path target + GODOT_MCP_PROJECT_PATH)"
+    required: true
+  project-name:
+    description: "GODOT_MCP_PROJECT_NAME the smoke/flows harness reports"
+    required: true
+  server-dir:
+    description: >
+      Directory holding the server checkout, where the npm build/smoke/flows run.
+      Self (dotnet caller) = '.'; sibling (gdscript caller) = 'server'.
+    required: false
+    default: "."
+  tfm:
+    description: "Target framework moniker for the C# fixture (dotnet only; e.g. net8.0)"
+    required: false
+    default: ""
+  toolkit-addon-src:
+    description: "Absolute path to addons/godot_mcp_toolkit to inject into the fixture (dotnet only)"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Godot (Godot ${{ inputs.godot-version }})
+      # pinned to v2.4.1 — update tag manually after reviewing changelogs
+      uses: chickensoft-games/setup-godot@v2.4.1
+      with:
+        version: "${{ inputs.godot-version }}"
+        use-dotnet: ${{ inputs.language == 'dotnet' }}
+
+    - name: Setup .NET SDKs (8 + 6 ref packs for both TFMs)
+      if: ${{ inputs.language == 'dotnet' }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          8.0.x
+          6.0.x
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22.x
+        cache: npm
+        cache-dependency-path: ${{ inputs.server-dir }}/package-lock.json
+
+    - name: Install + build harness
+      working-directory: ${{ inputs.server-dir }}
+      shell: bash
+      run: npm ci && npm run build
+
+    # gdscript: the server sibling checkout lands INSIDE the toolkit editor
+    # project (server/), so a .gdignore keeps the editor scan out of node_modules
+    # (a suspect in the 4.2.0 warm-up hang this workflow once hit).
+    - name: Shield harness checkout from the editor scan (gdscript)
+      if: ${{ inputs.language == 'gdscript' }}
+      shell: bash
+      run: touch "${{ inputs.server-dir }}/.gdignore"
+
+    # dotnet: inject the toolkit addon into the fixture so the mono editor has the
+    # MCP toolkit active (WS on 6550). Never committed (gitignored).
+    - name: Inject toolkit addon into the fixture (dotnet)
+      if: ${{ inputs.language == 'dotnet' }}
+      working-directory: ${{ inputs.server-dir }}
+      shell: bash
+      run: npm run fixture:inject-addon
+      env:
+        TOOLKIT_ADDON_SRC: ${{ inputs.toolkit-addon-src }}
+
+    # dotnet: the committed csproj pins the ceiling; retarget both the SDK version
+    # AND the TargetFramework to this row so the editor's on-open build matches its
+    # bundled runtime (a 4.3 editor ships .NET 6 and cannot load net8.0). Ephemeral.
+    - name: Pin fixture Godot.NET.Sdk + TFM to matrix row (dotnet)
+      if: ${{ inputs.language == 'dotnet' }}
+      working-directory: ${{ inputs.server-dir }}
+      shell: bash
+      run: |
+        node -e 'const fs=require("node:fs");const f="test/fixtures/csharp-project/McpValCs.csproj";let s=fs.readFileSync(f,"utf8");s=s.replace(/Godot\.NET\.Sdk\/[0-9.]+/,"Godot.NET.Sdk/"+process.env.SDK).replace(/<TargetFramework>[^<]+<\/TargetFramework>/,"<TargetFramework>"+process.env.TFM+"</TargetFramework>");fs.writeFileSync(f,s);console.log(s);'
+      env:
+        SDK: ${{ inputs.godot-version }}
+        TFM: ${{ inputs.tfm }}
+
+    # dotnet: build BEFORE launching the editor — a cold on-open build means §25's
+    # node-level probe skips (McpValCsNode not yet registered in classdb).
+    - name: dotnet build fixture (warm C# before launch) (dotnet)
+      if: ${{ inputs.language == 'dotnet' }}
+      working-directory: ${{ inputs.server-dir }}
+      shell: bash
+      run: dotnet build test/fixtures/csharp-project/McpValCs.csproj -c Debug -p:TargetFramework=${{ inputs.tfm }}
+
+    # gdscript 4.2 only: warm the script-class cache before the editor launch. On a
+    # cold checkout, 4.2's editor scan aborts on cross-file class_name refs (fixed
+    # in 4.3), so the plugin would fail to load. run_units_cold.sh (GODOT_WARM_ONLY
+    # skips the unit run) boots the editor scan and gates on the cache ARTIFACT — a
+    # frame-count quit races the threaded scan on slow runner disks, and --import
+    # cannot warm 4.2.0 at all (hangs without writing the cache; engine bug, fixed
+    # by 4.2.2). A warm-up that cannot produce the cache fails THIS step fast and
+    # loud (summary + tail land in warmup.log for the always() step) — a job-level
+    # fuse kill would skip the always() steps entirely. 4.3+ needs no warm-up.
+    - name: Warm class cache (gdscript 4.2 only)
+      if: ${{ inputs.language == 'gdscript' && startsWith(inputs.godot-version, '4.2') }}
+      shell: bash
+      run: |
+        set -o pipefail
+        GODOT_WARM_ONLY=1 timeout 300 bash ./scripts/test_framework/run_units_cold.sh 2>&1 | tee warmup.log
+
+    # Launch + poll self-terminates in <=60s (bounded loop), so it needs no shell
+    # timeout; the background editor is reaped by the always() teardown below.
+    - name: Launch headless editor + poll 6550 (<=60s)
+      shell: bash
+      run: |
+        godot --headless --editor --path "${{ inputs.project-path }}" > editor.log 2>&1 &
+        echo "EDITOR_PID=$!" >> "$GITHUB_ENV"
+        for i in $(seq 1 60); do
+          node -e 'const n=require("net");const s=n.connect(6550,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1));s.setTimeout(1000,()=>process.exit(1))' && break
+          sleep 1
+        done
+
+    # Composite-action run steps cannot take `timeout-minutes` (GitHub limitation),
+    # so the long steps carry a shell `timeout` fuse instead — a hang fails the
+    # STEP (letting the always() log steps run), not the job (a job-level kill
+    # skips always()).
+    #
+    # HEADLESS WORKAROUND (--skip 10,14) — pending iter 41n-quater-bis (headless-DX
+    # determinism). §10 game.start: the launched game doesn't establish the runtime
+    # WS headless (runtime_ready:false). §14 editor_get_console: editor parse-error
+    # capture needs GUI revalidation to re-emit headless. §04/§13/§18 screenshots
+    # stay IN the run (they assert the deterministic HEADLESS_UNSUPPORTED guard).
+    # 41n-quater-bis makes §10/§14 deterministic and removes this skip ONCE from
+    # this shared composite, so both languages un-skip together (R7).
+    - name: Smoke (full suite, minus headless-incompatible §10/§14)
+      working-directory: ${{ inputs.server-dir }}
+      shell: bash
+      env:
+        GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
+        GODOT_MCP_PROJECT_NAME: ${{ inputs.project-name }}
+      run: timeout -k 30 900 npm run smoke -- --skip 10,14
+
+    # --skip 2: flows §02 (hot_reload_reachability) needs live editor script
+    # re-instantiation that doesn't reflect headless — pending 41n-quater-bis.
+    # §01/§03 run.
+    - name: Flows (minus headless-incompatible §02)
+      working-directory: ${{ inputs.server-dir }}
+      shell: bash
+      env:
+        GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
+        GODOT_MCP_PROJECT_NAME: ${{ inputs.project-name }}
+      run: timeout -k 30 600 npm run flows -- --skip 2
+
+    - name: Stop editor (always)
+      if: always()
+      shell: bash
+      run: kill "$EDITOR_PID" 2>/dev/null || true
+
+    - name: Editor + warm-up logs (always)
+      if: always()
+      shell: bash
+      run: |
+        cat warmup.log 2>/dev/null || true
+        cat editor.log || true
