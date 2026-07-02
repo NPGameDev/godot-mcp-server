@@ -1,38 +1,60 @@
-# Behavioral cross-version tier (C# / .NET) — opt-in, editor-required.
+# Cross-version behavioral matrix (server) — opt-in, editor-required.
 #
-# Companion to the editor-free csharp-build floor in ci.yml (which compiles the
-# fixture against every Godot.NET.Sdk). This tier launches a real headless MONO
-# editor against the committed C# fixture and round-trips the FULL server smoke +
-# flows suites (minus the headless-incompatible §10/§14 + flows §02, pending
-# 41n-quater-bis) through the WS bridge, one job per supported minor — the .NET
-# mirror of the GDScript tier, driven by the SHARED language-parameterized
-# composite (.github/actions/cross-version-behavioral, language: dotnet). Both
-# tiers run the byte-identical section set, so they cannot drift (iter
-# 41n-quater-ter). NOT a merge gate — opt-in only:
+# The static floors (ci.yml: the Node floor + the editor-free csharp-build floor
+# that compiles the fixture against every Godot.NET.Sdk) gate every push/PR. This
+# workflow runs the FULL two-editor behavioral matrix for a SERVER change — a
+# .NET/mono-editor tier AND a GDScript-editor tier — against the PINNED toolkit
+# sibling. Both tiers launch a real headless Godot editor and round-trip the FULL
+# server smoke + flows suites (minus the headless-incompatible §10/§14 + flows §02,
+# pending 41n-quater-bis) through the WS bridge, one job per supported minor, via the
+# SHARED language-parameterized composite (.github/actions/cross-version-behavioral,
+# local; language: dotnet | gdscript). The section set is byte-identical across both
+# languages AND across both repos, so the tiers cannot drift (iter 41n-quater-ter +
+# the "full behavioral matrix in both repos" follow-on). The TOOLKIT repo's
+# cross-version.yml runs the SAME full two-editor matrix for its own changes against
+# the pinned server — so an opt-in on EITHER repo proves the full GDScript+.NET
+# contract for that repo's change. (The GDScript-editor UNIT leg lives in the TOOLKIT
+# repo, not here — the unit suite is toolkit code.)
+#
+# NOT a merge gate — opt-in only:
 #   • [run-cross-version-ci] in the push commit message
-#   • a v* release tag (backstop: never SHIP a C# cross-version regression)
+#   • a v* release tag (backstop: never SHIP a cross-version regression)
 #   • workflow_dispatch
-# No schedule: (see the toolkit cross-version.yml rationale). 4.2 is excluded here
-# — pending the dedicated 4.2-mono leg (41n-quater-septies), which adds the 4.2 row
-# on top of this shared composite (the class-cache warm-up already ports from the
-# GDScript 4.2 tier). Until then, 4.2 §25 runs via the local release gate.
+# No schedule: (see the toolkit cross-version.yml rationale). 4.2 is excluded from the
+# .NET tier — pending the dedicated 4.2-mono leg (41n-quater-septies), which adds the
+# 4.2 row on top of this shared composite (the class-cache warm-up already ports from
+# the GDScript 4.2 tier); until then, 4.2 §25 runs via the local release gate. The
+# GDScript tier DOES include 4.2.0 (its class-cache warm-up runs inside the composite).
 #
-# Feasibility proven 2026-07-01 (41n-quater Stage-2): a display-less runner serves
-# the mono WS round-trip (§25 15/0, real Speed 200->201 + Poked signal on Godot 4.5).
-# The GDScript-editor behavioral mirror is the TOOLKIT repo's cross-version.yml — same shared
-# composite, identical section set.
-#
-# The addon lives in the TOOLKIT repo, so it's checked out as a sibling and injected
-# into the fixture at run time (never committed). Private-repo checkout uses the
-# read-only PAT (CROSS_REPO_READ_TOKEN); the || github.token fallback goes tokenless
-# once the repos are public.
-name: cross-version (C# behavioral)
+# Feasibility proven 2026-07-01 (41n-quater Stage-2): a display-less runner serves the
+# mono WS round-trip (§25 15/0, real Speed 200->201 + Poked signal on Godot 4.5) and the
+# standard WS round-trip (29/0). The shared composite AND the C# fixture + smoke/flows
+# harness live HERE; the toolkit addon (dotnet tier) and the toolkit dogfood project
+# (gdscript tier) come from the sibling checkout, never committed. Private-repo checkout
+# uses the read-only PAT (CROSS_REPO_READ_TOKEN); the || github.token fallback goes
+# tokenless once the repos are public. The toolkit checkout is PINNED to a recorded
+# revision (env.SIBLING_PIN_TOOLKIT, see below) — no race with toolkit main; bump the pin
+# deliberately, with [run-cross-version-ci] on the bump commit.
+name: cross-version (server)
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      sibling-ref:
+        description: "Override the pinned toolkit sibling ref (ad-hoc cross-testing / spike trials)"
+        required: false
+        default: ""
   push:
     branches: [main]
     tags: ["v*"]
+
+# SIBLING-PIN(toolkit): deterministic sibling — BOTH behavioral jobs below (dotnet +
+# gdscript) test against exactly this toolkit revision, not floating main. This env var
+# is the SINGLE bump point: bump it deliberately in a dedicated commit carrying
+# [run-cross-version-ci] (the bump IS the tested integration event); override ad-hoc via
+# the sibling-ref dispatch input. See Plan/Reference/ci-test-topology.md.
+env:
+  SIBLING_PIN_TOOLKIT: "655e28a9c8dfc2ffe328301096c37ee9e8016387"
 
 jobs:
   csharp-behavioral:
@@ -71,6 +93,8 @@ jobs:
           repository: NPGameDev/godot-mcp-toolkit
           path: toolkit
           token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
+          # SIBLING-PIN(toolkit): pinned via env.SIBLING_PIN_TOOLKIT (workflow-level env above).
+          ref: ${{ inputs.sibling-ref || env.SIBLING_PIN_TOOLKIT }}
 
       - name: "Full smoke+flows (.NET/mono editor · Godot ${{ matrix.godot-version }})"
         uses: ./.github/actions/cross-version-behavioral
@@ -82,3 +106,45 @@ jobs:
           project-name: "MCP CSharp Fixture"
           toolkit-addon-src: ${{ github.workspace }}/toolkit/addons/godot_mcp_toolkit
           # server-dir defaults to "." (server is the self checkout)
+
+  # Opt-in GDScript-editor BEHAVIORAL tier — the GDScript mirror hosted HERE so a
+  # SERVER opt-in proves the full GDScript+.NET contract for a server change against
+  # the PINNED toolkit sibling. Same shared composite (language: gdscript, LOCAL —
+  # the composite lives in this repo), byte-identical section set as the toolkit
+  # repo's own GDScript tier. The editor project is the toolkit dogfood, so it rides
+  # the sibling checkout; the smoke/flows harness is this (server) checkout. Includes
+  # 4.2.0 — its cold class-cache warm-up runs inside the composite (cd's into the
+  # toolkit project root), so no 4.2 exclusion applies to the GDScript tier.
+  gdscript-behavioral:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      contains(github.event.head_commit.message, '[run-cross-version-ci]')
+    runs-on: ubuntu-latest
+    # Fuse: observed legs finish in ~7 min (full smoke+flows) — a leg still running
+    # at 30 min is hung (e.g. an editor boot that never serves the port), not slow.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        godot-version: ["4.2.0", "4.3.0", "4.4.0", "4.5.0", "4.6.0", "4.7.0"]
+    name: "Full smoke+flows (GDScript editor · Godot ${{ matrix.godot-version }})"
+    steps:
+      - uses: actions/checkout@v4 # server (self) = smoke + flows harness + composite
+
+      - uses: actions/checkout@v4 # toolkit = the editor/dogfood project under test
+        with:
+          repository: NPGameDev/godot-mcp-toolkit
+          path: toolkit
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
+          # SIBLING-PIN(toolkit): pinned via env.SIBLING_PIN_TOOLKIT (workflow-level env above).
+          ref: ${{ inputs.sibling-ref || env.SIBLING_PIN_TOOLKIT }}
+
+      - name: "Full smoke+flows (GDScript editor · Godot ${{ matrix.godot-version }})"
+        uses: ./.github/actions/cross-version-behavioral
+        with:
+          language: gdscript
+          godot-version: ${{ matrix.godot-version }}
+          server-dir: "."
+          project-path: ${{ github.workspace }}/toolkit
+          project-name: "Godot MCP Toolkit"

@@ -37,11 +37,15 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 The C# (.NET) behavioral tier (`.github/workflows/cross-version.yml`) runs the
 **full smoke suite `--skip 10,14` + flows `--skip 2`** against the committed mono
 fixture on **Godot 4.3–4.7** (was §25-only, `smoke:single --only 25`) — the .NET
-mirror of the GDScript tier, driven by the SHARED language-parameterized composite
-`.github/actions/cross-version-behavioral` (`language: dotnet`), so the two tiers
-run the byte-identical section set and cannot drift (iter 41n-quater-ter). §25 stays
-the sole C#-aware section; the other ~44 run their GDScript probes while a mono
-assembly is loaded (interaction insurance). The `--skip`s are **transient** headless
+tier, driven by the SHARED language-parameterized composite
+`.github/actions/cross-version-behavioral` (`language: dotnet`); its section set is
+byte-identical to the GDScript tier's and cannot drift (iter 41n-quater-ter). This
+workflow now **also** hosts a GDScript-editor tier (`language: gdscript`, 4.2–4.7,
+toolkit dogfood via the pinned sibling), so a server opt-in proves the full
+GDScript+.NET contract; the toolkit repo's `cross-version.yml` runs the same
+two-editor matrix for its own changes ("full behavioral matrix in both repos"
+follow-on). §25 stays the sole C#-aware section; the other ~44 run their GDScript
+probes while a mono assembly is loaded (interaction insurance). The `--skip`s are **transient** headless
 workarounds (§10 game.start, §14 console, flows §02) removed by `41n-quater-bis` once
 those sections are deterministic headless — stripped **once** from the shared
 composite, so both languages un-skip together. **4.2-on-C#** is excluded pending the

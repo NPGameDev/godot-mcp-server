@@ -6,10 +6,15 @@ description: >
   the WS bridge. The `language` flag swaps ONLY the environment (editor build,
   project path/name, per-row TFM, addon injection, the 4.2 class-cache warm-up);
   the smoke/flows invocation is byte-identical across languages, so the GDScript
-  and C# tiers cannot drift on the section set. Shared by the toolkit
-  cross-version.yml (language: gdscript, reached via the server sibling checkout)
-  and the server cross-version.yml (language: dotnet, local). See iter
-  41n-quater-ter. The caller must check out both repos (self + sibling) first.
+  and C# tiers cannot drift on the section set. Serves FOUR caller jobs — both
+  languages in BOTH repos: each cross-version.yml (toolkit and server) hosts a
+  gdscript AND a dotnet behavioral job, so an opt-in on either repo proves the
+  full GDScript+.NET contract for that repo's change against the pinned sibling.
+  Works from either workspace layout (toolkit-as-root with the server at server/;
+  server-as-root with the toolkit at toolkit/) — the gdscript project-path always
+  points at the toolkit root, server-dir at the server checkout. See iter
+  41n-quater-ter and the "full behavioral matrix in both repos" follow-on. The
+  caller must check out both repos (self + sibling) first.
 
 inputs:
   language:
@@ -68,9 +73,13 @@ runs:
       shell: bash
       run: npm ci && npm run build
 
-    # gdscript: the server sibling checkout lands INSIDE the toolkit editor
-    # project (server/), so a .gdignore keeps the editor scan out of node_modules
-    # (a suspect in the 4.2.0 warm-up hang this workflow once hit).
+    # gdscript: shields the server checkout's node_modules from the editor scan —
+    # matters ONLY in the toolkit-as-root layout, where the server sibling checkout
+    # (server/) lands INSIDE the toolkit editor project, so the scan would otherwise
+    # descend into server/node_modules (a suspect in the 4.2.0 warm-up hang this
+    # workflow once hit). In the server-as-root layout the server checkout IS the
+    # workspace root and sits OUTSIDE the toolkit editor project (toolkit/), so this
+    # touch is a harmless no-op on a dir the editor never scans.
     - name: Shield harness checkout from the editor scan (gdscript)
       if: ${{ inputs.language == 'gdscript' }}
       shell: bash
@@ -116,12 +125,20 @@ runs:
     # by 4.2.2). A warm-up that cannot produce the cache fails THIS step fast and
     # loud (summary + tail land in warmup.log for the always() step) — a job-level
     # fuse kill would skip the always() steps entirely. 4.3+ needs no warm-up.
+    #
+    # run_units_cold.sh REQUIRES CWD = the toolkit project root (it checks for
+    # project.godot and uses CWD-relative paths: --path ., .godot/…). project-path
+    # is the toolkit root in BOTH layouts (= workspace root when the toolkit is
+    # self; = workspace/toolkit when the server is self), so cd there first. The tee
+    # target stays $GITHUB_WORKSPACE-absolute so the always() log step (which runs
+    # from the workspace root) still finds warmup.log after the cd.
     - name: Warm class cache (gdscript 4.2 only)
       if: ${{ inputs.language == 'gdscript' && startsWith(inputs.godot-version, '4.2') }}
       shell: bash
       run: |
         set -o pipefail
-        GODOT_WARM_ONLY=1 timeout 300 bash ./scripts/test_framework/run_units_cold.sh 2>&1 | tee warmup.log
+        cd "${{ inputs.project-path }}"
+        GODOT_WARM_ONLY=1 timeout 300 bash ./scripts/test_framework/run_units_cold.sh 2>&1 | tee "$GITHUB_WORKSPACE/warmup.log"
 
     # Launch + poll self-terminates in <=60s (bounded loop), so it needs no shell
     # timeout; the background editor is reaped by the always() teardown below.
