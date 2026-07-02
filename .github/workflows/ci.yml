@@ -12,6 +12,7 @@ jobs:
     strategy:
       matrix:
         node-version: [20.x, 22.x]
+    name: "Server floor (Node ${{ matrix.node-version }}): build+unit+lint+format+smoke:ci"
 
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +74,7 @@ jobs:
             tfm: "net8.0"
           - godot-sdk: "4.7.0"
             tfm: "net8.0"
-    name: C# build (Godot.NET.Sdk ${{ matrix.godot-sdk }} / ${{ matrix.tfm }})
+    name: "C# fixture compiles — editor-free SDK floor (Godot.NET.Sdk ${{ matrix.godot-sdk }} / ${{ matrix.tfm }})"
     steps:
       - uses: actions/checkout@v4
 

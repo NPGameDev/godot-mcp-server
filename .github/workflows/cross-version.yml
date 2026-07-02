@@ -19,6 +19,8 @@
 #
 # Feasibility proven 2026-07-01 (41n-quater Stage-2): a display-less runner serves
 # the mono WS round-trip (§25 15/0, real Speed 200->201 + Poked signal on Godot 4.5).
+# The GDScript-editor behavioral mirror is the TOOLKIT repo's cross-version.yml — same shared
+# composite, identical section set.
 #
 # The addon lives in the TOOLKIT repo, so it's checked out as a sibling and injected
 # into the fixture at run time (never committed). Private-repo checkout uses the
@@ -60,7 +62,7 @@ jobs:
             tfm: "net8.0"
           - godot-version: "4.7.0"
             tfm: "net8.0"
-    name: "Behavioral (.NET editor · Godot ${{ matrix.godot-version }} / ${{ matrix.tfm }}): smoke+flows"
+    name: "Full smoke+flows (.NET/mono editor · Godot ${{ matrix.godot-version }} / ${{ matrix.tfm }})"
     steps:
       - uses: actions/checkout@v4 # server (self) = harness + C# fixture + composite
 
@@ -70,7 +72,7 @@ jobs:
           path: toolkit
           token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
 
-      - name: "Behavioral (.NET editor · Godot ${{ matrix.godot-version }}): smoke+flows"
+      - name: "Full smoke+flows (.NET/mono editor · Godot ${{ matrix.godot-version }})"
         uses: ./.github/actions/cross-version-behavioral
         with:
           language: dotnet
