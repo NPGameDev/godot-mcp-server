@@ -164,7 +164,18 @@ runs:
     - name: Launch headless editor + poll 6550 (<=60s)
       shell: bash
       run: |
-        godot --headless --editor --path "${{ inputs.project-path }}" > editor.log 2>&1 &
+        # --log-file (Godot 4.3+ only — the flag does not exist on 4.2) enables editor-mode file
+        # logging so editor.get_console source="file" exercises the REAL file-read path headless
+        # (the file logger is otherwise off in --editor). `user://logs/godot.log` globalizes to the
+        # user-data logs dir — the SAME dir the toolkit reader reads (source-verified via
+        # FileAccess::fix_path; platform-agnostic), so engine-write and reader-read align. On Linux
+        # the reader reads it -> entries; SMOKE_EXPECT_FILE_LOG (smoke step) makes §14 require that.
+        LOGFILE_ARG=""
+        case "${{ inputs.godot-version }}" in
+          4.2*) : ;;  # no --log-file pre-4.3
+          *) LOGFILE_ARG='--log-file user://logs/godot.log' ;;
+        esac
+        godot --headless --editor $LOGFILE_ARG --path "${{ inputs.project-path }}" > editor.log 2>&1 &
         echo "EDITOR_PID=$!" >> "$GITHUB_ENV"
         for i in $(seq 1 60); do
           node -e 'const n=require("net");const s=n.connect(6550,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1));s.setTimeout(1000,()=>process.exit(1))' && break
@@ -191,6 +202,10 @@ runs:
       env:
         GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
         GODOT_MCP_PROJECT_NAME: ${{ inputs.project-name }}
+        # 4.3+ launched with --log-file (above), so source="file" MUST read real entries — this
+        # catches a silently-misaligned --log-file. 4.2 has no --log-file -> LOG_UNAVAILABLE, its
+        # own valid deterministic branch. The signal keys which §14 outcome the test requires.
+        SMOKE_EXPECT_FILE_LOG: ${{ startsWith(inputs.godot-version, '4.2') && '0' || '1' }}
       run: timeout -k 30 900 npm run smoke
 
     - name: Flows (full suite, headless-deterministic)

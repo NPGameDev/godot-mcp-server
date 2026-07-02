@@ -214,30 +214,78 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     );
   }
 
-  // Explicit source="file" — the log-file reader. Two deterministic outcomes, BOTH correct;
-  // the discriminator is whether a log file physically exists (environment-dependent), NOT
-  // headless: (a) a log EXISTS → {success:true, entries[], log_file}; (b) NO log present →
-  // {success:false, code:"LOG_UNAVAILABLE"}, the documented no-log response. `--headless
-  // --editor` never writes user://logs/godot.log on any version (the file logger is off in
-  // --editor without --log-file — see the iter's engine facts), so a FRESH fixture / empty
-  // user-data dir (as in CI) hits LOG_UNAVAILABLE, while a long-lived userdata dir with an
-  // accumulated log returns entries. Accept either; fail only on a genuinely unexpected shape.
+  // Explicit source="file" — the log-file reader (reads globalized user://logs/, preferring
+  // godot.log). Which deterministic outcome depends on whether a log file physically exists at
+  // that path (environment-dependent), NOT on headless per se:
+  //   - a readable log EXISTS  -> {success:true, entries[], log_file}  (the real file-read path)
+  //   - the log exists, locked -> {success:false, code:"LOG_BUSY"}     (the engine holds the
+  //     active --log-file write handle; Windows mandatory-locks it, so a local WINDOWS run sees
+  //     LOG_BUSY where LINUX — advisory locks — reads entries. Both prove the file is present.)
+  //   - NO log present         -> {success:false, code:"LOG_UNAVAILABLE"} (+ a headless_hint when
+  //     headless), the documented no-log response.
+  // `--headless --editor` writes NO editor log unless `--log-file` is passed (4.3+; the file
+  // logger is off in editor mode otherwise — engine facts). The cross-version CI composite passes
+  // `--log-file user://logs/godot.log` on 4.3+ (globalizes to the SAME user://logs/ dir the reader
+  // reads — source-verified, platform-agnostic) and exports SMOKE_EXPECT_FILE_LOG=1 for that leg;
+  // 4.2 has no --log-file flag, and a plain local run has none, so those hit LOG_UNAVAILABLE
+  // (unless a stale userdata log lingers). Keying the "require entries" branch off the explicit
+  // harness signal means a plain local `npm run smoke` never spuriously fails on 4.3+.
+  const headless = bridge.isHeadless() === true;
+  const expectFileLog = process.env.SMOKE_EXPECT_FILE_LOG === "1";
   const consoleFileResult = (await bridge.call("editor.get_console", { limit: 50, source: "file" }, CALL_TIMEOUT)) as {
     success?: boolean;
     entries?: unknown;
     count?: number;
     log_file?: string;
     code?: string;
+    headless_hint?: string;
   };
   const consoleFileEntries = unwrapUntrusted(consoleFileResult?.entries);
-  if (
+  const fileHasEntries =
     consoleFileResult?.success === true &&
     Array.isArray(consoleFileEntries) &&
-    typeof consoleFileResult.log_file === "string"
-  ) {
+    typeof consoleFileResult.log_file === "string";
+  const fileLogBusy = consoleFileResult?.success === false && consoleFileResult.code === "LOG_BUSY";
+  const fileLogUnavailable = consoleFileResult?.success === false && consoleFileResult.code === "LOG_UNAVAILABLE";
+  if (expectFileLog) {
+    // The composite provided a log via --log-file, so the file MUST be at the aligned user://logs/
+    // path -> NOT LOG_UNAVAILABLE (a LOG_UNAVAILABLE here = a silently-misaligned --log-file).
+    // Linux CI reads it -> entries (the genuine file-read-path coverage); a local Windows run sees
+    // LOG_BUSY (file present, engine holds the write handle). Both prove alignment.
+    if (fileHasEntries)
+      pass(
+        `editor.get_console source=file (--log-file) -> entries count=${consoleFileResult.count} log_file=${consoleFileResult.log_file}`,
+      );
+    else if (fileLogBusy)
+      pass(
+        `editor.get_console source=file (--log-file) -> LOG_BUSY (file present; Windows write-lock — Linux reads entries)`,
+      );
+    else
+      fail(
+        `editor.get_console source=file with --log-file: expected entries or LOG_BUSY, got ${JSON.stringify({ success: consoleFileResult?.success, code: consoleFileResult?.code, log_file: consoleFileResult?.log_file })} — LOG_UNAVAILABLE here means --log-file is misaligned with the reader's user://logs/ path`,
+      );
+  } else if (fileHasEntries) {
+    // No harness signal, but a log physically exists (a long-lived userdata dir) -> entries.
     pass(`editor.get_console source=file -> count=${consoleFileResult.count} log_file=${consoleFileResult.log_file}`);
-  } else if (consoleFileResult?.success === false && consoleFileResult.code === "LOG_UNAVAILABLE") {
-    pass(`editor.get_console source=file -> LOG_UNAVAILABLE (no log file present — deterministic no-log response)`);
+  } else if (fileLogBusy) {
+    // A log is present but transiently locked (e.g. an active --log-file writer without the signal).
+    pass(`editor.get_console source=file -> LOG_BUSY (log present but locked)`);
+  } else if (fileLogUnavailable) {
+    // No log present — the deterministic no-log response. When headless, the toolkit attaches a
+    // headless_hint steering to source="buffer"; assert it (positive DX proof, not a bare accept).
+    if (headless) {
+      if (
+        typeof consoleFileResult.headless_hint === "string" &&
+        consoleFileResult.headless_hint.includes("headless editors don't write one")
+      )
+        pass(`editor.get_console source=file -> LOG_UNAVAILABLE + headless_hint (steers to source="buffer")`);
+      else
+        fail(
+          `editor.get_console source=file LOG_UNAVAILABLE headless: expected a headless_hint, got ${JSON.stringify(consoleFileResult.headless_hint)}`,
+        );
+    } else {
+      pass(`editor.get_console source=file -> LOG_UNAVAILABLE (no log file present — deterministic no-log response)`);
+    }
   } else {
     fail(
       `editor.get_console source=file: unexpected shape ${JSON.stringify({ success: consoleFileResult?.success, entries: Array.isArray(consoleFileEntries) ? consoleFileEntries.length : typeof consoleFileEntries, log_file: consoleFileResult?.log_file, code: consoleFileResult?.code })}`,
@@ -343,7 +391,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   // mechanics checks keep running. The toolkit compensates with a deterministic
   // headless_hint steering to script_check, asserted positively below (DX proof).
   const godotVer = bridge.getGodotVersion();
-  const headless = bridge.isHeadless() === true;
+  // `headless` is declared once, above the source="file" block (both need it).
   const parseErrorsCaptured = godotVer != null && isVersionAtLeast(godotVer, "4.5") && !headless;
 
   if (parseErrorsCaptured) {
