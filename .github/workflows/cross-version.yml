@@ -85,7 +85,7 @@ jobs:
             tfm: "net8.0"
           - godot-version: "4.5.0"
             tfm: "net8.0"
-          - godot-version: "4.6.2"
+          - godot-version: "4.6.0"
             tfm: "net8.0"
           - godot-version: "4.7.0"
             tfm: "net8.0"

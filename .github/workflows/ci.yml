@@ -70,7 +70,7 @@ jobs:
             tfm: "net8.0"
           - godot-sdk: "4.5.0"
             tfm: "net8.0"
-          - godot-sdk: "4.6.2"
+          - godot-sdk: "4.6.0"
             tfm: "net8.0"
           - godot-sdk: "4.7.0"
             tfm: "net8.0"
