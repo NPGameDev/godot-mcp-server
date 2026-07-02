@@ -214,7 +214,14 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     );
   }
 
-  // Explicit source="file" — falls back to log file reader.
+  // Explicit source="file" — the log-file reader. Two deterministic outcomes, BOTH correct;
+  // the discriminator is whether a log file physically exists (environment-dependent), NOT
+  // headless: (a) a log EXISTS → {success:true, entries[], log_file}; (b) NO log present →
+  // {success:false, code:"LOG_UNAVAILABLE"}, the documented no-log response. `--headless
+  // --editor` never writes user://logs/godot.log on any version (the file logger is off in
+  // --editor without --log-file — see the iter's engine facts), so a FRESH fixture / empty
+  // user-data dir (as in CI) hits LOG_UNAVAILABLE, while a long-lived userdata dir with an
+  // accumulated log returns entries. Accept either; fail only on a genuinely unexpected shape.
   const consoleFileResult = (await bridge.call("editor.get_console", { limit: 50, source: "file" }, CALL_TIMEOUT)) as {
     success?: boolean;
     entries?: unknown;
@@ -224,15 +231,17 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   };
   const consoleFileEntries = unwrapUntrusted(consoleFileResult?.entries);
   if (
-    !consoleFileResult?.success ||
-    !Array.isArray(consoleFileEntries) ||
-    typeof consoleFileResult.log_file !== "string"
+    consoleFileResult?.success === true &&
+    Array.isArray(consoleFileEntries) &&
+    typeof consoleFileResult.log_file === "string"
   ) {
+    pass(`editor.get_console source=file -> count=${consoleFileResult.count} log_file=${consoleFileResult.log_file}`);
+  } else if (consoleFileResult?.success === false && consoleFileResult.code === "LOG_UNAVAILABLE") {
+    pass(`editor.get_console source=file -> LOG_UNAVAILABLE (no log file present — deterministic no-log response)`);
+  } else {
     fail(
       `editor.get_console source=file: unexpected shape ${JSON.stringify({ success: consoleFileResult?.success, entries: Array.isArray(consoleFileEntries) ? consoleFileEntries.length : typeof consoleFileEntries, log_file: consoleFileResult?.log_file, code: consoleFileResult?.code })}`,
     );
-  } else {
-    pass(`editor.get_console source=file -> count=${consoleFileResult.count} log_file=${consoleFileResult.log_file}`);
   }
 
   // Invalid source rejected.
