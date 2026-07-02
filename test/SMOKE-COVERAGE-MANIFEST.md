@@ -1,7 +1,7 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-07-02 (41n-quater-ter — cross-version C# behavioral mirror)
-**Server commit:** S:807785b (41n-quater-ter; superseded by the landing commit recorded at bookkeeping)
+**Last updated:** 2026-07-03 (41n-quater-septies — 4.2 row for the .NET behavioral mirror)
+**Server commit:** S:11d8d0a (41n-quater-septies; superseded by the landing commit recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 110 (33 eager + 77 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
@@ -36,7 +36,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 
 The C# (.NET) behavioral tier (`.github/workflows/cross-version.yml`) runs the
 **full smoke suite `--skip 10,14` + flows `--skip 2`** against the committed mono
-fixture on **Godot 4.3–4.7** (was §25-only, `smoke:single --only 25`) — the .NET
+fixture on **Godot 4.2–4.7** (was §25-only, `smoke:single --only 25`) — the .NET
 tier, driven by the SHARED language-parameterized composite
 `.github/actions/cross-version-behavioral` (`language: dotnet`); its section set is
 byte-identical to the GDScript tier's and cannot drift (iter 41n-quater-ter). This
@@ -48,10 +48,14 @@ follow-on). §25 stays the sole C#-aware section; the other ~44 run their GDScri
 probes while a mono assembly is loaded (interaction insurance). The `--skip`s are **transient** headless
 workarounds (§10 game.start, §14 console, flows §02) removed by `41n-quater-bis` once
 those sections are deterministic headless — stripped **once** from the shared
-composite, so both languages un-skip together. **4.2-on-C#** is excluded pending the
-dedicated 4.2-mono leg (`41n-quater-septies`); 4.2 §25 runs via the local release gate
-meanwhile. Full local C# coverage remains the `godot-mcp-dogfood-NET` `csharp-audit`
-(24/24) + the C# tool sweep, scheduled routinely.
+composite, so both languages un-skip together. **4.2-on-C# now runs too**
+(`41n-quater-septies`): its cold class-cache warm-up ports to dotnet in the shared
+composite (CWD = the C# fixture; run_units_cold.sh invoked from the pinned toolkit
+checkout), so the .NET tier covers **4.2–4.7**. The 4.2 row carries the SAME shared
+`--skip 10,14` / flows `--skip 2` as 4.3–4.7 — no 4.2-specific skip (local-validated
+smoke 450/0 + flows 19/0 + units 897/0 on 4.2.0-mono). Full local C# coverage remains
+the `godot-mcp-dogfood-NET` `csharp-audit` (24/24) + the C# tool sweep, scheduled
+routinely.
 
 > **Validation vocabulary (glossary).** **SWEEP** = toolkit, interactive,
 > GDScript tool-exercise (`Validations/`, not in CI). **SMOKE** = server, automated,

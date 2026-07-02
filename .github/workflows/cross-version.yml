@@ -20,11 +20,11 @@
 #   • [run-cross-version-ci] in the push commit message
 #   • a v* release tag (backstop: never SHIP a cross-version regression)
 #   • workflow_dispatch
-# No schedule: (see the toolkit cross-version.yml rationale). 4.2 is excluded from the
-# .NET tier — pending the dedicated 4.2-mono leg (41n-quater-septies), which adds the
-# 4.2 row on top of this shared composite (the class-cache warm-up already ports from
-# the GDScript 4.2 tier); until then, 4.2 §25 runs via the local release gate. The
-# GDScript tier DOES include 4.2.0 (its class-cache warm-up runs inside the composite).
+# No schedule: (see the toolkit cross-version.yml rationale). The .NET tier now runs
+# 4.2.0 too (41n-quater-septies): its cold class-cache warm-up ports to dotnet in the
+# shared composite (CWD = the C# fixture; run_units_cold.sh invoked from the pinned
+# toolkit checkout), so the .NET tier covers 4.2–4.7 in lockstep with the GDScript
+# tier. BOTH tiers include 4.2.0 (its class-cache warm-up runs inside the composite).
 #
 # Feasibility proven 2026-07-01 (41n-quater Stage-2): a display-less runner serves the
 # mono WS round-trip (§25 15/0, real Speed 200->201 + Poked signal on Godot 4.5) and the
@@ -74,6 +74,11 @@ jobs:
       # ships the .NET 6 runtime and cannot load a net8.0 assembly.
       matrix:
         include:
+          # 4.2.0 (net6.0): 4.2-mono behavioral leg (41n-quater-septies). Its cold
+          # class-cache warm-up runs in the shared composite (dotnet path). 4.2 & 4.3
+          # are both net6.0 (the net6->net8 TFM boundary is 4.4).
+          - godot-version: "4.2.0"
+            tfm: "net6.0"
           - godot-version: "4.3.0"
             tfm: "net6.0"
           - godot-version: "4.4.0"

@@ -116,29 +116,48 @@ runs:
       shell: bash
       run: dotnet build test/fixtures/csharp-project/McpValCs.csproj -c Debug -p:TargetFramework=${{ inputs.tfm }}
 
-    # gdscript 4.2 only: warm the script-class cache before the editor launch. On a
-    # cold checkout, 4.2's editor scan aborts on cross-file class_name refs (fixed
-    # in 4.3), so the plugin would fail to load. run_units_cold.sh (GODOT_WARM_ONLY
-    # skips the unit run) boots the editor scan and gates on the cache ARTIFACT — a
-    # frame-count quit races the threaded scan on slow runner disks, and --import
-    # cannot warm 4.2.0 at all (hangs without writing the cache; engine bug, fixed
-    # by 4.2.2). A warm-up that cannot produce the cache fails THIS step fast and
-    # loud (summary + tail land in warmup.log for the always() step) — a job-level
-    # fuse kill would skip the always() steps entirely. 4.3+ needs no warm-up.
+    # 4.2 only (BOTH languages): warm the script-class cache before the editor
+    # launch. On a cold checkout, 4.2's editor scan aborts on cross-file class_name
+    # refs (fixed in 4.3), so the plugin would fail to load. The scan-abort trigger
+    # is the toolkit addon's GDScript class_name graph — present in BOTH tiers (the
+    # dogfood commits it; the C# fixture has it injected), NOT the fixture's .cs — so
+    # the warm-up is needed identically for gdscript AND dotnet at 4.2. run_units_cold.sh
+    # (GODOT_WARM_ONLY skips the unit run) boots the editor scan and gates on the
+    # cache ARTIFACT — a frame-count quit races the threaded scan on slow runner
+    # disks, and --import cannot warm 4.2.0 at all (hangs without writing the cache;
+    # engine bug, fixed by 4.2.2). A warm-up that cannot produce the cache fails THIS
+    # step fast and loud (summary + tail land in warmup.log for the always() step) —
+    # a job-level fuse kill would skip the always() steps entirely. 4.3+ needs no
+    # warm-up.
     #
-    # run_units_cold.sh REQUIRES CWD = the toolkit project root (it checks for
-    # project.godot and uses CWD-relative paths: --path ., .godot/…). project-path
-    # is the toolkit root in BOTH layouts (= workspace root when the toolkit is
-    # self; = workspace/toolkit when the server is self), so cd there first. The tee
-    # target stays $GITHUB_WORKSPACE-absolute so the always() log step (which runs
-    # from the workspace root) still finds warmup.log after the cd.
-    - name: Warm class cache (gdscript 4.2 only)
-      if: ${{ inputs.language == 'gdscript' && startsWith(inputs.godot-version, '4.2') }}
+    # run_units_cold.sh REQUIRES CWD = the project root (it checks for project.godot
+    # and uses CWD-relative paths: --path ., .godot/…), so cd into project-path first
+    # in both languages: gdscript = the toolkit root (= workspace root when the
+    # toolkit is self, = workspace/toolkit when the server is self); dotnet = the C#
+    # fixture. For gdscript the script sits under that CWD (./scripts/...); for dotnet
+    # the script lives in the TOOLKIT checkout, so it is invoked by absolute path
+    # derived from toolkit-addon-src (strip the trailing /addons/godot_mcp_toolkit →
+    # toolkit root → /scripts/test_framework/run_units_cold.sh). The mono editor is on
+    # PATH after use-dotnet setup, so GODOT_BIN defaults to it. The tee target stays
+    # $GITHUB_WORKSPACE-absolute so the always() log step (which runs from the
+    # workspace root) still finds warmup.log after the cd.
+    - name: Warm class cache (4.2 only — both languages)
+      if: ${{ startsWith(inputs.godot-version, '4.2') }}
       shell: bash
+      env:
+        LANGUAGE: ${{ inputs.language }}
+        PROJECT_PATH: ${{ inputs.project-path }}
+        TOOLKIT_ADDON_SRC: ${{ inputs.toolkit-addon-src }}
       run: |
         set -o pipefail
-        cd "${{ inputs.project-path }}"
-        GODOT_WARM_ONLY=1 timeout 300 bash ./scripts/test_framework/run_units_cold.sh 2>&1 | tee "$GITHUB_WORKSPACE/warmup.log"
+        cd "$PROJECT_PATH"
+        if [ "$LANGUAGE" = "dotnet" ]; then
+          toolkit_root="${TOOLKIT_ADDON_SRC%/addons/godot_mcp_toolkit}"
+          warm_script="$toolkit_root/scripts/test_framework/run_units_cold.sh"
+        else
+          warm_script="./scripts/test_framework/run_units_cold.sh"
+        fi
+        GODOT_WARM_ONLY=1 timeout 300 bash "$warm_script" 2>&1 | tee "$GITHUB_WORKSPACE/warmup.log"
 
     # Launch + poll self-terminates in <=60s (bounded loop), so it needs no shell
     # timeout; the background editor is reaped by the always() teardown below.
