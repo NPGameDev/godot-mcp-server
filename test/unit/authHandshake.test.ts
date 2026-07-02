@@ -1,10 +1,10 @@
 /**
  * Unit tests for auth_handshake.ts — the C-AUTH leaf carved out of bridge.ts.
  * Pins the §10.1 auth-WIRE contract so the extraction stays byte-equivalent:
- * the `{ auth, version }` frame, the `{ authed, godot_version, version }` →
- * `{ godotVersion, toolkitVersion }` mapping (missing fields → undefined), the 5 s
- * AUTH_TIMEOUT_MS timeout, listener cleanup() on settle, the close-during-auth
- * reject, and the non-JSON-frame ignore.
+ * the `{ auth, version }` frame, the `{ authed, godot_version, version, headless }`
+ * → `{ godotVersion, toolkitVersion, headless }` mapping (missing fields →
+ * undefined), the 5 s AUTH_TIMEOUT_MS timeout, listener cleanup() on settle, the
+ * close-during-auth reject, and the non-JSON-frame ignore.
  *
  * Mirrors bridge-version-hook.test.ts's infra: a real loopback WebSocketServer
  * and a real client ws, with authenticate(clientWs, token) driven directly.
@@ -100,37 +100,60 @@ async function testSendsFrame() {
 // ── 2. resolves the mapped shape (+ missing fields → undefined) ─────────
 
 async function testResolvesMappedShape() {
-  // 2a — full fields map through verbatim.
+  // 2a — full fields map through verbatim (Mode-A ack carries headless).
   {
     const { client, server, closeAll } = await connectPair();
     try {
       server.once("message", () => {
-        server.send(JSON.stringify({ authed: true, godot_version: "4.5", version: "1.0.0" }));
+        server.send(JSON.stringify({ authed: true, godot_version: "4.5", version: "1.0.0", headless: false }));
       });
       const resp = await authenticate(client, "tok");
       assert.deepEqual(
         resp,
-        { godotVersion: "4.5", toolkitVersion: "1.0.0" },
-        "maps godot_version/version → godotVersion/toolkitVersion",
+        { godotVersion: "4.5", toolkitVersion: "1.0.0", headless: false },
+        "maps godot_version/version/headless → godotVersion/toolkitVersion/headless",
       );
     } finally {
       await closeAll();
     }
   }
-  // 2b — absent fields resolve to undefined (no wire value → undefined).
+  // 2b — absent fields resolve to undefined (no wire value → undefined). A Mode-B
+  // runtime ack (bare {authed:true}) omits headless, so it maps to undefined too.
   {
     const { client, server, closeAll } = await connectPair();
     try {
       server.once("message", () => {
-        server.send(JSON.stringify({ authed: true })); // no godot_version, no version
+        server.send(JSON.stringify({ authed: true })); // no godot_version, no version, no headless
       });
       const resp = await authenticate(client, "tok");
-      assert.deepEqual(resp, { godotVersion: undefined, toolkitVersion: undefined }, "missing fields → undefined");
+      assert.deepEqual(
+        resp,
+        { godotVersion: undefined, toolkitVersion: undefined, headless: undefined },
+        "missing fields → undefined (incl. headless)",
+      );
     } finally {
       await closeAll();
     }
   }
-  console.log("  PASS: resolves the mapped shape; missing fields → undefined");
+  // 2c — headless:true maps through (the signal the headless-degraded tool
+  // assertions branch on).
+  {
+    const { client, server, closeAll } = await connectPair();
+    try {
+      server.once("message", () => {
+        server.send(JSON.stringify({ authed: true, godot_version: "4.5", version: "1.0.0", headless: true }));
+      });
+      const resp = await authenticate(client, "tok");
+      assert.deepEqual(
+        resp,
+        { godotVersion: "4.5", toolkitVersion: "1.0.0", headless: true },
+        "headless:true maps to headless:true",
+      );
+    } finally {
+      await closeAll();
+    }
+  }
+  console.log("  PASS: resolves the mapped shape (incl. headless); missing fields → undefined");
 }
 
 // ── 3. the 5 s AUTH_TIMEOUT_MS timeout ───────────────────────────────
@@ -215,7 +238,7 @@ async function testNonJsonIgnore() {
     const resp = await authenticate(client, "tok");
     assert.deepEqual(
       resp,
-      { godotVersion: "4.6", toolkitVersion: "1.2.3" },
+      { godotVersion: "4.6", toolkitVersion: "1.2.3", headless: undefined },
       "garbage frame ignored; the subsequent valid reply resolves",
     );
     console.log("  PASS: non-JSON frame ignored, then the real reply resolves");

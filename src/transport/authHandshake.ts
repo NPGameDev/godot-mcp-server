@@ -4,10 +4,10 @@
  * One responsibility: the auth WIRE protocol — present the session token plus
  * the server version, then read the toolkit's handshake reply. Sends
  * `{ auth, version }`; resolves on `{ authed: true }`, mapping the reply's
- * `{ godot_version, version }` → `{ godotVersion, toolkitVersion }`. Enforces a
- * 5 s handshake timeout, removes its own listeners on settle, and rejects if the
- * peer closes mid-handshake or never answers. Mirrors the toolkit's GDScript
- * `auth.gd` exchange.
+ * `{ godot_version, version, headless }` → `{ godotVersion, toolkitVersion,
+ * headless }`. Enforces a 5 s handshake timeout, removes its own listeners on
+ * settle, and rejects if the peer closes mid-handshake or never answers. Mirrors
+ * the toolkit's GDScript `auth.gd` exchange.
  *
  * Near-pure leaf: no state, no lifecycle. Its deps (ws + version) are disjoint
  * from tokenPath's (fs/path/os/crypto) — the cohesion split that earns it its
@@ -23,6 +23,11 @@ const AUTH_TIMEOUT_MS = 5_000;
 export interface AuthResponse {
   godotVersion: string | undefined;
   toolkitVersion: string | undefined;
+  /** Whether the editor runs headless (no display server), from the Mode-A ack's
+   *  `headless` field. `undefined` when the ack omits it (Mode-B runtime, which
+   *  sends a bare `{authed:true}`, or a pre-handshake plugin) — the same missing →
+   *  undefined mapping the version fields use. */
+  headless: boolean | undefined;
 }
 
 /**
@@ -48,12 +53,14 @@ export function authenticate(ws: WebSocket, token: string): Promise<AuthResponse
           authed?: boolean;
           godot_version?: string;
           version?: string;
+          headless?: boolean;
         };
         if (msg.authed === true) {
           cleanup();
           resolve({
             godotVersion: msg.godot_version,
             toolkitVersion: msg.version,
+            headless: msg.headless,
           });
         }
       } catch {

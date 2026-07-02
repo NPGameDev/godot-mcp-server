@@ -327,8 +327,15 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   // don't need a seeded capture (#4 invalid regex, #5 literal parens, #7 no-match) run on
   // every version. (Runtime output IS captured on 4.2+ — see the level_filter=warning and
   // source=file shape checks above.) Empirically confirmed on 4.2: source=file count=0.
+  //
+  // HEADLESS (41n-quater-bis): even on 4.5+ a headless editor never GUI-revalidates the
+  // recompiled script, so the filename-bearing parse error is re-cleared before it re-emits
+  // → count:0. The capture assertions self-skip headless exactly as they skip <4.5; the
+  // mechanics checks keep running. The toolkit compensates with a deterministic
+  // headless_hint steering to script_check, asserted positively below (DX proof).
   const godotVer = bridge.getGodotVersion();
-  const parseErrorsCaptured = godotVer != null && isVersionAtLeast(godotVer, "4.5");
+  const headless = bridge.isHeadless() === true;
+  const parseErrorsCaptured = godotVer != null && isVersionAtLeast(godotVer, "4.5") && !headless;
 
   if (parseErrorsCaptured) {
     // 2. Plain-text keyword match — only "hit" entries returned.
@@ -359,6 +366,26 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     const hasMiss = rxEntries?.some((e) => /txtflt_miss/i.test(e.message));
     if (tfRegex?.success && hasHit && hasMiss) pass(`text_filter is_regex=true alternation -> count=${tfRegex.count}`);
     else fail(`text_filter regex: hit=${hasHit} miss=${hasMiss}`);
+  } else if (headless) {
+    // Headless DX proof: editor parse-error capture is degraded headless, so the toolkit
+    // attaches a deterministic `headless_hint` steering to script_check whenever error
+    // capture is requested (a text_filter is set here) — regardless of match count. Assert
+    // it is present, so the LLM-guiding behavior is a positive contract, not a bare skip.
+    const tfHeadless = (await bridge.call(
+      "editor.get_console",
+      { text_filter: "txtflt_hit", limit: 100 },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; headless_hint?: string };
+    if (
+      tfHeadless?.success === true &&
+      typeof tfHeadless.headless_hint === "string" &&
+      tfHeadless.headless_hint.includes("script_check")
+    )
+      pass(`text_filter headless -> headless_hint present (steers to script_check)`);
+    else
+      fail(
+        `text_filter headless: expected headless_hint mentioning script_check, got ${JSON.stringify({ success: tfHeadless?.success, headless_hint: tfHeadless?.headless_hint })}`,
+      );
   } else {
     pass(
       "text_filter plain+regex parse-error capture -> SKIP (4.5+ Logger; 4.2-4.4 don't file-log editor parse errors)",
@@ -404,7 +431,11 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     else
       fail(`text_filter + level_filter=error: ${JSON.stringify({ success: tfLevel?.success, count: tfLevel?.count })}`);
   } else {
-    pass("text_filter + level_filter parse-error capture -> SKIP (4.5+ Logger)");
+    pass(
+      headless
+        ? "text_filter + level_filter parse-error capture -> SKIP headless (headless_hint asserted above)"
+        : "text_filter + level_filter parse-error capture -> SKIP (4.5+ Logger)",
+    );
   }
 
   // 7. No match — empty result

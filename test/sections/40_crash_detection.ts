@@ -1,5 +1,5 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE } from "../helpers.js";
+import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, MAIN_SCENE, assertHint, passIfHeadlessUnsupported } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = [
   "game_start",
@@ -36,6 +36,41 @@ export async function testCrashDetection(ctx: TestCtx): Promise<void> {
   }
   await new Promise((res) => setTimeout(res, 500));
   await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
+
+  // Headless: cmd_game_start's early is_headless guard returns HEADLESS_UNSUPPORTED before the
+  // game launches, so BOTH the start→wait→stop→cached-log flow and the COMPILATION_FAILED-on-start
+  // path are unreachable (no game ever runs). Assert the deterministic guard + its guidance,
+  // confirm debugger.get_log degrades gracefully with no live runtime, then return — the display
+  // flow below is byte-identical. This keeps §40 green under the un-skipped headless CI run
+  // (41n-quater-bis).
+  const headless = bridge.isHeadless() === true;
+  if (headless) {
+    const gsHeadless = (await bridge.call(
+      "game.start",
+      { scene_path: "current", wait_for_runtime: true },
+      SCREENSHOT_TIMEOUT,
+    )) as { code?: string; error?: string };
+    if (passIfHeadlessUnsupported(ctx, "crash-detection game.start headless", gsHeadless))
+      assertHint(ctx, "crash-detection game.start headless guidance", gsHeadless, "script_check");
+    else fail(`crash-detection game.start headless: expected HEADLESS_UNSUPPORTED, got ${JSON.stringify(gsHeadless)}`);
+
+    // No game ran, so debugger.get_log has no live runtime. It must degrade deterministically —
+    // a coded envelope or a GAME_NOT_RUNNING rejection — never hang or crash.
+    try {
+      const logHeadless = (await bridge.call("debugger.get_log", { limit: 50 }, CALL_TIMEOUT)) as {
+        lines?: unknown;
+        code?: string;
+      };
+      pass(`debugger.get_log headless -> graceful response (${logHeadless?.code ?? "ok"})`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("GAME_NOT_RUNNING"))
+        pass(`debugger.get_log headless -> GAME_NOT_RUNNING (graceful, no runtime)`);
+      else fail(`debugger.get_log headless: unexpected throw ${msg}`);
+    }
+    pass("crash detection: headless — game.start HEADLESS_UNSUPPORTED, debugger.get_log graceful");
+    return;
+  }
 
   // ── debugger_get_log cache fallback (S:2c681a0) ──
   // Start game, wait for runtime, stop, then immediately fetch logs.

@@ -26,6 +26,13 @@ export interface Bridge {
   getGodotVersionString(): string | undefined;
   /** Parsed Godot version as [major, minor] tuple from the registry or auth, or undefined if unknown. */
   getGodotVersion(): GodotVer | undefined;
+  /** Whether the connected editor runs headless (no display server), from the Mode-A
+   *  auth handshake. `undefined` until the editor authenticates (unlike the version,
+   *  it is never pre-populated from the registry) or when a Mode-B/older plugin omits
+   *  it. Tools/tests branch on it to assert the deterministic headless-degraded
+   *  responses (game.start HEADLESS_UNSUPPORTED, editor.get_console headless_hint, the
+   *  4.4+ headless stale-instance hint). */
+  isHeadless(): boolean | undefined;
   /** Wait for a runtime port to appear in the registry (game_start async gap).
    *  Resolves with {port} on discovery, undefined on timeout. Optional — only
    *  available when the bridge was created with a projectPath and registry

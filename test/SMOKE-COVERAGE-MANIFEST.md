@@ -45,10 +45,12 @@ toolkit dogfood via the pinned sibling), so a server opt-in proves the full
 GDScript+.NET contract; the toolkit repo's `cross-version.yml` runs the same
 two-editor matrix for its own changes ("full behavioral matrix in both repos"
 follow-on). §25 stays the sole C#-aware section; the other ~44 run their GDScript
-probes while a mono assembly is loaded (interaction insurance). The `--skip`s are **transient** headless
-workarounds (§10 game.start, §14 console, flows §02) removed by `41n-quater-bis` once
-those sections are deterministic headless — stripped **once** from the shared
-composite, so both languages un-skip together. **4.2-on-C# now runs too**
+probes while a mono assembly is loaded (interaction insurance). The former `--skip 10,14` + flows
+`--skip 2` headless workarounds are **now removed** (`41n-quater-bis`): §10 game.start, §14 console,
+and flows §02 are `is_headless`-deterministic — the toolkit guides headless via HEADLESS_UNSUPPORTED
+(game.start) / a `headless_hint` (editor.get_console) / the 4.4+ headless stale-instance hint, and the
+server asserts each — so the FULL smoke + flows suites run headless, stripped **once** from the shared
+composite so both languages un-skip together. **4.2-on-C# now runs too**
 (`41n-quater-septies`): its cold class-cache warm-up ports to dotnet in the shared
 composite (CWD = the C# fixture; run_units_cold.sh invoked from the pinned toolkit
 checkout), so the .NET tier covers **4.2–4.7**. The 4.2 row carries the SAME shared
@@ -113,7 +115,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | editor_save_scene | 04, 07, 10, 14 | ✓ | — | — | — | |
-| editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id, source=buffer/file) | — | **GAP:** clear_buffer param. ledger #9: total_lines/next_id/truncated. **Editor parse-error capture is 4.5+ only** (Logger); 4.2-4.4 don't file-log editor parse errors → §14 gates the parse-error-filter assertions (#2/#3/#6) to 4.5+. "at:" continuation leveling for captured multi-line errors is toolkit-side + unit-tested (41m-ter A2/A3) |
+| editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id, source=buffer/file) | — | **GAP:** clear_buffer param. ledger #9: total_lines/next_id/truncated. **Editor parse-error capture is 4.5+ only** (Logger); 4.2-4.4 don't file-log editor parse errors → §14 gates the parse-error-filter assertions (#2/#3/#6) to 4.5+. "at:" continuation leveling for captured multi-line errors is toolkit-side + unit-tested (41m-ter A2/A3). **Headless:** those capture assertions also self-skip (`&& !headless`); §14 positively asserts the deterministic `headless_hint` (steers to script_check) whenever error capture is requested — 41n-quater-bis |
 | editor_screenshot | 04, 18 | ✓ (inline + save_path) | ✓ (18: PATH_DENIED) | — | — | In editor_advanced group |
 | editor_refresh | 03, 14, 16, 23 | ✓ | — | — | — | Renamed from editor_reload_scripts (S:6964946) |
 
@@ -182,7 +184,7 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| game_start | 10 | ✓ | ✓ (ALREADY_PLAYING) | ✓ (wait_for_runtime=false) | — | **GAP:** wait_for_runtime=true, COMPILATION_FAILED, hint |
+| game_start | 10, 40 | ✓ | ✓ (ALREADY_PLAYING) | ✓ (wait_for_runtime=false) | — | **GAP:** wait_for_runtime=true, COMPILATION_FAILED, hint. **Headless:** §10 and §40 assert HEADLESS_UNSUPPORTED + script_check guidance for every game.start (early guard fires before param validation, so the cache/COMPILATION_FAILED-on-start paths are unreachable; display path unchanged) — 41n-quater-bis |
 | game_stop | 10 | ✓ | — | ✓ (was_running=true/false) | — | |
 
 ### Runtime (7 tools)
@@ -427,7 +429,7 @@ reachable / 4.2 stale; see `Insights/stale-live-instance-method-hazard.md`).
 | Flow | File | Covers | Why smoke can't | Version branch |
 |---|---|---|---|---|
 | 1 — Extension lifecycle | `flows/01_extension_lifecycle.ts` | create→discovered→call / re-entrancy / update-existing / remove→gone (sweep S24) | Smoke §22 "intentionally does not create extension scripts" — the **Finding #1** regression (`extensions.refresh` → `commands:[]`) hid here while smoke passed 437/0 | update-existing: 4.3+ live, 4.2 deferred restart-hint (regression-guards the 41l-tricies-ter REUSE gate) |
-| 2 — Hot-reload reachability | `flows/02_hot_reload_reachability.ts` | live-instance method reachability after a script edit; absent-method → `INVALID_METHOD` contract; characterises the stale-live-instance hazard (feeds the research step → 41m-bis-bis) | Edit-then-call-new-method on a live instance is multi-step + cross-state | characterisation logs the per-version A/B/C outcome |
+| 2 — Hot-reload reachability | `flows/02_hot_reload_reachability.ts` | live-instance method reachability after a script edit; absent-method → `INVALID_METHOD` contract; characterises the stale-live-instance hazard (feeds the research step → 41m-bis-bis) | Edit-then-call-new-method on a live instance is multi-step + cross-state | characterisation logs the per-version A/B/C/D outcome; **4.4+ headless** is `is_headless`-aware (STALE + the headless re-instantiation hint, like <4.4) — un-skips flows §02 (41n-quater-bis) |
 | 3 — Combo chains | `flows/03_combo_chains.ts` | C4 signal persistence across save/reopen; C8 node-management pipeline (duplicate→rename→reparent→groups) (sweep S22) | Smoke §05 checks the connect *hint* only, never the connection surviving save+reopen; the node pipeline chains state across ops | — |
 
 ### Dedup triage (decisions #3/#4 — gap-only, never duplicate)

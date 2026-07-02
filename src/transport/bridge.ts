@@ -74,6 +74,10 @@ export function createBridge(
 } {
   const projectPath = opts?.projectPath;
   let godotVersion: string | undefined = undefined;
+  // Editor display mode from the Mode-A auth ack (C2). undefined until the editor
+  // authenticates — mirrors godotVersion's unknown state, and NOT pre-populated
+  // from the registry (no pre-auth consumer; the registry carries no display mode).
+  let headless: boolean | undefined = undefined;
   let notificationHandler: NotificationHandler | undefined = undefined;
   let versionKnownHandler: (() => void) | undefined = undefined;
 
@@ -118,8 +122,9 @@ export function createBridge(
   let editor = createChannel(
     editorUrl,
     projectPath,
-    (v) => {
-      setGodotVersion(v);
+    ({ version, headless: h }) => {
+      setGodotVersion(version);
+      headless = h;
       sendLimitsIfConfigured(editor);
     },
     getNotificationHandler,
@@ -152,8 +157,9 @@ export function createBridge(
     editor = createChannel(
       `ws://127.0.0.1:${cachedEditorPort}`,
       projectPath,
-      (v) => {
-        setGodotVersion(v);
+      ({ version, headless: h }) => {
+        setGodotVersion(version);
+        headless = h;
       },
       getNotificationHandler,
     );
@@ -200,6 +206,9 @@ export function createBridge(
     getGodotVersion(): GodotVer | undefined {
       if (!godotVersion) return undefined;
       return parseGodotVer(godotVersion);
+    },
+    isHeadless(): boolean | undefined {
+      return headless;
     },
     waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | undefined> {
       return runtime.waitForRuntimeConnection(timeoutMs);

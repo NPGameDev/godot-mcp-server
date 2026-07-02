@@ -39,9 +39,15 @@ import { FLOW_PROBE_DIR, ensureProbeDir, cleanupProbeDir } from "./_shared.js";
 
 export const TOOLS_TESTED: string[] = ["node_call_method", "node_set_script", "script_write"];
 
-// Distinctive substring of the stale-instance hint (in both the
+// Distinctive substring of the < 4.4 stale-instance hint (in both the
 // proactive write_hint and the reactive recovery_message).
 const STALE_MARKER = "keeps the OLD code";
+
+// The 4.4+ HEADLESS reactive hint uses distinct wording — a headless editor never
+// re-instantiates a live node, a different hazard from the < 4.4 engine-cache staleness —
+// with NO "keeps the OLD code" phrase, so it needs its own marker. See the toolkit's
+// stale_instance_hint.gd `_RECOVERY_HEADLESS` (41n-quater-bis).
+const HEADLESS_STALE_MARKER = "don't re-instantiate live nodes";
 
 const A_SCRIPT = `${FLOW_PROBE_DIR}/flow_hot_probe.gd`;
 const B_SCRIPT = `${FLOW_PROBE_DIR}/flow_body_probe.gd`;
@@ -78,6 +84,9 @@ interface WriteResult {
 
 function hasStaleHint(r: { hint?: string }): boolean {
   return typeof r?.hint === "string" && r.hint.includes(STALE_MARKER);
+}
+function hasHeadlessStaleHint(r: { hint?: string }): boolean {
+  return typeof r?.hint === "string" && r.hint.includes(HEADLESS_STALE_MARKER);
 }
 
 async function writeScript(ctx: TestCtx, path: string, content: string): Promise<WriteResult> {
@@ -130,11 +139,17 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
     return;
   }
   const pre44 = !isVersionAtLeast(verPair, "4.4");
-  const verTag = `${ver} ${pre44 ? "(<4.4 affected)" : "(4.4+ clear)"}`;
 
   // Clean slate so the first write of each probe is a genuine CREATE.
   await cleanupProbeDir(ctx);
   await ensureProbeDir(ctx);
+  // Editor display mode from the auth handshake (resolved by the calls above). On 4.4+ a
+  // HEADLESS editor never re-instantiates a live node on reload, so the < 4.4 stale hazard
+  // applies there too — with headless-specific recovery wording. < 4.4 fires the hint
+  // version-only (headless or not), so only the 4.4+ branches become headless-aware. This
+  // recovers flows §02 from the former CI `--skip 2` workaround (41n-quater-bis).
+  const headless = bridge.isHeadless() === true;
+  const verTag = `${ver} ${pre44 ? "(<4.4 affected)" : headless ? "(4.4+ headless stale)" : "(4.4+ clear)"}`;
   const createdNodes: string[] = [];
   let aVerdict = "?";
   let bVerdict = "?";
@@ -188,6 +203,12 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
               if (after?.success === false && after.code === "INVALID_METHOD" && hasStaleHint(after))
                 pass(`A: <4.4 added-method STALE + reactive stale hint present`);
               else fail(`A: <4.4 expected STALE+stale-hint, got ${JSON.stringify(after)}`);
+            } else if (headless) {
+              // 4.4+ HEADLESS: the reloaded node is never re-instantiated → STALE, with the
+              // headless-specific reactive hint (distinct from the < 4.4 engine-cache wording).
+              if (after?.success === false && after.code === "INVALID_METHOD" && hasHeadlessStaleHint(after))
+                pass(`A: 4.4+ headless added-method STALE + headless re-instantiation hint`);
+              else fail(`A: 4.4+ headless expected STALE+headless-hint, got ${JSON.stringify(after)}`);
             } else {
               if (after?.success === true) pass(`A: 4.4+ added-method REACHABLE`);
               else fail(`A: 4.4+ expected REACHABLE, got ${JSON.stringify(after)}`);
@@ -200,8 +221,13 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
             await attach(ctx, node, A_SCRIPT);
             const afterRebind = await callMethod(ctx, node, "flow_added_method");
             const recoveredAny = afterRefresh?.success === true || afterRebind?.success === true;
-            if (pre44 && !recoveredAny) pass(`A: <4.4 refresh + re-set_script both STALE (no in-session recovery)`);
-            else if (!pre44 && afterRefresh?.success === true && afterRebind?.success === true)
+            // < 4.4 (any mode) AND 4.4+ headless: neither refresh nor re-set_script re-instantiates,
+            // so both stay STALE; only 4.4+ WITH a display recovers in-session.
+            if ((pre44 || headless) && !recoveredAny)
+              pass(
+                `A: ${pre44 ? "<4.4" : "4.4+ headless"} refresh + re-set_script both STALE (no in-session recovery)`,
+              );
+            else if (!pre44 && !headless && afterRefresh?.success === true && afterRebind?.success === true)
               pass(`A: 4.4+ reachable through refresh + rebind`);
             else
               fail(`A recovery mismatch on ${verTag}: refresh=${afterRefresh?.success} rebind=${afterRebind?.success}`);
@@ -227,11 +253,13 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
         await writeScript(ctx, B_SCRIPT, B_V2); // body-only edit (same signature)
         const after = await callMethod(ctx, node, "flow_body");
         bVerdict = after?.success === true ? String(after.result) : `ERR(${after?.code ?? "?"})`;
-        if (pre44) {
-          // The dangerous silent case: OLD body runs, no error.
+        if (pre44 || headless) {
+          // The dangerous silent case: OLD body runs, no error. On 4.4+ headless the live
+          // node is never re-instantiated, so the body edit is invisible exactly as on < 4.4.
+          // flow_body's signature is unchanged → has_method stays true → no reactive hint fires.
           if (after?.success === true && after.result === "b1")
-            pass(`B: <4.4 body-edit silently returns OLD "b1" (no error — proactive-hint-only case)`);
-          else fail(`B: <4.4 expected stale "b1", got ${JSON.stringify(after)}`);
+            pass(`B: ${pre44 ? "<4.4" : "4.4+ headless"} body-edit silently returns OLD "b1" (no error)`);
+          else fail(`B: ${pre44 ? "<4.4" : "4.4+ headless"} expected stale "b1", got ${JSON.stringify(after)}`);
         } else {
           if (after?.success === true && after.result === "b2") pass(`B: 4.4+ body-edit live -> "b2"`);
           else fail(`B: 4.4+ expected "b2", got ${JSON.stringify(after)}`);
@@ -283,13 +311,18 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           await attach(ctx, node2, D_SCRIPT);
           const b2 = await callMethod(ctx, node2, "fresh_b");
           dVerdict = b2?.success === true ? "fresh REACHABLE" : `fresh STALE(${b2?.code ?? "?"})`;
-          if (pre44) {
-            // The grill's "re-instantiate" hypothesis was WRONG: a fresh node is
-            // STALE on 4.2 AND 4.3 → relaunch is the only recovery. Reactive hint
-            // fires here too (fresh_b is on the on-disk .gd).
-            if (b2?.success === false && b2.code === "INVALID_METHOD" && hasStaleHint(b2))
-              pass(`D: <4.4 FRESH node STALE + reactive hint (re-instantiate does NOT help)`);
-            else fail(`D: <4.4 expected fresh-node STALE+hint, got ${JSON.stringify(b2)}`);
+          if (pre44 || headless) {
+            // The grill's "re-instantiate" hypothesis was WRONG even for a FRESH node: it is
+            // STALE on 4.2/4.3 (any mode) AND on 4.4+ headless → relaunch (or a display editor)
+            // is the only recovery. Reactive hint fires here too (fresh_b is on the on-disk .gd),
+            // in the < 4.4 wording or, on 4.4+ headless, the headless re-instantiation wording.
+            const staleHintOk = pre44 ? hasStaleHint(b2) : hasHeadlessStaleHint(b2);
+            if (b2?.success === false && b2.code === "INVALID_METHOD" && staleHintOk)
+              pass(
+                `D: ${pre44 ? "<4.4" : "4.4+ headless"} FRESH node STALE + reactive hint (re-instantiate does NOT help)`,
+              );
+            else
+              fail(`D: ${pre44 ? "<4.4" : "4.4+ headless"} expected fresh-node STALE+hint, got ${JSON.stringify(b2)}`);
             // The fresh node DID attach (old method reachable) → it is specifically
             // the NEW member that is stale, not a failed attach.
             const a2 = await callMethod(ctx, node2, "fresh_a");

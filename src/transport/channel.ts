@@ -73,7 +73,7 @@ type PluginNotification = {
 export function createChannel(
   url: string,
   projectPath?: string,
-  onGodotVersion?: (version: string) => void,
+  onAuthResolved?: (info: { version: string; headless: boolean | undefined }) => void,
   onNotification?: () => NotificationHandler | undefined,
   opts?: { noReconnect?: boolean; connectTimeoutMs?: number; skipVersionCheck?: boolean },
 ): Channel {
@@ -177,7 +177,8 @@ export function createChannel(
       const token = await readToken(projectPath);
       const authResp = await authenticate(socket, token);
       hasConnectedOnce = true;
-      if (authResp.godotVersion && onGodotVersion) onGodotVersion(authResp.godotVersion);
+      if (authResp.godotVersion && onAuthResolved)
+        onAuthResolved({ version: authResp.godotVersion, headless: authResp.headless });
       const verNote = authResp.godotVersion ? ` (Godot ${authResp.godotVersion})` : "";
       process.stderr.write(`[bridge] ${url} authenticated${verNote}\n`);
       // Version mismatch check — human-only (stderr), nothing on MCP wire.

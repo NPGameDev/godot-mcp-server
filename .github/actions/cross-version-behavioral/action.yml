@@ -176,31 +176,30 @@ runs:
     # STEP (letting the always() log steps run), not the job (a job-level kill
     # skips always()).
     #
-    # HEADLESS WORKAROUND (--skip 10,14) — pending iter 41n-quater-bis (headless-DX
-    # determinism). §10 game.start: the launched game doesn't establish the runtime
-    # WS headless (runtime_ready:false). §14 editor_get_console: editor parse-error
-    # capture needs GUI revalidation to re-emit headless. §04/§13/§18 screenshots
-    # stay IN the run (they assert the deterministic HEADLESS_UNSUPPORTED guard).
-    # 41n-quater-bis makes §10/§14 deterministic and removes this skip ONCE from
-    # this shared composite, so both languages un-skip together (R7).
-    - name: Smoke (full suite, minus headless-incompatible §10/§14)
+    # FULL HEADLESS SUITE (41n-quater-bis, headless-DX determinism) — the former
+    # `--skip 10,14` / `flows --skip 2` workaround is REMOVED here, once, in this shared
+    # composite, so all four jobs (both languages, both repos) un-skip together (R7). §10
+    # game.start, §14 editor_get_console, and flows §02 are now is_headless-aware: the
+    # toolkit returns deterministic, self-explaining responses headless (game.start
+    # HEADLESS_UNSUPPORTED; the editor.get_console `headless_hint` steering to
+    # script_check; the 4.4+ headless stale-instance hint) and the server asserts them.
+    # §04/§13/§18 screenshots assert the HEADLESS_UNSUPPORTED guard. So the FULL smoke +
+    # flows suites run headless with NO --skip.
+    - name: Smoke (full suite, headless-deterministic)
       working-directory: ${{ inputs.server-dir }}
       shell: bash
       env:
         GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
         GODOT_MCP_PROJECT_NAME: ${{ inputs.project-name }}
-      run: timeout -k 30 900 npm run smoke -- --skip 10,14
+      run: timeout -k 30 900 npm run smoke
 
-    # --skip 2: flows §02 (hot_reload_reachability) needs live editor script
-    # re-instantiation that doesn't reflect headless — pending 41n-quater-bis.
-    # §01/§03 run.
-    - name: Flows (minus headless-incompatible §02)
+    - name: Flows (full suite, headless-deterministic)
       working-directory: ${{ inputs.server-dir }}
       shell: bash
       env:
         GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
         GODOT_MCP_PROJECT_NAME: ${{ inputs.project-name }}
-      run: timeout -k 30 600 npm run flows -- --skip 2
+      run: timeout -k 30 600 npm run flows
 
     - name: Stop editor (always)
       if: always()

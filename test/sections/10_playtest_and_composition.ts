@@ -5,6 +5,7 @@ import {
   MAIN_SCENE,
   assertGuard,
   assertHint,
+  passIfHeadlessUnsupported,
   unwrapUntrusted,
   callRetryOnTimeout,
 } from "../helpers.js";
@@ -69,127 +70,187 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   }
   await bridge.call("scene.open", { file_path: MAIN_SCENE }, CALL_TIMEOUT);
 
-  // ── game.start / game.stop ──
-  const gameStartResult = (await bridge.call(
-    "game.start",
-    { scene_path: "current", wait_for_runtime: false },
-    SCREENSHOT_TIMEOUT,
-  )) as {
-    success?: boolean;
-    target?: string;
-    runtime_ready?: boolean;
-    runtime_port?: number;
-    code?: string;
-    error?: string;
-  };
-  if (gameStartResult?.success !== true || gameStartResult.target !== "current")
-    fail(`game.start target=current: ${JSON.stringify(gameStartResult)}`);
-  else pass(`game.start target=current -> success (runtime_ready=${gameStartResult.runtime_ready})`);
+  // Editor display mode from the auth handshake (resolved once the bridge authenticates —
+  // every call above forces that). The playtest lifecycle below is display-bound: headless,
+  // cmd_game_start returns HEADLESS_UNSUPPORTED via an early guard that fires BEFORE any
+  // param validation, so the game never launches and Mode B never establishes. Assert that
+  // deterministic guard headless; the display branch (else) is byte-identical to before.
+  // This recovers §10 from the former CI `--skip 10` workaround (41n-quater-bis).
+  const headless = bridge.isHeadless() === true;
 
-  // Hint assertion: game_start success should mention runtime tools available.
-  // DX improvement from T:a28d17b / S:e56b4b6.
-  if (gameStartResult?.success === true) {
-    const gsHint = (gameStartResult as { hint?: string }).hint;
-    if (gsHint && gsHint.length > 0) {
-      pass(`game_start hint present: "${gsHint.slice(0, 60)}..."`);
-    } else {
-      // Hint may be suppressed when wait_for_runtime=false — acceptable.
-      pass("game_start hint: absent with wait_for_runtime=false (acceptable)");
+  if (headless) {
+    // Every game.start returns the deterministic HEADLESS_UNSUPPORTED guard (mirrors
+    // editor.screenshot). game.stop stays display-independent (nothing ran → was_running:false).
+    const gsHeadless = (await bridge.call(
+      "game.start",
+      { scene_path: "current", wait_for_runtime: false },
+      SCREENSHOT_TIMEOUT,
+    )) as { code?: string; error?: string; hint?: string };
+    if (passIfHeadlessUnsupported(ctx, "game.start headless (current)", gsHeadless))
+      // The guard message steers to non-visual verification (script_check / inspection).
+      assertHint(ctx, "game.start headless guidance", gsHeadless, "script_check");
+    else fail(`game.start headless (current): expected HEADLESS_UNSUPPORTED, got ${JSON.stringify(gsHeadless)}`);
+
+    // The "already running" probe ALSO returns the guard headless (the early guard fires
+    // before the is_playing_scene branch), proving the pre-guard success:true was a
+    // false-success: nothing ever stayed playing, so this is NOT ALREADY_PLAYING.
+    if (
+      !passIfHeadlessUnsupported(
+        ctx,
+        "game.start headless (not ALREADY_PLAYING)",
+        await bridge.call("game.start", {}, CALL_TIMEOUT),
+      )
+    )
+      fail(`game.start headless (2nd call): expected HEADLESS_UNSUPPORTED, not ALREADY_PLAYING`);
+
+    // game.stop is display-independent: no game launched → success, was_running:false.
+    const stopHeadless = (await bridge.call("game.stop", {}, CALL_TIMEOUT)) as {
+      success?: boolean;
+      was_running?: boolean;
+    };
+    if (stopHeadless?.success === true && stopHeadless.was_running === false)
+      pass(`game.stop headless -> was_running=false (no game launched)`);
+    else fail(`game.stop headless: expected success/was_running=false, got ${JSON.stringify(stopHeadless)}`);
+
+    // Guard-rejection inputs are unreachable headless (the early guard precedes param
+    // validation), so each returns HEADLESS_UNSUPPORTED — matching the screenshot exemplar.
+    for (const [label, params] of [
+      ["target=bogus", { scene_path: "bogus" }],
+      ["missing res:// scene", { scene_path: "res://no_such_game_smoke.tscn" }],
+      [".tres extension", { scene_path: "res://bogus_smoke_scene.tres" }],
+    ] as const) {
+      if (
+        !passIfHeadlessUnsupported(
+          ctx,
+          `game.start ${label} (headless guard)`,
+          await bridge.call("game.start", params, CALL_TIMEOUT),
+        )
+      )
+        fail(`game.start ${label} headless: expected HEADLESS_UNSUPPORTED`);
     }
-  }
-
-  await new Promise((res) => setTimeout(res, 500));
-  // A cold first launch leaves the editor briefly busy spawning the game, so this
-  // immediately-following call can time out even though the game is starting fine.
-  // Retry the transport timeout (a coded error still surfaces on the first response)
-  // so a cold start can't fail this check and cascade the rest of the section.
-  assertGuard(
-    ctx,
-    "game.start while already running",
-    await callRetryOnTimeout(bridge, "game.start", {}, CALL_TIMEOUT),
-    "ALREADY_PLAYING",
-    "game.stop",
-  );
-
-  const gameStopFirst = (await bridge.call("game.stop", {}, CALL_TIMEOUT)) as {
-    success?: boolean;
-    was_running?: boolean;
-    status?: string;
-    code?: string;
-  };
-  if (gameStopFirst?.success !== true || gameStopFirst.was_running !== true)
-    fail(`game.stop first: expected was_running=true, got ${JSON.stringify(gameStopFirst)}`);
-  else if (gameStopFirst.status !== undefined) fail(`game.stop must NOT carry status (got ${gameStopFirst.status})`);
-  else pass(`game.stop first -> was_running=true (no status field)`);
-
-  await new Promise((res) => setTimeout(res, 1000));
-
-  const gameStopIdempotent = (await bridge.call("game.stop", {}, CALL_TIMEOUT)) as {
-    success?: boolean;
-    was_running?: boolean;
-    code?: string;
-  };
-  if (gameStopIdempotent?.success !== true || gameStopIdempotent.was_running !== false)
-    fail(`game.stop idempotent: expected was_running=false, got ${JSON.stringify(gameStopIdempotent)}`);
-  else pass(`game.stop idempotent -> was_running=false`);
-
-  // ── game.start wait_for_runtime hint gating + bridge wait ──
-  // Toolkit should return runtime_discovery:"bridge" WITHOUT the "Follow up
-  // with..." hint when wait_for_runtime=true (server absorbs the async gap).
-  const waitResult = (await bridge.call(
-    "game.start",
-    { scene_path: "current", wait_for_runtime: true },
-    SCREENSHOT_TIMEOUT,
-  )) as {
-    success?: boolean;
-    runtime_discovery?: string;
-    hint?: string;
-    code?: string;
-  };
-  if (waitResult?.success !== true || waitResult.runtime_discovery !== "bridge")
-    fail(`game.start wait_for_runtime=true: expected runtime_discovery='bridge', got ${JSON.stringify(waitResult)}`);
-  else if (waitResult.hint && waitResult.hint.includes("Follow up with"))
-    fail(`game.start wait_for_runtime=true: hint should be suppressed, got "${waitResult.hint}"`);
-  else pass(`game.start wait_for_runtime=true -> runtime_discovery='bridge', hint suppressed`);
-
-  // Bridge-level waitForRuntimeConnection: should resolve when game
-  // starts its runtime MCP server and registers in the project registry.
-  // Note: returns null when project path isn't discoverable from registry
-  // (environment-dependent). Treat undefined as soft pass since game.start
-  // already confirmed the launch succeeded above.
-  if (bridge.waitForRuntimeConnection) {
-    const runtimeInfo = await bridge.waitForRuntimeConnection(10_000);
-    if (runtimeInfo?.port && runtimeInfo.port > 0) pass(`waitForRuntimeConnection -> port ${runtimeInfo.port}`);
-    else pass(`waitForRuntimeConnection -> undefined (registry lookup env-dependent — game start confirmed above)`);
   } else {
-    pass(`waitForRuntimeConnection not available (no project path) — skipped`);
+    // ── game.start / game.stop ──
+    const gameStartResult = (await bridge.call(
+      "game.start",
+      { scene_path: "current", wait_for_runtime: false },
+      SCREENSHOT_TIMEOUT,
+    )) as {
+      success?: boolean;
+      target?: string;
+      runtime_ready?: boolean;
+      runtime_port?: number;
+      code?: string;
+      error?: string;
+    };
+    if (gameStartResult?.success !== true || gameStartResult.target !== "current")
+      fail(`game.start target=current: ${JSON.stringify(gameStartResult)}`);
+    else pass(`game.start target=current -> success (runtime_ready=${gameStartResult.runtime_ready})`);
+
+    // Hint assertion: game_start success should mention runtime tools available.
+    // DX improvement from T:a28d17b / S:e56b4b6.
+    if (gameStartResult?.success === true) {
+      const gsHint = (gameStartResult as { hint?: string }).hint;
+      if (gsHint && gsHint.length > 0) {
+        pass(`game_start hint present: "${gsHint.slice(0, 60)}..."`);
+      } else {
+        // Hint may be suppressed when wait_for_runtime=false — acceptable.
+        pass("game_start hint: absent with wait_for_runtime=false (acceptable)");
+      }
+    }
+
+    await new Promise((res) => setTimeout(res, 500));
+    // A cold first launch leaves the editor briefly busy spawning the game, so this
+    // immediately-following call can time out even though the game is starting fine.
+    // Retry the transport timeout (a coded error still surfaces on the first response)
+    // so a cold start can't fail this check and cascade the rest of the section.
+    assertGuard(
+      ctx,
+      "game.start while already running",
+      await callRetryOnTimeout(bridge, "game.start", {}, CALL_TIMEOUT),
+      "ALREADY_PLAYING",
+      "game.stop",
+    );
+
+    const gameStopFirst = (await bridge.call("game.stop", {}, CALL_TIMEOUT)) as {
+      success?: boolean;
+      was_running?: boolean;
+      status?: string;
+      code?: string;
+    };
+    if (gameStopFirst?.success !== true || gameStopFirst.was_running !== true)
+      fail(`game.stop first: expected was_running=true, got ${JSON.stringify(gameStopFirst)}`);
+    else if (gameStopFirst.status !== undefined) fail(`game.stop must NOT carry status (got ${gameStopFirst.status})`);
+    else pass(`game.stop first -> was_running=true (no status field)`);
+
+    await new Promise((res) => setTimeout(res, 1000));
+
+    const gameStopIdempotent = (await bridge.call("game.stop", {}, CALL_TIMEOUT)) as {
+      success?: boolean;
+      was_running?: boolean;
+      code?: string;
+    };
+    if (gameStopIdempotent?.success !== true || gameStopIdempotent.was_running !== false)
+      fail(`game.stop idempotent: expected was_running=false, got ${JSON.stringify(gameStopIdempotent)}`);
+    else pass(`game.stop idempotent -> was_running=false`);
+
+    // ── game.start wait_for_runtime hint gating + bridge wait ──
+    // Toolkit should return runtime_discovery:"bridge" WITHOUT the "Follow up
+    // with..." hint when wait_for_runtime=true (server absorbs the async gap).
+    const waitResult = (await bridge.call(
+      "game.start",
+      { scene_path: "current", wait_for_runtime: true },
+      SCREENSHOT_TIMEOUT,
+    )) as {
+      success?: boolean;
+      runtime_discovery?: string;
+      hint?: string;
+      code?: string;
+    };
+    if (waitResult?.success !== true || waitResult.runtime_discovery !== "bridge")
+      fail(`game.start wait_for_runtime=true: expected runtime_discovery='bridge', got ${JSON.stringify(waitResult)}`);
+    else if (waitResult.hint && waitResult.hint.includes("Follow up with"))
+      fail(`game.start wait_for_runtime=true: hint should be suppressed, got "${waitResult.hint}"`);
+    else pass(`game.start wait_for_runtime=true -> runtime_discovery='bridge', hint suppressed`);
+
+    // Bridge-level waitForRuntimeConnection: should resolve when game
+    // starts its runtime MCP server and registers in the project registry.
+    // Note: returns null when project path isn't discoverable from registry
+    // (environment-dependent). Treat undefined as soft pass since game.start
+    // already confirmed the launch succeeded above.
+    if (bridge.waitForRuntimeConnection) {
+      const runtimeInfo = await bridge.waitForRuntimeConnection(10_000);
+      if (runtimeInfo?.port && runtimeInfo.port > 0) pass(`waitForRuntimeConnection -> port ${runtimeInfo.port}`);
+      else pass(`waitForRuntimeConnection -> undefined (registry lookup env-dependent — game start confirmed above)`);
+    } else {
+      pass(`waitForRuntimeConnection not available (no project path) — skipped`);
+    }
+
+    await bridge.call("game.stop", {}, CALL_TIMEOUT);
+    await new Promise((res) => setTimeout(res, 500));
+
+    // game.start guard rejections.
+    assertGuard(
+      ctx,
+      "game.start target=bogus",
+      await bridge.call("game.start", { scene_path: "bogus" }, CALL_TIMEOUT),
+      "PATH_DENIED",
+      "res://",
+    );
+    assertGuard(
+      ctx,
+      "game.start missing res:// scene",
+      await bridge.call("game.start", { scene_path: "res://no_such_game_smoke.tscn" }, CALL_TIMEOUT),
+      "NOT_FOUND",
+      "scene.create",
+    );
+    assertGuard(
+      ctx,
+      "game.start .tres extension",
+      await bridge.call("game.start", { scene_path: "res://bogus_smoke_scene.tres" }, CALL_TIMEOUT),
+      "INVALID_PATH",
+      ".tscn",
+    );
   }
-
-  await bridge.call("game.stop", {}, CALL_TIMEOUT);
-  await new Promise((res) => setTimeout(res, 500));
-
-  // game.start guard rejections.
-  assertGuard(
-    ctx,
-    "game.start target=bogus",
-    await bridge.call("game.start", { scene_path: "bogus" }, CALL_TIMEOUT),
-    "PATH_DENIED",
-    "res://",
-  );
-  assertGuard(
-    ctx,
-    "game.start missing res:// scene",
-    await bridge.call("game.start", { scene_path: "res://no_such_game_smoke.tscn" }, CALL_TIMEOUT),
-    "NOT_FOUND",
-    "scene.create",
-  );
-  assertGuard(
-    ctx,
-    "game.start .tres extension",
-    await bridge.call("game.start", { scene_path: "res://bogus_smoke_scene.tres" }, CALL_TIMEOUT),
-    "INVALID_PATH",
-    ".tscn",
-  );
 
   // ── scene.instantiate ──
   // Pre-cleanup: remove leftover node from a prior failed run.
