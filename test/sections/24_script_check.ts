@@ -1,5 +1,6 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertError } from "../helpers.js";
+import { isVersionAtLeast } from "../../src/shared/version.js";
 
 export const TOOLS_TESTED: string[] = ["script_check", "script_write", "script_delete"];
 export async function testScriptCheck(ctx: TestCtx): Promise<void> {
@@ -115,22 +116,49 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
     await bridge.call("script.delete", { file_path: classNamePath }, CALL_TIMEOUT);
   }
 
-  // ─── Hint assertion: diagnostics have structured line/column info ���─────
-  // When script.check returns valid=false, diagnostics should include line numbers.
+  // ─── Diagnostics shape: {severity, message[, line]} — version-aware ────
+  // The severity:"error" entry carries the real 1-based parse-error line on
+  // Godot 4.5+ (Logger capture); on <4.5 the line key is entirely absent
+  // (never a fabricated 0). No diagnostic ever carries a column — columns are
+  // lsp_diagnostics' domain — and hint-severity entries never carry line.
   const hintBrokenPath = "res://smoke_check_hint.gd";
   const hintBrokenContent = "extends Node\n\nfunc _ready():\n  var x = \n";
   await bridge.call("script.write", { file_path: hintBrokenPath, content: hintBrokenContent }, CALL_TIMEOUT);
   const checkHintBroken = (await bridge.call("script.check", { file_path: hintBrokenPath }, CALL_TIMEOUT)) as {
     success?: boolean;
     valid?: boolean;
-    diagnostics?: { line?: number; column?: number; severity?: string; message?: string }[];
+    diagnostics?: { line?: number; severity?: string; message?: string }[];
   };
   if (checkHintBroken?.success && checkHintBroken.valid === false && Array.isArray(checkHintBroken.diagnostics)) {
-    const d = checkHintBroken.diagnostics[0];
-    if (typeof d?.line === "number" && typeof d?.severity === "string" && typeof d?.message === "string") {
-      pass(`script_check diagnostics -> structured (line=${d.line}, severity=${d.severity})`);
+    const diags = checkHintBroken.diagnostics;
+    const errorDiag = diags.find((d) => d?.severity === "error");
+    const godotVer = bridge.getGodotVersion();
+    const is45Plus = godotVer != null && isVersionAtLeast(godotVer, "4.5");
+    if (!errorDiag) {
+      fail(`script_check diagnostics: no severity="error" entry: ${JSON.stringify(diags)}`);
+    } else if (is45Plus) {
+      if (typeof errorDiag.line === "number" && errorDiag.line >= 1) {
+        pass(`script_check diagnostics -> 4.5+ error entry carries the real line (line=${errorDiag.line})`);
+      } else {
+        fail(`script_check diagnostics: 4.5+ error entry expected line >= 1, got ${JSON.stringify(errorDiag)}`);
+      }
     } else {
-      fail(`script_check diagnostics: missing structured fields: ${JSON.stringify(d)}`);
+      if (diags.every((d) => !d || !("line" in d))) {
+        pass(`script_check diagnostics -> <4.5 omits the line key entirely (no fabricated 0)`);
+      } else {
+        fail(`script_check diagnostics: <4.5 expected NO line key on any entry, got ${JSON.stringify(diags)}`);
+      }
+    }
+    if (diags.every((d) => !d || (!("col" in d) && !("column" in d)))) {
+      pass(`script_check diagnostics -> no column field on any entry (lsp_diagnostics' domain)`);
+    } else {
+      fail(`script_check diagnostics: unexpected column field: ${JSON.stringify(diags)}`);
+    }
+    const hintDiags = diags.filter((d) => d?.severity === "hint");
+    if (hintDiags.every((d) => !("line" in d))) {
+      pass(`script_check diagnostics -> hint entries carry no line (${hintDiags.length} present)`);
+    } else {
+      fail(`script_check diagnostics: hint entry wrongly carries line: ${JSON.stringify(hintDiags)}`);
     }
   }
   await bridge.call("script.delete", { file_path: hintBrokenPath }, CALL_TIMEOUT);

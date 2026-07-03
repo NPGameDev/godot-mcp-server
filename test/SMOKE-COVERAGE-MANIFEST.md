@@ -6,7 +6,7 @@
 **Total tools (including on-demand groups):** 110 (33 eager + 77 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
 **Smoke sections:** 47 (sections 01–47)
-**Flow suite:** 3 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
+**Flow suite:** 4 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
 
 ---
 
@@ -108,7 +108,7 @@ routinely.
 | script_read | 03, 21, 25 | ✓ | ✓ (03: NOT_FOUND) | ✓ (21: start_line/end_line range; 03: line-window pagination — truncated/next_start_line/total_lines) | — | |
 | script_write | 03, 08, 09, 14, 16, 21, 23, 24, 25 | ✓ | — | ✓ (undoable flag) | — | **GAP:** inline diagnostics response, preload hint |
 | script_delete | 08, 09, 24, 25 | ✓ | — | — | — | In cleanup group |
-| script_check | 24, 25 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: .cs) | ✓ (valid/invalid scripts, diagnostics) | — | |
+| script_check | 24, 25 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: .cs) | ✓ (valid/invalid scripts, diagnostics) | — | §24 asserts the version-aware diagnostics shape: error entry carries the real 1-based `line` on 4.5+, `line` key absent on <4.5 (never a fabricated 0), no `col` ever, hint entries never carry `line` — 41n-undecies S6.6 |
 
 ### Editor Core (4 tools)
 
@@ -425,12 +425,14 @@ SMOKE-MAINTENANCE-PROTOCOL.md). Run: `npm run flows` /
 4.2.0** — including the version-gated Flow 01 update-existing branch (4.5 live /
 4.2 deferred restart-hint) and the Flow 02 hazard characterisation (4.5
 reachable / 4.2 stale; see `Insights/stale-live-instance-method-hazard.md`).
+(Flow 04 postdates that validation — first live run pending, 41n-undecies.)
 
 | Flow | File | Covers | Why smoke can't | Version branch |
 |---|---|---|---|---|
 | 1 — Extension lifecycle | `flows/01_extension_lifecycle.ts` | create→discovered→call / re-entrancy / update-existing / remove→gone (sweep S24) | Smoke §22 "intentionally does not create extension scripts" — the **Finding #1** regression (`extensions.refresh` → `commands:[]`) hid here while smoke passed 437/0 | update-existing: 4.3+ live, 4.2 deferred restart-hint (regression-guards the 41l-tricies-ter REUSE gate) |
 | 2 — Hot-reload reachability | `flows/02_hot_reload_reachability.ts` | live-instance method reachability after a script edit; absent-method → `INVALID_METHOD` contract; characterises the stale-live-instance hazard (feeds the research step → 41m-bis-bis) | Edit-then-call-new-method on a live instance is multi-step + cross-state | characterisation logs the per-version A/B/C/D outcome; **4.4+ headless** is `is_headless`-aware AND timing-tolerant — NodeCache live-reload (4.4+) is an async-scan/idle RACE, so the test accepts REACHABLE (reload landed) OR STALE + the headless re-instantiation hint (4.5/4.6/4.7 deterministically hit stale+hint, keeping the hint covered; 4.4.0 CI observed reachable). `<4.4` stays strict-STALE — un-skips flows §02 (41n-quater-bis) |
 | 3 — Combo chains | `flows/03_combo_chains.ts` | C4 signal persistence across save/reopen; C8 node-management pipeline (duplicate→rename→reparent→groups) (sweep S22) | Smoke §05 checks the connect *hint* only, never the connection surviving save+reopen; the node pipeline chains state across ops | — |
+| 4 — Non-@tool call_method guard | `flows/04_non_tool_call_method.ts` | non-@tool script on a live editor node: `node.call_method` → null + the cause-naming runtime-first hint; then @tool flip + `editor_refresh` re-call (sweep 3.19) | The null-result hint needs write→create→attach→call state across four tools | timing-tolerant, in-session necessary-condition only: asserts the version-stable hint substring (the remediation tail is version-gated — scene close+reopen on 4.5+ / editor relaunch below); post-flip accepts REACHABLE **or** still-null-with-hint (headless hot-reload re-instantiation is an async race); the GUI min-remediation ladder is owned by the interactive sweep |
 
 ### Dedup triage (decisions #3/#4 — gap-only, never duplicate)
 
