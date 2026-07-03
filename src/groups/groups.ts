@@ -105,7 +105,7 @@ export function resetLoadedGroups(): void {
  */
 export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly: boolean): void {
   if (hasToolRef("discover_tools")) {
-    updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(readOnly) });
+    updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(bridge, readOnly) });
     return;
   }
   registerToolWrapped(
@@ -113,7 +113,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
     bridge,
     "discover_tools",
     {
-      description: buildDiscoverToolsDesc(readOnly),
+      description: buildDiscoverToolsDesc(bridge, readOnly),
       inputSchema: {
         request: z
           .union([z.string(), z.array(z.string())])
@@ -186,7 +186,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
           for (const name of exactElements) {
             const result = activate
               ? activateGroupByName(server, bridge, name, readOnly)
-              : reportGroupStatusByName(name, readOnly);
+              : reportGroupStatusByName(bridge, name, readOnly);
             result.match = "exact_name";
             groupResults.push(result);
           }
@@ -203,7 +203,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
               if (groupResults.some((r) => r.name === name)) continue;
               const result = activate
                 ? activateGroupByName(server, bridge, name, readOnly)
-                : reportGroupStatusByName(name, readOnly);
+                : reportGroupStatusByName(bridge, name, readOnly);
               result.match = "loose_keyword";
               groupResults.push(result);
             }
@@ -217,7 +217,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
         // Update discover_tools description inside the batch so the
         // tools/list_changed notification fires atomically with all
         // registrations (FIX-C).
-        updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(readOnly) });
+        updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(bridge, readOnly) });
       });
 
       // No params (or empty array without reset) → full catalog (no activation).
@@ -227,7 +227,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
       if (catalogRequested && !resetActive) {
         for (const group of GROUPS) {
-          groupResults.push(reportGroupStatus(group.name, readOnly));
+          groupResults.push(reportGroupStatus(bridge, group.name, readOnly));
         }
         for (const [name] of extensionGroupEntries()) {
           groupResults.push(reportExtGroupStatus(name));

@@ -450,6 +450,17 @@ biased prune and a fuzzy cap of 3 per element, 5 total. **Eager-vs-on-demand is 
 visibility partition over the one catalogue, not two pools** — `discover_tools` is the
 LLM-driven realisation of the dropped Profiles and per-project Tool-Pack ideas.
 
+**Advertise matches register (connected-version-aware summaries).** The group summaries are
+built from the *static* catalogue, so they re-apply the same connected-version predicate the
+registration gate uses (`isVersionCompatible` over `bridge.getGodotVersion()`,
+[§12](#12-cross-version-compatibility)): a built-in the connected editor cannot serve — e.g.
+`scene_close` (Godot 4.5+) on a 4.4 editor — is omitted from the activate summary, the browse
+summary, and the meta description, so `discover_tools` never advertises a tool that
+`tools/list` omits. A version-unknown editor mirrors registration's conservative skip. By
+contrast, `--tools-count` is a **pre-connection** static audit that has no connected editor to
+gate against, so it is intentionally version-agnostic (it counts the full catalogue) and must
+not be "fixed" to filter.
+
 ---
 
 ## 8. Security & trust boundaries

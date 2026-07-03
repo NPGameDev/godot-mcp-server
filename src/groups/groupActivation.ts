@@ -13,7 +13,7 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import type { Bridge } from "../shared/types.js";
+import type { Bridge, ToolDef } from "../shared/types.js";
 import { GROUPS, allDefs, type GroupDef } from "./groupCatalogue.js";
 import { loadedGroups } from "./groupState.js";
 import {
@@ -26,10 +26,52 @@ import {
 } from "./extensionGroups.js";
 import { createGroupToolHandler } from "./groupToolHandlers.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "../security/profiles.js";
+import { isVersionCompatible } from "../shared/version.js";
 import { registerToolWrapped } from "../registration/toolRegistry.js";
 import { removeToolByName } from "../registration/toolRefs.js";
 import type { ToolMeta, GroupResult } from "../registration/toolMeta.js";
 import { activatedResult, alreadyLoadedResult, availableResult, readOnlyEmptyResult } from "./groupResult.js";
+
+// ── Version-gated visibility ─────────────────────────────────────────
+// discover_tools' group summaries are built from the STATIC catalogue, but the
+// registration gate installs only the tools the connected editor can serve
+// (registerToolWrapped). These predicates re-apply that same gate to the
+// advertise surface, so a below-gate editor never sees a tool that tools/list
+// omits — the advertise surface matches the register surface.
+
+/**
+ * Whether the connected editor can serve a version-gated built-in — the same
+ * predicate the registration gate applies. Unversioned tools always pass; a gated
+ * tool needs a known connected version within its [min, max] bounds. A null
+ * connected version mirrors registration's conservative refusal (skip the
+ * unverifiable), so the advertise surface can never over-claim a tool the register
+ * surface skipped.
+ */
+function isToolVersionCompatible(bridge: Bridge, def: ToolDef): boolean {
+  if (def.godotMinVersion == null && def.godotMaxVersion == null) return true;
+  const connected = bridge.getGodotVersion();
+  if (connected == null) return false;
+  return isVersionCompatible(connected, def.godotMinVersion, def.godotMaxVersion);
+}
+
+/**
+ * Whether a built-in group tool belongs on the advertise surface: registrable for
+ * the connected editor version AND — in read-only mode — allowed by its
+ * annotations. The single predicate that keeps group summaries in lockstep with
+ * what registration installs.
+ */
+function isToolVisible(bridge: Bridge, def: ToolDef, readOnly: boolean): boolean {
+  if (readOnly && !isAllowedInReadOnly(def.annotations)) return false;
+  return isToolVersionCompatible(bridge, def);
+}
+
+/** The visible tool names of a built-in group for the connected editor + profile. */
+function visibleToolNames(bridge: Bridge, group: GroupDef, readOnly: boolean): string[] {
+  return group.tools.filter((t) => {
+    const d = allDefs.get(t);
+    return d ? isToolVisible(bridge, d, readOnly) : false;
+  });
+}
 
 // ── Registration ─────────────────────────────────────────────────────
 
@@ -44,6 +86,10 @@ export function registerGroupTools(server: McpServer, bridge: Bridge, group: Gro
     const def = allDefs.get(toolName);
     if (!def) continue;
     if (isExcludedByReadOnly(readOnly, def.annotations)) continue;
+    // Skip a tool the connected editor can't serve: registerToolWrapped would
+    // refuse it anyway, and an unconditional registered.push would make the
+    // activated summary advertise a tool that is absent from tools/list.
+    if (!isToolVersionCompatible(bridge, def)) continue;
     removeToolByName(toolName); // Remove stub if present
     registerToolWrapped(
       server,
@@ -81,16 +127,13 @@ function formatGroupEntry(name: string, loaded: boolean, desc: string): string {
 //
 // Format: group name + one-line description + status tag. No tool lists —
 // agents see individual tools only after activation or via no-params catalog.
-export function buildDiscoverToolsDesc(readOnly: boolean): string {
+export function buildDiscoverToolsDesc(bridge: Bridge, readOnly: boolean): string {
   const parts: string[] = [];
   for (const group of GROUPS) {
-    if (readOnly) {
-      const hasReadOnlyTool = group.tools.some((t) => {
-        const d = allDefs.get(t);
-        return d ? isAllowedInReadOnly(d.annotations) : false;
-      });
-      if (!hasReadOnlyTool) continue;
-    }
+    // Drop a group with no tool the connected editor can serve — every member is
+    // version-gated out (or, in read-only mode, read-only-excluded). Keeps the
+    // meta description's group list aligned with what activation would register.
+    if (visibleToolNames(bridge, group, readOnly).length === 0) continue;
 
     const loaded = loadedGroups.has(group.name);
     parts.push(formatGroupEntry(group.name, loaded, group.description));
@@ -156,13 +199,10 @@ export function deactivateGroups(names: string[] | true, readOnly: boolean): str
  * slot" guard. The caller dispatches built-in vs ext up front (activateGroupByName).
  */
 export function activateGroup(server: McpServer, bridge: Bridge, group: GroupDef, readOnly: boolean): GroupResult {
-  // In read-only mode, filter tool lists to only show read-only tools.
-  const toolNames = readOnly
-    ? group.tools.filter((t) => {
-        const d = allDefs.get(t);
-        return d ? isAllowedInReadOnly(d.annotations) : false;
-      })
-    : group.tools;
+  // Tools visible for this editor version + profile (mirrors the registration
+  // gate) — drives the already-loaded summary below; the fresh-activate summary
+  // is the registerGroupTools return, which applies the same gate.
+  const toolNames = visibleToolNames(bridge, group, readOnly);
   const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
 
   if (loadedGroups.has(group.name)) {
@@ -189,17 +229,11 @@ export function activateGroupByName(server: McpServer, bridge: Bridge, name: str
 }
 
 /** Report a built-in group's status without mutating (the QUERY half). */
-export function reportGroupStatus(groupName: string, readOnly: boolean): GroupResult {
+export function reportGroupStatus(bridge: Bridge, groupName: string, readOnly: boolean): GroupResult {
   const group = GROUPS.find((g) => g.name === groupName);
   if (!group) return { name: groupName, status: "available", tools: [] };
-  // In read-only mode, filter tool lists to only show read-only tools.
-  const toolNames = readOnly
-    ? group.tools.filter((t) => {
-        const d = allDefs.get(t);
-        return d ? isAllowedInReadOnly(d.annotations) : false;
-      })
-    : group.tools;
-  const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
+  // Tools visible for this editor version + profile (mirrors the registration gate).
+  const tools: ToolMeta[] = visibleToolNames(bridge, group, readOnly).map((t) => ({ name: t }));
   if (loadedGroups.has(groupName)) return alreadyLoadedResult(groupName, tools, group.description);
   return availableResult(groupName, tools, group.description);
 }
@@ -212,8 +246,8 @@ export function reportGroupStatus(groupName: string, readOnly: boolean): GroupRe
  * the built-in reportGroupStatus, which returns empty for a non-built-in name —
  * keeps the ext group's real tool list + already_loaded status.
  */
-export function reportGroupStatusByName(name: string, readOnly: boolean): GroupResult {
+export function reportGroupStatusByName(bridge: Bridge, name: string, readOnly: boolean): GroupResult {
   const group = GROUPS.find((g) => g.name === name);
   if (!group) return reportExtGroupStatus(name, readOnly);
-  return reportGroupStatus(name, readOnly);
+  return reportGroupStatus(bridge, name, readOnly);
 }

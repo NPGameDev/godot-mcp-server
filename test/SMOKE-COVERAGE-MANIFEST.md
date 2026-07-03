@@ -1,6 +1,6 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-07-03 (41n-quater-septies — 4.2 row for the .NET behavioral mirror)
+**Last updated:** 2026-07-03 (41n-duodecies — §01 discover_tools version-gate advertise==register assertion)
 **Server commit:** S:11d8d0a (41n-quater-septies; superseded by the landing commit recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 110 (33 eager + 77 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
@@ -77,7 +77,7 @@ routinely.
 | scene_delete_node | 02, 06, 10, 37 | ✓ | — | — | — | |
 | scene_create | 08, 10, 14, 33 | ✓ | ✓ (08: ALREADY_EXISTS, INVALID_PATH) | ✓ (if_exists modes; 08: root_name override + stem default) | — | |
 | scene_open | 04, 10 | ✓ | ✓ (04: NOT_FOUND) | — | — | |
-| scene_close | 01, 04 | ✓ (04, 4.5+) | ✓ (04: PATH_DENIED, NOT_FOUND, EDITED_SCENE last-tab; 4.5+) | — | ✓ (01: godotMinVersion=4.5) | 4.5+ only; §04 happy+guards gated `godotVer>=4.5` (skips on <4.5 — 41m-ter A0); structural in §01 |
+| scene_close | 01, 04 | ✓ (04, 4.5+) | ✓ (04: PATH_DENIED, NOT_FOUND, EDITED_SCENE last-tab; 4.5+) | — | ✓ (01: godotMinVersion=4.5) | 4.5+ only; §04 happy+guards gated `godotVer>=4.5` (skips on <4.5 — 41m-ter A0); structural in §01. **§01 behavioral (41n-duodecies):** the `cleanup` group summary OMITS scene_close on <4.5 and OFFERS it on 4.5+, keyed on `bridge.getGodotVersion()` — advertise==register, the cross-version CI guard (full smoke runs on real 4.2–4.7) |
 | scene_delete | 08 | ✓ | ✓ (08: NOT_FOUND) | — | — | Scene file deletion (distinct from scene_delete_node) |
 | scene_instantiate | 10, 47 | ✓ | ✓ (10: PATH_DENIED, INVALID_PATH, NOT_FOUND) | ✓ (as_name, transform, FIX-K auto-rename, owner-set; **47: batch all-success control → count=2, instances=2, failed/hint absent**) | — | Batch partial-failure not assertable via smoke — see §47 note |
 | scene_query | 36 | ✓ | ✓ (INVALID_PARAMS: no filters) | ✓ (class_filter, name_pattern, property_filters, limit) | — | |
@@ -310,7 +310,7 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| discover_tools | 01 (catalogue), 39 | ✓ (catalogue probe) | — | ✓ (dominant-match prune + recall) | — | **Section 39 (now runs in CI mode):** keyword search, group activation, selective reset, over-activation warning, **dominant-match prune/recall (Item C, 41m-sexies)** |
+| discover_tools | 01 (catalogue), 39 | ✓ (catalogue probe) | — | ✓ (dominant-match prune + recall) | — | **Section 39 (now runs in CI mode):** keyword search, group activation, selective reset, over-activation warning, **dominant-match prune/recall (Item C, 41m-sexies)**. **§01 behavioral (41n-duodecies):** group summaries are connected-version-aware — `reportGroupStatusByName("cleanup")` omits scene_close on <4.5 / offers on 4.5+ (advertise==register; the same version predicate drives browse, activate, and the meta description) |
 | extensions_refresh | 22 | ✓ (via extensions.list) | — | — | — | |
 | *(error contract)* | 22 | — | ✓ (empty file_path) | — | ✓ (error hint) | Bridge round-trip of MCPToolkitError shape (41l-vicies-ter) |
 | *(success contract)* | 22 | ✓ (scene.get_tree) | — | — | — | Verifies ADR 0004 success:true at bridge level (hints are server-side via callAndWrap) |

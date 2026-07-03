@@ -1,6 +1,8 @@
 import { editorTools } from "../../src/tools/editor.js";
 import { ALL_TOOL_DEFS, ALL_TOOL_NAMES, META_TOOL_NAMES } from "../../src/registration/catalogue.js";
 import { GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "../../src/groups/groups.js";
+import { reportGroupStatusByName } from "../../src/groups/groupActivation.js";
+import { isVersionAtLeast } from "../../src/shared/version.js";
 import type { ToolDef } from "../../src/shared/types.js";
 
 import type { TestCtx } from "../helpers.js";
@@ -140,4 +142,25 @@ export async function testCatalogue(ctx: TestCtx): Promise<void> {
 
   // Static catalogue checks (shared with CI mode).
   testCatalogueStatic(ctx);
+
+  // Advertise == register: discover_tools' group summaries must not offer a
+  // version-gated built-in the connected editor cannot serve (41n-duodecies).
+  // scene_close (godotMinVersion 4.5) lives in the cleanup group — the browse
+  // summary must include it iff the connected editor can serve it, exactly
+  // mirroring the registration gate. This is the cross-version CI guard: the
+  // behavioral matrix runs the full smoke suite on real 4.2–4.7 editors, so the
+  // <4.5 rows assert the omission and the 4.5+ rows assert the offer.
+  const godotVer = bridge.getGodotVersion();
+  const canServeSceneClose = godotVer != null && isVersionAtLeast(godotVer, "4.5");
+  const advertisesSceneClose = reportGroupStatusByName(bridge, "cleanup", false).tools.some(
+    (t) => t.name === "scene_close",
+  );
+  const verLabel = godotVer ? `${godotVer[0]}.${godotVer[1]}` : "unknown";
+  if (advertisesSceneClose === canServeSceneClose) {
+    pass(`discover_tools version gate: cleanup ${canServeSceneClose ? "offers" : "omits"} scene_close (${verLabel})`);
+  } else {
+    fail(
+      `discover_tools version gate: cleanup advertises scene_close=${advertisesSceneClose}, expected ${canServeSceneClose} (${verLabel})`,
+    );
+  }
 }

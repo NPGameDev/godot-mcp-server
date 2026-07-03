@@ -15,6 +15,10 @@
  *   6. deactivateGroups unloads built-in + ext groups (selective + true=all).
  *   7. buildDiscoverToolsDesc output shape: "name [STATE] — desc" join + the
  *      "Extensions:" suffix when extension groups exist.
+ *   8. version-gated advertise surface: a below-gate (or version-unknown) editor's
+ *      group summaries omit scene_close (4.5+) from browse + activate + the meta
+ *      description, and the summary matches what registration installed
+ *      (advertise == register), while version-agnostic tools always show.
  *
  * The fake server tracks each registration through the real tool_refs module
  * (registerToolWrapped calls setToolRef internally), so hasToolRef reflects
@@ -64,12 +68,18 @@ function makeFakeServer(): McpServer {
 
 // A benign fake bridge: a known version so version-gated registration passes.
 function makeFakeBridge(): Bridge {
+  return makeFakeBridgeAt([4, 5]);
+}
+
+// A fake bridge reporting a specific connected version, or undefined for "version
+// unknown" — drives the version gate on the advertise surface.
+function makeFakeBridgeAt(version: [number, number] | undefined): Bridge {
   return {
     call: async () => ({ success: true }),
     callRuntime: async () => ({ success: true }),
     close: async () => {},
-    getGodotVersion: () => [4, 5] as [number, number],
-    getGodotVersionString: () => "4.5.0",
+    getGodotVersion: () => version,
+    getGodotVersionString: () => (version ? `${version[0]}.${version[1]}.0` : undefined),
   } as unknown as Bridge;
 }
 
@@ -96,6 +106,12 @@ function reset(): void {
 const userData = GROUPS.find((g) => g.name === "user_data")!;
 assert.ok(userData, "user_data group exists in the catalogue");
 const userDataTools = [...userData.tools].sort();
+
+// cleanup owns scene_close (godotMinVersion 4.5) alongside version-agnostic delete
+// tools — the fixture for the advertise-vs-register version gate (Block 8).
+const cleanup = GROUPS.find((g) => g.name === "cleanup")!;
+assert.ok(cleanup, "cleanup group exists in the catalogue");
+assert.ok(cleanup.tools.includes("scene_close"), "cleanup group contains the version-gated scene_close");
 
 // ── Block 1 — activateGroup registers tools + marks loaded (+ idempotent) ──
 
@@ -152,22 +168,24 @@ reset();
 
 reset();
 {
+  const bridge = makeFakeBridge();
+
   // Unloaded built-in → available, lists tools, NO mutation.
-  const q = reportGroupStatus("user_data", false);
+  const q = reportGroupStatus(bridge, "user_data", false);
   assert.equal(q.status, "available", "report on an unloaded group → available");
   assert.deepEqual(q.tools.map((t) => t.name).sort(), userDataTools, "report lists the group's tools");
   assert.equal(loadedGroups.has("user_data"), false, "report did NOT load the group");
   assert.equal(loadedGroups.size, 0, "report mutates nothing");
 
   // After a real activation, report reflects already_loaded — still pure.
-  activateGroup(makeFakeServer(), makeFakeBridge(), userData, false);
+  activateGroup(makeFakeServer(), bridge, userData, false);
   const sizeAfterActivate = loadedGroups.size;
-  const loaded = reportGroupStatus("user_data", false);
+  const loaded = reportGroupStatus(bridge, "user_data", false);
   assert.equal(loaded.status, "already_loaded", "report on a loaded group → already_loaded");
   assert.equal(loadedGroups.size, sizeAfterActivate, "report on a loaded group still mutates nothing");
 
   // Unknown (non-built-in) name → available with empty tools (the fallthrough).
-  const unknown = reportGroupStatus("definitely_not_a_group", false);
+  const unknown = reportGroupStatus(bridge, "definitely_not_a_group", false);
   assert.equal(unknown.status, "available", "unknown name → available");
   assert.deepEqual(unknown.tools, [], "unknown name → empty tools");
 }
@@ -186,14 +204,14 @@ reset();
   assert.equal(isExtensionGroupLoaded("ext_demo"), true, "ext_demo activated");
 
   // Built-in name → routes to reportGroupStatus (real built-in tool list).
-  const builtin = reportGroupStatusByName("user_data", false);
-  assert.deepEqual(builtin, reportGroupStatus("user_data", false), "byName built-in === reportGroupStatus");
+  const builtin = reportGroupStatusByName(bridge, "user_data", false);
+  assert.deepEqual(builtin, reportGroupStatus(bridge, "user_data", false), "byName built-in === reportGroupStatus");
   assert.deepEqual(builtin.tools.map((t) => t.name).sort(), userDataTools, "byName built-in lists the built-in tools");
 
   // Extension name → routes to reportExtGroupStatus: real tools + already_loaded.
   // (The bug this pins: routing ext browse to the built-in reportGroupStatus
   // returns empty tools + loses the already_loaded status.)
-  const ext = reportGroupStatusByName("ext_demo", false);
+  const ext = reportGroupStatusByName(bridge, "ext_demo", false);
   assert.equal(ext.status, "already_loaded", "byName ext keeps the ext already_loaded status");
   assert.deepEqual(
     ext.tools.map((t) => t.name).sort(),
@@ -262,11 +280,12 @@ reset();
 
 reset();
 {
+  const bridge = makeFakeBridge();
   const sig = GROUPS.find((g) => g.name === "signals")!;
   assert.ok(sig, "signals group exists");
 
   // No ext groups: built-in entries as "name [available] — desc"; no Extensions suffix.
-  const desc = buildDiscoverToolsDesc(false);
+  const desc = buildDiscoverToolsDesc(bridge, false);
   assert.ok(desc.startsWith("Find and activate tool groups"), "desc opens with the intro line");
   assert.ok(desc.includes("Groups: "), "desc carries the Groups: section");
   assert.ok(
@@ -276,14 +295,74 @@ reset();
   assert.ok(!desc.includes("Extensions:"), "no Extensions suffix when no ext groups exist");
 
   // Activating a built-in flips its tag to [LOADED].
-  activateGroup(makeFakeServer(), makeFakeBridge(), sig, false);
-  assert.ok(buildDiscoverToolsDesc(false).includes("signals [LOADED] —"), "an activated group renders [LOADED]");
+  activateGroup(makeFakeServer(), bridge, sig, false);
+  assert.ok(
+    buildDiscoverToolsDesc(bridge, false).includes("signals [LOADED] —"),
+    "an activated group renders [LOADED]",
+  );
 
   // A registered ext group adds the Extensions suffix as "name [available] — desc".
   addExtensionGroup("ext_demo", "Ext demo desc", [extCmd("ext.one", "ext_one")], ["demokw"]);
-  const withExt = buildDiscoverToolsDesc(false);
+  const withExt = buildDiscoverToolsDesc(bridge, false);
   assert.ok(withExt.includes(". Extensions: "), "ext groups add the Extensions: suffix");
   assert.ok(withExt.includes("ext_demo [available] — Ext demo desc"), "ext entry renders as 'name [available] — desc'");
+}
+
+// ── Block 8 — version-gated advertise surface (scene_close @ 4.5+) ────
+// discover_tools' group summaries must not advertise a tool the connected editor
+// cannot serve: the advertise surface must match the register surface. scene_close
+// is gated 4.5+; every OTHER cleanup tool is version-agnostic, so the gate filters
+// exactly the one tool and never the whole group. Version-unknown mirrors
+// registration's conservative skip (treat gated as unavailable).
+
+for (const { version, label, gated } of [
+  { version: [4, 4] as [number, number] | undefined, label: "4.4", gated: false },
+  { version: [4, 5] as [number, number] | undefined, label: "4.5", gated: true },
+  { version: [4, 6] as [number, number] | undefined, label: "4.6", gated: true },
+  { version: undefined as [number, number] | undefined, label: "unknown", gated: false },
+]) {
+  reset();
+  const bridge = makeFakeBridgeAt(version);
+  const otherTool = cleanup.tools.find((t) => t !== "scene_close")!;
+
+  // Browse (activate:false) — pure query, both the direct and by-name dispatch.
+  const browse = reportGroupStatus(bridge, "cleanup", false);
+  assert.equal(
+    browse.tools.some((t) => t.name === "scene_close"),
+    gated,
+    `[${label}] browse summary ${gated ? "offers" : "omits"} scene_close`,
+  );
+  assert.ok(
+    browse.tools.some((t) => t.name === otherTool),
+    `[${label}] browse keeps the version-agnostic ${otherTool}`,
+  );
+  assert.deepEqual(
+    reportGroupStatusByName(bridge, "cleanup", false),
+    browse,
+    `[${label}] byName browse === reportGroupStatus`,
+  );
+
+  // Activate — the activated summary is the registerGroupTools return, and it must
+  // agree with what was actually registered (hasToolRef): advertise == register.
+  const activated = activateGroup(makeFakeServer(), bridge, cleanup, false);
+  assert.equal(
+    activated.tools.some((t) => t.name === "scene_close"),
+    gated,
+    `[${label}] activate summary ${gated ? "lists" : "omits"} scene_close`,
+  );
+  assert.equal(
+    hasToolRef("scene_close"),
+    gated,
+    `[${label}] scene_close is registered iff serveable (advertise matches register)`,
+  );
+  assert.ok(hasToolRef(otherTool), `[${label}] the version-agnostic ${otherTool} is always registered`);
+
+  // Meta description — cleanup has version-agnostic tools, so it is NEVER dropped;
+  // the empty-after-filter drop only removes an all-gated group (none exist today).
+  assert.ok(
+    buildDiscoverToolsDesc(bridge, false).includes("cleanup ["),
+    `[${label}] cleanup stays in the meta description (has version-agnostic tools)`,
+  );
 }
 
 reset();
