@@ -143,6 +143,29 @@ assert.equal(toolErrorFromPayload(42), undefined);
   assert.equal(payload.code, "INTERNAL");
 }
 
+// serializedQueueTimeout marker → serialization-specific hint, code stays TIMEOUT.
+{
+  const err = new BridgeError("TIMEOUT", "serialized behind other mutations");
+  err.serializedQueueTimeout = true;
+  const result = toolErrorFromException(err);
+  const payload = JSON.parse(result.content[0].text);
+  assert.equal(payload.code, "TIMEOUT");
+  assert.match(payload.hint, /sequentially/);
+  assert.match(payload.hint, /duplicate-on-retry/);
+}
+
+// A plain TIMEOUT (marker unset) keeps the generic hint — the serialized hint is
+// scoped to the queued case only, never leaking to genuine stalls.
+{
+  const plain = new BridgeError("TIMEOUT", "genuine stall");
+  const serialized = new BridgeError("TIMEOUT", "queued");
+  serialized.serializedQueueTimeout = true;
+  const plainHint = JSON.parse(toolErrorFromException(plain).content[0].text).hint;
+  const serializedHint = JSON.parse(toolErrorFromException(serialized).content[0].text).hint;
+  assert.notEqual(plainHint, serializedHint);
+  assert.match(plainHint, /busy/); // generic EXCEPTION_HINTS.TIMEOUT
+}
+
 // Mirrors the makeBridge fake in toolDispatch.test.ts
 // A method-aware fake bridge: each branch overrides only the call(s) it needs;
 // the rest default to a benign success so an unexpected call never crashes.

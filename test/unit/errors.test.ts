@@ -49,4 +49,13 @@ import { BridgeError } from "../../src/shared/errors.js";
   assert.equal(free.code, "SOME_UNLISTED_CODE");
 }
 
+// ── serializedQueueTimeout marker defaults false and is settable ──────
+
+{
+  const err = new BridgeError("TIMEOUT", "queued then timed out");
+  assert.equal(err.serializedQueueTimeout, false);
+  err.serializedQueueTimeout = true;
+  assert.equal(err.serializedQueueTimeout, true);
+}
+
 console.log("All errors tests passed.");

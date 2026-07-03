@@ -65,6 +65,18 @@ const EXCEPTION_HINTS: Record<string, string> = {
 };
 
 /**
+ * Hint for a TIMEOUT that fired while the call sat in the toolkit's mutation
+ * queue (serialized behind other mutations), not because anything stalled. The
+ * generic EXCEPTION_HINTS.TIMEOUT "editor or game may be busy" advice is
+ * actively misleading here — the call was healthy, just waiting its fair-FIFO
+ * turn — so this replaces it and surfaces the duplicate-on-retry risk.
+ */
+const SERIALIZED_QUEUE_TIMEOUT_HINT =
+  "The command was accepted and queued behind other scene mutations, then exceeded its timeout while waiting its turn. " +
+  "Issue scene mutations sequentially rather than in parallel. A retry may re-apply an already-applied change — " +
+  "re-check state before re-issuing (duplicate-on-retry risk).";
+
+/**
  * Map a thrown BridgeError (or any Error) to a toolError response.
  * Preserves the bridge's transport-layer code (TIMEOUT, DISCONNECTED,
  * GAME_NOT_RUNNING, CONNECT_FAILED, ...) so the client-facing response
@@ -73,7 +85,9 @@ const EXCEPTION_HINTS: Record<string, string> = {
 export function toolErrorFromException(err: unknown): ToolTextResult {
   const code = err instanceof BridgeError ? err.code : "INTERNAL";
   const message = (err as Error)?.message ?? String(err);
-  return toolError(code, message, EXCEPTION_HINTS[code]);
+  const hint =
+    err instanceof BridgeError && err.serializedQueueTimeout ? SERIALIZED_QUEUE_TIMEOUT_HINT : EXCEPTION_HINTS[code];
+  return toolError(code, message, hint);
 }
 
 // ── Runtime crash context ───────────────────────────────────────────

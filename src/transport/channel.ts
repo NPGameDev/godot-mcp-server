@@ -288,9 +288,24 @@ export function createChannel(
             clearTimeout(queuedPending.timer);
             queuedPending.timer = setTimeout(() => {
               pending.delete(reqId);
-              queuedPending.reject(
-                new BridgeError("TIMEOUT", `call timed out after ${queuedPending.timeoutMs}ms (post-${method})`),
-              );
+              if (method === "_queued") {
+                // The call was accepted and queued behind other mutations (fair
+                // FIFO), then ran out its window before its turn — not a stall.
+                // Mark it so the error mapper serves the serialization-specific
+                // hint, not the generic "editor is busy" one. Code stays TIMEOUT.
+                const queuedTimeoutError = new BridgeError(
+                  "TIMEOUT",
+                  `call accepted and serialized behind other mutations; exceeded its ${queuedPending.timeoutMs}ms window while still queued`,
+                );
+                queuedTimeoutError.serializedQueueTimeout = true;
+                queuedPending.reject(queuedTimeoutError);
+              } else {
+                // Post-_executing: the call was RUNNING when its window closed —
+                // genuinely slow, not queue wait. Generic timeout shape, no marker.
+                queuedPending.reject(
+                  new BridgeError("TIMEOUT", `call timed out after ${queuedPending.timeoutMs}ms (post-${method})`),
+                );
+              }
             }, queuedPending.timeoutMs);
           }
           return;

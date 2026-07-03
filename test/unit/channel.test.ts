@@ -549,6 +549,120 @@ async function testSkipVersionCheckSuppressesWarning() {
   console.log("  PASS: skipVersionCheck suppresses the runtime-channel version warning");
 }
 
+// ── 10. post-_queued timeout carries the serialized marker + message ──
+
+async function testQueuedTimeoutMarksSerialized() {
+  // After a _queued notification re-arms the pending timer, a call that still
+  // never completes must reject with a TIMEOUT MARKED serializedQueueTimeout
+  // (and a serialization-specific message) so the error mapper steers to the
+  // queue-specific hint instead of the generic stall hint. Distinct from case 2
+  // (which proves the reset keeps a soon-answered call alive); here the re-armed
+  // timer is allowed to fire.
+  let callCount = 0;
+  let capturedSock: WS | null = null;
+  let capturedId: unknown = null;
+  const server = await makeMockServer((sock, msg) => {
+    callCount++;
+    if (callCount === 1) respond(sock, msg.id, { warmup: true });
+    else {
+      capturedSock = sock; // 2nd call: capture, never respond → let the timer fire
+      capturedId = msg.id;
+    }
+  });
+  const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined);
+  await ch.call("warmup", {}, 5000);
+  await ioFlush();
+
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    let rejected: unknown = null;
+    const p = ch.call("mutate", {}, 800).catch((e: unknown) => {
+      rejected = e;
+    });
+    await ioFlush();
+    assert.ok(capturedSock && capturedId, "server received the RPC");
+
+    notify(capturedSock!, "_queued", capturedId); // re-arms the pending timer
+    await ioFlush();
+    await ioFlush();
+
+    await clock.tickAsync(801); // cross the re-armed deadline with no response
+    await ioFlush();
+    await p;
+    assert.ok(
+      rejected instanceof BridgeError && rejected.code === "TIMEOUT",
+      `expected TIMEOUT, got ${String(rejected)}`,
+    );
+    assert.equal(
+      (rejected as BridgeError).serializedQueueTimeout,
+      true,
+      "post-_queued timeout is marked serializedQueueTimeout",
+    );
+    assert.match((rejected as BridgeError).message, /serialized/);
+    console.log("  PASS: post-_queued timeout carries the serialized marker + message");
+  } finally {
+    clock.uninstall();
+    await ch.close();
+    await server.close();
+  }
+}
+
+// ── 11. post-_executing timeout keeps the generic shape (no marker) ───
+
+async function testExecutingTimeoutKeepsGenericShape() {
+  // _executing means the call was RUNNING when the window closed — genuinely
+  // slow, not queue wait. The re-armed timer must reject the plain TIMEOUT
+  // shape with NO serializedQueueTimeout marker, so the serialization hint
+  // never leaks onto a real slow-operation stall.
+  let callCount = 0;
+  let capturedSock: WS | null = null;
+  let capturedId: unknown = null;
+  const server = await makeMockServer((sock, msg) => {
+    callCount++;
+    if (callCount === 1) respond(sock, msg.id, { warmup: true });
+    else {
+      capturedSock = sock; // 2nd call: capture, never respond → let the timer fire
+      capturedId = msg.id;
+    }
+  });
+  const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined);
+  await ch.call("warmup", {}, 5000);
+  await ioFlush();
+
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    let rejected: unknown = null;
+    const p = ch.call("mutate", {}, 800).catch((e: unknown) => {
+      rejected = e;
+    });
+    await ioFlush();
+    assert.ok(capturedSock && capturedId, "server received the RPC");
+
+    notify(capturedSock!, "_executing", capturedId); // re-arms the pending timer
+    await ioFlush();
+    await ioFlush();
+
+    await clock.tickAsync(801); // cross the re-armed deadline with no response
+    await ioFlush();
+    await p;
+    assert.ok(
+      rejected instanceof BridgeError && rejected.code === "TIMEOUT",
+      `expected TIMEOUT, got ${String(rejected)}`,
+    );
+    assert.equal(
+      (rejected as BridgeError).serializedQueueTimeout,
+      false,
+      "post-_executing timeout is NOT marked serializedQueueTimeout",
+    );
+    assert.match((rejected as BridgeError).message, /timed out after 800ms \(post-_executing\)/);
+    console.log("  PASS: post-_executing timeout keeps the generic shape (no serialized marker)");
+  } finally {
+    clock.uninstall();
+    await ch.close();
+    await server.close();
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -562,7 +676,9 @@ async function main() {
   await testCloseRejectsPendingAndWaiters();
   await testNoReconnectRejectsFastWithoutBackoff();
   await testSkipVersionCheckSuppressesWarning();
-  console.log("All 9 channel tests passed.");
+  await testQueuedTimeoutMarksSerialized();
+  await testExecutingTimeoutKeepsGenericShape();
+  console.log("All 11 channel tests passed.");
 }
 
 main()
