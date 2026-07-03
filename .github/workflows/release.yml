@@ -52,10 +52,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           # Node 24 (D3/D14): npm >= 11.5.1 is the 42b OIDC trusted-publishing
           # prerequisite — harmless today, dry-run-testable now, removes a 42b landmine.
@@ -115,6 +115,6 @@ jobs:
 
       - name: Create GitHub Release
         if: ${{ github.ref_type == 'tag' && inputs['dry-run'] != true }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true

@@ -30,10 +30,10 @@ jobs:
     name: "Server floor (Node ${{ matrix.node-version }}): build+unit+lint+format+smoke:ci"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -90,12 +90,16 @@ jobs:
             tfm: "net8.0"
           - godot-sdk: "4.7.0"
             tfm: "net8.0"
-    name: "C# fixture compiles — editor-free SDK floor (Godot.NET.Sdk ${{ matrix.godot-sdk }} / ${{ matrix.tfm }})"
+    # Display name: intent first, the VARYING (SDK / TFM) detail inside the first
+    # ~45 chars so the Actions UI never truncates it away — the former
+    # "— editor-free SDK floor" tail pushed the version past the fold; that
+    # context lives in this comment block instead (user directive 2026-07-04).
+    name: "C# fixture compiles (Godot.NET.Sdk ${{ matrix.godot-sdk }} / ${{ matrix.tfm }})"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET SDKs (6 + 8)
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x

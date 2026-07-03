@@ -64,13 +64,13 @@ runs:
 
     - name: Setup .NET SDKs (8 + 6 ref packs for both TFMs)
       if: ${{ inputs.language == 'dotnet' }}
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: |
           8.0.x
           6.0.x
 
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v6
       with:
         node-version: 22.x
         cache: npm
