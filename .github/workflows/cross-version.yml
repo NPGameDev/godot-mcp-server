@@ -5,8 +5,8 @@
 # workflow runs the FULL two-editor behavioral matrix for a SERVER change — a
 # .NET/mono-editor tier AND a GDScript-editor tier — against the PINNED toolkit
 # sibling. Both tiers launch a real headless Godot editor and round-trip the FULL
-# server smoke + flows suites (minus the headless-incompatible §10/§14 + flows §02,
-# pending 41n-quater-bis) through the WS bridge, one job per supported minor, via the
+# server smoke + flows suites (no --skip — the headless-incompatible sections were
+# made headless-safe in 41n-quater-bis) through the WS bridge, one job per supported minor, via the
 # SHARED language-parameterized composite (.github/actions/cross-version-behavioral,
 # local; language: dotnet | gdscript). The section set is byte-identical across both
 # languages AND across both repos, so the tiers cannot drift (iter 41n-quater-ter +
