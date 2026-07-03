@@ -623,7 +623,7 @@ the cross-repo SSOT**, which this repo cross-links rather than restating.
   "LICENSE", "ATTRIBUTIONS.md"]` — **only `dist/` ships**; `src/`, `test/`, and `docs/` do **not**
   (there is no `.npmignore`). The package is scoped (`@npgamedev/godot-mcp-server`) with `bin:
   godot-mcp-server → dist/index.js`.
-- **`engines.node >= 20`**, runtime-enforced — `src/startup/startupEnv.ts:16` hard-exits below 20.
+- **`engines.node >= 22`**, runtime-enforced — `src/startup/startupEnv.ts:16` hard-exits below 22.
 - **The build is the gate** (`noEmitOnError`): a green `dist/` means the typecheck passed; `postbuild`
   injects the bin shebang.
 - **Route every tool through an `npm run` script; never a bare `npx`.** `build` / `lint` / `format` /

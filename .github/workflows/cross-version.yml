@@ -18,8 +18,10 @@
 #
 # NOT a merge gate — opt-in only:
 #   • [run-cross-version-ci] in the push commit message
-#   • a v* release tag (backstop: never SHIP a cross-version regression)
-#   • workflow_dispatch
+#   • release.yml CALLS this workflow (workflow_call) on a v* tag / dry-run dispatch,
+#     and its publish job needs: it — the D13 backstop (never SHIP a cross-version
+#     regression) is now an ENFORCED release gate, not a parallel best-effort run
+#   • workflow_dispatch (ad-hoc / sibling-ref override)
 # No schedule: (see the toolkit cross-version.yml rationale). The .NET tier now runs
 # 4.2.0 too (41n-quater-septies): its cold class-cache warm-up ports to dotnet in the
 # shared composite (CWD = the C# fixture; run_units_cold.sh invoked from the pinned
@@ -37,7 +39,18 @@
 # deliberately, with [run-cross-version-ci] on the bump commit.
 name: cross-version (server)
 
+# D7: least privilege by default; the sibling checkout uses the read-only PAT
+# (CROSS_REPO_READ_TOKEN) while private, github.token once public.
+permissions:
+  contents: read
+
 on:
+  # D13: release.yml calls this workflow so a release GATES on the full behavioral
+  # matrix. Under workflow_call the job `if:` gates below evaluate the CALLER's
+  # context — a v* tag push satisfies startsWith(github.ref,'refs/tags/v'); a
+  # dry-run dispatch satisfies event_name=='workflow_dispatch' — so they need no
+  # change. inputs.sibling-ref resolves empty when called -> the pin fallback holds.
+  workflow_call:
   workflow_dispatch:
     inputs:
       sibling-ref:
@@ -45,8 +58,10 @@ on:
         required: false
         default: ""
   push:
+    # D13: the v* self-trigger is REMOVED — a release tag now reaches this workflow
+    # ONCE, through release.yml's workflow_call, instead of firing a second parallel
+    # run. The [run-cross-version-ci] commit-token path (push to main) is unchanged.
     branches: [main]
-    tags: ["v*"]
 
 # SIBLING-PIN(toolkit): deterministic sibling — BOTH behavioral jobs below (dotnet +
 # gdscript) test against exactly this toolkit revision, not floating main. This env var
@@ -153,3 +168,10 @@ jobs:
           server-dir: "."
           project-path: ${{ github.workspace }}/toolkit
           project-name: "Godot MCP Toolkit"
+          # D11: run the 7 dispatch-integration flows on exactly ONE row per repo
+          # mirror (GDScript · 4.7.0) — dispatch semantics live in toolkit GDScript +
+          # server transport, so project language is irrelevant (GDScript avoids the
+          # mono variables) and 4.7.0 is the ceiling. Closes the last editor-required
+          # CI gap (FIFO / cancellation / peer-disconnect / scene-lease). Composite
+          # inputs are strings, hence the string-valued expression.
+          run-dispatch: ${{ matrix.godot-version == '4.7.0' }}

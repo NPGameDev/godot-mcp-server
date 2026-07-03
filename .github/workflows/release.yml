@@ -1,29 +1,76 @@
 name: Release
 
+# Release path — gated on the deep behavioral tier (D13) and dry-runnable.
+#
+# Two entry points:
+#   • v* tag push       → real release: the behavioral matrix runs first (via
+#                         workflow_call), then publish + GH Release.
+#   • workflow_dispatch → DRY-RUN by default: runs EVERYTHING (the called behavioral
+#                         matrix + the package-shape gate) but skips npm publish +
+#                         GH-Release creation. Makes the whole release path testable
+#                         off a tag NOW instead of first-firing at 42b. Dispatching ON
+#                         a tag ref with dry-run: false is the manual re-run escape
+#                         hatch after a transient tag-push failure.
+#
+# ⚠ Called-workflow gate caveat (D13): the behavioral callee evaluates github.ref /
+# event_name from THIS (caller) context — a v* tag push satisfies its
+# startsWith(github.ref,'refs/tags/v') gates; a dry-run dispatch satisfies its
+# event_name=='workflow_dispatch' gates. If release.yml ever gains a NEW trigger type
+# (e.g. schedule), the callee's opt-in jobs would all-skip and the behavioral: call
+# would succeed VACUOUSLY, un-gating publish — re-verify the callee gates whenever the
+# release triggers change.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Run the full gated release path but skip npm publish + GH Release. Default true — a manual dispatch can never accidentally publish; real releases fire via tag push (inputs empty)."
+        type: boolean
+        required: false
+        default: true
 
+# D7: least privilege at the top; the publish job re-grants contents: write for the GH
+# Release upload. id-token: write is reserved for the 42b OIDC-trusted-publishing flip.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  # D13: gate the release on the full cross-version behavioral matrix. secrets: inherit
+  # forwards CROSS_REPO_READ_TOKEN for the private sibling checkout (drop once public);
+  # the callee's own workflow-level SIBLING_PIN_* env resolves normally under
+  # workflow_call, and inputs.sibling-ref is empty when called -> the pin holds.
+  behavioral:
+    uses: ./.github/workflows/cross-version.yml
+    secrets: inherit
+
   publish:
+    needs: behavioral
     runs-on: ubuntu-latest
+    # D7: re-grant write for the GH Release. TODO(42b): add `id-token: write` here for
+    # npm OIDC trusted publishing (needs npm >= 11.5.1 -> the Node 24 setup below).
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          # Node 24 (D3/D14): npm >= 11.5.1 is the 42b OIDC trusted-publishing
+          # prerequisite — harmless today, dry-run-testable now, removes a 42b landmine.
+          node-version: 24.x
           registry-url: https://registry.npmjs.org
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      # Real releases fire on a tag push (github.ref_type == 'tag'); a dispatch from a
+      # branch has ref_type 'branch', so this check would spuriously fail — skip it off
+      # a tag. Publish + Release below carry the same tag guard plus the dry-run guard.
       - name: Validate tag matches package.json version
+        if: github.ref_type == 'tag'
         run: |
           PKG_VERSION="v$(node -p "require('./package.json').version")"
           TAG="${GITHUB_REF#refs/tags/}"
@@ -36,12 +83,38 @@ jobs:
       - name: Build
         run: npm run build
 
+      # D15 — package-shape gate BEFORE publish (runs on dry-runs too; that's the point):
+      #   • npm pack   — materializes the exact tarball that would ship (files[] correct).
+      #   • publint    — lints package.json for publish-time footguns (bin/exports/types).
+      #   • docs:api freshness — regenerate the typedoc tool-reference and fail if the
+      #     committed docs/ drift. @arethetypeswrong/cli is intentionally skipped (this is
+      #     a CLI package, not a types consumer).
+      - name: Pack (materialize the publish tarball)
+        run: npm pack
+
+      - name: Lint package shape (publint)
+        run: npm run lint:pkg
+
+      - name: Generated API docs are fresh
+        run: |
+          npm run docs:api
+          git diff --exit-code -- docs/
+
+      # Publish + Release only on a real tag push, and NEVER on a dry-run. Dispatching ON
+      # a tag ref with dry-run: false is the deliberate manual re-run path. inputs['dry-run']
+      # (bracket form — the property name has a hyphen) is null on a tag push -> != true.
       - name: Publish to npm
+        if: ${{ github.ref_type == 'tag' && inputs['dry-run'] != true }}
         run: npm publish
         env:
+          # TODO(42b): replace NPM_TOKEN with npm OIDC trusted publishing (--provenance,
+          # id-token: write). The stored classic NPM_TOKEN is likely already dead (classic
+          # tokens revoked 2025-12-09) — irrelevant here because dry-run skips publish;
+          # exactly why the dry-run path earns its keep.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
+        if: ${{ github.ref_type == 'tag' && inputs['dry-run'] != true }}
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true

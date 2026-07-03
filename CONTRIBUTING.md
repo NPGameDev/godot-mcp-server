@@ -5,7 +5,7 @@ need to get started.
 
 ## Prerequisites
 
-- **Node.js >= 20**
+- **Node.js >= 22**
 - **Godot 4.x** (4.4+ recommended, for running the companion plugin)
 - **Git**
 
@@ -104,6 +104,39 @@ npm run build        # TypeScript -> dist/
 ```
 
 Always build before running smoke tests to pick up your changes.
+
+## Continuous integration
+
+CI runs in two tiers, plus a release path. The authoritative detail (job shapes,
+the sibling-pin ritual, the warm-up mechanics) lives in the header comments of each
+workflow under `.github/workflows/` — this is the contributor-facing summary.
+
+- **Floor — gates every push and PR** (`ci.yml`). A Node **22 + 24** matrix runs
+  `build`, `test:unit`, `lint`, `format`, and `smoke:ci` (the editor-free static
+  catalogue check), alongside an editor-free **C# SDK-compile floor** (three
+  Godot.NET.Sdk / TFM boundary rows). A single aggregate job, **`Server floor OK`**,
+  `needs:` the whole floor — that one name is what a required check binds to, never
+  an individual matrix row. No Godot editor is involved; the floor is fast and green
+  is a merge precondition.
+- **Deep tier — opt-in** (`cross-version.yml`). The full **two-editor behavioral
+  matrix** — GDScript-editor and .NET/mono-editor, Godot **4.2 through 4.7** — boots
+  a real headless editor and round-trips the complete smoke + flows suites through
+  the WebSocket bridge, plus a **dispatch-integration** leg on one row. It does not
+  run on a plain push. Trigger it by putting **`[run-cross-version-ci]`** in your
+  commit message, via **`workflow_dispatch`** (optionally with a `sibling-ref`
+  override), or automatically as part of a release (below).
+- **Release** (`release.yml`). A **`v*` tag push** first runs the deep behavioral
+  matrix (the publish job `needs:` it — a cross-version regression can never ship),
+  then a package-shape gate (`npm pack` + `publint` + generated-docs freshness)
+  before it publishes to npm and cuts a GitHub Release. You can rehearse the whole
+  path without publishing by running `release.yml` via **`workflow_dispatch`** — it
+  is a **dry-run** by default (everything runs; publish + Release are skipped).
+
+The behavioral tier is **mirrored in both repos** (toolkit and server): each side
+runs the full two-editor matrix against a pinned SHA of the other, so an opt-in run
+in either repo proves the whole GDScript + .NET contract for that repo's change. It
+is opt-in only and driven by one shared composite action, so the mirror costs
+nothing when idle and cannot drift between the two repos.
 
 ## Dependency policy
 

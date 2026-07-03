@@ -28,7 +28,7 @@ Or run directly with npx (no global install):
 npx -y @npgamedev/godot-mcp-server
 ```
 
-Requires Node.js 20+.
+Requires Node.js 22+.
 
 ### 2. Install the Godot plugin
 

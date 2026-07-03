@@ -6,12 +6,27 @@ on:
   pull_request:
     branches: [main]
 
+# D7 (going-public supply-chain baseline): least privilege by default. No floor job
+# writes repo contents; the release path grants its own contents: write per-job.
+permissions:
+  contents: read
+
+# D6: cancel an in-flight floor run when a newer commit lands on the same ref — the
+# floor gates the tip, so a superseded run's result is moot. NOT on cross-version.yml:
+# those deep-tier runs are deliberate and must never be auto-cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-lint-smoke:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20.x, 22.x]
+        # D3: Node 20 reached EOL 2026-04-30 — dropped. 22 (Active LTS) + 24 (Current);
+        # engines.node is ">=22" (pre-1.0 clean break, no compat shim). The release job
+        # runs on 24 (npm >= 11.5.1 — the 42b OIDC trusted-publishing prerequisite).
+        node-version: [22.x, 24.x]
     name: "Server floor (Node ${{ matrix.node-version }}): build+unit+lint+format+smoke:ci"
 
     steps:
@@ -50,12 +65,19 @@ jobs:
       - name: Smoke test (CI mode — catalogue + structural validation)
         run: npm run smoke:ci
 
-  # ── C# (.NET) build floor — editor-free, all six Godot.NET.Sdk versions ──────
+  # ── C# (.NET) build floor — editor-free, TFM-boundary Godot.NET.Sdk rows ──────
   # dotnet build needs no Godot editor: Godot.NET.Sdk + GodotSharp restore from
-  # nuget.org. Proves the toolkit's C# surface compiles against every supported
-  # SDK. Behavioral C# (§25) rides the spike-gated cross-version.yml, not here.
-  # TFM boundary is 4.4 (net6.0 for 4.2/4.3, net8.0 for 4.4+) — source-verified
-  # via Godot's ProjectGenerator.GodotMinimumRequiredTfm (see build-packet §7b).
+  # nuget.org. Proves the toolkit's C# surface compiles across the SDK/TFM range.
+  # Behavioral C# (§25) rides the opt-in cross-version.yml, not here.
+  #
+  # D4: trimmed 6 rows -> the 3 TFM boundaries. The fixture rarely changes and a
+  # middle SDK row cannot fail a *compile* differently from its boundary neighbors;
+  # the deep tier `dotnet build`s the fixture on all six versions per opt-in run, so
+  # SDK breadth lives there. Boundaries kept:
+  #   • 4.2.0 / net6.0 — the net6 floor (minimum supported SDK)
+  #   • 4.4.0 / net8.0 — the net6->net8 TFM flip (source-verified via Godot's
+  #     ProjectGenerator.GodotMinimumRequiredTfm; see build-packet §7b)
+  #   • 4.7.0 / net8.0 — the net8 ceiling
   csharp-build:
     runs-on: ubuntu-latest
     strategy:
@@ -64,13 +86,7 @@ jobs:
         include:
           - godot-sdk: "4.2.0"
             tfm: "net6.0"
-          - godot-sdk: "4.3.0"
-            tfm: "net6.0"
           - godot-sdk: "4.4.0"
-            tfm: "net8.0"
-          - godot-sdk: "4.5.0"
-            tfm: "net8.0"
-          - godot-sdk: "4.6.0"
             tfm: "net8.0"
           - godot-sdk: "4.7.0"
             tfm: "net8.0"
@@ -102,3 +118,25 @@ jobs:
 
       - name: dotnet build (editor-free)
         run: dotnet build test/fixtures/csharp-project/McpValCs.csproj -c Debug
+
+  # ── Aggregate floor gate (D8) ────────────────────────────────────────────────
+  # "Server floor OK" is the SINGLE name that becomes a required check once the repo
+  # is public — never an individual matrix row. A required check pinned to a matrix
+  # leg breaks whenever the matrix is retuned (D3/D4 just did); pinning to this one
+  # stable name never does. `if: always()` + the explicit failure/cancelled test also
+  # makes future path-filtered docs-skips safe: an `if:`-skipped upstream reports
+  # success here, whereas a `paths:`-skipped required check would deadlock as pending.
+  floor-ok:
+    name: "Server floor OK"
+    needs: [build-lint-smoke, csharp-build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert every floor job succeeded
+        run: |
+          result="${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}"
+          if [ "$result" = "true" ]; then
+            echo "::error::A server floor job failed or was cancelled."
+            exit 1
+          fi
+          echo "All server floor jobs succeeded."

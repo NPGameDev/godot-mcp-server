@@ -12,12 +12,12 @@ import { GROUP_TOOL_NAMES, GROUPS } from "../groups/groups.js";
 import type { CliArgs } from "./cliArgs.js";
 import { formatHelp } from "./cliArgs.js";
 
-/** Hard-exit (code 1) if the Node runtime is below the engines.node floor (>=20). */
+/** Hard-exit (code 1) if the Node runtime is below the engines.node floor (>=22). */
 export function enforceNodeVersion(): void {
   const [nodeMajor] = process.versions.node.split(".").map(Number);
-  if (nodeMajor < 20) {
+  if (nodeMajor < 22) {
     process.stderr.write(
-      `[godot-mcp] Error: requires Node.js >= 20 (found ${process.version}).\n` +
+      `[godot-mcp] Error: requires Node.js >= 22 (found ${process.version}).\n` +
         `Download the latest LTS from https://nodejs.org\n`,
     );
     process.exit(1);

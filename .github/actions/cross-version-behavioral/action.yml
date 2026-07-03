@@ -43,6 +43,14 @@ inputs:
     description: "Absolute path to addons/godot_mcp_toolkit to inject into the fixture (dotnet only)"
     required: false
     default: ""
+  run-dispatch:
+    description: >
+      "true" to run the dispatch-integration suite (test:integration:dispatch)
+      against the booted editor AFTER smoke+flows. Enabled by the caller on exactly
+      one row per repo mirror (GDScript · 4.7.0). Composite inputs are STRINGS, so
+      this is compared to the literal 'true'.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -215,6 +223,31 @@ runs:
         GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
         GODOT_MCP_PROJECT_NAME: ${{ inputs.project-name }}
       run: timeout -k 30 600 npm run flows
+
+    # Dispatch-integration leg (D11) — runs ONLY on the rows the caller flags with
+    # run-dispatch: true (GDScript · 4.7.0, one per repo mirror). The 7 flows exercise
+    # FIFO ordering, cancellation, peer-disconnect, and scene-lease semantics against
+    # the already-booted editor — the last editor-required CI coverage gap. The runner
+    # bypasses the MCP bridge BY DESIGN, so it needs the raw WS token: extract it from
+    # the editor's user:// dir by glob (the project name varies per fixture/dogfood;
+    # exactly one match on a fresh runner, guaranteed present because smoke+flows
+    # already authenticated). The port defaults to 6550 (GODOT_MCP_EDITOR_PORT — the
+    # port the composite already polls), so nothing to set. Composite `run` steps can't
+    # take timeout-minutes, so a shell `timeout` fuse (proportionate to smoke 900 /
+    # flows 600) fails the STEP on a hang, preserving the always() log steps below.
+    - name: Dispatch integration (flagged rows only)
+      if: ${{ inputs.run-dispatch == 'true' }}
+      working-directory: ${{ inputs.server-dir }}
+      shell: bash
+      run: |
+        set -o pipefail
+        token_file=$(ls ~/.local/share/godot/app_userdata/*/addons/godot_mcp_toolkit/project_instance_*/mcp_token 2>/dev/null | head -n1)
+        if [ -z "$token_file" ]; then
+          echo "::error::dispatch: no mcp_token found under the editor user:// dir."
+          exit 1
+        fi
+        echo "dispatch: using token file $token_file"
+        GODOT_MCP_TOKEN="$(cat "$token_file")" timeout -k 30 300 npm run test:integration:dispatch
 
     - name: Stop editor (always)
       if: always()

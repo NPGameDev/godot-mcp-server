@@ -178,11 +178,22 @@ Run `npm run lint && npm run format` before committing.
 
 ## CI/CD (GitHub Actions)
 
-- **CI** (`.github/workflows/ci.yml`) — runs on push/PR to main. Node 20+22
-  matrix: `npm ci`, `build`, `lint`, `format`, `smoke:ci`.
-- **Release** (`.github/workflows/release.yml`) — runs on `v*` tag push.
-  Validates tag matches `package.json` version, builds, publishes to npm
-  (`NPM_TOKEN` secret required), and creates a GitHub Release.
+- **CI** (`.github/workflows/ci.yml`) — floor gates, run on push/PR to main (with
+  `concurrency` cancel-in-progress). Node 22+24 matrix
+  (`npm ci`/`build`/`test:unit`/`lint`/`format`/`smoke:ci`) + an editor-free C#
+  SDK-compile floor (3 TFM-boundary rows: 4.2/net6, 4.4/net8, 4.7/net8). An
+  aggregate **`Server floor OK`** gate `needs:` both matrices — it is the only name
+  that ever becomes a required check (never an individual matrix row).
+- **cross-version** (`.github/workflows/cross-version.yml`) — the opt-in deep tier:
+  the full two-editor behavioral matrix (GDScript + .NET/mono, 4.2–4.7) against the
+  pinned toolkit sibling, plus a dispatch-integration leg on one row. Fires on
+  `[run-cross-version-ci]`, `workflow_dispatch`, or a release (via `workflow_call`).
+- **Release** (`.github/workflows/release.yml`) — runs on `v*` tag push; GATES on
+  the deep behavioral tier (`behavioral: uses: cross-version.yml` + `needs:`), then
+  validates tag matches `package.json` version, runs the package-shape gate
+  (`npm pack` + publint + generated-docs freshness), builds, publishes to npm
+  (`NPM_TOKEN` secret; OIDC is a 42b TODO), and creates a GitHub Release.
+  `workflow_dispatch` runs the whole chain as a **dry-run** (publish skipped).
 
 ## Accuracy eval suite (iter 40)
 
