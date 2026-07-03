@@ -169,7 +169,10 @@ export const runtimeTools: ToolDef[] = [
       context: z
         .enum(["game", "editor"])
         .optional()
-        .describe("Execution context: 'game' for running game (default), 'editor' for editor process"),
+        .describe(
+          "'game' (default) evaluates in the running game — needs game_start first, else GAME_NOT_RUNNING; " +
+            "'editor' evaluates in the editor process, no running game needed — use it for editor-state expressions.",
+        ),
     },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
