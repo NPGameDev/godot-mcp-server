@@ -44,7 +44,7 @@ export const assetTools: ToolDef[] = [
     name: "asset_import",
     method: "asset.import",
     description:
-      "Import binary asset (image/audio/font/3D) into res:// via source_path (absolute or res:// path) or base64_data. Triggers EditorFileSystem scan. if_exists:return|fail|replace.",
+      "Import binary asset (image/audio/font/3D) into res:// via exactly one of source_path (absolute or res:// path) or base64_data. Triggers EditorFileSystem scan. if_exists:return|fail|replace.",
     inputSchema: {
       source_path: z.string().optional(),
       base64_data: z.string().optional(),
