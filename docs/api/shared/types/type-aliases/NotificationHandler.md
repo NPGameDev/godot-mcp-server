@@ -8,7 +8,7 @@
 
 > **NotificationHandler** = (`type`, `params?`) => `void`
 
-Defined in: [src/shared/types.ts:40](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L40)
+Defined in: [src/shared/types.ts:47](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L47)
 
 Handler invoked for an unsolicited plugin notification routed off a channel.
 

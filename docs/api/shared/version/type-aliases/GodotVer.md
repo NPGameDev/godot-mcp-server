@@ -8,6 +8,6 @@
 
 > **GodotVer** = \[`number`, `number`\]
 
-Defined in: [src/shared/version.ts:38](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L38)
+Defined in: [src/shared/version.ts:39](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L39)
 
 Parsed Godot version as [major, minor] tuple.

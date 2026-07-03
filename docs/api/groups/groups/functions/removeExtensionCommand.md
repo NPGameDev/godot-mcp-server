@@ -8,7 +8,7 @@
 
 > **removeExtensionCommand**(`method`): `boolean`
 
-Defined in: [src/groups/extensionGroups.ts:73](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L73)
+Defined in: [src/groups/extensionGroups.ts:74](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L74)
 
 Remove a single command from an extension group by method name. Returns true if found.
 

@@ -8,7 +8,7 @@
 
 > **isVersionCompatible**(`connected`, `min?`, `max?`): `boolean`
 
-Defined in: [src/shared/version.ts:63](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L63)
+Defined in: [src/shared/version.ts:64](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L64)
 
 Check whether a connected Godot version falls within [min, max] bounds.
 

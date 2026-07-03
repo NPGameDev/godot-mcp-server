@@ -8,7 +8,7 @@
 
 > **removeExtensionGroup**(`name`): `boolean`
 
-Defined in: [src/groups/extensionGroups.ts:92](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L92)
+Defined in: [src/groups/extensionGroups.ts:93](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L93)
 
 Remove an entire extension group by name. Unregisters all its tools.
 

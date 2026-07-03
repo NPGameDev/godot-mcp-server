@@ -8,7 +8,7 @@
 
 > **compareVersions**(`local`, `remote`): [`VersionSeverity`](../type-aliases/VersionSeverity.md)
 
-Defined in: [src/shared/version.ts:82](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L82)
+Defined in: [src/shared/version.ts:83](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L83)
 
 Compare two semver version strings.
 

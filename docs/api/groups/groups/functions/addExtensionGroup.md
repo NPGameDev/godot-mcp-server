@@ -8,7 +8,7 @@
 
 > **addExtensionGroup**(`name`, `description`, `commands`, `keywords?`): `void`
 
-Defined in: [src/groups/extensionGroups.ts:44](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L44)
+Defined in: [src/groups/extensionGroups.ts:45](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/extensionGroups.ts#L45)
 
 Register a deferred extension group (called from discoverExtensions). Deduplicates by method name.
 

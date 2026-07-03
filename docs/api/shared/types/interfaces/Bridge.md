@@ -78,7 +78,7 @@ Defined in: [src/shared/types.ts:23](https://github.com/NPGameDev/godot-mcp-serv
 
 > `optional` **clearRuntime**(): `void`
 
-Defined in: [src/shared/types.ts:36](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L36)
+Defined in: [src/shared/types.ts:43](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L43)
 
 Proactively tear down the runtime channel (e.g. on game_stopped notification).
  Next callRuntime() will fail immediately with GAME_NOT_RUNNING.
@@ -129,11 +129,30 @@ Godot version string from the plugin auth handshake (e.g. "4.5.2"), or undefined
 
 ***
 
+### isHeadless()
+
+> **isHeadless**(): `boolean` \| `undefined`
+
+Defined in: [src/shared/types.ts:35](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L35)
+
+Whether the connected editor runs headless (no display server), from the Mode-A
+ auth handshake. `undefined` until the editor authenticates (unlike the version,
+ it is never pre-populated from the registry) or when a Mode-B/older plugin omits
+ it. Tools/tests branch on it to assert the deterministic headless-degraded
+ responses (game.start HEADLESS_UNSUPPORTED, editor.get_console headless_hint, the
+ 4.4+ headless stale-instance hint).
+
+#### Returns
+
+`boolean` \| `undefined`
+
+***
+
 ### waitForRuntimeConnection()?
 
 > `optional` **waitForRuntimeConnection**(`timeoutMs`): `Promise`\<\{ `port`: `number`; \} \| `undefined`\>
 
-Defined in: [src/shared/types.ts:33](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L33)
+Defined in: [src/shared/types.ts:40](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L40)
 
 Wait for a runtime port to appear in the registry (game_start async gap).
  Resolves with {port} on discovery, undefined on timeout. Optional — only

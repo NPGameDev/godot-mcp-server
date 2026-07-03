@@ -8,7 +8,7 @@
 
 > **PathGuard** = \{ `guard`: `"project"` \| `"user"`; `param`: `string`; \} \| \{ `param`: `string`; `prefixes`: readonly `string`[]; \}
 
-Defined in: [src/shared/types.ts:120](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L120)
+Defined in: [src/shared/types.ts:127](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L127)
 
 Declares that a tool input param carries a filesystem path that the server
 should syntactically pre-filter (defense-in-depth / fast-fail) before the WS
