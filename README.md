@@ -296,7 +296,7 @@ The `discover_tools` meta-tool lets the AI assistant search for and unlock addit
 
 ## Headless mode
 
-When Godot runs with `--headless --editor`, the plugin loads and 51 of 53 tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `runtime_screenshot`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.6 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
+When Godot runs with `--headless --editor`, the plugin loads and 51 of 53 tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `runtime_screenshot`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.7 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
 
 ## Token efficiency
 

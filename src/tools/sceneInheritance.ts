@@ -9,7 +9,7 @@ export const sceneInheritanceTools: ToolDef[] = [
     name: "scene_create_inherited",
     method: "scene.create_inherited",
     description:
-      "Create an inherited scene (.tscn) from a base scene — Godot's prefab variant pattern. Writes minimal TSCN text, works on all 4.2-4.6.",
+      "Create an inherited scene (.tscn) from a base scene — Godot's prefab variant pattern. Writes minimal TSCN text, works on all 4.2-4.7.",
     inputSchema: {
       file_path: z.string().describe("Output .tscn path (e.g. 'res://scenes/slime_enemy.tscn')"),
       base_scene: z.string().describe("Base scene path (e.g. 'res://scenes/enemy.tscn')"),

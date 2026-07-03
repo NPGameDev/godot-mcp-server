@@ -51,8 +51,7 @@ export const scriptTools: ToolDef[] = [
     name: "script_check",
     method: "script.check",
     description:
-      "Lightweight offline GDScript validation — pass/fail with line-level errors. Works without editor. " +
-      "For richer diagnostics, activate lsp_code_analysis group.",
+      "Lightweight offline GDScript validation — pass/fail; for line-level detail use editor_get_console (4.5+) or lsp_diagnostics. Works without editor.",
     inputSchema: { file_path: z.string().describe("res:// path to a .gd file") },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint: "For detailed diagnostics use lsp_diagnostics. For runtime errors use editor_get_console.",
