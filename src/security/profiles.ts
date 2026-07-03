@@ -110,16 +110,3 @@ export function isReadOnly(): boolean {
 export function resolveAllowedTools(): Set<string> {
   return new Set(EAGER_TOOLS);
 }
-
-/** Emit a one-time deprecation warning if legacy env vars are set. */
-export function warnDeprecatedEnvVars(): void {
-  if (process.env.GODOT_MCP_PROFILE) {
-    process.stderr.write(
-      "[godot-mcp] GODOT_MCP_PROFILE is deprecated and ignored. " +
-        "Use GODOT_MCP_READ_ONLY=1 for restricted access.\n",
-    );
-  }
-  if (process.argv.includes("--lite")) {
-    process.stderr.write("[godot-mcp] Warning: --lite is deprecated and ignored. Use GODOT_MCP_READ_ONLY=1 instead.\n");
-  }
-}

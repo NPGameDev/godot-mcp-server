@@ -2,14 +2,15 @@
 //
 // One-shot boot-environment resolution + validation for the composition
 // root (index.ts). Each function here is a stateless preflight: it reads
-// process.env / argv / the static catalogue, emits stderr (or stdout)
-// diagnostics, and — for the two gates — may process.exit. No subsystem
-// state lives here; the root calls these in sequence before constructing
-// the bridge.
+// process.env / the static catalogue, emits stderr (or stdout) diagnostics,
+// and — for the exit gates — may process.exit. No subsystem state lives
+// here; the root calls these in sequence before constructing the bridge.
+// Port resolution lives in its own collaborator (portConfig.ts).
 
 import { ALL_TOOL_DEFS, META_TOOL_NAMES } from "../registration/catalogue.js";
 import { GROUP_TOOL_NAMES, GROUPS } from "../groups/groups.js";
-import { lookupProject } from "../registry.js";
+import type { CliArgs } from "./cliArgs.js";
+import { formatHelp } from "./cliArgs.js";
 
 /** Hard-exit (code 1) if the Node runtime is below the engines.node floor (>=20). */
 export function enforceNodeVersion(): void {
@@ -23,53 +24,45 @@ export function enforceNodeVersion(): void {
   }
 }
 
-/**
- * If argv has --tools-count, print the static tool-count summary and
- * process.exit(0). No-op otherwise. Must run before any bridge/WebSocket/
- * transport setup so it is editor-independent.
- *
- * Static count of the tools the server ships, derived from the canonical
- * ALL_TOOL_DEFS. Excludes per-project extension tools (dynamic).
- */
-export function maybePrintToolCountAndExit(): void {
-  if (process.argv.includes("--tools-count")) {
-    const total = ALL_TOOL_DEFS.length;
-    const onDemand = GROUP_TOOL_NAMES.size;
-    const eager = total - onDemand;
-    process.stdout.write(
-      `Total tools:  ${total}\n` +
-        `  Eager:      ${eager}\n` +
-        `  On-demand:  ${onDemand}\n` +
-        `Meta:         ${META_TOOL_NAMES.length} (also eager — always in tools/list)\n` +
-        `Groups:       ${GROUPS.length}\n` +
-        `Startup surface (eager + meta): ${eager + META_TOOL_NAMES.length}\n`,
-    );
-    process.exit(0);
-  }
+/** Print the static tool-count summary to stdout — a pre-transport CLI report,
+ *  derived from the canonical ALL_TOOL_DEFS (excludes dynamic extension tools). */
+function printToolCount(): void {
+  const total = ALL_TOOL_DEFS.length;
+  const onDemand = GROUP_TOOL_NAMES.size;
+  const eager = total - onDemand;
+  process.stdout.write(
+    `Total tools:  ${total}\n` +
+      `  Eager:      ${eager}\n` +
+      `  On-demand:  ${onDemand}\n` +
+      `Meta:         ${META_TOOL_NAMES.length} (also eager — always in tools/list)\n` +
+      `Groups:       ${GROUPS.length}\n` +
+      `Startup surface (eager + meta): ${eager + META_TOOL_NAMES.length}\n`,
+  );
 }
 
 /**
- * Resolve the editor WebSocket port: GODOT_MCP_PORT bypass → registry lookup
- * → "6550" fallback. Emits the chosen-port stderr line.
+ * Apply the CLI meta gates that print-and-exit before any bridge/WebSocket/
+ * transport setup (all editor-independent):
+ *   - `--help` → usage on **stdout**, exit 0 (a CLI invocation, not an MCP session)
+ *   - a parse error → the message + usage on **stderr**, exit 1 (fail loud)
+ *   - `--tools-count` → the static count on **stdout**, exit 0
+ *
+ * No-op when argv carries none of these. `--help` wins over a parse error so a
+ * bad flag alongside `--help` still prints usage rather than erroring.
  */
-export function resolveEditorPort(projectPath: string): string {
-  // Registry-based discovery. GODOT_MCP_PORT bypasses registry for
-  // backwards compat. Otherwise resolve via the system-wide projects.json.
-  const explicitPort = process.env.GODOT_MCP_PORT;
-  let editorPort: string;
-  if (explicitPort) {
-    editorPort = explicitPort;
-  } else {
-    const entry = lookupProject(projectPath);
-    if (entry) {
-      editorPort = String(entry.port);
-      process.stderr.write(`[godot-mcp] registry: ${projectPath} → port ${editorPort}\n`);
-    } else {
-      editorPort = "6550";
-      process.stderr.write(`[godot-mcp] registry: no entry for ${projectPath}; falling back to port ${editorPort}\n`);
-    }
+export function applyCliMetaGates(cli: CliArgs): void {
+  if (cli.help) {
+    process.stdout.write(formatHelp());
+    process.exit(0);
   }
-  return editorPort;
+  if (cli.error) {
+    process.stderr.write(`[godot-mcp] ${cli.error}\n\n${formatHelp()}`);
+    process.exit(1);
+  }
+  if (cli.toolsCount) {
+    printToolCount();
+    process.exit(0);
+  }
 }
 
 // ── Response caps ────────────────────────────────────────────────────

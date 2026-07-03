@@ -77,7 +77,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
 - **I4 — path rule.** All `res://` path input eventually passes through
   `FileGuard.resolve_safe` (plugin side, iter 18). For now, callers leave
   `TODO(iter-18)` at each path-touching call site.
-- **I6 — localhost-only.** Bridge URL is `ws://127.0.0.1:${GODOT_MCP_PORT}`.
+- **I6 — localhost-only.** Bridge URL is `ws://127.0.0.1:${GODOT_MCP_EDITOR_PORT}`.
   Never allow a non-loopback host.
 - **I7 — one commit per iteration per repo.** Conventional-commit form:
   `feat(server): …`, `fix(server): …`, `refactor(server): …`.
@@ -124,10 +124,11 @@ through untouched.
 ## Environment variables
 
 The full env-var contract — which side consumes each var, and the cross-repo set
-(`GODOT_MCP_PORT`, `GODOT_MCP_RUNTIME_PORT`, `GODOT_MCP_TOKEN_PATH`,
+(`GODOT_MCP_EDITOR_PORT`, `GODOT_MCP_RUNTIME_PORT`, `GODOT_MCP_TOKEN_PATH`,
 `GODOT_MCP_READ_ONLY`, `GODOT_MCP_LSP_PORT` / `GODOT_MCP_LSP_HOST`,
-`GODOT_MCP_PROJECT_PATH`, `GODOT_MCP_CONFIG_VERSION`, and the deprecated
-`GODOT_MCP_PROFILE`) — is **contract C10** in the toolkit's
+`GODOT_MCP_PROJECT_PATH`, `GODOT_MCP_CONFIG_VERSION`), plus the connect-side CLI
+flags (`--editor-port` / `--runtime-port` / `--lsp-port` / `--lsp-host`) that
+override the matching env var — is **contract C10** in the toolkit's
 [`docs/dev/contract.md`](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md);
 not restated here.
 

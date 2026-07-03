@@ -16,10 +16,11 @@ Options for bridge creation.
 
 > `optional` **explicitEditorPort?**: `boolean`
 
-Defined in: [src/transport/bridge.ts:43](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L43)
+Defined in: [src/transport/bridge.ts:44](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L44)
 
-When true, editor URL is static (GODOT_MCP_PORT set). Skips
- registry re-discovery on editor connection loss.
+When true, editor URL is a pin (GODOT_MCP_EDITOR_PORT / --editor-port set).
+ Skips registry re-discovery on editor connection loss and, on a pinned
+ connect or auth-handshake failure, runs the fail-fast desync cross-check.
 
 ***
 
@@ -48,7 +49,7 @@ Absolute path to the Godot project. Used for registry-based port
 
 > `optional` **scriptReadLimitBytes?**: `number`
 
-Defined in: [src/transport/bridge.ts:45](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L45)
+Defined in: [src/transport/bridge.ts:46](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L46)
 
 Max bytes for script content responses (sent to plugin via meta.set_limits).
 
@@ -58,6 +59,6 @@ Max bytes for script content responses (sent to plugin via meta.set_limits).
 
 > `optional` **wsBufferLimitBytes?**: `number`
 
-Defined in: [src/transport/bridge.ts:47](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L47)
+Defined in: [src/transport/bridge.ts:48](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L48)
 
 Max WebSocket buffer size in bytes (sent to plugin via meta.set_limits).

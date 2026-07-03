@@ -24,11 +24,11 @@ function writeMcpJson(projectPath: string, content: unknown): void {
   mkdirSync(dir, { recursive: true });
   writeMcpJson(dir, {
     mcpServers: {
-      "godot-mcp-toolkit": { env: { GODOT_MCP_PORT: "7000", GODOT_MCP_READ_ONLY: "1" } },
+      "godot-mcp-toolkit": { env: { GODOT_MCP_EDITOR_PORT: "7000", GODOT_MCP_READ_ONLY: "1" } },
     },
   });
   const env = readMcpJsonEnv(dir);
-  assert.deepEqual(env, { GODOT_MCP_PORT: "7000", GODOT_MCP_READ_ONLY: "1" });
+  assert.deepEqual(env, { GODOT_MCP_EDITOR_PORT: "7000", GODOT_MCP_READ_ONLY: "1" });
 }
 
 // Fuzzy key match: any key containing "godot-mcp"
@@ -37,11 +37,11 @@ function writeMcpJson(projectPath: string, content: unknown): void {
   mkdirSync(dir, { recursive: true });
   writeMcpJson(dir, {
     mcpServers: {
-      "@npgamedev/godot-mcp-server": { env: { GODOT_MCP_PORT: "8000" } },
+      "@npgamedev/godot-mcp-server": { env: { GODOT_MCP_EDITOR_PORT: "8000" } },
     },
   });
   const env = readMcpJsonEnv(dir);
-  assert.deepEqual(env, { GODOT_MCP_PORT: "8000" });
+  assert.deepEqual(env, { GODOT_MCP_EDITOR_PORT: "8000" });
 }
 
 // Exact key takes priority over fuzzy
@@ -50,12 +50,12 @@ function writeMcpJson(projectPath: string, content: unknown): void {
   mkdirSync(dir, { recursive: true });
   writeMcpJson(dir, {
     mcpServers: {
-      "godot-mcp-toolkit": { env: { GODOT_MCP_PORT: "6550" } },
-      "@npgamedev/godot-mcp-server": { env: { GODOT_MCP_PORT: "9999" } },
+      "godot-mcp-toolkit": { env: { GODOT_MCP_EDITOR_PORT: "6550" } },
+      "@npgamedev/godot-mcp-server": { env: { GODOT_MCP_EDITOR_PORT: "9999" } },
     },
   });
   const env = readMcpJsonEnv(dir);
-  assert.deepEqual(env, { GODOT_MCP_PORT: "6550" });
+  assert.deepEqual(env, { GODOT_MCP_EDITOR_PORT: "6550" });
 }
 
 // Missing .mcp.json file → undefined

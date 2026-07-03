@@ -73,15 +73,47 @@ Launch your MCP client from the project root. The server discovers the plugin au
 
 ### Environment variables
 
+These configure the **dial** (connect) side — where the server reaches the editor. The **listen** side (the ports the editor and runtime *bind*) is configured on the plugin, toolkit-side; see the toolkit's advanced-configuration docs.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GODOT_MCP_PORT` | auto | Override the editor WebSocket port (default: auto-discovered from project registry) |
-| `GODOT_MCP_RUNTIME_PORT` | `6570` | Override the game runtime WebSocket port |
+| `GODOT_MCP_EDITOR_PORT` | auto | Override the editor WebSocket port to dial (default: auto-discovered from the project registry) |
+| `GODOT_MCP_RUNTIME_PORT` | auto | Override the game runtime WebSocket port to dial |
+| `GODOT_MCP_LSP_PORT` | auto | Override the GDScript LSP port to dial |
+| `GODOT_MCP_LSP_HOST` | `127.0.0.1` | Override the GDScript LSP host to dial |
 | `GODOT_MCP_PROJECT_PATH` | `cwd` | Absolute path to the Godot project |
 | `GODOT_MCP_PROJECT_NAME` | from `project.godot` | Project name for token resolution |
 | `GODOT_MCP_TOKEN_PATH` | platform-specific | Override the auth token file path |
 | `GODOT_MCP_READ_ONLY` | `0` | Set to `1` to remove all mutating tools |
 | `GODOT_MCP_RATE_LIMIT` | `0` | Max tool calls per second (`0` = unlimited) |
+
+### CLI flags
+
+Equivalent dial-target overrides, resolved with precedence **CLI flag > env var > registry discovery > default** (a flag always wins when supplied):
+
+| Flag | Equivalent env var |
+|------|--------------------|
+| `--editor-port <n>` | `GODOT_MCP_EDITOR_PORT` |
+| `--runtime-port <n>` | `GODOT_MCP_RUNTIME_PORT` |
+| `--lsp-port <n>` | `GODOT_MCP_LSP_PORT` |
+| `--lsp-host <h>` | `GODOT_MCP_LSP_HOST` |
+| `--tools-count` | — (print the static tool-count summary and exit) |
+| `--help` | — (print usage and exit) |
+
+Both `--flag value` and `--flag=value` forms are accepted. These flags move the **dial** target only — they cannot reach the plugin's **listen** ports.
+
+### Multiple editors / parallel instances
+
+With no configuration, the server discovers each editor's port through the shared project registry — no manual setup for parallel worktrees. To make a setup deterministic (skip discovery entirely), **pin** a port on *both* sides with the same value:
+
+```bash
+# One environment inherited by BOTH child processes → they agree with zero discovery.
+export GODOT_MCP_EDITOR_PORT=6560
+godot --editor path/to/project &   # the plugin binds 6560 (listen side)
+godot-mcp-server                   # the server dials 6560 (connect side)
+```
+
+An environment variable is **not a sync channel** — it is two independent per-process reads. The two sides agree only if **both launches inherit the same value**. The common failure: `.mcp.json` sets the pin for the *server only* while the editor is launched separately (on Windows a desktop shortcut does **not** inherit a shell's transient export) — the server then dials a port nobody is listening on. When that happens the server **fails fast** with a precise message naming the mismatch instead of hanging on a dead socket. If you don't want to manage env on both sides, omit the pin and let discovery handle it. The toolkit's advanced-configuration docs carry the full listen-side + harness recipe.
 
 ## Read-only mode
 
@@ -357,7 +389,7 @@ The toolkit implements defense-in-depth security. See the [plugin README](https:
 - **Mode A** (editor, default port 6550) — operates on the edited scene via `EditorInterface`.
 - **Mode B** (runtime, default port 6570) — operates on the live `SceneTree` during playtests. Auto-connected when `game_start` runs with `wait_for_runtime: true`.
 
-Port discovery is automatic via a shared project registry; `GODOT_MCP_PORT` overrides if needed. Auth tokens are resolved per-project (and per-worktree for multi-instance setups).
+Port discovery is automatic via a shared project registry; `GODOT_MCP_EDITOR_PORT` (or `--editor-port`) overrides if needed. Auth tokens are resolved per-project (and per-worktree for multi-instance setups).
 
 ## Contributing
 

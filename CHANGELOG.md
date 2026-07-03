@@ -4,6 +4,20 @@ All notable changes to the Godot MCP Server are documented in this file.
 
 This changelog is auto-generated from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## Unreleased
+
+### Breaking Changes
+
+- **Renamed `GODOT_MCP_PORT` → `GODOT_MCP_EDITOR_PORT`** — pre-1.0 clean break, no alias. Update any `.mcp.json` or shell env that sets the old name.
+- **Removed the no-op `--lite` flag and `GODOT_MCP_PROFILE` env var** (dead deprecation stubs). Use `GODOT_MCP_READ_ONLY=1` for restricted access.
+
+### Features
+
+- **CLI port flags** — `--editor-port` / `--runtime-port` / `--lsp-port` / `--lsp-host` (plus `--help`), resolved with precedence CLI flag > env var > registry discovery > default. `--tools-count` is now recognised by the same parser.
+- **Fail-fast desync cross-check** — a pinned editor port that cannot connect, or whose auth handshake fails because a foreign server occupies the pinned port, now reports a precise, actionable error naming the port mismatch (or the absent registry entry) instead of hanging on a dead socket.
+- **Startup port validation** — pinned port values (CLI flags and env vars, all three channels) must be integers 1–65535; an invalid value exits with a precise error instead of an `ERR_INVALID_URL` crash at first dial. An invalid `GODOT_MCP_LSP_PORT` rewritten mid-session by a config reload is skipped with a stderr warning (falls through to discovery).
+- **Startup port observability** — each channel's resolved port + source (cli / env / discovery / default) is logged to stderr at startup.
+
 ## Features
 
 - feat(server): websocket bridge, mcp server, stdio transport, ping tool, smoke harness (`60d7b0e`)

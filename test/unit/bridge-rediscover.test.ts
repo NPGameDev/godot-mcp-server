@@ -7,7 +7,8 @@
  *   - port changed  → close old channel, connect the new one, retry once (resolves)
  *   - same port     → no swap; the original CONNECT_FAILED surfaces unchanged
  *   - no entry      → no swap (registry lookup miss)
- *   - explicit port → re-discovery short-circuits (GODOT_MCP_PORT pins the URL)
+ *   - explicit port → re-discovery short-circuits (GODOT_MCP_EDITOR_PORT pins the
+ *     URL); the pinned desync cross-check synthesizes the CONNECT_FAILED it throws
  *   - TTL window    → a second failure within 5s does not re-read the registry
  *
  * Trigger: a COLD editor channel aimed at a dead port fails fast with
@@ -237,7 +238,7 @@ async function testExplicitEditorPortShortCircuits() {
     await assert.rejects(
       bridge.call("echo", {}, 5000),
       (err: unknown) => err instanceof BridgeError && err.code === "CONNECT_FAILED",
-      "explicitEditorPort → re-discovery short-circuits; CONNECT_FAILED propagates",
+      "explicitEditorPort → re-discovery short-circuits; the desync cross-check reports CONNECT_FAILED",
     );
     assert.equal(serverNew.authCount(), 0, "the live new port was never contacted — the static-port guard held");
     console.log("  PASS: explicitEditorPort short-circuits re-discovery even when the registry port changed");

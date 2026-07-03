@@ -9,7 +9,7 @@
 // Prerequisites:
 //   - Godot editor running with MCP toolkit plugin enabled.
 //   - GODOT_MCP_TOKEN env var set (copy from toolkit dock).
-//   - GODOT_MCP_PORT env var set (default 6550).
+//   - GODOT_MCP_EDITOR_PORT env var set (default 6550).
 //
 // Exit codes:
 //   0 — all flows passed
@@ -75,7 +75,7 @@ Then run:
     console.error(`[dispatch] ERROR: nothing listening on ${HOST}:${port}.
 
 The Godot editor must be running with the MCP toolkit plugin enabled.
-Set GODOT_MCP_PORT if using a non-default port.`);
+Set GODOT_MCP_EDITOR_PORT if using a non-default port.`);
     process.exit(2);
   }
 

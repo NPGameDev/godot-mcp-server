@@ -9,8 +9,8 @@
  * @remarks
  * Owns sequencing and wiring only — no domain logic (that lives in the modules it
  * composes). The ordering is load-bearing: preflight may `process.exit` (Node
- * version check, `--tools-count`); the transport connects only after the full tool
- * surface and the notification router are ready.
+ * version check, `--help` / a CLI parse error / `--tools-count`); the transport
+ * connects only after the full tool surface and the notification router are ready.
  *
  * @module
  */
@@ -18,7 +18,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { createBridge } from "./transport/bridge.js";
-import { warnDeprecatedEnvVars, isReadOnly } from "./security/profiles.js";
+import { isReadOnly } from "./security/profiles.js";
 import { toolRefCount } from "./registration/toolRefs.js";
 import { createHookPipeline } from "./startup/hooks.js";
 import { getServerVersion } from "./shared/version.js";
@@ -27,6 +27,9 @@ import { registerResources } from "./mcp/resources.js";
 import { init as initRoots, registerRoots } from "./mcp/roots.js";
 import { setGlobalHookPipeline } from "./registration/toolRegistry.js";
 import * as startupEnv from "./startup/startupEnv.js";
+import { parseCliArgs } from "./startup/cliArgs.js";
+import { resolvePortConfigOrExit, logResolvedPortConfig } from "./startup/portConfig.js";
+import { setLspOverride } from "./lsp/lspClient.js";
 import { MODULE_ALLOWED } from "./startup/serverMode.js";
 import * as registrars from "./startup/registrars.js";
 import { createExtensionManager } from "./extensions/extensions.js";
@@ -36,22 +39,24 @@ import { installProcessHandlers } from "./startup/lifecycle.js";
 
 // ── Preflight (may exit) ─────────────────────────────────────────────
 startupEnv.enforceNodeVersion();
-startupEnv.maybePrintToolCountAndExit();
-
-// ── Deprecated env vars ─────────────────────────────────────────────
-
-warnDeprecatedEnvVars();
+const cli = parseCliArgs(process.argv.slice(2));
+startupEnv.applyCliMetaGates(cli); // --help / parse error / --tools-count
 
 // ── Bridge setup ─────────────────────────────────────────────────────
 
 const projectPath = process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
-const editorPort = startupEnv.resolveEditorPort(projectPath);
+const ports = resolvePortConfigOrExit(cli, projectPath); // invalid pin → exit 1
+logResolvedPortConfig(ports);
 const caps = startupEnv.resolveResponseCaps();
 
-const bridge = createBridge(`ws://127.0.0.1:${editorPort}`, {
+// Feed the CLI LSP override into the lazy per-connect LSP resolution (CLI wins
+// over env there; env stays live so a config reload can still change it).
+setLspOverride({ port: cli.lspPort, host: cli.lspHost });
+
+const bridge = createBridge(`ws://127.0.0.1:${ports.editorPort}`, {
   projectPath,
-  explicitRuntimePort: process.env.GODOT_MCP_RUNTIME_PORT,
-  explicitEditorPort: !!process.env.GODOT_MCP_PORT,
+  explicitRuntimePort: ports.runtimePort,
+  explicitEditorPort: ports.editorPinned,
   scriptReadLimitBytes: caps.scriptReadLimitBytes,
   wsBufferLimitBytes: caps.wsBufferLimitBytes,
 });

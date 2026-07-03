@@ -6,7 +6,7 @@
 
 # Class: LspClient
 
-Defined in: [src/lsp/lspClient.ts:202](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L202)
+Defined in: [src/lsp/lspClient.ts:221](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L221)
 
 ## Constructors
 
@@ -14,7 +14,7 @@ Defined in: [src/lsp/lspClient.ts:202](https://github.com/NPGameDev/godot-mcp-se
 
 > **new LspClient**(`projectPath`): `LspClient`
 
-Defined in: [src/lsp/lspClient.ts:223](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L223)
+Defined in: [src/lsp/lspClient.ts:242](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L242)
 
 #### Parameters
 
@@ -32,7 +32,7 @@ Defined in: [src/lsp/lspClient.ts:223](https://github.com/NPGameDev/godot-mcp-se
 
 > **close**(): `Promise`\<`void`\>
 
-Defined in: [src/lsp/lspClient.ts:401](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L401)
+Defined in: [src/lsp/lspClient.ts:426](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L426)
 
 Graceful shutdown.
 
@@ -46,7 +46,7 @@ Graceful shutdown.
 
 > **ensureConnected**(): `Promise`\<`void`\>
 
-Defined in: [src/lsp/lspClient.ts:236](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L236)
+Defined in: [src/lsp/lspClient.ts:255](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L255)
 
 Ensure connection is established. Lazy — connects on first call.
 
@@ -60,7 +60,7 @@ Ensure connection is established. Lazy — connects on first call.
 
 > **getEndpoint**(): `object`
 
-Defined in: [src/lsp/lspClient.ts:396](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L396)
+Defined in: [src/lsp/lspClient.ts:421](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L421)
 
 The host:port resolved for the most recent connect attempt (valid after
  doConnect set it — i.e. when a connect was attempted, success or failure).
@@ -83,7 +83,7 @@ The host:port resolved for the most recent connect attempt (valid after
 
 > **isConnected**(): `boolean`
 
-Defined in: [src/lsp/lspClient.ts:390](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L390)
+Defined in: [src/lsp/lspClient.ts:415](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L415)
 
 Check if the client is currently connected.
 
@@ -97,7 +97,7 @@ Check if the client is currently connected.
 
 > **openDocument**(`uri`, `content`): `Promise`\<`void`\>
 
-Defined in: [src/lsp/lspClient.ts:340](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L340)
+Defined in: [src/lsp/lspClient.ts:359](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L359)
 
 Open a document in the LSP (or update if already open).
 
@@ -121,7 +121,7 @@ Open a document in the LSP (or update if already open).
 
 > **sendNotification**(`method`, `params?`): `void`
 
-Defined in: [src/lsp/lspClient.ts:333](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L333)
+Defined in: [src/lsp/lspClient.ts:352](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L352)
 
 Send a JSON-RPC notification (no response expected).
 
@@ -145,7 +145,7 @@ Send a JSON-RPC notification (no response expected).
 
 > **sendRequest**(`method`, `params?`): `Promise`\<`unknown`\>
 
-Defined in: [src/lsp/lspClient.ts:312](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L312)
+Defined in: [src/lsp/lspClient.ts:331](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L331)
 
 Send a JSON-RPC request and await the response.
 
@@ -169,7 +169,7 @@ Send a JSON-RPC request and await the response.
 
 > **waitForDiagnostics**(`uri`, `timeoutMs?`): `Promise`\<[`DiagnosticEntry`](../type-aliases/DiagnosticEntry.md)[]\>
 
-Defined in: [src/lsp/lspClient.ts:356](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L356)
+Defined in: [src/lsp/lspClient.ts:381](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L381)
 
 Wait for diagnostics to arrive for a URI (with timeout).
 

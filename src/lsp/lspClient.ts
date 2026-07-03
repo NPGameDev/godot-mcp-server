@@ -11,6 +11,7 @@ import { createConnection, type Socket } from "node:net";
 
 import { discoverLspEndpoint, liveLspClaimants } from "../registry.js";
 import { isVersionAtLeast, type GodotVer } from "../shared/version.js";
+import { isValidPort } from "../startup/portConfig.js";
 import { normalizeUri } from "./lspUri.js";
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -34,6 +35,16 @@ let godotVersionGetter: (() => GodotVer | undefined) | undefined = undefined;
 /** Inject the connected-version getter that tailors the conflict hint (startup wiring). @internal */
 export function setGodotVersionGetter(cb: () => GodotVer | undefined): void {
   godotVersionGetter = cb;
+}
+
+// CLI-sourced LSP override, injected once at startup. The composition root
+// resolves CLI > env and injects only the CLI part, so an env value stays
+// live-re-readable across a config reload. undefined until injected; when its
+// port is set it outranks both env and the registry in resolveLspEndpoint.
+let lspCliOverride: { port?: string; host?: string } | undefined = undefined;
+/** Inject the CLI `--lsp-port` / `--lsp-host` override (startup wiring). @internal */
+export function setLspOverride(override: { port?: string; host?: string }): void {
+  lspCliOverride = override;
 }
 
 function lspConflictHint(): string {
@@ -84,20 +95,28 @@ export type LspEndpoint = { host: string; port: number };
 
 /**
  * Resolve a project's LSP endpoint at connect time. Priority:
- *   1. GODOT_MCP_LSP_PORT (+ GODOT_MCP_LSP_HOST) — explicit override, top
- *      priority, bypasses the registry (the documented multi-instance lever).
+ *   1. --lsp-port / GODOT_MCP_LSP_PORT (+ --lsp-host / GODOT_MCP_LSP_HOST) —
+ *      explicit override (CLI wins over env), top priority, bypasses the registry
+ *      (the documented multi-instance lever).
  *   2. discoverLspEndpoint(projectPath) — registry hit (with conflict guard).
  *   3. miss → 6005 ONLY if no live editor holds it; else unavailable.
  * Throws LspResolutionError on a conflict or an ambiguous miss — never a blind
  * 6005 fallback (that is what kept comparable tools returning the wrong project).
+ * An invalid override value is skipped LOUDLY (stderr warning, fall through to
+ * discovery): the env var is re-read live on every connect, so a config reload
+ * can rewrite it mid-session after the startup validation gate has passed.
  */
 export function resolveLspEndpoint(projectPath: string): LspEndpoint {
-  const envPort = process.env.GODOT_MCP_LSP_PORT;
-  if (envPort) {
-    const port = parseInt(envPort, 10);
-    if (Number.isInteger(port) && port > 0) {
-      return { host: process.env.GODOT_MCP_LSP_HOST || "127.0.0.1", port };
+  const overridePort = lspCliOverride?.port ?? process.env.GODOT_MCP_LSP_PORT;
+  if (overridePort) {
+    if (isValidPort(overridePort)) {
+      const host = lspCliOverride?.host ?? process.env.GODOT_MCP_LSP_HOST;
+      return { host: host || "127.0.0.1", port: parseInt(overridePort, 10) };
     }
+    process.stderr.write(
+      `[godot-mcp] ignoring invalid LSP port override "${overridePort}" ` +
+        `(expected an integer 1–65535); falling through to registry discovery\n`,
+    );
   }
   const disc = discoverLspEndpoint(projectPath);
   if (disc) {

@@ -77,7 +77,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="PENDING" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -101,7 +101,8 @@ flowchart LR
 ```
 *Figure 1 — system context · verified aedb6c2*
 
-Static `GODOT_MCP_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pin a port and
+Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
+matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
 skip the lookup. Everything binds to `127.0.0.1` and is gated by a per-instance auth
 token; the real security boundary is **localhost + token + a human at the editor** — the
 server-side read-only filter is the one policy layer it adds
@@ -151,7 +152,7 @@ single-responsibility siblings. The **dependency direction is one-way** — `ind
 `groups/groupCatalogue.ts` exist precisely to break what would otherwise be a
 `groups` ↔ `catalogue` cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="PENDING" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -193,10 +194,10 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="af9c5b4" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="PENDING" -->
 ```mermaid
 flowchart TD
-    pre["startupEnv preflight (may process.exit)<br/>Node ≥ 20 gate · --tools-count exit<br/>editor-port (env → registry → 6550) · response caps · config-version warn"]
+    pre["preflight (may process.exit)<br/>Node ≥ 20 gate · --help / --tools-count / parse-error exit<br/>portConfig (cli → env → registry → 6550) · response caps · config-version warn"]
     bridge["createBridge(ws://127.0.0.1:&lt;port&gt;)"]
     srv["new McpServer<br/>capabilities.tools.listChanged = true"]
     hooks["createHookPipeline + setGlobalHookPipeline"]
@@ -213,10 +214,13 @@ flowchart TD
 ```
 *Figure 3 — composition-root boot order · verified aedb6c2*
 
-- **Preflight** (`startup/startupEnv.ts`) runs before anything stateful: a hard Node ≥ 20
-  gate, the `--tools-count` early `process.exit(0)` (editor-independent), editor-port
-  resolution (`GODOT_MCP_PORT` → `lookupProject` registry hit → `6550` fallback), response
-  cap parse/clamp, and a config-version warning.
+- **Preflight** (`startup/startupEnv.ts` + `startup/cliArgs.ts` + `startup/portConfig.ts`) runs
+  before anything stateful: a hard Node ≥ 20 gate, the `--help` / `--tools-count` /
+  parse-error early `process.exit` (editor-independent), port resolution
+  (`--editor-port` / `GODOT_MCP_EDITOR_PORT` → `lookupProject` registry hit → `6550` fallback,
+  in `portConfig.ts` with precedence CLI > env > discovery > default; pinned values
+  validated as integers 1–65535, invalid → exit 1), response cap parse/clamp, and a
+  config-version warning.
 - **The SDK surface** advertises `capabilities.tools.listChanged: true`. A single
   `batchToolRegistration` collapses a burst of registrations into **one**
   `tools/list_changed` (the primitive lives in `registration/toolRegistry.ts`).
@@ -250,7 +254,7 @@ per-OS token-file resolver), `heartbeat.ts` (the generic liveness primitive), an
 
 A tool call reaches the editor like this:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="PENDING" -->
 ```mermaid
 sequenceDiagram
     participant SDK as MCP SDK (tool call)
@@ -286,7 +290,7 @@ on the MCP wire.
 The bridge composes a **persistent editor channel** and a **discovered runtime channel**,
 each with their own resilience policy:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="PENDING" -->
 ```mermaid
 flowchart TD
     bridge["bridge.ts — editor-side facade + composition"]
@@ -313,8 +317,11 @@ flowchart TD
   (`1·2·4·8·16·32·60·60…` s; **reset on a successful round-trip, not on open**, so a
   half-broken peer that accepts then drops can't reset backoff every cycle). On
   `CONNECT_FAILED` / `DISCONNECTED` it does **port re-discovery** (`rediscoverEditor`,
-  5 s TTL) and retries once against the new channel — unless the port is static
-  (`GODOT_MCP_PORT`).
+  5 s TTL) and retries once against the new channel — unless the port is a pin
+  (`GODOT_MCP_EDITOR_PORT` / `--editor-port`), in which case a pinned connect **or
+  auth-handshake** failure (a foreign server on the pinned port passes the WS upgrade,
+  then fails auth) runs the **fail-fast desync cross-check** (one registry read → a
+  precise error naming the mismatch, instead of a silent dead-socket hang).
 - **Runtime channel** — discovered, `noReconnect` (a dead game shouldn't be retried),
   with an injected `heartbeat`: ping every **15 s** (10 s ping timeout), **4** consecutive
   fails (~60 s) → proactive teardown. The `isAlive` self-stop guard is load-bearing —
@@ -456,7 +463,7 @@ guards.
 tool is **never registered** (absent from `tools/list`, with **no per-call forward-time
 reject**):
 
-<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="PENDING" -->
 ```mermaid
 flowchart TD
     env["GODOT_MCP_READ_ONLY=1"] --> pred["profiles.isExcludedByReadOnly(readOnly, annotations)"]
@@ -505,14 +512,14 @@ JSON-RPC-over-TCP client) and was **not carved**. 083 carved only the *tool laye
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 the thin `tools/lsp.ts` (6 defs + 6 handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="PENDING" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
     isLsp -->|"no"| brdg["callAndWrap → WS bridge (editor / runtime)"]
     isLsp -->|"yes"| lspH["createLspHandler (tools/lsp.ts)<br/>→ withLspDoc / ensureLsp (lspSession.ts)"]
     lspH --> resolve["resolveLspEndpoint (lspClient.ts)"]
-    resolve --> t1{"GODOT_MCP_LSP_PORT set?"}
+    resolve --> t1{"--lsp-port / GODOT_MCP_LSP_PORT set?"}
     t1 -->|"yes"| ep["endpoint"]
     t1 -->|"no"| t2["discoverLspEndpoint (registry.ts)<br/>earliest live claimant by started_at"]
     t2 -->|"hit"| ep
@@ -525,8 +532,9 @@ flowchart TD
 ```
 *Figure 10 — LSP endpoint resolution + bridge bypass · verified aedb6c2*
 
-**Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): env (`GODOT_MCP_LSP_PORT` /
-`_HOST`, the multi-instance lever) → registry (`discoverLspEndpoint`, the
+**Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
+(`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
+lever) → registry (`discoverLspEndpoint`, the
 earliest-live-claimant by `started_at`, else a `conflict`) → **guarded 6005 only if no
 live editor holds it, else throw — never a blind 6005**. **The bypass**: the
 `groupToolHandlers` dispatch fork routes `LSP_TOOLS` members to `createLspHandler` → the
@@ -564,11 +572,11 @@ crash.
 The server is a **read-only consumer** of the toolkit's `projects.json` (`registry.ts`):
 `readRegistry` reads only the aggregate file, never the per-instance `entries/` dir.
 
-<!-- data-depicts="src/registry.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="af9c5b4" -->
+<!-- data-depicts="src/registry.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="PENDING" -->
 ```mermaid
 flowchart TD
     pj[("projects.json — the toolkit writes")] --> read["registry.readRegistry → by_path[ normalizePath(projectPath) ]<br/>(PATH key — NOT the sha256 project hash)"]
-    read --> port["editor port → startupEnv.resolveEditorPort / bridge"]
+    read --> port["editor port → portConfig.resolvePortConfig / bridge"]
     read --> ver["godot_version → bridge pre-pop (available before auth)"]
     read --> rport["runtime_port / runtime_pid → discoverRuntime (isPidAlive gate)"]
     read --> lsp["lsp_port / lsp_host → discoverLspEndpoint"]
@@ -606,7 +614,7 @@ engine is newer than tested. **Version acquisition**: the editor ack carries
 `godot_version` (the dogfood path); otherwise the bridge pre-populates it from the registry
 entry before auth.
 
-<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="aedb6c2" -->
+<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="PENDING" -->
 ```mermaid
 flowchart TD
     subgraph regn["Registration gate (registerToolWrapped) — fails CLOSED"]

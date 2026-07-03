@@ -18,6 +18,7 @@ import {
   getLspStatus,
   setGodotVersionGetter,
 } from "../../src/lsp/lspClient.js";
+import { captureStderr } from "./helpers.js";
 
 const ALIVE = process.pid; // this test process — always alive
 const ALIVE2 = process.ppid; // the runner (parent) — also alive, distinct PID
@@ -203,6 +204,31 @@ withRegistry({ [keyA]: entry({ lsp_port: 6005 }) }, () => {
   } finally {
     delete process.env.GODOT_MCP_LSP_PORT;
     delete process.env.GODOT_MCP_LSP_HOST;
+  }
+});
+
+// 1b. an INVALID env override is skipped LOUDLY → falls through to the registry.
+// The env var is re-read live on every connect (a config reload can rewrite it
+// mid-session, after the startup validation gate has passed), so a bad value
+// must warn on stderr and degrade to discovery — never crash the resolution.
+withRegistry({ [keyA]: entry({ lsp_port: 6005 }) }, () => {
+  for (const bad of ["not_a_number", "99999"]) {
+    process.env.GODOT_MCP_LSP_PORT = bad;
+    const stderr = captureStderr();
+    try {
+      assert.deepEqual(
+        resolveLspEndpoint(projA),
+        { host: "127.0.0.1", port: 6005 },
+        `resolve: invalid env override "${bad}" falls through to the registry`,
+      );
+      assert.ok(
+        stderr.output().includes("invalid LSP port override"),
+        `resolve: invalid env override "${bad}" warns on stderr`,
+      );
+    } finally {
+      stderr.restore();
+      delete process.env.GODOT_MCP_LSP_PORT;
+    }
   }
 });
 

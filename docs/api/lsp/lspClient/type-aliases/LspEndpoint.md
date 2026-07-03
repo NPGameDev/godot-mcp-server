@@ -8,7 +8,7 @@
 
 > **LspEndpoint** = `object`
 
-Defined in: [src/lsp/lspClient.ts:83](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L83)
+Defined in: [src/lsp/lspClient.ts:94](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L94)
 
 A resolved GDScript-LSP endpoint — the host and port a connect will target.
 
@@ -18,7 +18,7 @@ A resolved GDScript-LSP endpoint — the host and port a connect will target.
 
 > **host**: `string`
 
-Defined in: [src/lsp/lspClient.ts:83](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L83)
+Defined in: [src/lsp/lspClient.ts:94](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L94)
 
 ***
 
@@ -26,4 +26,4 @@ Defined in: [src/lsp/lspClient.ts:83](https://github.com/NPGameDev/godot-mcp-ser
 
 > **port**: `number`
 
-Defined in: [src/lsp/lspClient.ts:83](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L83)
+Defined in: [src/lsp/lspClient.ts:94](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L94)

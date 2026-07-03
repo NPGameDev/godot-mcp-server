@@ -16,5 +16,5 @@ advertised before its guards are in place.
 
 Owns sequencing and wiring only — no domain logic (that lives in the modules it
 composes). The ordering is load-bearing: preflight may `process.exit` (Node
-version check, `--tools-count`); the transport connects only after the full tool
-surface and the notification router are ready.
+version check, `--help` / a CLI parse error / `--tools-count`); the transport
+connects only after the full tool surface and the notification router are ready.

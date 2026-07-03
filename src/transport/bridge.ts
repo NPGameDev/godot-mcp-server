@@ -38,8 +38,9 @@ export interface BridgeOptions {
   projectPath?: string;
   /** If set, bypass registry and use this static port for Mode B. */
   explicitRuntimePort?: string | undefined;
-  /** When true, editor URL is static (GODOT_MCP_PORT set). Skips
-   *  registry re-discovery on editor connection loss. */
+  /** When true, editor URL is a pin (GODOT_MCP_EDITOR_PORT / --editor-port set).
+   *  Skips registry re-discovery on editor connection loss and, on a pinned
+   *  connect or auth-handshake failure, runs the fail-fast desync cross-check. */
   explicitEditorPort?: boolean;
   /** Max bytes for script content responses (sent to plugin via meta.set_limits). */
   scriptReadLimitBytes?: number;
@@ -135,10 +136,10 @@ export function createBridge(
   // When the editor channel fails with CONNECT_FAILED / DISCONNECTED,
   // re-read the registry. If the port changed (plugin restarted on a
   // different port), close the old channel, create a fresh one, and
-  // retry the call once. Skipped when the editor port is explicitly set
-  // (GODOT_MCP_PORT) or no projectPath is available for registry lookup.
-  // TTL prevents thrashing the registry file when the editor is truly
-  // unreachable.
+  // retry the call once. Skipped when the editor port is a pin
+  // (GODOT_MCP_EDITOR_PORT / --editor-port) or no projectPath is available for
+  // registry lookup. TTL prevents thrashing the registry file when the editor
+  // is truly unreachable.
   const staticEditor = !!opts?.explicitEditorPort;
   const EDITOR_REDISCOVER_TTL_MS = 5_000;
   let lastRediscoverAt = 0;
@@ -167,6 +168,61 @@ export function createBridge(
     return true;
   }
 
+  // ── Fail-fast desync cross-check (pinned editor) ─────────────────
+  // A pinned editor port skips re-discovery, so a stale or unsynced pin (the
+  // classic ".mcp.json sets the pin for the server only, the editor is launched
+  // separately" case) would otherwise surface only as a generic error. Two
+  // failure shapes reach here: a connection-level loss (nothing on the pinned
+  // port), and a FAILED AUTH HANDSHAKE — a foreign WebSocket server on the
+  // pinned port passes the TCP+WS upgrade and then stalls or drops the auth, so
+  // the desync surfaces as AUTH_FAILED, never CONNECT_FAILED. For either, read
+  // the registry ONCE — the toolkit publishes its real bound port even in pin
+  // mode — and synthesize a precise, actionable error naming the mismatch,
+  // PRESERVING the original transport code (retry semantics stay intact).
+  // Registry I/O stays on the FAILURE path only; the healthy path never reads
+  // it. Returns undefined when there is nothing to add — no projectPath for
+  // ground truth, or an auth failure with the registry AGREEING on the port
+  // (the real editor answered and rejected auth: a token problem, not a port
+  // desync) — leaving the original error to propagate.
+  function pinnedEditorDesyncError(original: BridgeError): BridgeError | undefined {
+    if (!projectPath) return undefined;
+    const authFailure = original.code === "AUTH_FAILED";
+    const entry = lookupProject(projectPath);
+    if (!entry) {
+      return new BridgeError(
+        original.code,
+        authFailure
+          ? `auth failed on pinned editor port ${cachedEditorPort} and no live editor is registered for this ` +
+              `project — something else may be occupying the pinned port; launch the Godot editor with ` +
+              `GODOT_MCP_EDITOR_PORT=${cachedEditorPort} so it binds the same port, or unset the pin to use ` +
+              `registry discovery`
+          : `editor pinned to port ${cachedEditorPort}, but no live editor is registered for this project — ` +
+              `launch the Godot editor (set GODOT_MCP_EDITOR_PORT=${cachedEditorPort} so it binds the same port), ` +
+              `or unset the pin to use registry discovery`,
+      );
+    }
+    if (entry.port !== cachedEditorPort) {
+      return new BridgeError(
+        original.code,
+        authFailure
+          ? `auth failed on pinned editor port ${cachedEditorPort}, but the live editor for this project is ` +
+              `listening on ${entry.port} — something else may be occupying the pinned port; launch the editor ` +
+              `with the same GODOT_MCP_EDITOR_PORT, or unset the pin to use discovery`
+          : `editor pinned to port ${cachedEditorPort}, but the live editor for this project is listening on ` +
+              `${entry.port} — launch the editor with the same GODOT_MCP_EDITOR_PORT, or unset the pin to use discovery`,
+      );
+    }
+    // Registry agrees with the pin. An auth failure here came from the real
+    // editor (token trouble, not a desync) — add nothing. A connection loss
+    // means the editor is down, restarting, or crashed — say so plainly.
+    if (authFailure) return undefined;
+    return new BridgeError(
+      original.code,
+      `editor pinned to port ${cachedEditorPort} matches the registry, but the port is not accepting ` +
+        `connections — the editor may be starting or has stopped`,
+    );
+  }
+
   // ── Runtime connection ───────────────────────────────────────────
   // The playtest runtime-connection aggregate — discovery, the registry
   // watcher, port-waiters, and the frozen-game heartbeat — lives in
@@ -180,11 +236,22 @@ export function createBridge(
       try {
         return await editor.call(method, params, timeoutMs, signal);
       } catch (err) {
-        // On editor connection failure, re-read the registry. If the
-        // port changed, retry once against the new channel.
-        if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
-          const changed = await rediscoverEditor();
-          if (changed) return editor.call(method, params, timeoutMs, signal);
+        if (err instanceof BridgeError) {
+          const connectionLoss = err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED";
+          if (staticEditor) {
+            // Pinned: no re-discovery. A connection loss OR a failed auth
+            // handshake (a foreign server on the pinned port) gets the desync
+            // diagnosis (one registry read, on the failure path only).
+            if (connectionLoss || err.code === "AUTH_FAILED") {
+              const desync = pinnedEditorDesyncError(err);
+              if (desync) throw desync;
+            }
+          } else if (connectionLoss) {
+            // On editor connection failure, re-read the registry. If the port
+            // changed, retry once against the new channel.
+            const changed = await rediscoverEditor();
+            if (changed) return editor.call(method, params, timeoutMs, signal);
+          }
         }
         throw err;
       }

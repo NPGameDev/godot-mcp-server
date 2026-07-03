@@ -55,7 +55,7 @@
 //     toolkit dogfood project (toolkit repo root). Run ONE editor version at a
 //     time (4.2, then 4.5) — two editors bind different ports/tokens.
 //   • GODOT_MCP_TOKEN = the token from that editor's MCP dock (or the mcp_token
-//     file under the project's user data dir). GODOT_MCP_PORT if not 6550.
+//     file under the project's user data dir). GODOT_MCP_EDITOR_PORT if not 6550.
 //
 // USAGE
 //   GODOT_MCP_TOKEN=<token> npx tsx test/integration/dispatch-safety-stress.ts [flags]
@@ -753,7 +753,7 @@ Then run (ONE editor version at a time):
   const port = PORT;
   if (!(await probePort(HOST, port, 2000))) {
     console.error(
-      `[stress] ERROR: nothing listening on ${HOST}:${port}. Open the toolkit project in Godot with the MCP plugin enabled (set GODOT_MCP_PORT for a non-default port).`,
+      `[stress] ERROR: nothing listening on ${HOST}:${port}. Open the toolkit project in Godot with the MCP plugin enabled (set GODOT_MCP_EDITOR_PORT for a non-default port).`,
     );
     process.exit(2);
   }
