@@ -16,10 +16,26 @@ description: >
   41n-quater-ter and the "full behavioral matrix in both repos" follow-on. The
   caller must check out both repos (self + sibling) first.
 
+  Cross-platform (41n-quater-sexies): the same flow runs on ubuntu / macOS /
+  windows runners; the `os` input selects the per-OS branches (GNU-timeout binary,
+  editor kill, dispatch token path, macOS quarantine strip). Linux is the default,
+  so the pre-existing Linux callers are unaffected.
+
 inputs:
   language:
     description: "gdscript (standard editor + dogfood) | dotnet (mono editor + C# fixture)"
     required: true
+  os:
+    description: >
+      Host-OS branch key for the platform-specific mechanics — the GNU-timeout
+      binary, the editor kill, the dispatch token path, and the macOS quarantine
+      strip: "linux" (default — the original Linux-coded flow) | "macos" |
+      "windows". Callers pass the matrix os_key; the pre-existing Linux caller
+      jobs omit it and inherit the default, so their behaviour is byte-identical.
+      Everything else in the flow (editor launch, poll, smoke, flows, dispatch)
+      is OS-agnostic. See iter 41n-quater-sexies.
+    required: false
+    default: "linux"
   godot-version:
     description: "Godot version to provision (e.g. 4.5.0)"
     required: true
@@ -55,6 +71,28 @@ inputs:
 runs:
   using: composite
   steps:
+    # Resolve the GNU-`timeout`-compatible binary for this OS ONCE and stash it in
+    # $GITHUB_ENV so every fused step below (warm-up, smoke, flows, dispatch) reads
+    # $TIMEOUT_BIN. Why per-OS (grill Q6 — a real footgun): on Windows `shell: bash`
+    # (Git Bash) a bare `timeout` can resolve to C:\Windows\System32\timeout.exe — a
+    # DIFFERENT command that errors on redirected stdin — so we force Git Bash's
+    # bundled GNU coreutils build at /usr/bin/timeout. macOS ships NO `timeout` in
+    # the base system; coreutils provides `gtimeout` (pre-installed on the GitHub
+    # runner image; brew-installed as a fallback if a future image drops it). Linux
+    # has GNU `timeout` on PATH. All three accept the same `-k <grace> <secs>` form.
+    - name: Resolve platform tools (GNU timeout binary)
+      shell: bash
+      run: |
+        case "${{ inputs.os }}" in
+          windows) TIMEOUT_BIN=/usr/bin/timeout ;;
+          macos)
+            if ! command -v gtimeout >/dev/null 2>&1; then brew install coreutils; fi
+            TIMEOUT_BIN=gtimeout ;;
+          *)       TIMEOUT_BIN=timeout ;;
+        esac
+        echo "TIMEOUT_BIN=$TIMEOUT_BIN" >> "$GITHUB_ENV"
+        echo "resolved TIMEOUT_BIN=$TIMEOUT_BIN (os=${{ inputs.os }})"
+
     - name: Setup Godot (Godot ${{ inputs.godot-version }})
       # pinned to v2.4.1 — update tag manually after reviewing changelogs
       uses: chickensoft-games/setup-godot@v2.4.1
@@ -165,7 +203,21 @@ runs:
         else
           warm_script="./scripts/test_framework/run_units_cold.sh"
         fi
-        GODOT_WARM_ONLY=1 timeout 300 bash "$warm_script" 2>&1 | tee "$GITHUB_WORKSPACE/warmup.log"
+        GODOT_WARM_ONLY=1 "$TIMEOUT_BIN" 300 bash "$warm_script" 2>&1 | tee "$GITHUB_WORKSPACE/warmup.log"
+
+    # macOS Gatekeeper: strip com.apple.quarantine off the downloaded editor so the
+    # headless launch is not blocked. Best-effort (`|| true`) — a toolcache/HTTP
+    # download usually carries no quarantine xattr, but a browser/DMG-sourced build
+    # would, and clearing it is free insurance. macOS-only; a no-op elsewhere.
+    - name: Strip macOS quarantine off the editor (macos)
+      if: ${{ inputs.os == 'macos' }}
+      shell: bash
+      run: |
+        godot_bin="$(command -v godot || true)"
+        if [ -n "$godot_bin" ]; then
+          xattr -dr com.apple.quarantine "$(dirname "$godot_bin")" 2>/dev/null || true
+          echo "quarantine strip attempted on $(dirname "$godot_bin")"
+        fi
 
     # Launch + poll self-terminates in <=60s (bounded loop), so it needs no shell
     # timeout; the background editor is reaped by the always() teardown below.
@@ -214,7 +266,7 @@ runs:
         # catches a silently-misaligned --log-file. 4.2 has no --log-file -> LOG_UNAVAILABLE, its
         # own valid deterministic branch. The signal keys which §14 outcome the test requires.
         SMOKE_EXPECT_FILE_LOG: ${{ startsWith(inputs.godot-version, '4.2') && '0' || '1' }}
-      run: timeout -k 30 900 npm run smoke
+      run: $TIMEOUT_BIN -k 30 900 npm run smoke
 
     - name: Flows (full suite, headless-deterministic)
       working-directory: ${{ inputs.server-dir }}
@@ -222,37 +274,55 @@ runs:
       env:
         GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
         GODOT_MCP_PROJECT_NAME: ${{ inputs.project-name }}
-      run: timeout -k 30 600 npm run flows
+      run: $TIMEOUT_BIN -k 30 600 npm run flows
 
-    # Dispatch-integration leg (D11) — runs ONLY on the rows the caller flags with
-    # run-dispatch: true (GDScript · 4.7.0, one per repo mirror). The 7 flows exercise
-    # FIFO ordering, cancellation, peer-disconnect, and scene-lease semantics against
-    # the already-booted editor — the last editor-required CI coverage gap. The runner
-    # bypasses the MCP bridge BY DESIGN, so it needs the raw WS token: extract it from
-    # the editor's user:// dir by glob (the project name varies per fixture/dogfood;
-    # exactly one match on a fresh runner, guaranteed present because smoke+flows
-    # already authenticated). The port defaults to 6550 (GODOT_MCP_EDITOR_PORT — the
-    # port the composite already polls), so nothing to set. Composite `run` steps can't
-    # take timeout-minutes, so a shell `timeout` fuse (proportionate to smoke 900 /
-    # flows 600) fails the STEP on a hang, preserving the always() log steps below.
+    # Dispatch-integration leg (D11 + 41n-quater-sexies D3) — runs ONLY on the rows the
+    # caller flags with run-dispatch: true (GDScript · 4.7.0, one per repo mirror, on
+    # EACH of the three platforms). The 7 flows exercise FIFO ordering, cancellation,
+    # peer-disconnect, and scene-lease semantics against the already-booted editor — the
+    # last editor-required CI coverage gap, and a per-OS-sensitive surface (sockets +
+    # timing). The runner bypasses the MCP bridge BY DESIGN, so it needs the raw WS
+    # token: extract it from the editor's user:// dir by glob (the project name varies
+    # per fixture/dogfood; exactly one match on a fresh runner, guaranteed present
+    # because smoke+flows already authenticated). The user-data root is OS-specific —
+    # it mirrors Godot's OS::get_data_path (Linux ~/.local/share/godot [lowercase, XDG];
+    # macOS ~/Library/Application Support/Godot; Windows %APPDATA%/Godot). On Windows
+    # $APPDATA carries backslashes, which break glob expansion, so cygpath -u first. The
+    # port defaults to 6550 (GODOT_MCP_EDITOR_PORT — the port the composite already
+    # polls), so nothing to set. Composite `run` steps can't take timeout-minutes, so a
+    # $TIMEOUT_BIN fuse (proportionate to smoke 900 / flows 600) fails the STEP on a
+    # hang, preserving the always() log steps below.
     - name: Dispatch integration (flagged rows only)
       if: ${{ inputs.run-dispatch == 'true' }}
       working-directory: ${{ inputs.server-dir }}
       shell: bash
       run: |
         set -o pipefail
-        token_file=$(ls ~/.local/share/godot/app_userdata/*/addons/godot_mcp_toolkit/project_instance_*/mcp_token 2>/dev/null | head -n1)
+        case "${{ inputs.os }}" in
+          windows) udroot="$(cygpath -u "$APPDATA")/Godot/app_userdata" ;;
+          macos)   udroot="$HOME/Library/Application Support/Godot/app_userdata" ;;
+          *)       udroot="$HOME/.local/share/godot/app_userdata" ;;
+        esac
+        token_file=$(ls "$udroot"/*/addons/godot_mcp_toolkit/project_instance_*/mcp_token 2>/dev/null | head -n1)
         if [ -z "$token_file" ]; then
-          echo "::error::dispatch: no mcp_token found under the editor user:// dir."
+          echo "::error::dispatch: no mcp_token found under the editor user:// dir ($udroot)."
           exit 1
         fi
         echo "dispatch: using token file $token_file"
-        GODOT_MCP_TOKEN="$(cat "$token_file")" timeout -k 30 300 npm run test:integration:dispatch
+        GODOT_MCP_TOKEN="$(cat "$token_file")" "$TIMEOUT_BIN" -k 30 300 npm run test:integration:dispatch
 
+    # Teardown (best-effort — the ephemeral runner is discarded regardless; this just
+    # frees the process/port promptly). On Windows, Git Bash `kill` cannot reliably map
+    # a bash-backgrounded native process's $! to a Windows PID, so fall back to taskkill
+    # by image name (//F //T double-slash = MSYS arg-passthrough). Linux/macOS use `kill`.
     - name: Stop editor (always)
       if: always()
       shell: bash
-      run: kill "$EDITOR_PID" 2>/dev/null || true
+      run: |
+        kill "$EDITOR_PID" 2>/dev/null || true
+        if [ "${{ inputs.os }}" = "windows" ]; then
+          taskkill //F //T //IM godot.exe 2>/dev/null || true
+        fi
 
     - name: Editor + warm-up logs (always)
       if: always()

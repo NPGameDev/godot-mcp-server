@@ -1,0 +1,6 @@
+# Force LF on shell scripts so they stay executable under Git Bash on the
+# Windows CI runners (windows-latest has core.autocrlf=true, which would
+# otherwise CRLF-convert them on checkout -> `\r: command not found`). This repo
+# hosts the shared cross-version-behavioral composite whose Windows legs run
+# under `shell: bash` (41n-quater-sexies); keep any tracked .sh LF-clean.
+*.sh text eol=lf
