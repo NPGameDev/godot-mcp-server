@@ -239,8 +239,18 @@ export class LspClient {
   private diagnosticsByUri = new Map<string, DiagnosticEntry[]>();
   private diagnosticWaiters = new Map<string, { resolve: () => void; timer: NodeJS.Timeout }>();
 
-  constructor(projectPath: string) {
+  /** Optional per-instance override for the `initialize` request timeout only
+   *  (all other requests keep {@link REQUEST_TIMEOUT_MS}). Undefined = default.
+   *  Consumed by the smoke harness: Godot 4.2 answers the FIRST initialize only
+   *  after a synchronous main-thread workspace scan that can take far longer
+   *  than the default budget on slow runners (measured ~5.3s warm-hardware /
+   *  100s+ mute on 2-core windows-latest); a patient first handshake absorbs
+   *  that one-time cost. Product callers pass nothing and are unaffected. */
+  private readonly initializeTimeoutMs: number | undefined;
+
+  constructor(projectPath: string, opts?: { initializeTimeoutMs?: number }) {
     this.projectPath = projectPath;
+    this.initializeTimeoutMs = opts?.initializeTimeoutMs;
   }
 
   /** file:// URI for the project root — sent as rootUri so the 4.5+ LSP can
@@ -301,12 +311,16 @@ export class LspClient {
     // The engine sends that warning BEFORE the initialize response
     // (gdscript_language_protocol.cpp), so rootMismatch is already set when this
     // await resolves.
-    const initResult = await this.sendRequest("initialize", {
-      processId: process.pid,
-      capabilities: {},
-      rootUri: this.projectRootUri(),
-      clientInfo: { name: "godot-mcp-server", version: "0.1.0" },
-    });
+    const initResult = await this.sendRequest(
+      "initialize",
+      {
+        processId: process.pid,
+        capabilities: {},
+        rootUri: this.projectRootUri(),
+        clientInfo: { name: "godot-mcp-server", version: "0.1.0" },
+      },
+      this.initializeTimeoutMs,
+    );
 
     if (!initResult || typeof initResult !== "object") {
       throw new Error("LSP initialize failed: no capabilities returned");
@@ -327,8 +341,10 @@ export class LspClient {
     this.initialized = true;
   }
 
-  /** Send a JSON-RPC request and await the response. */
-  async sendRequest(method: string, params?: unknown): Promise<unknown> {
+  /** Send a JSON-RPC request and await the response.
+   *  `timeoutMs` overrides {@link REQUEST_TIMEOUT_MS} for this request only
+   *  (used for the patient first `initialize`); omitted = default. */
+  async sendRequest(method: string, params?: unknown, timeoutMs?: number): Promise<unknown> {
     if (!this.socket || this.socket.destroyed) {
       throw new Error("LSP not connected");
     }
@@ -341,7 +357,7 @@ export class LspClient {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`LSP request timeout: ${method}`));
-      }, REQUEST_TIMEOUT_MS);
+      }, timeoutMs ?? REQUEST_TIMEOUT_MS);
 
       this.pending.set(id, { resolve, reject, timer });
       this.writeMessage(body);
