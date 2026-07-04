@@ -58,7 +58,7 @@ const EXCEPTION_HINTS: Record<string, string> = {
     "If empty, the game may have crashed — debugger_get_log serves cached output from log file after a real crash (OS signal). " +
     "To restart: fix the errors, then game_start.",
   LOG_BUSY:
-    "Transient file lock during log flush — retry in 1-2 seconds, or use source='buffer' (default) which reads from an in-memory ring buffer with no file I/O.",
+    "The editor holds the live log locked — on Windows the lock can persist for the whole editor session; elsewhere it is a transient flush lock (retry in 1-2 seconds). Use source='buffer' (default), which reads from an in-memory ring buffer with no file I/O.",
   LOG_UNAVAILABLE:
     "Log file not available. Enable file logging in ProjectSettings → Debug → File Logging → Enable File Logging, then restart the editor. Or use source='buffer' (default) which captures all output in real-time.",
   FEATURE_DISABLED: "This tool is unavailable under the current server configuration.",

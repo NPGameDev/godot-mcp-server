@@ -73,13 +73,30 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
     return;
   }
 
-  const client = new LspClient(projectPath);
+  // Cold-CI-boot hardening: on a fresh runner the editor may still be importing
+  // the project when this section arrives, and a busy main loop can starve the
+  // LSP's initialize response past the client timeout (observed once: Windows ·
+  // Godot 4.2 · dogfood project — the slowest first-boot combo; every other
+  // OS/version handshakes immediately). One delayed retry absorbs the boot
+  // window without relaxing the assertion — a genuinely broken LSP fails both
+  // attempts and still fails the section. Platform-neutral (no OS branch).
+  let client = new LspClient(projectPath);
   try {
     await client.ensureConnected();
     pass("lsp: TCP connection + initialize handshake succeeded");
-  } catch (err) {
-    fail(`lsp: connection failed: ${(err as Error).message}`);
-    return;
+  } catch (firstErr) {
+    await client.close().catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    client = new LspClient(projectPath);
+    try {
+      await client.ensureConnected();
+      pass(
+        `lsp: TCP connection + initialize handshake succeeded on retry (first attempt: ${(firstErr as Error).message})`,
+      );
+    } catch (err) {
+      fail(`lsp: connection failed (after 1 retry): ${(err as Error).message}`);
+      return;
+    }
   }
 
   try {
