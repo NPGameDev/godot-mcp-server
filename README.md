@@ -30,6 +30,8 @@ npx -y @npgamedev/godot-mcp-server
 
 Requires Node.js 22+.
 
+> **macOS, launching your client from Finder/Dock?** GUI-launched clients (Claude Desktop, Cursor, VS Code) can fail to connect with `spawn npx ENOENT` because macOS gives them a minimal `PATH` that omits `node`/`npx`. See [macOS: GUI-launched clients can't find node/npx](#macos-gui-launch) under *Configure your MCP client* below.
+
 ### 2. Install the Godot plugin
 
 This server requires the companion [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) plugin running in the Godot editor. Install it via AssetLib or GitHub Releases, then enable it in Project Settings &rarr; Plugins.
@@ -62,6 +64,58 @@ In your Godot project root, create `.mcp.json`:
   }
 }
 ```
+
+</details>
+
+<a id="macos-gui-launch"></a>
+
+<details>
+<summary>macOS: GUI-launched clients can't find node/npx</summary>
+
+**Symptom:** you launch your MCP client from Finder/Dock/Spotlight (Claude Desktop, Cursor.app, VS Code.app) and it fails to connect with `spawn npx ENOENT`.
+
+**Why:** macOS runs GUI apps under `launchd` with a minimal `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`) and does not source your shell startup files. Node installed via **nvm, fnm, volta, or Apple-Silicon Homebrew** (`/opt/homebrew/bin`) is therefore invisible to the client, so it can't spawn the server. (Launching the client from a **Terminal** sidesteps this — the terminal's `PATH` is inherited — but that shouldn't be a requirement.)
+
+**Recommended fix — let the toolkit write the config.** In the Godot editor, click **Write .mcp.json** in the MCP Toolkit dock. On macOS it resolves your real, **absolute** `node`/`npx` path (through a login shell) and writes it into `command`, with a resolved `env.PATH` as a backstop:
+
+```json
+{
+  "mcpServers": {
+    "godot-mcp-toolkit": {
+      "command": "/Users/you/.nvm/versions/node/v22.11.0/bin/npx",
+      "args": ["-y", "@npgamedev/godot-mcp-server"],
+      "env": {
+        "PATH": "/Users/you/.nvm/versions/node/v22.11.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+An absolute `command` path bypasses the `launchd` PATH lookup entirely — Claude Desktop, Cursor, and VS Code all spawn it directly. Its one weakness is staleness: if you switch Node versions the path changes, so just click **Write .mcp.json** again to regenerate it (the toolkit also refreshes it on editor start). Prefer to write the config by hand? Run `which npx` in your terminal and paste the absolute path into `command`.
+
+If the toolkit can't resolve your Node — e.g. your version-manager init lives only in `~/.zshrc`, or you use Fish/Nushell — it writes a plain `"command": "npx"` config, and you'll need one of the fallbacks below.
+
+**Fallbacks (only if the absolute-path form doesn't fit):**
+
+- **`env.PATH` variant (e.g. Homebrew).** Keep `"command": "npx"` and put your Node directory on `env.PATH`. The `env` block **replaces** the inherited environment rather than extending it, so declare a full working `PATH`:
+  ```json
+  {
+    "command": "npx",
+    "args": ["-y", "@npgamedev/godot-mcp-server"],
+    "env": { "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" }
+  }
+  ```
+
+- **Login-shell wrapper — last resort, not a safe default.**
+  ```json
+  { "command": "zsh", "args": ["-lc", "exec npx -y @npgamedev/godot-mcp-server"] }
+  ```
+  The stdio transport reserves the child's **stdout** for JSON-RPC — a single stray byte breaks the connection. A login shell **sources your startup files _before_ `exec` runs**, so any banner they print lands on stdout ahead of the handshake and corrupts it — and `exec` cannot un-emit bytes already written before it runs. With `-lc` (login, non-interactive) that noise comes from `~/.zprofile`, `~/.zshenv`, `/etc/zprofile`, and login/motd banners. Note the catch-22: `-lc` does **not** read `~/.zshrc`, so if your nvm/fnm init lives there the wrapper won't even find Node — and switching to an interactive shell (`-ilc`) to pick it up re-introduces the full startup-banner surface (Powerlevel10k, oh-my-zsh). Only consider this form if your login profile prints nothing on startup, and silence toolchain init (e.g. `nvm use --silent >/dev/null 2>&1`).
+
+- **Move your version-manager init into `~/.zprofile`.** The toolkit's resolver (and any `-lc` wrapper) use a login shell, which reads `~/.zprofile`/`~/.zshenv` but not `~/.zshrc`. If `which npx` works in your terminal but the toolkit can't resolve Node, add your nvm/fnm/volta init to `~/.zprofile` (or `~/.zshenv`) so login shells pick it up too.
+
+- **Simplest of all — the official installer.** Install Node from [nodejs.org](https://nodejs.org) (the `.pkg`). It lands in `/usr/local/bin`, which is typically on the GUI-app `PATH`, so `"command": "npx"` works from a GUI-launched client with no path juggling. The trade-off is losing per-project version switching.
 
 </details>
 
