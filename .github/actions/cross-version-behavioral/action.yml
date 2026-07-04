@@ -262,6 +262,7 @@ runs:
         netstat -ano 2>/dev/null | grep -E ":(6550|6551|6005)[^0-9]" || true
         echo "── toolkit registry ──"
         cat "$(cygpath -u "$APPDATA")/godot-mcp-toolkit/projects.json" 2>/dev/null || true
+        echo "forensics key: H1 (zombie warm-up editor) = 2+ godot PIDs, or 6005/6550 owned by a PID that is not the main editor, or the registry shows the main editor on 6551 -> fix: warm-up teardown (toolkit scripts/test_framework/run_units_cold.sh). H2 (engine-internal LSP wedge) = exactly 1 godot PID, 6005 owned by the main editor, initialize still mute -> upstream Godot 4.2 defect (no LSP bind retry 4.2-4.4; unbudgeted main-thread poll, fixed-shape 4.3); see the plan repo Insights doc; section-41 options are a user decision."
         exit 0
 
     # Composite-action run steps cannot take `timeout-minutes` (GitHub limitation),
@@ -365,4 +366,5 @@ runs:
         netstat -ano 2>/dev/null | grep -E ":(6550|6551|6005)[^0-9]" || true
         echo "── toolkit registry ──"
         cat "$(cygpath -u "$APPDATA")/godot-mcp-toolkit/projects.json" 2>/dev/null || true
+        echo "forensics key: H1 (zombie warm-up editor) = 2+ godot PIDs, or 6005/6550 owned by a PID that is not the main editor, or the registry shows the main editor on 6551 -> fix: warm-up teardown (toolkit scripts/test_framework/run_units_cold.sh). H2 (engine-internal LSP wedge) = exactly 1 godot PID, 6005 owned by the main editor, initialize still mute -> upstream Godot 4.2 defect (no LSP bind retry 4.2-4.4; unbudgeted main-thread poll, fixed-shape 4.3); see the plan repo Insights doc; section-41 options are a user decision."
         exit 0
