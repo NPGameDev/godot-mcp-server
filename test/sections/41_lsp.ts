@@ -2,10 +2,11 @@
  * Section 41 — LSP tools (conditional)
  *
  * Tests GDScript language intelligence via the Godot LSP connection.
- * Conditionally skips if the LSP port is not reachable (editor not running
- * or LSP disabled). This avoids false failures in CI or headless runs.
+ * Conditionally skips when nothing serves the LSP endpoint (editor not
+ * running or LSP disabled) — detected by the REAL client's first connect
+ * attempt, never by a raw probe-then-abort TCP touch (see the handshake-loop
+ * comment). This avoids false failures in CI or headless runs.
  */
-import { probePort, HOST } from "../helpers.js";
 import { LspClient, resolveLspEndpoint } from "../../src/lsp/lspClient.js";
 import { lspTools, createLspHandler } from "../../src/tools/lsp.js";
 
@@ -19,7 +20,6 @@ export const TOOLS_TESTED: string[] = [
   "lsp_definition",
   "lsp_references",
 ];
-const LSP_PORT = Number(process.env.GODOT_MCP_LSP_PORT ?? "6005");
 
 export async function testLsp(ctx: TestCtx): Promise<void> {
   const { pass, fail } = ctx;
@@ -49,15 +49,7 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
     pass("lsp: 6 tools defined");
   }
 
-  // ── Connectivity check ──
-
-  const lspReachable = await probePort(HOST, LSP_PORT, 2000);
-  if (!lspReachable) {
-    pass(`lsp: SKIPPED — port ${LSP_PORT} not reachable (editor LSP not running)`);
-    return;
-  }
-
-  // ── Live LSP tests (only when port is reachable) ──
+  // ── Live LSP tests (skip decided by the real client's first connect) ──
   // Resolution + collision detection (env > registry > conditional miss) and the
   // LSP_PORT_CONFLICT path are unit-tested in discover_lsp.test.ts; here we
   // exercise the happy path end-to-end against the running editor.
@@ -73,22 +65,39 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
     return;
   }
 
-  // Bounded handshake-readiness loop (CI-boot hardening). Godot 4.2's LSP runs
-  // on the editor main thread with an unbudgeted poll (4.3 added the
-  // poll_limit_usec budget — gdscript_language_server.cpp), so on a slow
-  // windows-latest runner the initialize response is intermittently starved
-  // past the 10s client timeout while the editor otherwise responds (observed
-  // twice: Win·4.2-gd beat 10s once, Win·4.2-mono beat one-retry/25s once;
-  // never on 4.3+ or on Linux/mac). Up to 5 attempts with a flat 5s backoff
-  // (worst case ~90s, matching the suite's 60s editor-boot poll discipline)
-  // absorb the stall WITHOUT relaxing the assertion: a dead/broken LSP fails
-  // all 5 attempts and still fails the section (refused connects red out
-  // fast; a hard hang reds out after the full budget). Platform-neutral — no
-  // OS/version branch; healthy editors succeed on attempt 1 and never loop.
-  // Every failed attempt is logged and a pass-on-retry names the attempt
-  // count, so a creeping needs-more-attempts trend stays visible in green-run
-  // logs. If a 4.2-Windows leg reds out AFTER this loop, do not widen it —
-  // that is a product-level investigation trigger (standing rule, 2026-07-04).
+  // Bounded handshake-readiness loop (CI-boot hardening) — the real client's
+  // connect IS the reachability probe. The former raw-TCP probePort gate
+  // (connect-then-destroy on the LSP port) is deliberately GONE: Godot 4.2's
+  // LSP accepts at most ONE pending connection per poll of an 8-slot client
+  // table (gdscript_language_protocol.cpp poll(); LSP_MAX_CLIENTS), and the
+  // poll runs on the editor main thread without a budget (4.3 added
+  // poll_limit_usec). An abortive probe therefore parks a dead socket AHEAD of
+  // the real client in the accept queue, and on a slow runner every timed-out
+  // attempt adds another corpse — a self-feeding queue CONSISTENT WITH the
+  // Win·4.2 CI reds (3 legs: TCP always accepted, initialize never answered
+  // within the budget; the surrounding smoke subtests were green BEFORE and
+  // AFTER the section — none ran during it, so a solid main-thread stall is
+  // not excluded. Mechanism component-confirmed locally; the end-to-end wedge
+  // did not reproduce on fast hardware). Locally, 8 back-to-back aborted
+  // probes flipped 4.2's accept to ECONNREFUSED outright (1/3 runs — the
+  // kernel listen backlog, MAX_PENDING_CONNECTIONS=8 in tcp_server.h) while
+  // zero-probe controls were 6/6 clean.
+  // Skip semantics survive via the client's error dichotomy: a first-attempt
+  // "LSP connect …" failure (refused / TCP connect timeout) means nothing
+  // serves the endpoint -> the same graceful SKIP the raw probe used to give.
+  // Post-connect stalls keep the loop: up to 5 attempts, flat 5s backoff
+  // (worst case ~90s, matching the suite's 60s editor-boot poll discipline),
+  // assertion unchanged — a dead/broken LSP still fails the section. Every
+  // failed attempt is logged and a pass-on-retry names the attempt count, so a
+  // creeping needs-more-attempts trend stays visible in green-run logs. No
+  // OS/version branch.
+  // STANDING RULE (2026-07-04): if a 4.2-Windows leg reds out here AFTER this
+  // change, STOP — product-level escalation. The ONLY permitted next shape is
+  // zero-corpse: connect ONCE, keep the socket, patient initialize (one long
+  // first-initialize timeout). Never widen this reconnect loop — each
+  // reconnect attempt queues behind its predecessor's corpse and needs two
+  // poll cycles inside its own 10s window, so added attempts are weakened
+  // insurance, not added coverage.
   const HANDSHAKE_ATTEMPTS = 5;
   const HANDSHAKE_BACKOFF_MS = 5_000;
   const handshakeErrors: string[] = [];
@@ -112,6 +121,15 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
       }
     } catch (err) {
       const message = (err as Error).message;
+      if (attempt === 1 && message.startsWith("LSP connect ")) {
+        // Nothing is serving the endpoint (ECONNREFUSED / TCP connect timeout
+        // — lspClient's connect-phase errors both carry this prefix, and the
+        // initialize-phase error does not). Same graceful skip as the old
+        // probe gate, now derived from the real client.
+        pass(`lsp: SKIPPED — LSP endpoint not reachable (${message})`);
+        await client.close().catch(() => {});
+        return;
+      }
       handshakeErrors.push(message);
       console.log(`[smoke] WARN  lsp: handshake attempt ${attempt}/${HANDSHAKE_ATTEMPTS} failed: ${message}`);
     }
