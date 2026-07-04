@@ -242,6 +242,28 @@ runs:
           sleep 1
         done
 
+    # Windows platform forensics (41n-quater-sexies C3 investigation) — pure-info
+    # and FAIL-SAFE: every command is || true'd and the step exits 0, so it can
+    # never redden a leg. Captures the process/port/registry state right after
+    # the editor launch. The discriminator it exists for: a surviving 4.2
+    # warm-up editor (zombie after a failed MSYS kill in run_units_cold.sh)
+    # shows as a SECOND godot PID holding 6005/6550 while the main editor
+    # silently re-registers on 6551 — the main editor's LSP bind then fails for
+    # the whole session (4.2-4.4 has no bind retry), the leading hypothesis for
+    # the Win·4.2 LSP initialize mute. Rides permanently as cheap forensics on
+    # the Windows legs.
+    - name: Platform diagnostics — processes + ports (windows)
+      if: ${{ inputs.os == 'windows' }}
+      shell: bash
+      run: |
+        echo "── EDITOR_PID=${EDITOR_PID:-unset} ──"
+        tasklist 2>/dev/null | grep -iE "godot" || true
+        echo "── port owners (6550/6551/6005) ──"
+        netstat -ano 2>/dev/null | grep -E ":(6550|6551|6005)[^0-9]" || true
+        echo "── toolkit registry ──"
+        cat "$(cygpath -u "$APPDATA")/godot-mcp-toolkit/projects.json" 2>/dev/null || true
+        exit 0
+
     # Composite-action run steps cannot take `timeout-minutes` (GitHub limitation),
     # so the long steps carry a shell `timeout` fuse instead — a hang fails the
     # STEP (letting the always() log steps run), not the job (a job-level kill
@@ -330,3 +352,17 @@ runs:
       run: |
         cat warmup.log 2>/dev/null || true
         cat editor.log || true
+
+    # Fail-safe forensics again at teardown — the END-state twin of the
+    # post-launch snapshot above (did a zombie persist through the suite?).
+    - name: Platform diagnostics at teardown (always, windows)
+      if: ${{ always() && inputs.os == 'windows' }}
+      shell: bash
+      run: |
+        echo "── EDITOR_PID=${EDITOR_PID:-unset} ──"
+        tasklist 2>/dev/null | grep -iE "godot" || true
+        echo "── port owners (6550/6551/6005) ──"
+        netstat -ano 2>/dev/null | grep -E ":(6550|6551|6005)[^0-9]" || true
+        echo "── toolkit registry ──"
+        cat "$(cygpath -u "$APPDATA")/godot-mcp-toolkit/projects.json" 2>/dev/null || true
+        exit 0
