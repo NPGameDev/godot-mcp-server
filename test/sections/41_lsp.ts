@@ -73,30 +73,54 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
     return;
   }
 
-  // Cold-CI-boot hardening: on a fresh runner the editor may still be importing
-  // the project when this section arrives, and a busy main loop can starve the
-  // LSP's initialize response past the client timeout (observed once: Windows ·
-  // Godot 4.2 · dogfood project — the slowest first-boot combo; every other
-  // OS/version handshakes immediately). One delayed retry absorbs the boot
-  // window without relaxing the assertion — a genuinely broken LSP fails both
-  // attempts and still fails the section. Platform-neutral (no OS branch).
+  // Bounded handshake-readiness loop (CI-boot hardening). Godot 4.2's LSP runs
+  // on the editor main thread with an unbudgeted poll (4.3 added the
+  // poll_limit_usec budget — gdscript_language_server.cpp), so on a slow
+  // windows-latest runner the initialize response is intermittently starved
+  // past the 10s client timeout while the editor otherwise responds (observed
+  // twice: Win·4.2-gd beat 10s once, Win·4.2-mono beat one-retry/25s once;
+  // never on 4.3+ or on Linux/mac). Up to 5 attempts with a flat 5s backoff
+  // (worst case ~90s, matching the suite's 60s editor-boot poll discipline)
+  // absorb the stall WITHOUT relaxing the assertion: a dead/broken LSP fails
+  // all 5 attempts and still fails the section (refused connects red out
+  // fast; a hard hang reds out after the full budget). Platform-neutral — no
+  // OS/version branch; healthy editors succeed on attempt 1 and never loop.
+  // Every failed attempt is logged and a pass-on-retry names the attempt
+  // count, so a creeping needs-more-attempts trend stays visible in green-run
+  // logs. If a 4.2-Windows leg reds out AFTER this loop, do not widen it —
+  // that is a product-level investigation trigger (standing rule, 2026-07-04).
+  const HANDSHAKE_ATTEMPTS = 5;
+  const HANDSHAKE_BACKOFF_MS = 5_000;
+  const handshakeErrors: string[] = [];
   let client = new LspClient(projectPath);
-  try {
-    await client.ensureConnected();
-    pass("lsp: TCP connection + initialize handshake succeeded");
-  } catch (firstErr) {
-    await client.close().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
-    client = new LspClient(projectPath);
+  let connected = false;
+  for (let attempt = 1; attempt <= HANDSHAKE_ATTEMPTS && !connected; attempt++) {
+    if (attempt > 1) {
+      await client.close().catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, HANDSHAKE_BACKOFF_MS));
+      client = new LspClient(projectPath);
+    }
     try {
       await client.ensureConnected();
-      pass(
-        `lsp: TCP connection + initialize handshake succeeded on retry (first attempt: ${(firstErr as Error).message})`,
-      );
+      connected = true;
+      if (attempt === 1) {
+        pass("lsp: TCP connection + initialize handshake succeeded");
+      } else {
+        pass(
+          `lsp: TCP connection + initialize handshake succeeded on attempt ${attempt}/${HANDSHAKE_ATTEMPTS} (attempt 1: ${handshakeErrors[0]})`,
+        );
+      }
     } catch (err) {
-      fail(`lsp: connection failed (after 1 retry): ${(err as Error).message}`);
-      return;
+      const message = (err as Error).message;
+      handshakeErrors.push(message);
+      console.log(`[smoke] WARN  lsp: handshake attempt ${attempt}/${HANDSHAKE_ATTEMPTS} failed: ${message}`);
     }
+  }
+  if (!connected) {
+    fail(
+      `lsp: connection failed (all ${HANDSHAKE_ATTEMPTS} attempts, ${HANDSHAKE_BACKOFF_MS / 1000}s backoff): ${handshakeErrors[handshakeErrors.length - 1]}`,
+    );
+    return;
   }
 
   try {
