@@ -42,7 +42,19 @@ export function toolErrorFromPayload(result: unknown): ToolTextResult | undefine
   return toolError(code, error, hint);
 }
 
-/** Default hints for transport-level exception codes. */
+/**
+ * Default hints for transport-level codes thrown as a `BridgeError`.
+ *
+ * Membership invariant: only codes that can arrive as a thrown `BridgeError`
+ * (transport-level, where the toolkit never ran to attach a hint) belong here.
+ * Application-level codes the toolkit emits as `{ success: false, … }` payloads
+ * carry their own hint — do not add them: those flow through `toolErrorFromPayload`,
+ * which relays the toolkit's hint verbatim, so the toolkit is the SSOT for their
+ * wording. `LOG_BUSY` / `LOG_UNAVAILABLE` are such payload codes — their recovery
+ * advice is version-gated on the editor's Godot version (only the toolkit knows it),
+ * so a fixed server default would be stale for half the versions. `COMPILATION_FAILED`
+ * stays: it is handled as a thrown code in `runtimeErrorWithCrashContext`.
+ */
 const EXCEPTION_HINTS: Record<string, string> = {
   TIMEOUT:
     "The editor or game may be busy, or the game failed to compile/start. " +
@@ -57,11 +69,6 @@ const EXCEPTION_HINTS: Record<string, string> = {
     "No running game. Call editor_get_console(level_filter:['error']) for crash diagnostics. " +
     "If empty, the game may have crashed — debugger_get_log serves cached output from log file after a real crash (OS signal). " +
     "To restart: fix the errors, then game_start.",
-  LOG_BUSY:
-    "The editor holds the live log locked — on Windows the lock can persist for the whole editor session; elsewhere it is a transient flush lock (retry in 1-2 seconds). Use source='buffer' (default), which reads from an in-memory ring buffer with no file I/O.",
-  LOG_UNAVAILABLE:
-    "Log file not available. Enable file logging in ProjectSettings → Debug → File Logging → Enable File Logging, then restart the editor. Or use source='buffer' (default) which captures all output in real-time.",
-  FEATURE_DISABLED: "This tool is unavailable under the current server configuration.",
 };
 
 /**

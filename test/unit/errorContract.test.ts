@@ -61,6 +61,26 @@ import type { Bridge } from "../../src/shared/types.js";
   assert.equal(payload.hint, "try this");
 }
 
+// LOG_BUSY payload hint passes through verbatim — the toolkit is the SSOT for the
+// version-gated recovery hint; the server relays it and never substitutes its own.
+{
+  const result = toolErrorFromPayload({ success: false, code: "LOG_BUSY", hint: "X" });
+  assert.ok(result != null);
+  const payload = JSON.parse(result!.content[0].text);
+  assert.equal(payload.code, "LOG_BUSY");
+  assert.equal(payload.hint, "X");
+}
+
+// A LOG_BUSY payload carrying no hint yields NO hint — there is no server-side fallback for
+// it (the dead EXCEPTION_HINTS entry was removed; the payload is the only hint source).
+{
+  const result = toolErrorFromPayload({ success: false, code: "LOG_BUSY" });
+  assert.ok(result != null);
+  const payload = JSON.parse(result!.content[0].text);
+  assert.equal(payload.code, "LOG_BUSY");
+  assert.equal(payload.hint, undefined);
+}
+
 // success: true → undefined (pass-through)
 {
   const result = toolErrorFromPayload({ success: true, data: "ok" });
