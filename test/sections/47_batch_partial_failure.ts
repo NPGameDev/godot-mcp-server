@@ -245,7 +245,7 @@ export async function testBatchPartialFailure(ctx: TestCtx): Promise<void> {
         "scene.instantiate",
         {
           parent_path: ".",
-          packed_path: instFixture,
+          scene_path: instFixture,
           instances: [
             { name: "BatchInstA", position: { type: "Vector2", x: 16, y: 32 } },
             { name: "BatchInstB", position: { type: "Vector2", x: 48, y: 64 } },

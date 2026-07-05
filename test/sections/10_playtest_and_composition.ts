@@ -271,7 +271,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   const defaultName = "smoke_inst_child";
   const instantiateFresh = (await bridge.call(
     "scene.instantiate",
-    { parent_path: ".", packed_path: instChildPath },
+    { parent_path: ".", scene_path: instChildPath },
     CALL_TIMEOUT,
   )) as { success?: boolean; status?: string; path?: string; class_name?: string; code?: string };
   if (
@@ -287,7 +287,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   // Idempotent: explicit as_name matching existing node → returned.
   const instantiateIdempotent = (await bridge.call(
     "scene.instantiate",
-    { parent_path: ".", packed_path: instChildPath, as_name: defaultName },
+    { parent_path: ".", scene_path: instChildPath, as_name: defaultName },
     CALL_TIMEOUT,
   )) as { status?: string; path?: string; code?: string };
   if (instantiateIdempotent?.status !== "returned" || instantiateIdempotent.path !== defaultName)
@@ -301,7 +301,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   // FIX-K: implicit name collision → auto-rename (Node, Node2, Node3...).
   const autoRenamed = (await bridge.call(
     "scene.instantiate",
-    { parent_path: ".", packed_path: instChildPath },
+    { parent_path: ".", scene_path: instChildPath },
     CALL_TIMEOUT,
   )) as { status?: string; path?: string; class_name?: string };
   if (autoRenamed?.status !== "created" || !autoRenamed.path?.startsWith(defaultName))
@@ -344,7 +344,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
     "scene.instantiate",
     {
       parent_path: ".",
-      packed_path: instChildPath,
+      scene_path: instChildPath,
       as_name: "CellA",
       transform: { position: { type: "Vector2", x: 32, y: 48 } },
     },
@@ -370,24 +370,24 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   // scene.instantiate guard rejections.
   assertGuard(
     ctx,
-    "scene.instantiate /tmp packed_path",
-    await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "/tmp/foo.tscn" }, CALL_TIMEOUT),
+    "scene.instantiate /tmp scene_path",
+    await bridge.call("scene.instantiate", { parent_path: ".", scene_path: "/tmp/foo.tscn" }, CALL_TIMEOUT),
     "PATH_DENIED",
     "absolute",
   );
   assertGuard(
     ctx,
-    "scene.instantiate .tres packed_path",
-    await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "res://bogus_smoke.tres" }, CALL_TIMEOUT),
+    "scene.instantiate .tres scene_path",
+    await bridge.call("scene.instantiate", { parent_path: ".", scene_path: "res://bogus_smoke.tres" }, CALL_TIMEOUT),
     "INVALID_PATH",
     [".tscn"],
   );
   assertGuard(
     ctx,
-    "scene.instantiate missing packed_path",
+    "scene.instantiate missing scene_path",
     await bridge.call(
       "scene.instantiate",
-      { parent_path: ".", packed_path: "res://no_such_inst_smoke.tscn" },
+      { parent_path: ".", scene_path: "res://no_such_inst_smoke.tscn" },
       CALL_TIMEOUT,
     ),
     "NOT_FOUND",
@@ -398,7 +398,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
     "scene.instantiate bogus parent_path",
     await bridge.call(
       "scene.instantiate",
-      { parent_path: "NoSuchParent_xyz", packed_path: instChildPath },
+      { parent_path: "NoSuchParent_xyz", scene_path: instChildPath },
       CALL_TIMEOUT,
     ),
     "NOT_FOUND",

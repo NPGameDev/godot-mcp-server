@@ -44,8 +44,8 @@ export async function testSecurity(ctx: TestCtx): Promise<void> {
   );
   assertGuard(
     ctx,
-    "FileGuard scene.instantiate traversal packed_path",
-    await bridge.call("scene.instantiate", { parent_path: ".", packed_path: "../../x.tscn" }, CALL_TIMEOUT),
+    "FileGuard scene.instantiate traversal scene_path",
+    await bridge.call("scene.instantiate", { parent_path: ".", scene_path: "../../x.tscn" }, CALL_TIMEOUT),
     "PATH_DENIED",
     "..",
   );
