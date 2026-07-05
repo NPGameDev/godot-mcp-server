@@ -44,7 +44,7 @@ export const sceneTools: ToolDef[] = [
         .record(z.string(), z.unknown())
         .optional()
         .describe(
-          "Inline property values set after creation." +
+          "Inline property values set after creation. " +
             "Same coercion as node_set_property. Partial failure keeps the node — check properties_failed. " +
             "Dict iteration order is not guaranteed.",
         ),
@@ -104,7 +104,7 @@ export const sceneTools: ToolDef[] = [
         .describe(
           "Batch mode: array of {name?, position?, rotation?, scale?, properties?}. " +
             "properties: arbitrary overrides applied after instantiation (e.g. {key_type: 'Gold'}). " +
-            "When present, spawns N instances as a batch." +
+            "When present, spawns N instances as a batch. " +
             "as_name and transform are ignored in batch mode.",
         ),
     },

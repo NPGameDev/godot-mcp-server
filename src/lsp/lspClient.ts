@@ -10,7 +10,7 @@
 import { createConnection, type Socket } from "node:net";
 
 import { discoverLspEndpoint, liveLspClaimants } from "../registry.js";
-import { isVersionAtLeast, type GodotVer } from "../shared/version.js";
+import { getServerVersion, isVersionAtLeast, type GodotVer } from "../shared/version.js";
 import { isValidPort } from "../startup/portConfig.js";
 import { normalizeUri } from "./lspUri.js";
 
@@ -53,21 +53,21 @@ function lspConflictHint(): string {
     return (
       "Another editor holds this project's GDScript LSP port. Close the other editor — " +
       "this editor's LSP then rebinds the port automatically — or give each editor a " +
-      "distinct --lsp-port + GODOT_MCP_LSP_PORT (docs/multi-instance.md)."
+      "distinct --lsp-port + GODOT_MCP_LSP_PORT (see the toolkit addon's addons/godot_mcp_toolkit/docs/multi-instance.md)."
     );
   }
   if (v != null) {
     // 4.2-4.4: no LSP bind retry, so closing the other editor won't recover this one.
     return (
       "Another editor holds this project's GDScript LSP port. On this Godot version, give " +
-      "each editor a distinct --lsp-port + GODOT_MCP_LSP_PORT (docs/multi-instance.md) — " +
+      "each editor a distinct --lsp-port + GODOT_MCP_LSP_PORT (see the toolkit addon's addons/godot_mcp_toolkit/docs/multi-instance.md) — " +
       "closing the other editor won't recover this LSP without restarting this editor."
     );
   }
   // Version unknown — cover both ranges.
   return (
     "Another editor holds this project's GDScript LSP port. Either give each editor a " +
-    "distinct --lsp-port + GODOT_MCP_LSP_PORT (docs/multi-instance.md), or close the other " +
+    "distinct --lsp-port + GODOT_MCP_LSP_PORT (see the toolkit addon's addons/godot_mcp_toolkit/docs/multi-instance.md), or close the other " +
     "editor (Godot 4.5+ rebinds automatically; 4.2-4.4 restart this editor after)."
   );
 }
@@ -75,7 +75,7 @@ function lspConflictHint(): string {
 const LSP_UNAVAILABLE_HINT =
   "GDScript LSP not reachable. Ensure the Godot editor is running with the toolkit " +
   "plugin enabled. With multiple editors open, give each a distinct --lsp-port + " +
-  "GODOT_MCP_LSP_PORT (docs/multi-instance.md).";
+  "GODOT_MCP_LSP_PORT (see the toolkit addon's addons/godot_mcp_toolkit/docs/multi-instance.md).";
 
 /** Resolution failure carrying a specific tool error code + actionable hint. */
 export class LspResolutionError extends Error {
@@ -317,7 +317,7 @@ export class LspClient {
         processId: process.pid,
         capabilities: {},
         rootUri: this.projectRootUri(),
-        clientInfo: { name: "godot-mcp-server", version: "0.1.0" },
+        clientInfo: { name: "godot-mcp-server", version: getServerVersion() },
       },
       this.initializeTimeoutMs,
     );

@@ -54,12 +54,13 @@ export type NotificationHandler = (type: string, params?: Record<string, unknown
  * Canonical MCP tool-error codes (UPPER_SNAKE_CASE) — the cross-repo error
  * contract. Must stay in sync with `MCP_ERROR_CODES` in the toolkit
  * (`mcp_server.gd` + `mcp_runtime_server.gd`): a new plugin-emitted code touches
- * both repos. The transport-level codes (`CLOSED`, `RPC_ERROR`, `SEND_FAILED`)
- * originate in the bridge and never travel through the plugin.
+ * both repos. The transport-level codes (`AUTH_FAILED`, `CLOSED`, `RPC_ERROR`,
+ * `SEND_FAILED`) originate in the bridge and never travel through the plugin.
  */
 export type ErrorCode =
   | "ALREADY_EXISTS"
   | "ALREADY_PLAYING"
+  | "AUTH_FAILED"
   | "CANCELLED"
   | "CLOSED"
   | "COMPILATION_FAILED"
@@ -111,8 +112,11 @@ export type ErrorCode =
 /**
  * Declares that a tool input param carries a filesystem path that the server
  * should syntactically pre-filter (defense-in-depth / fast-fail) before the WS
- * round-trip. A strict subset of the toolkit's canonicalizing FileGuard — see
- * src/path_guard.ts and ADR 0009 (toolkit).
+ * round-trip. A strict subset of the toolkit's canonicalizing FileGuard, which
+ * is the authoritative trust boundary — so this pre-filter must never reject a
+ * path the toolkit accepts, and never acts as the primary guard. It hardens a
+ * well-meaning command against LLM-supplied path escapes, not the host against
+ * an extension (extensions run at full trust). See src/security/pathGuard.ts.
  *
  * `guard: "project"` ↔ res:// (FileGuard.resolve_safe); `guard: "user"` ↔ user://
  * (FileGuard.resolve_safe_user). Use the explicit `prefixes` form only for the

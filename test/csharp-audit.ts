@@ -563,7 +563,7 @@ async function main(): Promise<void> {
   console.log(`  Results: ${passCount} passed, ${failCount} failed, ${skipCount} skipped (${total} total)`);
   console.log("═══════════════════════════════════════════════════════════\n");
 
-  bridge.close();
+  void bridge.close(); // fire-and-forget: process.exit follows immediately
   process.exit(failCount > 0 ? 1 : 0);
 }
 

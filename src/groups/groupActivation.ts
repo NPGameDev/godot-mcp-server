@@ -13,7 +13,7 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import type { Bridge, ToolDef } from "../shared/types.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../shared/types.js";
 import { GROUPS, allDefs, type GroupDef } from "./groupCatalogue.js";
 import { loadedGroups } from "./groupState.js";
 import {
@@ -100,9 +100,7 @@ export function registerGroupTools(server: McpServer, bridge: Bridge, group: Gro
         inputSchema: def.inputSchema,
         annotations: def.annotations,
       },
-      createGroupToolHandler(bridge, def) as (
-        input: Record<string, unknown>,
-      ) => Promise<import("../shared/types.js").ToolTextResult>,
+      createGroupToolHandler(bridge, def) as (input: Record<string, unknown>) => Promise<ToolTextResult>,
       { godotMinVersion: def.godotMinVersion, godotMaxVersion: def.godotMaxVersion },
     );
     registered.push(toolName);
