@@ -8,7 +8,7 @@
 
 > **registerTools**(`server`, `bridge`, `tools`, `allowedTools?`, `opts?`): `void`
 
-Defined in: [src/registration/toolRegistry.ts:241](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registration/toolRegistry.ts#L241)
+Defined in: [src/registration/toolRegistry.ts:242](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registration/toolRegistry.ts#L242)
 
 Bulk-register an array of [ToolDef](../../../shared/types/type-aliases/ToolDef.md)s, each through
 [registerToolWrapped](registerToolWrapped.md). The default handler calls the bridge and

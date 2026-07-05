@@ -8,7 +8,7 @@
 
 > **registerGroupSystem**(`server`, `bridge`, `readOnly`): `void`
 
-Defined in: [src/groups/groups.ts:106](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/groups.ts#L106)
+Defined in: [src/groups/groups.ts:105](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/groups.ts#L105)
 
 Register the discover_tools meta-tool and its handler.
 Call this during base registration. Idempotent — if the tool

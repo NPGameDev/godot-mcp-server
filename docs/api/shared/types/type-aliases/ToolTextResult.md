@@ -8,7 +8,7 @@
 
 > **ToolTextResult** = `object`
 
-Defined in: [src/shared/types.ts:157](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L157)
+Defined in: [src/shared/types.ts:161](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L161)
 
 An MCP tool response — one or more text blocks; `isError` marks a tool-level failure.
 
@@ -18,7 +18,7 @@ An MCP tool response — one or more text blocks; `isError` marks a tool-level f
 
 > **content**: `object`[]
 
-Defined in: [src/shared/types.ts:158](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L158)
+Defined in: [src/shared/types.ts:162](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L162)
 
 #### text
 
@@ -34,4 +34,4 @@ Defined in: [src/shared/types.ts:158](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **isError?**: `true`
 
-Defined in: [src/shared/types.ts:159](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L159)
+Defined in: [src/shared/types.ts:163](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L163)

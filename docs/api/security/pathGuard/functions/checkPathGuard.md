@@ -8,7 +8,7 @@
 
 > **checkPathGuard**(`g`, `value`): [`PathCheck`](../type-aliases/PathCheck.md)
 
-Defined in: [src/security/pathGuard.ts:75](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/security/pathGuard.ts#L75)
+Defined in: [src/security/pathGuard.ts:78](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/security/pathGuard.ts#L78)
 
 Apply a PathGuard to an input value. Skips absent / empty / whitespace-only
 values (an unprovided optional param defers to the toolkit — e.g.

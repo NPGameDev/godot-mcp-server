@@ -8,7 +8,7 @@
 
 > **checkPath**(`input`, `prefixes`): [`PathCheck`](../type-aliases/PathCheck.md)
 
-Defined in: [src/security/pathGuard.ts:42](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/security/pathGuard.ts#L42)
+Defined in: [src/security/pathGuard.ts:45](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/security/pathGuard.ts#L45)
 
 Validate a single path string against the allowed prefixes — the syntactic
 half of FileGuard.resolve_safe. Empty/whitespace is rejected here (the

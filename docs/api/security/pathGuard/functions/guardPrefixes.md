@@ -8,7 +8,7 @@
 
 > **guardPrefixes**(`g`): readonly `string`[]
 
-Defined in: [src/security/pathGuard.ts:28](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/security/pathGuard.ts#L28)
+Defined in: [src/security/pathGuard.ts:31](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/security/pathGuard.ts#L31)
 
 Resolve a PathGuard's allowed prefixes.
 

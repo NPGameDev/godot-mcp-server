@@ -11,8 +11,7 @@ MCP Roots support.
 In the MCP protocol, roots are primarily a CLIENT capability — the
 client declares its workspace roots and the server can
 request them. This module exposes the Godot project root as a
-resource so it's discoverable, and provides a helper for other
-modules to access the resolved project path.
+resource so it's discoverable.
 
 The project path is resolved at startup from:
   1. GODOT_MCP_PROJECT_PATH env var (highest precedence)
@@ -21,5 +20,4 @@ The project path is resolved at startup from:
 
 ## Functions
 
-- [getProjectRoot](functions/getProjectRoot.md)
 - [registerRoots](functions/registerRoots.md)

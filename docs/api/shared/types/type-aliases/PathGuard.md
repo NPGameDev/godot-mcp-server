@@ -8,12 +8,15 @@
 
 > **PathGuard** = \{ `guard`: `"project"` \| `"user"`; `param`: `string`; \} \| \{ `param`: `string`; `prefixes`: readonly `string`[]; \}
 
-Defined in: [src/shared/types.ts:127](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L127)
+Defined in: [src/shared/types.ts:131](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L131)
 
 Declares that a tool input param carries a filesystem path that the server
 should syntactically pre-filter (defense-in-depth / fast-fail) before the WS
-round-trip. A strict subset of the toolkit's canonicalizing FileGuard — see
-src/path_guard.ts and ADR 0009 (toolkit).
+round-trip. A strict subset of the toolkit's canonicalizing FileGuard, which
+is the authoritative trust boundary — so this pre-filter must never reject a
+path the toolkit accepts, and never acts as the primary guard. It hardens a
+well-meaning command against LLM-supplied path escapes, not the host against
+an extension (extensions run at full trust). See src/security/pathGuard.ts.
 
 `guard: "project"` ↔ res:// (FileGuard.resolve_safe); `guard: "user"` ↔ user://
 (FileGuard.resolve_safe_user). Use the explicit `prefixes` form only for the

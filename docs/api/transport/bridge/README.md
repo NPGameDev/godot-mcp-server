@@ -17,7 +17,8 @@ re-discovery on disconnect, and delegation of the runtime channel.
 The bridge is the reference implementation of the project's async discipline —
 every call it forwards is timeout-bounded and cancellation-aware. Project-hash,
 token path, and WS framing are cross-repo contract with the toolkit; changing
-them is a ledgered change, not a free refactor.
+them is a contract change (docs/dev/contract.md in the toolkit repo), not a
+free refactor.
 
 ## Interfaces
 

@@ -8,7 +8,7 @@
 
 > **ToolRequest** = `object`
 
-Defined in: [src/shared/types.ts:184](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L184)
+Defined in: [src/shared/types.ts:188](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L188)
 
 Identifies the tool being called — passed to every hook.
 
@@ -18,7 +18,7 @@ Identifies the tool being called — passed to every hook.
 
 > **input**: `Record`\<`string`, `unknown`\>
 
-Defined in: [src/shared/types.ts:186](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L186)
+Defined in: [src/shared/types.ts:190](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L190)
 
 ***
 
@@ -26,4 +26,4 @@ Defined in: [src/shared/types.ts:186](https://github.com/NPGameDev/godot-mcp-ser
 
 > **name**: `string`
 
-Defined in: [src/shared/types.ts:185](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L185)
+Defined in: [src/shared/types.ts:189](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L189)

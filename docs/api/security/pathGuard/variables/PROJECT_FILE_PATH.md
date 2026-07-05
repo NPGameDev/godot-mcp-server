@@ -8,6 +8,6 @@
 
 > `const` **PROJECT\_FILE\_PATH**: [`PathGuard`](../../../shared/types/type-aliases/PathGuard.md)
 
-Defined in: [src/security/pathGuard.ts:25](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/security/pathGuard.ts#L25)
+Defined in: [src/security/pathGuard.ts:28](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/security/pathGuard.ts#L28)
 
 Convenience: the ubiquitous `file_path → res://` declaration.

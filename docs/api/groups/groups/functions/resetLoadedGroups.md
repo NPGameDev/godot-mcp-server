@@ -8,7 +8,7 @@
 
 > **resetLoadedGroups**(): `void`
 
-Defined in: [src/groups/groups.ts:95](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/groups.ts#L95)
+Defined in: [src/groups/groups.ts:94](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/groups/groups.ts#L94)
 
 Clear loaded-group tracking (used by config reload).
 

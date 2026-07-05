@@ -10,7 +10,7 @@
 
 Defined in: [src/shared/version.ts:64](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L64)
 
-Check whether a connected Godot version falls within [min, max] bounds.
+Check whether a connected Godot version falls within [min, max] bounds (each bound optional, inclusive).
 
 ## Parameters
 
