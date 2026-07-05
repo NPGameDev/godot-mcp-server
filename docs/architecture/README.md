@@ -352,8 +352,8 @@ flowchart TD
     regfilter -->|"version unknown"| skip["skip — re-registered on reconcile"]
     regfilter -->|"known + incompatible"| skip
     regfilter -->|"compatible / no bounds"| live["tool live"]
-    live --> call["per call: wrappedHandler"]
-    call --> vg["runtime version gate (isVersionCompatible)<br/>→ UNSUPPORTED on reconnect-to-incompatible"]
+    live --> perCall["per call: wrappedHandler"]
+    perCall --> vg["runtime version gate (isVersionCompatible)<br/>→ UNSUPPORTED on reconnect-to-incompatible"]
     vg --> pg["path pre-filter (checkPathGuard)<br/>→ PATH_DENIED (strict subset of the toolkit FileGuard)"]
     pg --> hook["hook pipeline (global or explicit)"]
     hook --> handler["handler → callAndWrap<br/>one bridge call → stableStringify(result)"]
