@@ -60,10 +60,10 @@ export function isVersionAtMost(connected: GodotVer, max: string): boolean {
   return compareGodotVer(connected, parseGodotVer(max)) <= 0;
 }
 
-/** Check whether a connected Godot version falls within [min, max] bounds. */
+/** Check whether a connected Godot version falls within [min, max] bounds (each bound optional, inclusive). */
 export function isVersionCompatible(connected: GodotVer, min?: string, max?: string): boolean {
-  if (min != null && compareGodotVer(connected, parseGodotVer(min)) < 0) return false;
-  if (max != null && compareGodotVer(connected, parseGodotVer(max)) > 0) return false;
+  if (min != null && !isVersionAtLeast(connected, min)) return false;
+  if (max != null && !isVersionAtMost(connected, max)) return false;
   return true;
 }
 

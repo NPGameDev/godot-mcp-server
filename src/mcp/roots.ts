@@ -4,8 +4,7 @@
  * In the MCP protocol, roots are primarily a CLIENT capability — the
  * client declares its workspace roots and the server can
  * request them. This module exposes the Godot project root as a
- * resource so it's discoverable, and provides a helper for other
- * modules to access the resolved project path.
+ * resource so it's discoverable.
  *
  * The project path is resolved at startup from:
  *   1. GODOT_MCP_PROJECT_PATH env var (highest precedence)
@@ -22,11 +21,6 @@ let projectRoot: string | undefined;
 /** Set the resolved project root (startup wiring). @internal */
 export function init(path: string | undefined): void {
   projectRoot = path;
-}
-
-/** The project root resolved at startup, or undefined if it was never set. */
-export function getProjectRoot(): string | undefined {
-  return projectRoot;
 }
 
 /**

@@ -158,9 +158,9 @@ export function registerToolWrapped(
       // Version unknown — skip the tool (don't register something we can't
       // verify). It is registered once the version resolves: the version-
       // resolved startup reconcile re-runs registration when the editor first
-      // reports its version (index.ts maybeStartupReconcile → handleConfigReload
-      // — the server-before-editor cold start), and any later reconnect re-runs
-      // it through handleConfigReload as well.
+      // reports its version (startup/reconcile.ts maybeStartupReconcile →
+      // handleConfigReload — the server-before-editor cold start), and any
+      // later reconnect re-runs it through handleConfigReload as well.
       return;
     }
     if (!isVersionCompatible(connected, opts.godotMinVersion, opts.godotMaxVersion)) {

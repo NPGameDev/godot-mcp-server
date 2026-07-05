@@ -52,10 +52,11 @@ export type NotificationHandler = (type: string, params?: Record<string, unknown
 
 /**
  * Canonical MCP tool-error codes (UPPER_SNAKE_CASE) — the cross-repo error
- * contract. Must stay in sync with `MCP_ERROR_CODES` in the toolkit
- * (`mcp_server.gd` + `mcp_runtime_server.gd`): a new plugin-emitted code touches
- * both repos. The transport-level codes (`AUTH_FAILED`, `CLOSED`, `RPC_ERROR`,
- * `SEND_FAILED`) originate in the bridge and never travel through the plugin.
+ * contract. Must stay in sync with `MCPToolkitError.CODES` in the toolkit
+ * (`addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`): a new
+ * plugin-emitted code touches both repos. The transport-level codes
+ * (`AUTH_FAILED`, `CLOSED`, `RPC_ERROR`, `SEND_FAILED`) originate in the
+ * bridge and never travel through the plugin.
  */
 export type ErrorCode =
   | "ALREADY_EXISTS"
@@ -85,7 +86,6 @@ export type ErrorCode =
   | "LOAD_FAILED"
   | "LOG_BUSY"
   | "LOG_UNAVAILABLE"
-  | "NO_RUNTIME_URL"
   | "NO_SCENE"
   | "NOT_A_RESOURCE"
   | "NOT_FOUND"
