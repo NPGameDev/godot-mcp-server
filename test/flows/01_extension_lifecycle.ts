@@ -13,7 +13,7 @@
 // script.*, and the registered extension methods) — NOT the server-side
 // discover_tools/group layer (that is smoke §39 + server unit tests).
 //
-// Version branch (decision #4): create→discovered and remove→gone are uniform
+// Version branch: create→discovered and remove→gone are uniform
 // across all supported versions; only update-existing-in-session branches —
 // 4.3+ applies the edit live, 4.2 defers it with a restart hint (the
 // CACHE_MODE_REUSE gate). The 4.2 assertion here also regression-guards
@@ -193,7 +193,7 @@ export async function testExtensionLifecycle(ctx: TestCtx): Promise<void> {
         `ext lifecycle RE-ENTRANCY: expected single flow_ext.hello, got ${helloCount} in [${againMethods.join(", ")}]`,
       );
 
-    // ── UPDATE-EXISTING (version-branched, decision #4) ────────────────────
+    // ── UPDATE-EXISTING (version-branched) ─────────────────────────────────
     // Rewrite the SAME extension adding flow_ext.multiply. 4.3+ applies live;
     // 4.2 defers with a restart hint (CACHE_MODE_REUSE gate).
     const writeV2 = (await bridge.call("script.write", { file_path: EXT_PATH, content: EXT_V2 }, CALL_TIMEOUT)) as {

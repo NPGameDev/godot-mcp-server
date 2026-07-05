@@ -1,32 +1,31 @@
 /**
  * Version-logic auditor — the server-side analogue of the toolkit's
- * manifest-diff gate (iter 41n-quinquies). Enumerates every version-dependent
+ * manifest-diff gate. Enumerates every version-dependent
  * decision the server ships — hardcoded `godotMinVersion`/`godotMaxVersion`
  * gates, version-tailored tool-description hints, behavioral `getGodotVersion()`
  * branches, and the version-aware `tools/list` annotation pass-through — and
  * asserts each threshold/claim equals the gated symbol's TRUE introduction
  * version.
  *
- * SELF-CONTAINED BY DESIGN. The authoritative intros are VENDORED below (the
- * `GODOT_INTRO` table), each constant carrying a provenance comment citing the
- * compat map + the source-code audit. The auditor never reads the toolkit repo
- * or the compat map at runtime — it is pure server-repo TypeScript, so it runs
- * under the existing `npm run test:unit` (auto-discovered by the `.test.ts`
- * suffix in run-all.ts) with ZERO CI-yaml change.
+ * SELF-CONTAINED TO RUN. The authoritative intros are VENDORED below (the
+ * `GODOT_INTRO` table), each constant stating what it anchors. The auditor
+ * never reads the toolkit repo or the compat map at runtime — it is pure
+ * server-repo TypeScript, so it runs under the existing `npm run test:unit`
+ * (auto-discovered by the `.test.ts` suffix in run-all.ts) with ZERO CI-yaml
+ * change. The provenance TRAIL behind the vendored values (the cross-version
+ * source audit + compat map) lives in the planning repo — external material,
+ * not needed to run or maintain this gate.
  *
  * REGRESSION SEMANTICS. Every assertion interpolates a vendored intro into the
  * expected value, so the gate FAILS LOUDLY when server code drifts from the
- * vendored truth — e.g. someone edits scene_close's gate to "4.4", or reworders
+ * vendored truth — e.g. someone edits scene_close's gate to "4.4", or rewords
  * a "4.5+" description hint to the wrong version. Fixing such a failure means
  * re-running the cross-version threshold audit and updating BOTH the code and
  * the vendored constant together (a deliberate, reviewed act), exactly like
  * bumping the toolkit sweep-coverage manifest.
  *
- * GREEN NOW. The class-4 audit (SourceCodeAudits/class-3-4-thresholds.md §iii)
- * found ZERO mismatches across these sites; this file locks that clean state.
- *
- * Source of truth for the enumeration + intros:
- *   godot-mcp-creation/SourceCodeAudits/class-3-4-thresholds.md  (§iii, class 4)
+ * The audit that produced these values found ZERO mismatches across the
+ * enumerated sites; this file locks that clean state.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -38,54 +37,48 @@ import type { ToolDef } from "../../src/shared/types.js";
 // ── Vendored Godot-API / behavioral intro table ──────────────────────
 //
 // "intro" = the FIRST Godot minor release on which the gated symbol/behavior
-// exists. API rows are compat-map-verifiable (compat-map.tsv, 4.2–4.7);
-// behavioral rows gate engine BEHAVIOR (not ClassDB presence) and cite their
-// documented empirical characterization. Every value below was reconciled to
-// PASS in the class-4 audit. Change a value ONLY alongside a re-audit — it is
-// the anchor the whole gate compares against.
+// exists. API rows are ClassDB-presence facts (verifiable against the engine
+// source per version); behavioral rows gate engine BEHAVIOR (not ClassDB
+// presence) and rest on documented empirical characterization. Change a value
+// ONLY alongside a re-audit — it is the anchor the whole gate compares
+// against.
 
 const GODOT_INTRO = {
   // ── ClassDB API introductions (compat-map-verifiable) ──
-  /** `EditorInterface.close_scene` — present 4.5+ (compat "---YYY"). Gates
-   *  scene_close AND the four "auto-closes tab on 4.5+" delete-tool hints.
-   *  Audit §iii editor.ts:70/73, scene.ts:81, folder.ts:22, file.ts:14. */
+  /** `EditorInterface.close_scene` — present 4.5+. Gates scene_close AND the
+   *  four "auto-closes tab on 4.5+" delete-tool hints. */
   close_scene: "4.5",
-  /** `Logger` class — editor parse-error capture, present 4.5+ ("---YYY").
-   *  Co-varies with os_add_logger. Audit §ii log_buffer.gd:75. */
+  /** `Logger` class — editor parse-error capture, present 4.5+.
+   *  Co-varies with os_add_logger. */
   logger_class: "4.5",
   /** `OS.add_logger` — parse-error sink behind script_check's real-line hint,
-   *  present 4.5+ ("---YYY"). Audit §iii script.ts:54; §ii script_commands.gd:303. */
+   *  present 4.5+. */
   os_add_logger: "4.5",
-  /** `TileMapLayer` node — introduced 4.3 ("-YYYYY"); TileMap deprecated after.
-   *  Audit §iii tilemap.ts:13; §ii tilemap_commands.gd:34. */
+  /** `TileMapLayer` node — introduced 4.3; TileMap deprecated after. */
   tilemaplayer: "4.3",
 
   // ── Behavioral boundaries (engine behavior, not API presence) ──
   /** LSP auto-rebind on port contention — added 4.5; 4.2-4.4 have no bind retry
-   *  and need a manual editor restart. Flag B-4. Audit §iii lspClient.ts:52/71,
-   *  lspSession.ts:55, lspStatusReporter.ts:15/51. */
+   *  and need a manual editor restart. */
   lsp_bind_retry: "4.5",
   /** LSP `window/showMessage` protocol support — shipped 4.5 (PR #104401),
-   *  absent 4.2-4.4. Engine-verified against gdscript_language_protocol.cpp.
-   *  Audit §iii lspClient.ts (rootUri/showMessage family). */
+   *  absent 4.2-4.4. Engine-verified against gdscript_language_protocol.cpp. */
   lsp_show_message: "4.5",
-  /** LSP rootUri root-mismatch warning during initialize — 4.5+ behavior.
-   *  Flag B-4. Audit §iii lspClient.ts:231/308/527, registry.ts:173. */
+  /** LSP rootUri root-mismatch warning during initialize — 4.5+ behavior. */
   lsp_rooturi_mismatch: "4.5",
   /** gdshader `languageId:"gdshader"` honored 4.6+ only (shader-diagnostic
-   *  suppression); 4.2-4.5 ignore it. Flag B-6. Audit §iii tools/lsp.ts:167-169. */
+   *  suppression); 4.2-4.5 ignore it. */
   gdshader_language_id: "4.6",
   /** Headless stale-instance hot-reload hint applies 4.4+ (hot-reload boundary
-   *  4.3→4.4, empirically characterized 4.2.0–4.6.2). Flag B-3.
-   *  Audit §iii shared/types.ts:34; §ii stale_instance_hint.gd. */
+   *  4.3→4.4, empirically characterized 4.2.0–4.6.2). */
   headless_stale_instance: "4.4",
 
   // ── Range / policy anchors ──
   /** Supported floor — 4.2 is the baseline; a tool omits godotMinVersion when it
-   *  works on 4.2+. Audit §iii shared/types.ts:144-147, sceneInheritance.ts:12. */
+   *  works on 4.2+. */
   supported_floor: "4.2",
   /** Tested maximum — GODOT_TESTED_MAX_VERSION "4.7.0"; bump on a 4.8 adoption
-   *  pass. Audit §iii sceneInheritance.ts:12, lspClient.ts:387; §ii plugin.gd:73. */
+   *  pass. */
   tested_max: "4.7",
 } as const;
 
@@ -138,7 +131,7 @@ let sites = 0;
     max: t.godotMaxVersion,
   }));
 
-  // The complete, audited set of hardcoded catalogue gates (class-4 audit: 1).
+  // The complete, audited set of hardcoded catalogue gates (exactly one).
   assert.deepEqual(
     gated,
     [{ name: "scene_close", min: GODOT_INTRO.close_scene, max: undefined }],
@@ -199,7 +192,7 @@ sites += 1;
 // These live in LSP code + shared type-doc comments (not ToolDefs). Assert the
 // version-bearing fragment, built from the vendored behavioral boundary.
 
-// LSP 4.5 auto-rebind family (flag B-4).
+// LSP 4.5 auto-rebind family.
 assertSrcHas("lsp/lspClient.ts", `isVersionAtLeast(v, "${GODOT_INTRO.lsp_bind_retry}")`, "lspClient.ts:52");
 sites += 1;
 assertSrcHas("lsp/lspClient.ts", `Godot ${GODOT_INTRO.lsp_bind_retry}+ rebinds automatically`, "lspClient.ts:71");
@@ -227,7 +220,7 @@ assertSrcHas(
 );
 sites += 1;
 
-// gdshader languageId honored 4.6+ (flag B-6).
+// gdshader languageId honored 4.6+.
 assertSrcHas(
   "tools/lsp.ts",
   `${GODOT_INTRO.gdshader_language_id}/${GODOT_INTRO.tested_max} languageId`,
@@ -235,7 +228,7 @@ assertSrcHas(
 );
 sites += 1;
 
-// Headless stale-instance hint 4.4+ (flag B-3) + baseline-floor schema doc.
+// Headless stale-instance hint 4.4+ + baseline-floor schema doc.
 assertSrcHas(
   "shared/types.ts",
   `${GODOT_INTRO.headless_stale_instance}+ headless stale-instance`,

@@ -68,7 +68,7 @@ export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
   else pass("signal.emit child_order_changed");
 
   // REGRESSION: signal_manage method hint — connect response should include
-  // persistence guidance or method reference (fixed T:5f96b62 / S:6964946).
+  // persistence guidance or method reference.
   // The hint should contain actionable guidance (e.g., "Save" to persist).
   assertHint(ctx, "REGRESSION signal_manage connect hint", connectFresh, "persist");
 

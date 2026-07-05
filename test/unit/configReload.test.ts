@@ -1,5 +1,5 @@
 /**
- * Unit tests for config_reload.ts — pure functions only.
+ * Unit tests for configReload.ts — pure functions only.
  * Tests readMcpJsonEnv (parse .mcp.json env block) and
  * applyEnvUpdate (env var sync with GODOT_MCP_* prefix filtering).
  */

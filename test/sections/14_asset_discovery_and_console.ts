@@ -421,7 +421,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   // every version. (Runtime output IS captured on 4.2+ — see the level_filter=warning and
   // source=file shape checks above.) Empirically confirmed on 4.2: source=file count=0.
   //
-  // HEADLESS (41n-quater-bis): even on 4.5+ a headless editor never GUI-revalidates the
+  // HEADLESS: even on 4.5+ a headless editor never GUI-revalidates the
   // recompiled script, so the filename-bearing parse error is re-cleared before it re-emits
   // → count:0. The capture assertions self-skip headless exactly as they skip <4.5; the
   // mechanics checks keep running. The toolkit compensates with a deterministic
@@ -542,7 +542,6 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   // REGRESSION: regex text_filter with \d returned 0 results in editor_get_console
   // (caller-side escaping issue). Canary: send a regex that would match digit-containing
   // log lines. If the console has ANY log entries with digits, this should find them.
-  // (fixed T:d3e2c1a / S:3a07581)
   const tfRegexDigits = (await bridge.call(
     "editor.get_console",
     { text_filter: "\\d", is_regex: true, limit: 50 },
@@ -555,7 +554,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     fail(`REGRESSION text_filter regex \\d: ${JSON.stringify(tfRegexDigits)}`);
   }
 
-  // clear_buffer param (S:8531ee2, FIX-8).
+  // clear_buffer param.
   // Calling with clear_buffer=true should succeed and return a count.
   const clearResult = (await bridge.call("editor.get_console", { limit: 10, clear_buffer: true }, CALL_TIMEOUT)) as {
     success?: boolean;
@@ -607,7 +606,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   } catch {
     /* noop */
   }
-  // scene.close is 4.5+ only (unregistered on <4.5 → -32601); guard the cleanup (Q2).
+  // scene.close is 4.5+ only (unregistered on <4.5 → -32601); guard the cleanup.
   if (is45Plus) {
     try {
       await bridge.call("scene.close", { file_path: smokeDeps }, CALL_TIMEOUT);

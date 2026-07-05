@@ -12,8 +12,8 @@ export const TOOLS_TESTED: string[] = ["discover_tools"];
 
 /**
  * The canonical list of every tool definition the server ships.
- * Single-sourced from src/catalogue.ts so this can never drift from the
- * runtime surface or the --tools-count CLI output.
+ * Single-sourced from src/registration/catalogue.ts so this can never drift
+ * from the runtime surface or the --tools-count CLI output.
  */
 function getAllToolDefs(): ToolDef[] {
   return ALL_TOOL_DEFS;
@@ -81,8 +81,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     "tilemap_set_cells",
     "editor_refresh",
     "input_map_event",
-    // Surfaced when the catalogue expanded to all modules (vicies-novies);
-    // audio-bus editing has many sub-actions — 218 chars is intentional.
+    // Audio-bus editing has many sub-actions — 218 chars is intentional.
     "audiobus_edit",
     // Byte-offset pagination guidance — the next_offset/
     // total_bytes/truncated paging protocol must be spelled out for the agent.
@@ -107,8 +106,8 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
 
   // Readonly tool count canary — catches accidental annotation drift.
   // Count tools with readOnlyHint=true across the full canonical catalogue.
-  // 38 readonly tools (36 + audiobus_list + animationtree_list from the ledger #3 CQS split;
-  // the 36 was 35 + scene_spatial_map; was 25 when the catalogue under-counted at 75).
+  // 38 readonly tools across the full canonical catalogue; update the canary
+  // deliberately when a readonly tool is added or an annotation changes.
   const expectedReadonly = 38;
   const readonlyCount = allTools.filter((t: ToolDef) => t.annotations?.readOnlyHint === true).length;
   if (readonlyCount !== expectedReadonly) fail(`readonly count: expected ${expectedReadonly}, got ${readonlyCount}`);
@@ -116,7 +115,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
 
   // Version-gate structural check — scene_close has godotMinVersion.
   // Dynamic visibility (hidden on Godot < 4.5) is validated by unit tests
-  // (registry filtering logic in undecies-quinquies). Here we verify the
+  // (registry filtering logic). Here we verify the
   // metadata exists so version gating can function.
   const sceneClose = editorTools.find((t: ToolDef) => t.name === "scene_close");
   if (!sceneClose) {
@@ -144,7 +143,7 @@ export async function testCatalogue(ctx: TestCtx): Promise<void> {
   testCatalogueStatic(ctx);
 
   // Advertise == register: discover_tools' group summaries must not offer a
-  // version-gated built-in the connected editor cannot serve (41n-duodecies).
+  // version-gated built-in the connected editor cannot serve.
   // scene_close (godotMinVersion 4.5) lives in the cleanup group — the browse
   // summary must include it iff the connected editor can serve it, exactly
   // mirroring the registration gate. This is the cross-version CI guard: the

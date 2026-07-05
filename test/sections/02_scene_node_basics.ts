@@ -74,8 +74,7 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   // then delete. Setting editor_description arms a 0.5s one-shot tooltip timer
   // in the engine's SceneTreeEditor that binds a raw TreeItem*; deleting that
   // node within 0.5s makes the timer fire on freed memory → editor SIGSEGV
-  // (UAF, Godot 4.3+, unguarded on master — see plan-repo
-  // Insights/smoke-backpressure-crash-characterization.md). Section 02 was the
+  // (UAF, Godot 4.3+, unguarded on master). Section 02 was the
   // suite's only arming op; round-tripping on the root (then restoring "")
   // exercises the same code path without ever deleting the described node.
   const nodePath = freshNode?.path ?? nodeName;
@@ -105,7 +104,7 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   if (!deleteResult?.success) fail(`scene.delete_node: ${JSON.stringify(deleteResult)}`);
   else pass("scene.delete_node cleanup");
 
-  // ── REGRESSION: scene_create_node class mismatch guard (fixed T:cb4e162 / S:6964946) ──
+  // ── REGRESSION: scene_create_node class mismatch guard ──
   // Creating a node with a class_name that doesn't match a real Godot class
   // should return a clear CLASS_MISMATCH error.
   assertGuard(

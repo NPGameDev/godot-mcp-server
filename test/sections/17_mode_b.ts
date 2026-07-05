@@ -142,7 +142,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
         pass("execute.code 1+2 -> 3");
       }
 
-      // REGRESSION: execute_code context-aware load() hint (fixed T:279efed / S:5e95710).
+      // REGRESSION: execute_code context-aware load() hint.
       // Attempting to load() inside execute_code should produce a hint about context.
       const loadAttempt = (await bridge.callRuntime(
         "execute.code",
@@ -180,12 +180,12 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
   await testSendText(ctx);
 }
 
-// send_text (input_simulate event_type, added 41n-sexies). Unlike the other
+// send_text (input_simulate event_type). Unlike the other
 // mode-B checks, this drives its OWN playtest of the dogfood fixture scene — two
 // LineEdits (one with secret=true) give it a deterministic text surface no
 // matter what a prior section left running. It skips cleanly when the fixture is
 // absent (a smoke run against a non-dogfood project), where the toolkit sweep
-// (Validations/Sections/20-runtime.md 20.17a–g) owns the positive coverage.
+// (toolkit repo: Validations/Sections/20-runtime.md 20.17a–g) owns the positive coverage.
 //
 // callRuntime talks straight to the toolkit, bypassing the server's
 // single→events[] normalization, so each call wraps its event in events:[…]

@@ -16,7 +16,7 @@ import { withLspDoc } from "../lsp/lspSession.js";
 // so their import paths stay stable.
 export { setLspStatusReporter, lspConnectFailureHint } from "../lsp/lspSession.js";
 
-// ── Tool definitions ─────────────���───────────────────────────────────
+// ── Tool definitions ──────────────────────────────────────────────────
 
 // ── Primary group: gdscript_analysis ─────────────────────────────────
 // The 3 tools used most frequently during a write→validate→explore cycle.
@@ -70,7 +70,7 @@ export const lspAnalysisTools: ToolDef[] = [
   },
 ];
 
-// ── Secondary group: code_navigation ��───────────────────────────────
+// ── Secondary group: code_navigation ──────────────────────────────────
 // Situational tools for cross-file investigation: finding definitions,
 // references, and available completions. Use sparingly — each call
 // targets a single position.
@@ -130,7 +130,7 @@ export const lspNavigationTools: ToolDef[] = [
 /** All LSP tools combined (for catalogue/static checks). */
 export const lspTools: ToolDef[] = [...lspAnalysisTools, ...lspNavigationTools];
 
-// ── Handler factory ────────���─────────────────────────────────────────
+// ── Handler factory ───────────────────────────────────────────────────
 
 /**
  * Create a handler for an LSP tool. Each handler:

@@ -149,7 +149,7 @@ export function discoverRuntime(projectPath: string): number | null {
 // Godot's GDScript LSP binds one machine-wide port (default 6005); the toolkit
 // publishes each editor's setting-derived endpoint into its registry entry.
 // We resolve per-project and detect collisions server-side (the toolkit can't
-// read whether its own bind won). See ADR 0008 (toolkit) / lsp_client.ts.
+// read whether its own bind won). See lsp/lspClient.ts (resolveLspEndpoint).
 
 /**
  * Every LIVE editor claiming a given LSP port. Matches entry.lsp_port and

@@ -15,11 +15,11 @@ export const TOOLS_TESTED: string[] = [
  *
  * This section runs LAST in the suite. It exercises:
  * 1. debugger_get_log cache fallback: after game_stop, the server should
- *    return cached log data (S:2c681a0) rather than failing.
+ *    return cached log data rather than failing.
  * 2. COMPILATION_FAILED guard: game_start with a broken script should
- *    return COMPILATION_FAILED error code with enriched hints (S:e7ed6b2).
+ *    return COMPILATION_FAILED error code with enriched hints.
  * 3. Heartbeat/timeout canaries: basic shape assertions on crash-detection
- *    infrastructure (S:e0c2426). Full crash simulation isn't feasible in
+ *    infrastructure. Full crash simulation isn't feasible in
  *    automated smoke — heartbeat timeouts require a killed process.
  *
  * Because this section starts and stops the game, it runs after section 39
@@ -41,8 +41,7 @@ export async function testCrashDetection(ctx: TestCtx): Promise<void> {
   // game launches, so BOTH the start→wait→stop→cached-log flow and the COMPILATION_FAILED-on-start
   // path are unreachable (no game ever runs). Assert the deterministic guard + its guidance,
   // confirm debugger.get_log degrades gracefully with no live runtime, then return — the display
-  // flow below is byte-identical. This keeps §40 green under the un-skipped headless CI run
-  // (41n-quater-bis).
+  // flow below is byte-identical. This keeps §40 green under the un-skipped headless CI run.
   const headless = bridge.isHeadless() === true;
   if (headless) {
     const gsHeadless = (await bridge.call(
@@ -72,7 +71,7 @@ export async function testCrashDetection(ctx: TestCtx): Promise<void> {
     return;
   }
 
-  // ── debugger_get_log cache fallback (S:2c681a0) ──
+  // ── debugger_get_log cache fallback ──
   // Start game, wait for runtime, stop, then immediately fetch logs.
   // After game_stop the runtime port is gone, but the server should
   // serve cached log data rather than returning GAME_NOT_RUNNING.
@@ -110,7 +109,7 @@ export async function testCrashDetection(ctx: TestCtx): Promise<void> {
     // Cache fallback didn't work — this is what we're testing.
     fail("debugger_get_log post-stop: returned GAME_NOT_RUNNING (cache fallback missing)");
   } else if (Array.isArray(postStopLog?.lines) && typeof postStopLog.count === "number") {
-    // REGRESSION: debugger_get_log cache fallback (fixed S:2c681a0)
+    // REGRESSION: debugger_get_log cache fallback
     // The server caches the last runtime log so post-game-stop requests
     // return data instead of GAME_NOT_RUNNING.
     pass(`debugger_get_log post-stop -> ${postStopLog.count} lines (cached=${postStopLog.cached ?? "unknown"})`);
@@ -119,7 +118,7 @@ export async function testCrashDetection(ctx: TestCtx): Promise<void> {
     pass(`debugger_get_log post-stop -> non-error response: ${JSON.stringify(postStopLog).slice(0, 100)}`);
   }
 
-  // ── COMPILATION_FAILED guard (S:e7ed6b2, T:4be3454) ──
+  // ── COMPILATION_FAILED guard ──
   // Write a broken script, then try to start the game.
   const brokenScriptPath = "res://smoke_broken_40.gd";
   await bridge.call(
@@ -138,7 +137,7 @@ export async function testCrashDetection(ctx: TestCtx): Promise<void> {
   };
 
   if (compileFail?.code === "COMPILATION_FAILED") {
-    // REGRESSION: game_start compilation failure detection (fixed T:4be3454 / S:e7ed6b2)
+    // REGRESSION: game_start compilation failure detection
     pass(`game_start with broken script -> COMPILATION_FAILED`);
     // The error should mention the compilation issue.
     if (compileFail.error && compileFail.error.length > 0) {

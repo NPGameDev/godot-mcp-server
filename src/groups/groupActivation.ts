@@ -5,8 +5,7 @@
  * in loadedGroups; the QUERY side (reportGroupStatus / reportGroupStatusByName)
  * reports status without mutating; deactivateGroups unloads built-in + extension
  * groups; buildDiscoverToolsDesc renders the catalogue into the discover_tools
- * description. Its sole caller is the residual groups.ts discover_tools
- * orchestrator — a cohesive service module + its caller, not anemic.
+ * description.
  *
  * Reads extension state only through the extensionGroups accessors — the
  * extension maps stay private to that module.
@@ -191,10 +190,10 @@ export function deactivateGroups(names: string[] | true, readOnly: boolean): str
 // ── Activate / report (CQS split: command + query) ───────────
 
 /**
- * Activate a built-in group (the COMMAND half of the old fused
- * activateOrReportGroup). Takes a resolved GroupDef and assumes activate intent;
- * idempotent on an already-loaded group; keeps the read-only "don't waste a
- * slot" guard. The caller dispatches built-in vs ext up front (activateGroupByName).
+ * Activate a built-in group (the COMMAND side of the CQS split). Takes a
+ * resolved GroupDef and assumes activate intent; idempotent on an
+ * already-loaded group; in read-only mode an all-filtered group doesn't waste a
+ * slot. The caller dispatches built-in vs ext up front (activateGroupByName).
  */
 export function activateGroup(server: McpServer, bridge: Bridge, group: GroupDef, readOnly: boolean): GroupResult {
   // Tools visible for this editor version + profile (mirrors the registration
@@ -218,7 +217,7 @@ export function activateGroup(server: McpServer, bridge: Bridge, group: GroupDef
 /**
  * Activate a group by name (the activate-side dispatcher): built-in name →
  * activateGroup; otherwise delegate to the extension-group command
- * (activateExtGroup). Replaces the old activateOrReportGroup name-resolution head.
+ * (activateExtGroup).
  */
 export function activateGroupByName(server: McpServer, bridge: Bridge, name: string, readOnly: boolean): GroupResult {
   const group = GROUPS.find((g) => g.name === name);
@@ -237,11 +236,10 @@ export function reportGroupStatus(bridge: Bridge, groupName: string, readOnly: b
 }
 
 /**
- * Report a group's status by name (the query-side dispatcher). Preserves the
- * fused activateOrReportGroup query dispatch: built-in → reportGroupStatus,
- * extension → reportExtGroupStatus, with readOnly passed through to the ext
- * query (matching the old fused form). Routing ext browse here — rather than to
- * the built-in reportGroupStatus, which returns empty for a non-built-in name —
+ * Report a group's status by name (the query-side dispatcher): built-in →
+ * reportGroupStatus, extension → reportExtGroupStatus, with readOnly passed
+ * through to the ext query. Routing ext browse here — rather than to the
+ * built-in reportGroupStatus, which returns empty for a non-built-in name —
  * keeps the ext group's real tool list + already_loaded status.
  */
 export function reportGroupStatusByName(bridge: Bridge, name: string, readOnly: boolean): GroupResult {

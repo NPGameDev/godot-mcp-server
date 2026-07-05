@@ -75,7 +75,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   // cmd_game_start returns HEADLESS_UNSUPPORTED via an early guard that fires BEFORE any
   // param validation, so the game never launches and Mode B never establishes. Assert that
   // deterministic guard headless; the display branch (else) is byte-identical to before.
-  // This recovers §10 from the former CI `--skip 10` workaround (41n-quater-bis).
+  // Asserting the guard lets §10 run on headless CI without skipping.
   const headless = bridge.isHeadless() === true;
 
   if (headless) {
@@ -147,7 +147,6 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
     else pass(`game.start target=current -> success (runtime_ready=${gameStartResult.runtime_ready})`);
 
     // Hint assertion: game_start success should mention runtime tools available.
-    // DX improvement from T:a28d17b / S:e56b4b6.
     if (gameStartResult?.success === true) {
       const gsHint = (gameStartResult as { hint?: string }).hint;
       if (gsHint && gsHint.length > 0) {
@@ -298,7 +297,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
     fail(`scene.instantiate returned must not carry code (got ${instantiateIdempotent.code})`);
   else pass(`scene.instantiate idempotent -> status='returned' (code absent)`);
 
-  // FIX-K: implicit name collision → auto-rename (Node, Node2, Node3...).
+  // Implicit name collision → auto-rename (Node, Node2, Node3...).
   const autoRenamed = (await bridge.call(
     "scene.instantiate",
     { parent_path: ".", scene_path: instChildPath },
@@ -306,9 +305,9 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
   )) as { status?: string; path?: string; class_name?: string };
   if (autoRenamed?.status !== "created" || !autoRenamed.path?.startsWith(defaultName))
     fail(
-      `scene.instantiate FIX-K auto-rename: expected status='created' with suffixed name, got ${JSON.stringify(autoRenamed)}`,
+      `scene.instantiate auto-rename: expected status='created' with suffixed name, got ${JSON.stringify(autoRenamed)}`,
     );
-  else pass(`scene.instantiate FIX-K auto-rename -> ${autoRenamed.path}`);
+  else pass(`scene.instantiate auto-rename -> ${autoRenamed.path}`);
   try {
     await bridge.call("scene.delete_node", { node_path: autoRenamed?.path ?? "" }, CALL_TIMEOUT);
   } catch {
@@ -447,7 +446,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
     );
   }
 
-  // ── REGRESSION: node_manage duplicate with properties override (fixed T:c61d994 / S:9bb2ffd) ──
+  // ── REGRESSION: node_manage duplicate with properties override ──
   // Duplicating a node with properties override should apply the overrides.
   const dupSource = (await bridge.call(
     "scene.create_node",
@@ -474,7 +473,7 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
     await bridge.call("scene.delete_node", { node_path: "DupSource" }, CALL_TIMEOUT);
   }
 
-  // ── Hint assertion: autoload_manage register (fixed T:23d69f9 / S:40d0525) ──
+  // ── Hint assertion: autoload_manage register ──
   // Registering an autoload should include a hint about ProjectSettings restart.
   const autoloadScript = "res://smoke_autoload_10.gd";
   await bridge.call("script.write", { file_path: autoloadScript, content: "extends Node\n" }, CALL_TIMEOUT);

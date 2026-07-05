@@ -83,8 +83,8 @@ setGlobalHookPipeline(hookPipeline);
 const extensions = createExtensionManager({ server, bridge, getReadOnly: isReadOnly });
 
 // The reconciler keeps the advertised surface consistent with config + version:
-// the debounced config_reloaded reload and the one-shot startup reconcile (concern
-// 071). discover is injected (extensions.discoverExtensions, a closure method — no
+// the debounced config_reloaded reload and the one-shot startup reconcile.
+// discover is injected (extensions.discoverExtensions, a closure method — no
 // `this`) so reconcile.ts imports no other composition module (acyclic graph).
 const reconciler = createReconciler({ server, bridge, projectPath, discover: extensions.discoverExtensions });
 
@@ -130,15 +130,16 @@ logStartup(timedOut);
 
 // ── Live config reload + notification routing ────────────────────────
 
-// LSP status reporter — pushes the GDScript-LSP verdict to the editor dock (ADR
-// 0008), de-duped. Constructed here so its setLspStatusReporter +
+// LSP status reporter — pushes the GDScript-LSP verdict to the editor dock,
+// de-duped (the server computes the verdict; the editor has no engine API to
+// read its own LSP bind status). Constructed here so its setLspStatusReporter +
 // setGodotVersionGetter wiring fires before transport connect; the notification
 // router below calls reportRegistryVerdict() on reconnect.
 const lspReporter = createLspStatusReporter({ bridge, projectPath });
 
 bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
-    // Push the authoritative LSP verdict to the editor dock (ADR 0008).
+    // Push the authoritative LSP verdict to the editor dock.
     lspReporter.reportRegistryVerdict();
     // config_reloaded is only ever emitted on a RECONNECT ({reconnect:true},
     // bridge.ts performAuth) — the editor's FIRST connect sends no notification.
@@ -156,7 +157,7 @@ bridge.onNotification((type, params) => {
   }
 });
 
-// ── Startup reconcile (concern 071) ──────────────────────────────────
+// ── Startup reconcile ────────────────────────────────────────────────
 // Arm the one-shot startup reconcile: the eagerly-registered surface is
 // INCOMPLETE when the Godot version was unknown at eager registration
 // (version-gated tools like scene_close were filtered) or extension discovery

@@ -1,6 +1,6 @@
 /**
  * Unit tests for the GDScript LSP endpoint discovery + resolution chain
- * (registry.discoverLspEndpoint / liveLspClaimants + lsp_client.resolveLspEndpoint).
+ * (registry.discoverLspEndpoint / liveLspClaimants + lspClient.resolveLspEndpoint).
  *
  * Drives a temp projects.json via a platform-appropriate env override (the same
  * var registryPath() reads) and controls PID liveness with process.pid /

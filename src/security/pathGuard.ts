@@ -5,8 +5,9 @@
  * Purpose: fast-fail an obviously out-of-bounds path on the server (no WS
  * round-trip) as defense-in-depth on the npm surface. The toolkit remains the
  * AUTHORITATIVE boundary — it alone can globalize/simplify a path and so catch
- * symlink escapes; the server deliberately does not canonicalize. See ADR 0009
- * (toolkit) for the full trust-boundary model.
+ * symlink escapes; the server deliberately does not canonicalize. These guards
+ * protect a well-meaning command from LLM-supplied path escapes — installed
+ * extensions run at full trust and are out of scope.
  *
  * INVARIANT (strict subset): a path the toolkit would ACCEPT must NEVER be
  * rejected here. So this rejects only the unambiguous syntactic cases the

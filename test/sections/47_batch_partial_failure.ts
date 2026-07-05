@@ -2,7 +2,7 @@ import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT } from "../helpers.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Batch partial-failure visibility (41n concern-034, category D).
+// Batch partial-failure visibility.
 //
 // The toolkit's shared `summarize_batch` helper (editor_helpers.gd) rolls a
 // per-entry results[] up into a top-level partial-failure summary so a caller

@@ -1,6 +1,5 @@
 /**
- * Unit tests for auth_handshake.ts — the C-AUTH leaf carved out of bridge.ts.
- * Pins the §10.1 auth-WIRE contract so the extraction stays byte-equivalent:
+ * Unit tests for authHandshake.ts. Pins the auth-WIRE contract:
  * the `{ auth, version }` frame, the `{ authed, godot_version, version, headless }`
  * → `{ godotVersion, toolkitVersion, headless }` mapping (missing fields →
  * undefined), the 5 s AUTH_TIMEOUT_MS timeout, listener cleanup() on settle, the

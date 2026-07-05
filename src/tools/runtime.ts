@@ -143,7 +143,8 @@ export const runtimeTools: ToolDef[] = [
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
   // execute_code is RCE-equivalent — risk communicated via destructiveHint
-  // annotation. Agent-side tool filtering recommended (see security-recommendations.md).
+  // annotation. Agent-side tool filtering recommended (see the toolkit addon's
+  // addons/godot_mcp_toolkit/docs/security-recommendations.md).
   // The examples are expression-only on purpose: agents repeatedly tried
   // `score = 100` (assignment) and hit parse errors.
   {
@@ -180,9 +181,9 @@ export const runtimeTools: ToolDef[] = [
 
 // ── Custom handlers ─────────────────────────────────────────────────
 // Promoted tools (runtime_screenshot, input_simulate, runtime_get_script_vars,
-// debugger_get_log) have custom response processing. The remaining 2 tools
-// (runtime_get_node_state, animation_player_control) stay in the
-// runtime_advanced group and are registered by groups.ts.
+// debugger_get_log) have custom response processing. The other 3 runtime-bridge
+// tools (runtime_get_node_state, runtime_set_property, animation_player_control)
+// stay in the runtime_advanced group and are registered by groups.ts.
 
 /** runtime_screenshot returns multi-content (image + text metadata). */
 function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown) {

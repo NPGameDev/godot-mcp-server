@@ -1,11 +1,10 @@
 /**
- * Unit tests for channel.ts — the C-CHAN transport primitive carved out of
- * bridge.ts (C2, the HEADLINE). Exercises the channel state machine in
- * isolation (the bulk Part 11 would have authored, pulled forward) so the
- * verbatim relocation stays byte-equivalent:
+ * Unit tests for channel.ts — the low-level socket/reconnect/pending-request
+ * transport primitive beneath bridge.ts. Exercises the channel state machine
+ * in isolation:
  *   1. pending-map correlation — resolve by id; error → RPC_ERROR "<code>: <msg>"
  *   2. _queued/_executing timeout-reset on the pending request
- *   3. attempt=0 resets backoff on a round-trip, NOT on open (the :453 invariant)
+ *   3. attempt=0 resets backoff on a round-trip, NOT on open
  *   4. cold awaitOpenSocket fails fast (CONNECT_FAILED) vs hot parks then resolves
  *   5. call timeout (TIMEOUT after timeoutMs with no response)
  *   6. cooperative cancel — abort → CANCELLED + a _cancel notification {request_id}

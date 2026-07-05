@@ -4,12 +4,12 @@
 //
 //   • UNSUPPORTED in-place edit of a LIVE instance: a script is attached to a
 //     live node; the file is then edited; the live node's method table / bytecode
-//     does NOT update until the editor reloads. The 2026-06-09 hazard:
-//     an agent edited a script and called a new method on a
-//     pre-existing live @tool node, got "method not found", relaunched.
+//     does NOT update until the editor reloads. The hazard: an agent edits a
+//     script, calls a new method on a pre-existing live @tool node, gets
+//     "method not found", and relaunches.
 //
-// EMPIRICAL MATRIX (Step 0, characterised across 4.2.0/4.3.0/4.4.1/4.5.0/4.6.2 —
-// Insights/stale-live-instance-method-hazard.md). The boundary is 4.3 → 4.4:
+// EMPIRICAL MATRIX (Step 0, characterised across 4.2.0/4.3.0/4.4.1/4.5.0/4.6.2).
+// The boundary is 4.3 → 4.4:
 //
 //   Scenario           | < 4.4 (4.2, 4.3)            | 4.4+ (4.4, 4.5, 4.6)
 //   -------------------|----------------------------|----------------------
@@ -46,7 +46,7 @@ const STALE_MARKER = "keeps the OLD code";
 // The 4.4+ HEADLESS reactive hint uses distinct wording — a headless editor never
 // re-instantiates a live node, a different hazard from the < 4.4 engine-cache staleness —
 // with NO "keeps the OLD code" phrase, so it needs its own marker. See the toolkit's
-// stale_instance_hint.gd `_RECOVERY_HEADLESS` (41n-quater-bis).
+// stale_instance_hint.gd `_RECOVERY_HEADLESS`.
 const HEADLESS_STALE_MARKER = "don't re-instantiate live nodes";
 
 const A_SCRIPT = `${FLOW_PROBE_DIR}/flow_hot_probe.gd`;
@@ -147,8 +147,8 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
   // TIMING RACE: NodeCache live-reload (4.4+) MAY re-instantiate a live node headless depending on
   // async-scan/idle timing (4.4.0 CI observed reachable; 4.5/4.6/4.7 observed stale) — so the 4.4+
   // headless assertions accept REACHABLE or STALE+hint. < 4.4 (4.2/4.3) is pre-NodeCache and
-  // deterministically stale, firing the hint version-only. This recovers flows §02 from the former
-  // CI `--skip 2` workaround (41n-quater-bis).
+  // deterministically stale, firing the hint version-only. Accepting both outcomes lets flows §02
+  // run on CI without skipping.
   const headless = bridge.isHeadless() === true;
   const verTag = `${ver} ${pre44 ? "(<4.4 affected)" : headless ? "(4.4+ headless race)" : "(4.4+ clear)"}`;
   const createdNodes: string[] = [];
@@ -207,8 +207,8 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
             } else if (headless) {
               // 4.4+ HEADLESS is a TIMING RACE: NodeCache live-reload (4.4+) MAY re-instantiate the
               // node depending on async-scan/idle timing, so both outcomes are deterministic + correct
-              // — REACHABLE (reload took effect) OR STALE with the headless re-instantiation hint (the
-              // R4 DX proof, which 4.5/4.6/4.7 deterministically hit, keeping the hint covered).
+              // — REACHABLE (reload took effect) OR STALE with the headless re-instantiation hint
+              // (4.5/4.6/4.7 deterministically hit the STALE arm, keeping the hint covered).
               if (after?.success === true) pass(`A: 4.4+ headless added-method REACHABLE (reload took effect)`);
               else if (after?.success === false && after.code === "INVALID_METHOD" && hasHeadlessStaleHint(after))
                 pass(`A: 4.4+ headless added-method STALE + headless re-instantiation hint`);
@@ -335,8 +335,8 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           const b2 = await callMethod(ctx, node2, "fresh_b");
           dVerdict = b2?.success === true ? "fresh REACHABLE" : `fresh STALE(${b2?.code ?? "?"})`;
           if (pre44) {
-            // < 4.4: a FRESH node is STALE too (re-instantiate does NOT help — the grill's
-            // "re-instantiate" hypothesis was wrong pre-NodeCache). Reactive hint fires (fresh_b is
+            // < 4.4: a FRESH node is STALE too (re-instantiating does NOT help
+            // pre-NodeCache). Reactive hint fires (fresh_b is
             // on the on-disk .gd), and the fresh node still attached (old method reachable → only the
             // NEW member is stale, not a failed attach).
             if (b2?.success === false && b2.code === "INVALID_METHOD" && hasStaleHint(b2))

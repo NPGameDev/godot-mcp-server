@@ -1,9 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Correctness Eval 04 — Error Recovery
 //
-// Sends invalid inputs, verifies error responses include actionable hints
-// (added in iter 38), and validates that following the hint leads to
-// a successful tool call.
+// Sends invalid inputs, verifies error responses include actionable hints,
+// and validates that following the hint leads to a successful tool call.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { EvalScenario, EvalBridge } from "../eval-runner.js";

@@ -91,7 +91,7 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
     await bridge.call("script.delete", { file_path: brokenPath }, CALL_TIMEOUT);
   }
 
-  // ─── REGRESSION: class_name false positive (fixed T:8f74e23) ───────────
+  // ─── REGRESSION: class_name false positive ─────────────────────────────
   // Scripts with class_name should not produce false positive errors from
   // GDScript.new().reload() validation. A valid script with class_name
   // must return valid=true.

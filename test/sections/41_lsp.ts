@@ -66,33 +66,26 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
   }
 
   // Single PATIENT handshake — connect once, keep the socket, wait out the
-  // first initialize (zero-corpse shape, pre-registered 2026-07-04 and adopted
-  // after the 5-attempt retry loop failed even with the raw-TCP probe already
-  // removed). Why: Godot 4.2 runs workspace->initialize() SYNCHRONOUSLY inside
-  // the first-initialize handler on the main thread (source-verified:
+  // first initialize. Why: Godot 4.2 runs workspace->initialize() SYNCHRONOUSLY
+  // inside the first-initialize handler on the main thread (source-verified:
   // gdscript_language_protocol.cpp:206-210), on an unbudgeted poll (4.3 added
   // poll_limit_usec — fixed-shape there; 0 failures on 4.3+ across every CI
   // run). Measured evidence: first handshake ~5.3s even on fast local hardware
   // (subsequent ~10ms, warm workspace); ~100-110s mute on 2-core
-  // windows-latest. A 10s-timeout retry loop is counterproductive by
-  // construction — aborting at 10s kills the socket the late reply (queued on
+  // windows-latest. A short-timeout retry loop is counterproductive by
+  // construction — aborting early kills the socket the late reply (queued on
   // the peer's res_queue) would land on, and every fresh client re-pays the
-  // full first-scan cost (observed: all 5 attempts timing out, on both
-  // 4.2-Windows legs). The 120s budget covers the worst observed ~100-110s
+  // full first-scan cost. The 120s budget covers the worst observed ~100-110s
   // window with MODEST margin only (~10-20s headroom; cell variance across
   // runs is large, so an unlucky fleet draw exceeding it is not excluded). The
   // PASS line reports elapsed ms so a 4.3+ handshake creeping from
   // milliseconds toward the budget stays visible in green-run logs; the FAIL
   // path reports elapsed too.
-  // Skip semantics unchanged: connect-phase errors ("LSP connect …" — refused
+  // Skip semantics: connect-phase errors ("LSP connect …" — refused
   // / TCP connect timeout; disjoint from the initialize-phase "LSP request
-  // timeout") mean nothing serves the endpoint -> graceful SKIP. Assertion
-  // unchanged — accepted-then-mute past the budget FAILs the section. No
+  // timeout") mean nothing serves the endpoint -> graceful SKIP;
+  // accepted-then-mute past the budget FAILs the section. No
   // OS/version branch; no reconnect loop.
-  // STANDING RULE (2026-07-04, updated): if a 4.2-Windows leg reds out here
-  // even with this patient shape, there is NO pre-registered next move — it
-  // becomes a pure user decision (version-gated skip / accept the red cell /
-  // engine-side investigation), stated as such.
   const INITIALIZE_TIMEOUT_MS = 120_000;
   const client = new LspClient(projectPath, { initializeTimeoutMs: INITIALIZE_TIMEOUT_MS });
   const handshakeStart = Date.now();

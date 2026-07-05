@@ -84,7 +84,7 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
   // Cleanup: delete the large file.
   await bridge.call("script.delete", { file_path: largePath }, CALL_TIMEOUT);
 
-  // ── meta.set_limits (iter 38) ────────────────────────────────────────────
+  // ── meta.set_limits ──────────────────────────────────────────────────────
   const limitsResult = (await bridge.call(
     "meta.set_limits",
     { script_read_cap_kb: 512, ws_buffer_kb: 2048 },

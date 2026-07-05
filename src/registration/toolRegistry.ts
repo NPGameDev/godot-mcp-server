@@ -194,7 +194,8 @@ export function registerToolWrapped(
 
     // Syntactic path pre-filter (built-in tools only) — fast-fail an
     // out-of-bounds path before the WS round-trip. Strict subset of the
-    // toolkit's FileGuard (the authoritative boundary). See ADR 0009.
+    // toolkit's FileGuard (the authoritative boundary); the invariant lives
+    // in src/security/pathGuard.ts.
     const guards = pathParamMap.get(name);
     if (guards) {
       for (const g of guards) {

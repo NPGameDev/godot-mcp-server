@@ -20,7 +20,7 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
   )) as { success?: boolean; undoable?: boolean; code?: string };
   if (!writeResult?.success) fail(`script.write: ${JSON.stringify(writeResult)}`);
   if (writeResult?.undoable !== true)
-    fail(`script.write missing undoable flag (iter-09 UndoRedo wrap): ${JSON.stringify(writeResult)}`);
+    fail(`script.write missing undoable flag (UndoRedo wrap): ${JSON.stringify(writeResult)}`);
   const readResult = (await bridge.call("script.read", { file_path: scriptPath }, CALL_TIMEOUT)) as {
     content?: string;
     code?: string;
@@ -109,7 +109,7 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
     }
   }
 
-  // REGRESSION: script_write preload hint (fixed T:cb4e162 / T:a46487b / S:38ed316).
+  // REGRESSION: script_write preload hint.
   // Writing a script that references another script via preload should include
   // a hint about the preload path or line number in the response.
   const preloadScript = "res://smoke_preload_target.gd";

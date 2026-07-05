@@ -1,12 +1,12 @@
 /**
  * Deterministic unit tests for _queued/_executing notification handling
- * in bridge.ts.
+ * in the transport (channel.ts), exercised through the bridge facade.
  *
  * Uses @sinonjs/fake-timers to control setTimeout/clearTimeout only,
  * leaving setImmediate and other I/O timers real so WebSocket works.
  *
- * Tests verify that the bridge resets its pending-request timeout when it
- * receives a _queued or _executing JSON-RPC notification from the toolkit.
+ * Tests verify that the pending-request timeout resets when a _queued or
+ * _executing JSON-RPC notification arrives from the toolkit.
  */
 
 import assert from "node:assert/strict";

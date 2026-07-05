@@ -9,7 +9,8 @@
  * The bridge is the reference implementation of the project's async discipline —
  * every call it forwards is timeout-bounded and cancellation-aware. Project-hash,
  * token path, and WS framing are cross-repo contract with the toolkit; changing
- * them is a ledgered change, not a free refactor.
+ * them is a contract change (docs/dev/contract.md in the toolkit repo), not a
+ * free refactor.
  *
  * @module
  */
@@ -25,7 +26,7 @@ import { lookupProject } from "../registry.js";
 // importers of "./bridge.js".
 export type { NotificationHandler } from "../shared/types.js";
 
-// Re-exported from auth_handshake.ts so the public bridge surface stays
+// Re-exported from authHandshake.ts so the public bridge surface stays
 // byte-stable for importers of "./bridge.js".
 export type { AuthResponse } from "./authHandshake.js";
 
@@ -70,12 +71,12 @@ export function createBridge(
   onNotification(handler: NotificationHandler): void;
   /** Register a one-shot-friendly hook fired when the connected Godot version
    *  resolves (unknown → known). The composition root uses it to complete an
-   *  incomplete startup tool surface (concern 071). */
+   *  incomplete startup tool surface. */
   onGodotVersionKnown(handler: () => void): void;
 } {
   const projectPath = opts?.projectPath;
   let godotVersion: string | undefined = undefined;
-  // Editor display mode from the Mode-A auth ack (C2). undefined until the editor
+  // Editor display mode from the Mode-A auth ack. undefined until the editor
   // authenticates — mirrors godotVersion's unknown state, and NOT pre-populated
   // from the registry (no pre-auth consumer; the registry carries no display mode).
   let headless: boolean | undefined = undefined;
@@ -86,7 +87,7 @@ export function createBridge(
   // unknown → known transition (and only then) so the composition root can
   // complete a tool surface that was registered before the editor reported its
   // version — version-gated tools (scene_close) and extension tools stranded on
-  // a server-before-editor cold start (concern 071). Routing every version-set
+  // a server-before-editor cold start. Routing every version-set
   // site through here keeps the unknown → known lifecycle owned in one place.
   function setGodotVersion(v: string): void {
     const versionWasUnknown = godotVersion == null;
@@ -115,7 +116,7 @@ export function createBridge(
       if (scriptKb > 0) params.script_read_cap_kb = scriptKb;
       if (wsKb > 0) params.ws_buffer_kb = wsKb;
       // Fire-and-forget — failure here is non-fatal.
-      channel.call("meta.set_limits", params, 5000).catch(() => {});
+      void channel.call("meta.set_limits", params, 5000).catch(() => {});
     }
   }
 
@@ -226,7 +227,7 @@ export function createBridge(
   // ── Runtime connection ───────────────────────────────────────────
   // The playtest runtime-connection aggregate — discovery, the registry
   // watcher, port-waiters, and the frozen-game heartbeat — lives in
-  // runtime_connection.ts. The composition root builds one and delegates the
+  // runtimeConnection.ts. The composition root builds one and delegates the
   // runtime facade methods (callRuntime / waitForRuntimeConnection /
   // clearRuntime) to it. It touches neither version state nor notifications.
   const runtime = createRuntimeConnection({ projectPath, explicitRuntimePort: opts?.explicitRuntimePort });
@@ -261,9 +262,9 @@ export function createBridge(
     },
     async close() {
       // Runtime first: tearing it down resolves any outstanding port-waiters
-      // and stops the heartbeat/watcher before either socket closes — the same
-      // ordering as the former inline close. The editor and runtime are
-      // independent sockets, so their relative close order is unobservable.
+      // and stops the heartbeat/watcher before either socket closes. The editor
+      // and runtime are independent sockets, so their relative close order is
+      // unobservable.
       await runtime.close();
       await editor.close();
     },

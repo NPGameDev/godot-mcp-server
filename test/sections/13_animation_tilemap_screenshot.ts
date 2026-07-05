@@ -135,7 +135,7 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
   const tilemapPath = tilemapNode?.path ?? "MCPSmokeTML";
   const smokeTilemapTsPath = "res://mcp_smoke_ts_tilemap.tres";
   if (tilemapNode?.status === "created") {
-    // FIX-J: no-tileset guard rejects cell operations before a tileset is assigned.
+    // No-tileset guard rejects cell operations before a tileset is assigned.
     assertGuard(
       ctx,
       "tilemap.set_cells no-tileset guard",

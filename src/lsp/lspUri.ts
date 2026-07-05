@@ -6,12 +6,14 @@
  */
 import { join } from "node:path";
 
+/** Translate a `res://` virtual path to an absolute filesystem path under the project root. */
 export function resToAbsolute(resPath: string, projectPath: string): string {
   // res://foo/bar.gd → <projectPath>/foo/bar.gd
   const relative = resPath.replace(/^res:\/\//, "");
   return join(projectPath, relative);
 }
 
+/** Convert an absolute filesystem path to a `file://` URI (drive-letter and POSIX forms). */
 export function absoluteToFileUri(absPath: string): string {
   // Windows: C:\foo\bar.gd → file:///C:/foo/bar.gd
   // Unix: /foo/bar.gd → file:///foo/bar.gd
@@ -22,6 +24,7 @@ export function absoluteToFileUri(absPath: string): string {
   return `file://${normalized}`;
 }
 
+/** Map a `file://` URI back to a `res://` path when it falls inside the project; return the input unchanged otherwise. */
 export function fileUriToRes(uri: string, projectPath: string): string {
   // file:///C:/project/foo.gd → res://foo.gd  (Windows)
   // file:///home/project/foo.gd → res://foo.gd  (POSIX)

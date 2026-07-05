@@ -18,15 +18,15 @@ import { updateToolRef, hasToolRef } from "../registration/toolRefs.js";
 
 // Static group catalogue (the GROUPS literal + its derived lookup/index sets)
 // and group-loaded state — both leaf modules that do NOT import groups.ts, so
-// tool-def modules never cycle back here via catalogue.ts. group_catalogue.ts
-// owns allDefs (derived from catalogue.ts's ALL_TOOL_DEFS).
+// tool-def modules never cycle back here via registration/catalogue.ts.
+// groupCatalogue.ts owns allDefs (derived from that catalogue's ALL_TOOL_DEFS).
 import { GROUPS, allDefs, GROUP_NAMES } from "./groupCatalogue.js";
 import { loadedGroups } from "./groupState.js";
-// Dynamic extension-group registry (concern 077, C1). The extensionGroups /
-// loadedExtensionGroups maps live there (private); the residual touches ext
-// state only through these accessors (clearExtensionGroups on reset,
-// reportExtGroupStatus for the catalog path's ext query). Activation +
-// deactivation moved to group_activation.ts (C4).
+// Dynamic extension-group registry. The extensionGroups / loadedExtensionGroups
+// maps live there (private); this orchestrator touches ext state only through
+// these accessors (clearExtensionGroups on reset, reportExtGroupStatus for the
+// catalog path's ext query). Activation + deactivation live in
+// groupActivation.ts.
 import {
   type ExtensionCmd,
   clearExtensionGroups,
@@ -35,18 +35,16 @@ import {
   loadedExtensionGroupCount,
   reportExtGroupStatus,
 } from "./extensionGroups.js";
-// Keyword-scoring pipeline (concern 077, C2). findMatchesSingle scores a query
-// against built-in + extension groups; capFuzzyResults caps the fuzzy set;
-// coerceRequest normalizes the raw request param. The discover_tools handler
-// below is the sole caller.
+// Keyword-scoring pipeline. findMatchesSingle scores a query against built-in +
+// extension groups; capFuzzyResults caps the fuzzy set; coerceRequest normalizes
+// the raw request param.
 import { findMatchesSingle, capFuzzyResults, coerceRequest } from "./groupMatch.js";
-// Group-activation lifecycle (concern 077, C4). registerGroupTools, the 081
-// command/query split (activateGroupByName / reportGroupStatusByName dispatchers
-// over activateGroup / reportGroupStatus), deactivateGroups, and
-// buildDiscoverToolsDesc all live there now; the discover_tools handler below
-// composes them. reportGroupStatus is used directly by the catalog path;
-// reportGroupStatusByName preserves the fused activateOrReportGroup query
-// dispatch (built-in vs ext) at the exact/fuzzy call sites.
+// Group-activation lifecycle. registerGroupTools, the command/query split
+// (activateGroupByName / reportGroupStatusByName dispatchers over activateGroup /
+// reportGroupStatus), deactivateGroups, and buildDiscoverToolsDesc all live
+// there; the discover_tools handler below composes them. reportGroupStatus is
+// used directly by the catalog path; reportGroupStatusByName carries the
+// built-in-vs-ext query dispatch at the exact/fuzzy call sites.
 import {
   activateGroupByName,
   reportGroupStatus,
@@ -55,21 +53,22 @@ import {
   deactivateGroups,
 } from "./groupActivation.js";
 
-// ── Static group catalogue (re-exported from group_catalogue.ts) ─────
+// ── Static group catalogue (re-exported from groupCatalogue.ts) ─────
 // The GROUPS literal + its derived lookup/index sets (allDefs, GROUP_TOOL_NAMES,
-// RUNTIME_TOOLS, LSP_TOOLS) moved to the pure-data leaf group_catalogue.ts
-// (concern 077, C0). Re-export the externally-consumed surface so importers of
-// groups.js stay unchanged. (allDefs / GROUP_NAMES / GroupDef are
-// export-but-internal — consumers import those from group_catalogue.js direct.)
+// RUNTIME_TOOLS, LSP_TOOLS) live in the pure-data leaf groupCatalogue.ts.
+// Re-export the externally-consumed surface so importers of groups.js get one
+// stable entry point. (allDefs / GROUP_NAMES / GroupDef are export-but-internal
+// — consumers import those from groupCatalogue.js direct.)
 export type { GroupName } from "./groupCatalogue.js";
 export { GROUPS, GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "./groupCatalogue.js";
 
-// ── Extension-group registry (re-exported from extension_groups.ts) ──
-// The dynamic extension-group registry + its mutators moved to the near-leaf
-// extension_groups.ts (concern 077, C1). Re-export the externally-consumed
-// surface so importers of groups.js stay unchanged. (activateExtGroup /
+// ── Extension-group registry (re-exported from extensionGroups.ts) ──
+// The dynamic extension-group registry + its mutators live in the near-leaf
+// extensionGroups.ts. Re-export the externally-consumed surface so importers of
+// groups.js get one stable entry point. (activateExtGroup /
 // reportExtGroupStatus / registerExtGroupTools / the read accessors are
-// export-but-internal — C-TSM modules import those from extension_groups.js.)
+// export-but-internal — the sibling group modules (groupActivation.ts,
+// groupMatch.ts) import those from extensionGroups.js direct.)
 export type { ExtensionCmd } from "./extensionGroups.js";
 export {
   addExtensionGroup,
@@ -79,16 +78,16 @@ export {
   hasExtensionGroups,
 } from "./extensionGroups.js";
 
-// ── Keyword matching (re-exported from group_match.ts) ───────────────
-// The keyword-scoring pipeline moved to the pure leaf group_match.ts (concern
-// 077, C2). Re-export findMatchesSingle — it is consumed externally
-// (groups.test.ts, extensions.test.ts, §39 smoke) — so importers of groups.js
-// stay unchanged. (capFuzzyResults / coerceRequest are export-but-internal:
+// ── Keyword matching (re-exported from groupMatch.ts) ───────────────
+// The keyword-scoring pipeline lives in the pure leaf groupMatch.ts. Re-export
+// findMatchesSingle — it is consumed externally (groups.test.ts,
+// extensions.test.ts, §39 smoke) — so importers of groups.js get one stable
+// entry point. (capFuzzyResults / coerceRequest are export-but-internal:
 // imported above for the discover_tools handler; no barrel entry needed.)
 export { findMatchesSingle } from "./groupMatch.js";
 
-// loadedGroups (session group-load state) + isGroupLoaded() moved to the leaf
-// module group_state.ts (imported above) — lets tool-def modules read load
+// loadedGroups (session group-load state) + isGroupLoaded() live in the leaf
+// module groupState.ts (imported above) — lets tool-def modules read load
 // state without importing groups.ts. resetLoadedGroups() below still clears it.
 
 /** Clear loaded-group tracking (used by config reload). */
@@ -216,7 +215,7 @@ export function registerGroupSystem(server: McpServer, bridge: Bridge, readOnly:
 
         // Update discover_tools description inside the batch so the
         // tools/list_changed notification fires atomically with all
-        // registrations (FIX-C).
+        // registrations.
         updateToolRef("discover_tools", { description: buildDiscoverToolsDesc(bridge, readOnly) });
       });
 

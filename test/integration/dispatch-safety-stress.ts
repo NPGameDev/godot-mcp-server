@@ -25,13 +25,14 @@
 //   failure. The driver prints which scenario tripped it.
 //
 //   NOT wired into CI (not in build / test:unit / lint / format / smoke:ci) —
-//   it deliberately crashes a *running editor*. Reusable for 41o stress testing.
+//   it deliberately crashes a *running editor*.
 //
-// WHY THE TRIGGERS LOOK THE WAY THEY DO (grounded in mcp_server.gd, pre-fix)
-//   • Saves renew the lease every call (dispatch ~L532), so a busy saver never
+// WHY THE TRIGGERS LOOK THE WAY THEY DO (grounded in the toolkit's
+// mcp_server.gd dispatch as it behaved WITHOUT the dispatch-safety guards)
+//   • Saves renew the lease on every dispatch, so a busy saver never
 //     lets scene_lease_ttl_ms (default 8000) elapse — the 8s lease-steal can't
 //     fire mid-save. The reliable way to reach the raw open_scene_from_path in
-//     _try_acquire_lease (~L674) is to DISCONNECT the lease holder while another
+//     _try_acquire_lease is to DISCONNECT the lease holder while another
 //     peer is queued: instant _release_lease → _drain_scene_queue →
 //     _try_acquire_lease → raw synchronous open. That raw open is the #75669
 //     crash pattern; overlaid on a scan it is C2.
@@ -40,15 +41,16 @@
 //     Main::iteration() re-entry spans the 4-frame poll-skip window, and we keep
 //     a backlog of scene.open switches buffered so a re-entrant poll has a
 //     conflicting command to dispatch.
-//   • Connections are kept OPEN through each storm (v1 closed after ~8 saves and
-//     proved nothing); each scenario drains before closing.
+//   • Connections are kept OPEN through each storm (closing after a few saves
+//     releases the lease and defuses every trigger); each scenario drains
+//     before closing.
 //
-// RED / GREEN — THE PRE-FIX COMMIT IS THE CONTROL.
-//   Committed BEFORE the toolkit fix and shown to crash/hang the editor on Godot
-//   4.2 AND 4.5 (RED ⇒ exit 1). The pre-fix commit IS the reproducible control —
-//   `git checkout` it any time. After the fix, this SAME driver must detect NO
-//   crash on 4.2 and 4.5 (GREEN ⇒ exit 0). A green that was never red proves
-//   nothing: if the pre-fix editor survives, raise --iterations / --node-count.
+// RED / GREEN DISCIPLINE
+//   Against a toolkit WITHOUT the dispatch-safety guards this driver crashes/
+//   hangs the editor on Godot 4.2 AND 4.5 (RED ⇒ exit 1); against the guarded
+//   toolkit the SAME driver must detect NO crash (GREEN ⇒ exit 0). A green that
+//   was never red proves nothing: if an unguarded editor survives, raise
+//   --iterations / --node-count.
 //
 // PREREQUISITES
 //   • A Godot editor running with the MCP toolkit plugin enabled, opened on the
@@ -58,8 +60,8 @@
 //     file under the project's user data dir). GODOT_MCP_EDITOR_PORT if not 6550.
 //
 // USAGE
-//   GODOT_MCP_TOKEN=<token> npx tsx test/integration/dispatch-safety-stress.ts [flags]
 //   GODOT_MCP_TOKEN=<token> npm run stress:dispatch -- [flags]
+//   GODOT_MCP_TOKEN=<token> node_modules/.bin/tsx test/integration/dispatch-safety-stress.ts [flags]
 //
 //   --scenario <name>      refresh-storm | smoke-storm | rapid-save | concurrent-save |
 //                          multi-save | scan-collision | all               (default: all)
@@ -88,7 +90,7 @@
 //                     (refresh / save / scene-op adjacency at zero inter-call gap).
 //     rapid-save      C1: one client, heavy active scene. Sustained
 //                     editor.save_scene interleaved with scene.open switches
-//                     (bypass the mutation lock at dispatch ~L510) and
+//                     (which bypass the dispatch mutation lock) and
 //                     scene.get_tree reads — a re-entrant poll during a save
 //                     dispatches a scene switch / read mid-serialization.
 //     concurrent-save C1 (multi-client): two peers race a heavy save's
@@ -99,7 +101,7 @@
 //     multi-save      Raw-open drain (#75669): repeated rounds where peer A
 //                     takes scene A's lease, peer B queues a scene command on
 //                     scene B, then A disconnects → the drain calls the raw
-//                     open_scene_from_path (mcp_server.gd ~L674).
+//                     open_scene_from_path (mcp_server.gd's _try_acquire_lease).
 //     scan-collision  the same raw-open drain, but a full filesystem scan
 //                     (editor.refresh) is kicked immediately before A drops, so
 //                     the raw open collides with the active scan.
@@ -526,7 +528,7 @@ async function scenarioRefreshStorm(port: number, token: string, args: Args, cra
 }
 
 // C1: heavy active scene, one client. Sustained saves with scene.open switches
-// (bypass the mutation lock at dispatch ~L510, so they can dispatch re-entrantly
+// (they bypass the dispatch mutation lock, so they can dispatch re-entrantly
 // during a save and swap the edited scene mid-serialization) + scene.get_tree
 // reads. Connection stays open; we drain at the end rather than close early.
 async function scenarioRapidSave(port: number, token: string, args: Args, crash: CrashState): Promise<void> {
@@ -558,7 +560,7 @@ async function scenarioRapidSave(port: number, token: string, args: Args, crash:
 
 // Raw-open drain (#75669): peer A takes scene A's lease, peer B queues a scene
 // command on scene B, then A disconnects → _release_lease → _drain_scene_queue →
-// _try_acquire_lease → raw open_scene_from_path(B) (mcp_server.gd ~L674).
+// _try_acquire_lease → raw open_scene_from_path(B) (mcp_server.gd).
 // Repeated; each round uses a fresh A so the lease starts clean.
 async function scenarioMultiSave(port: number, token: string, args: Args, crash: CrashState): Promise<void> {
   console.log(`\n[stress] ── multi-save (raw-open drain / #75669) — ${args.iterations} rounds ──`);

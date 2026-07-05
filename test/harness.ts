@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Shared suite orchestrator — extracted from smoke.ts (41m-bis) so the flow
-// suite (test/flows.ts) can reuse the same scaffolding:
+// Shared suite orchestrator — the scaffolding smoke.ts and the flow suite
+// (test/flows.ts) both run on:
 //   • CLI flag parsing (--from / --to / --only / --skip)
 //   • pass/fail counters + summary + exit codes (0 pass / 1 fail / 2 precond)
 //   • project-path discovery (registry lookup for the per-worktree token)
@@ -9,7 +9,7 @@
 // Both `npm run smoke` and `npm run flows` call runFullSuite() with their own
 // section list. Smoke keeps its CI-mode branch in smoke.ts (static catalogue
 // validation, no Godot); the flow suite has no CI mode — it is editor-required
-// and local-only (decision #8: no hollow flows:ci).
+// and local-only (a flows:ci without an editor would assert nothing).
 //
 // This module is deliberately behaviour-preserving for smoke: with
 // label="smoke", interSectionDelayMs=150, and reorderLast=19, the
@@ -256,7 +256,7 @@ export async function runFullSuite(config: SuiteConfig): Promise<void> {
       if (i > 0 && config.interSectionDelayMs) {
         await new Promise((r) => setTimeout(r, config.interSectionDelayMs));
       }
-      // Per-section isolation (41m-ter A0): a thrown section — e.g. an unguarded
+      // Per-section isolation: a thrown section — e.g. an unguarded
       // call to a tool that is unregistered on the connected Godot version, which
       // surfaces as JSON-RPC -32601 and rejects bridge.call — records a failure and
       // the suite CONTINUES rather than aborting every remaining section. This makes

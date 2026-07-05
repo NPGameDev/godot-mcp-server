@@ -136,7 +136,7 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
   assertHint(ctx, "error hint (empty file_path)", errResult);
 
   // ── Success contract: built-in tools return success:true ─────────────
-  // Verify the response contract (ADR 0004): every handler returns
+  // Verify the response contract (toolkit repo ADR 0004): every handler returns
   // {success: true/false}. Built-in tool successHints are injected
   // server-side in callAndWrap(), NOT at the bridge level — so we only
   // check that success:true is present here.

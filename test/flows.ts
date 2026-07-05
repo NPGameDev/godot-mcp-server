@@ -1,15 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Flow suite orchestrator (41m-bis) — the deterministic counterpart to the LLM
+// Flow suite orchestrator — the deterministic counterpart to the LLM
 // sweep. Covers the cross-tool, stateful flows smoke structurally cannot
 // express (extension lifecycle, hot-reload reachability, combo chains). Shares
 // smoke's harness (test/harness.ts + test/helpers.ts) — NOT the dispatch raw-WS
 // helpers — so the per-section/step report, exit codes, and --only/--from/--to
 // flags come for free.
 //
-// Editor-required, local-only (no CI mode — decision #8). A flow FAILURE is
-// handed to a targeted LLM sweep re-run to classify stale-script vs real
-// regression (report-only / manual — decision #10). See CONTEXT.md "Validation
-// vocabulary".
+// Editor-required, local-only (no CI mode — an editor-less flow run would
+// assert nothing). A flow FAILURE is handed to a targeted LLM sweep re-run to
+// classify stale-script vs real regression (report-only / manual).
 //
 // Exit codes:
 //   0 — all flows passed

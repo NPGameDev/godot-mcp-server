@@ -21,7 +21,7 @@ export const IMPORT_TIMEOUT = 15000;
  * The tilemap node class for the running Godot version: `TileMapLayer` on 4.3+, legacy
  * `TileMap` on 4.2 (TileMapLayer doesn't exist there). Centralizes the single 4.2-vs-4.3+
  * tilemap branch so smoke sections exercise each version's native node type — the tilemap
- * tools handle both (41m-ter A1). Pass `bridge.getGodotVersion()`.
+ * tools handle both. Pass `bridge.getGodotVersion()`.
  */
 export function tilemapNodeClass(godotVer: GodotVer | undefined): "TileMapLayer" | "TileMap" {
   return godotVer != null && isVersionAtLeast(godotVer, "4.3") ? "TileMapLayer" : "TileMap";
@@ -187,14 +187,14 @@ export function printUnreachable(label = "smoke"): void {
   console.error(`[${label}] ERROR: nothing listening on ${HOST}:${PORT}.
 
 The Godot toolkit editor must be running with the plugin enabled:
-  1. Open the toolkit repo (see memory/reference_repo_paths.md §2) in Godot 4.x
+  1. Open the toolkit repo (the sibling godot-mcp-toolkit checkout) in Godot 4.x
   2. Project -> Project Settings -> Plugins -> "Godot MCP Toolkit" -> Active
   3. Re-run \`npm run ${label}\`.
 
 The ${label} suite does not launch Godot; it only verifies the plugin is reachable.`);
 }
 
-// Fake echo server for the iter-13 reconnect smoke. Echoes JSON-RPC
+// Fake echo server for the reconnect smoke. Echoes JSON-RPC
 // `echo` calls back with their params as result; tracks active peers so
 // `dropAll()` can simulate a plugin disable/re-enable without taking the
 // listener down (avoids same-port bind race after wss.close).

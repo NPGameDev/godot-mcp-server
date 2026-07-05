@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// C# compatibility audit — iter 41j
+// C# compatibility audit
 //
 // Tests every MCP tool that interacts with scripts/classes/properties against
 // a Godot project with C# scripts. Run with the C# test project open in a
@@ -7,7 +7,7 @@
 //
 // Usage:
 //   cd <server-repo>
-//   GODOT_MCP_PROJECT_NAME="CSharp MCP Test" npx tsx test/csharp-audit.ts
+//   GODOT_MCP_PROJECT_NAME="CSharp MCP Test" node_modules/.bin/tsx test/csharp-audit.ts
 //
 // Exit codes: 0 = all passed, 1 = failures, 2 = precondition failure.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -67,7 +67,7 @@ function discoverProjectPath(): string | undefined {
 // ─── Main ────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   console.log("═══════════════════════════════════════════════════════════");
-  console.log("  C# Compatibility Audit — Iter 41j");
+  console.log("  C# Compatibility Audit");
   console.log("═══════════════════════════════════════════════════════════");
 
   const reachable = await probePort(HOST, PORT, PROBE_TIMEOUT_MS);

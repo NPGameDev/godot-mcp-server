@@ -2,7 +2,7 @@
 /**
  * Token measurement — quantifies MCP catalogue (tools/list) costs per profile.
  *
- * Usage: npx tsx scripts/measure-tokens.ts
+ * Usage: node_modules/.bin/tsx scripts/measure-tokens.ts
  *
  * Outputs a markdown report with per-profile catalogue sizes, per-tool
  * breakdowns, minification savings, and version-annotation overhead.
@@ -211,7 +211,9 @@ const emit = (s: string) => out.push(s);
 
 emit("# Token Efficiency Report");
 emit("");
-emit(`> Generated ${new Date().toISOString().slice(0, 10)} — rerun with \`npx tsx scripts/measure-tokens.ts\``);
+emit(
+  `> Generated ${new Date().toISOString().slice(0, 10)} — rerun with \`node_modules/.bin/tsx scripts/measure-tokens.ts\``,
+);
 emit("");
 
 // Summary table
@@ -328,7 +330,7 @@ emit("");
 // Minification detail
 emit("## Schema minification impact");
 emit("");
-emit("Minification (iter 22) applies these transforms to inputSchema:");
+emit("Minification applies these transforms to inputSchema:");
 emit("- Drop `additionalProperties: false`");
 emit("- Drop `$schema` keys");
 emit("- Compress parameter descriptions to first sentence (<=80 chars)");

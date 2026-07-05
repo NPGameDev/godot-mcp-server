@@ -4,8 +4,8 @@
 //
 // The orchestrator scaffolding (port-probe, ctx build, section loop, counters,
 // summary, exit codes, flag parsing, project-path discovery) lives in the
-// shared test/harness.ts module so the flow suite (test/flows.ts) reuses it
-// (41m-bis). This file keeps only the smoke-specific pieces: the section list,
+// shared test/harness.ts module so the flow suite (test/flows.ts) reuses it.
+// This file keeps only the smoke-specific pieces: the section list,
 // CI mode (static catalogue validation, no Godot), and the reconnect-last rule.
 //
 // Port-check first: if the editor plugin isn't reachable, print
@@ -89,8 +89,7 @@ import * as sec47 from "./sections/47_batch_partial_failure.js";
 //   2. Lines `MCP: delete <NodePath>` (e.g. `MCP: delete MCPSmokeAP`).
 //      Those are UndoRedo action names printed by EditorUndoRedoManager —
 //      scene.delete_node wraps each deletion in an undo action per the
-//      godot-mcp-pro / godotiq editor-safety pattern (see plan-repo
-//      memory/project_delete_node_crash.md). Not errors.
+//      godot-mcp-pro / godotiq editor-safety pattern. Not errors.
 //
 //   3. A single `UndoRedo history mismatch: expected 0, got 1` warning.
 //      Benign Godot 4.x message from editor_undo_redo_manager.cpp; fires
@@ -197,11 +196,11 @@ async function main(): Promise<void> {
       sections: ALL_SECTIONS,
       flags,
       // Benign inter-section throttle (~6.6s across the full run). NOT a crash
-      // guard: a 2026-06-11 characterization (18-run probe matrix + toolkit
-      // dispatch traces) disproved the earlier 41m-bis "load-bearing pace"
-      // conclusion — commands already dispatch at a strict 1-per-4-frames
-      // cadence with synchronous handlers (no deferred-queue depth exists),
-      // and a standard PACED run crashed at the same point as unpaced runs.
+      // guard: an 18-run probe matrix + toolkit dispatch traces showed the
+      // pace is not load-bearing — commands already dispatch at a strict
+      // 1-per-4-frames cadence with synchronous handlers (no deferred-queue
+      // depth exists), and a paced run crashed at the same point as unpaced
+      // runs.
       // The editor SIGSEGV occasionally seen near the section 2→3 boundary is
       // an environment-dependent engine race (silent crash in engine code,
       // 0-4 frames AFTER the last handler completed; machine-state dependent:

@@ -90,12 +90,14 @@ Located in `test/helpers.ts`:
 ## REGRESSION assertion format
 
 ```typescript
-// REGRESSION: [description] (fixed T:[toolkit-sha] / S:[server-sha])
+// REGRESSION: [description]
 // [what broke and what the assertion verifies]
 assertGuard(ctx, "REGRESSION description", result, "CODE", "substring");
 ```
 
-Both T: and S: SHAs are included for cross-repo traceability.
+The comment states what broke and what the assertion verifies — intent, not
+fix provenance. Cross-repo traceability (T:/S: SHAs) lives in this manifest
+and in commit messages, never in section-code comments.
 
 ## Coverage manifest
 

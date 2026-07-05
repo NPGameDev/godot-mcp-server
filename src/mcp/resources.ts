@@ -51,7 +51,7 @@ export function registerResources(server: McpServer, bridge: Bridge): void {
     }
   });
 
-  // ── godot://script/{path} ──────────────���─────────────────────────────
+  // ── godot://script/{path} ───────────────────────────────────────────
   // Returns the script source for a given res:// path.
   server.resource("script", "godot://script/{path}", { mimeType: "text/x-gdscript" }, async (uri) => {
     const path = decodeScriptPath(uri.href);
@@ -111,7 +111,7 @@ export function registerResources(server: McpServer, bridge: Bridge): void {
   });
 }
 
-// ── URI helpers ─────��────────────────────────────────────────────────────
+// ── URI helpers ───────────────────────────────────────────────────────
 
 /** Extract the res:// path from a godot://scene/ URI. */
 function decodeScenePath(href: string): string {

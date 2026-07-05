@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Flow suite runner — executes test/flows.ts (41m-bis).
+// Flow suite runner — executes test/flows.ts.
 //
 // GODOT_MCP_PROJECT_NAME is set so token resolution works when the flow harness
 // runs from the server repo (cwd != Godot project root). Mirrors run-smoke.ts.

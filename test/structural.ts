@@ -3,9 +3,6 @@
  * Runs in CI mode (no Godot required). Validates schema integrity,
  * test coverage, annotation completeness, and naming conventions
  * across the full tool catalogue.
- *
- * Grilling decision (2026-05-19): 4 checks, standalone module.
- * See Plan/ExecutionPlan/41l-sexies-bis-ci-static-smoke-expansion.md.
  */
 
 import { z } from "zod";
@@ -345,11 +342,11 @@ function checkSuccessHints(tools: ToolDef[], pass: (msg: string) => void, fail: 
 function checkReachability(tools: ToolDef[], pass: (msg: string) => void, fail: (msg: string) => void): void {
   // A tool is reachable iff it is eager (in EAGER_TOOLS) OR on-demand (in
   // some group → GROUP_TOOL_NAMES). ALL_TOOL_DEFS feeds --tools-count and these
-  // static checks, but it is NOT the registration path (see the src/catalogue.ts
+  // static checks, but it is NOT the registration path (see the src/registration/catalogue.ts
   // guardrail + src/index.ts buildModuleAllowed). A tool present in the catalogue
   // yet in neither set is counted but never appears in tools/list — silently
   // unreachable from any client. This guard closes that gap.
-  // (Caught 41m-quinquies regression a738182: scene_spatial_map was added to
+  // (This guard has caught a real regression: scene_spatial_map added to
   // ALL_TOOL_DEFS but not to EAGER_TOOLS.)
   const reachable = new Set<string>([...EAGER_TOOLS, ...GROUP_TOOL_NAMES]);
   const orphans = tools.filter((t) => !reachable.has(t.name)).map((t) => t.name);
@@ -368,8 +365,8 @@ function checkReachability(tools: ToolDef[], pass: (msg: string) => void, fail: 
 // ── Check 7: Optional-param input/output parity ─────────────────────
 
 /**
- * Catch the "coercion wrapper flips an optional param to required" bug class
- * (S:159978c). The live registration path wraps every Zod inputSchema with
+ * Catch the "coercion wrapper flips an optional param to required" bug class.
+ * The live registration path wraps every Zod inputSchema with
  * addStringCoercion before handing it to the SDK, and the SDK emits the JSON
  * Schema with io:"input". A z.preprocess()/coerce wrapper is a ZodPipe whose
  * INPUT side does not inherit an inner `.optional()` — so an optional param can

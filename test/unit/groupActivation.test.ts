@@ -1,6 +1,6 @@
 /**
- * Unit tests for group_activation.ts — the group-activation lifecycle carved
- * out of groups.ts. Drives the COMMAND/QUERY split + the
+ * Unit tests for groupActivation.ts — the group-activation lifecycle.
+ * Drives the COMMAND/QUERY split + the
  * built-in-vs-extension dispatchers through a fake server + bridge, proving:
  *   1. activateGroup: registers a built-in group's tools + marks it loaded;
  *      idempotent on re-activate (already_loaded, no double-count).
@@ -8,8 +8,8 @@
  *      under readOnly registers nothing, returns available, consumes no slot.
  *   3. reportGroupStatus is a PURE query — no mutation of loadedGroups.
  *   4. reportGroupStatusByName routes built-in → reportGroupStatus / ext →
- *      reportExtGroupStatus (pins the behavior-preservation fix: ext browse keeps
- *      its real tool list + status, instead of the empty built-in fallthrough).
+ *      reportExtGroupStatus (pins: ext browse keeps its real tool list +
+ *      status, instead of the empty built-in fallthrough).
  *   5. activateGroupByName routes built-in → activateGroup / unknown →
  *      activateExtGroup.
  *   6. deactivateGroups unloads built-in + ext groups (selective + true=all).

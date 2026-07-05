@@ -132,7 +132,7 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
   }
   await bridge.call("scene.delete_node", { node_path: idemFirst?.path ?? idemNodeName }, CALL_TIMEOUT);
 
-  // ── Recovery hint assertions (iter 38) ──────────────────────────────────
+  // ── Recovery hint assertions ─────────────────────────────────────────────
   const hintNode = (await bridge.call("scene.delete_node", { node_path: "NoSuchHint_xyz" }, CALL_TIMEOUT)) as {
     code?: string;
     hint?: string;

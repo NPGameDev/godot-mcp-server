@@ -1,5 +1,5 @@
 /**
- * Unit tests for lsp_uri.ts — pure URI / path translation helpers.
+ * Unit tests for lspUri.ts — pure URI / path translation helpers.
  * Every function is pure (no I/O, no editor), so we assert derived values
  * directly. Results are platform-independent: node:path.join differences
  * are normalized away by absoluteToFileUri before any comparison, so these
@@ -25,9 +25,8 @@ import { resToAbsolute, absoluteToFileUri, fileUriToRes, normalizeUri } from "..
 // res://a/b.gd → absolute → file:// URI → res://a/b.gd, exactly as the
 // Windows case above. fileUriToRes detects the non-drive-letter (POSIX)
 // form and KEEPS the leading "/", so the project-prefix match succeeds and
-// res:// is recovered. (Previously slice(8) dropped that leading "/",
-// the match failed, and this wrongly returned the raw URI —
-// this asserts the correct behavior.)
+// res:// is recovered. (Dropping that leading "/" would break the prefix
+// match and wrongly return the raw URI — this pins the keep.)
 {
   const project = "/home/proj";
   const abs = resToAbsolute("res://a/b.gd", project);
