@@ -195,6 +195,9 @@ runs:
         PROJECT_PATH: ${{ inputs.project-path }}
         TOOLKIT_ADDON_SRC: ${{ inputs.toolkit-addon-src }}
       run: |
+        # pipefail is LOAD-BEARING: the warm-up script's exit code — including its
+        # teardown's zombie hard-stop (exit 2) — must survive the `| tee` below;
+        # without it tee's 0 would mask the failure and this step would go green.
         set -o pipefail
         cd "$PROJECT_PATH"
         if [ "$LANGUAGE" = "dotnet" ]; then
@@ -219,9 +222,15 @@ runs:
           echo "quarantine strip attempted on $(dirname "$godot_bin")"
         fi
 
-    # Launch + poll self-terminates in <=60s (bounded loop), so it needs no shell
-    # timeout; the background editor is reaped by the always() teardown below.
-    - name: Launch headless editor + poll 6550 (<=60s)
+    # Bounded boot retry (up to 3 attempts): a CI editor can die at boot (a one-off
+    # engine crash — e.g. an Abort trap on macOS) or hang without ever serving the
+    # WS port, which would otherwise redden the leg with ZERO product assertions
+    # run. Each attempt = launch → poll the WS port (process-death short-circuit) →
+    # on death/timeout, warn, tail the log, tree-kill the remnant, and retry with a
+    # fresh log. The RETRY WRAPS THE BOOT ONLY — smoke/flows are separate steps and
+    # stay first-strike fatal. Self-terminates in <=180s (3 x 60s bounded), so it
+    # still needs no shell timeout; the editor is reaped by the always() teardown.
+    - name: Launch headless editor + poll WS port (bounded retry)
       shell: bash
       run: |
         # --log-file (Godot 4.3+ only — the flag does not exist on 4.2) enables editor-mode file
@@ -235,12 +244,74 @@ runs:
           4.2*) : ;;  # no --log-file pre-4.3
           *) LOGFILE_ARG='--log-file user://logs/godot.log' ;;
         esac
-        godot --headless --editor $LOGFILE_ARG --path "${{ inputs.project-path }}" > editor.log 2>&1 &
-        echo "EDITOR_PID=$!" >> "$GITHUB_ENV"
-        for i in $(seq 1 60); do
-          node -e 'const n=require("net");const s=n.connect(6550,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1));s.setTimeout(1000,()=>process.exit(1))' && break
-          sleep 1
+        # The WS port the editor binds and the smoke/flows read. Defaults to 6550;
+        # the 4.2 warm-up teardown (run_units_cold.sh) may have exported a spare
+        # port via GODOT_MCP_EDITOR_PORT (port-agility) when a zombie still held
+        # 6550, so honor it here and poll the SAME port the editor will bind (the
+        # editor inherits GODOT_MCP_EDITOR_PORT from the environment).
+        export POLL_PORT="${GODOT_MCP_EDITOR_PORT:-6550}"
+        # Breadcrumb for the post-launch port forensics: a relocated main editor is
+        # a deliberate fallback, not a second-editor (H1) incumbent squatting 6550.
+        if [ "$POLL_PORT" != "6550" ]; then
+          echo "NOTE: main editor intentionally relocated to port $POLL_PORT (port-agility fallback) — not an H1 incumbent"
+        fi
+        BOOT_OK=0
+        EDITOR_PID=""
+        for attempt in 1 2 3; do
+          godot --headless --editor $LOGFILE_ARG --path "${{ inputs.project-path }}" > editor.log 2>&1 &
+          EDITOR_PID=$!
+          # Windows: record the editor's REAL Windows PID while it is alive — $! is
+          # an MSYS-space pid (possibly a launcher shim), so the between-attempt
+          # reap needs the native PID captured up front for its taskkill.
+          EDITOR_WINPID=""
+          if [ "${{ inputs.os }}" = "windows" ]; then
+            EDITOR_WINPID="$(cat "/proc/$EDITOR_PID/winpid" 2>/dev/null || true)"
+          fi
+          REASON=""
+          for i in $(seq 1 60); do
+            if ! kill -0 "$EDITOR_PID" 2>/dev/null; then
+              REASON="editor process died during boot"
+              break
+            fi
+            if node -e 'const n=require("net");const p=Number(process.env.POLL_PORT||6550);const s=n.connect(p,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1));s.setTimeout(1000,()=>process.exit(1))'; then
+              BOOT_OK=1
+              break
+            fi
+            sleep 1
+          done
+          [ "$BOOT_OK" = "1" ] && break
+          [ -n "$REASON" ] || REASON="WS port $POLL_PORT not listening after 60s"
+          echo "::warning::boot attempt $attempt/3 failed ($REASON)"
+          echo "boot attempt $attempt/3 failed ($REASON); editor.log tail:"
+          tail -40 editor.log 2>/dev/null || true
+          # Tree-kill the failed attempt before retrying so it can't linger as a
+          # port thief. On Windows the POSIX kill targets an MSYS/shim pid it may
+          # not reach, and an image-name taskkill is INERT on the runner (the
+          # provisioned binary is Godot_v<ver>_win64.exe, never godot.exe) — so
+          # kill the captured native PID tree, then (GitHub Actions only) every
+          # LISTENING owner of the poll port, image-agnostic, so a shim-orphaned
+          # editor cannot survive into the next attempt.
+          kill "$EDITOR_PID" 2>/dev/null || true
+          for _ in 1 2 3; do kill -0 "$EDITOR_PID" 2>/dev/null || break; sleep 1; done
+          kill -9 "$EDITOR_PID" 2>/dev/null || true
+          if [ "${{ inputs.os }}" = "windows" ]; then
+            [ -n "$EDITOR_WINPID" ] && taskkill //F //T //PID "$EDITOR_WINPID" 2>/dev/null || true
+            if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+              for pid in $(netstat -ano 2>/dev/null | grep -E ":$POLL_PORT[^0-9]" | grep "LISTENING" | awk '{print $NF}' | sort -u || true); do
+                { [ -n "$pid" ] && [ "$pid" != "0" ]; } || continue
+                echo "boot retry: force-killing LISTENING owner of port $POLL_PORT — PID $pid"
+                taskkill //F //T //PID "$pid" 2>/dev/null || true
+              done
+            fi
+          fi
+          EDITOR_PID=""
+          EDITOR_WINPID=""
         done
+        echo "EDITOR_PID=$EDITOR_PID" >> "$GITHUB_ENV"
+        if [ "$BOOT_OK" != "1" ]; then
+          echo "::error::editor failed to boot + serve WS port $POLL_PORT after 3 attempts"
+          exit 1
+        fi
 
     # Windows platform forensics (41n-quater-sexies C3 investigation) — pure-info
     # and FAIL-SAFE: every command is || true'd and the step exits 0, so it can
