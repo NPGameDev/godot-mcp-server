@@ -92,6 +92,21 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     if (!inputSimulate?.success) fail(`input.simulate ui_accept: ${JSON.stringify(inputSimulate)}`);
     else pass("input.simulate action=ui_accept ok");
 
+    // 41o C6: an unknown input action must be REJECTED, not a silent no-op success.
+    // Unregistered actions match nothing in the InputMap; the runtime guard now
+    // returns INVALID_PARAMS naming the action (action path only — key/text unaffected).
+    const badAction = (await bridge.callRuntime(
+      "input.simulate",
+      { events: [{ event_type: "action", event_data: { action: "sv2_no_such_action_xyz" } }] },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; code?: string; error?: string };
+    if (badAction?.code === "INVALID_PARAMS" && badAction.error?.includes("sv2_no_such_action_xyz"))
+      pass("input.simulate unknown action -> INVALID_PARAMS (names the action)");
+    else
+      fail(
+        `input.simulate unknown action: expected INVALID_PARAMS naming the action, got ${JSON.stringify(badAction)}`,
+      );
+
     const animPlayerMiss = (await bridge.callRuntime(
       "animation_player.control",
       { node_path: "/root/NoSuchAP", operation: "pause" },
@@ -128,6 +143,31 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     } else {
       fail(`runtime.set_property /root: ${JSON.stringify(setProp)}`);
     }
+
+    // 41o regression: a wrong-type runtime write must be SET_FAILED even from a
+    // NON-ZERO prior. A bound setter (position) Variant-converts the wrong type to a
+    // ZERO and stores it (after ≠ before) — the case that regressed to a false
+    // "adjusted" success (a zero prior would hide it). The runtime restores the prior,
+    // so the failure is non-destructive. Colon sub-paths stay best-effort → scalar.
+    await bridge.callRuntime(
+      "runtime.set_property",
+      { node_path: "/root", property: "position", value: { type: "Vector2i", x: 50, y: 50 } },
+      CALL_TIMEOUT,
+    );
+    const rtWrongType = (await bridge.callRuntime(
+      "runtime.set_property",
+      { node_path: "/root", property: "position", value: "not a vector" },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; code?: string };
+    if (rtWrongType?.code === "SET_FAILED")
+      pass("runtime.set_property wrong-type (non-zero prior) -> SET_FAILED (destructive-zero guard)");
+    else fail(`runtime.set_property wrong-type: expected SET_FAILED, got ${JSON.stringify(rtWrongType)}`);
+    // Reset /root position so the window isn't left moved.
+    await bridge.callRuntime(
+      "runtime.set_property",
+      { node_path: "/root", property: "position", value: { type: "Vector2i", x: 0, y: 0 } },
+      CALL_TIMEOUT,
+    );
 
     {
       const gameEvalResult = (await bridge.callRuntime("execute.code", { code: "1+2" }, CALL_TIMEOUT)) as {

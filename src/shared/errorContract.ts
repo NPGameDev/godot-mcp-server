@@ -65,6 +65,8 @@ const EXCEPTION_HINTS: Record<string, string> = {
     "If no errors are shown, call editor_refresh to retrigger them, then editor_get_console for the full log.",
   DISCONNECTED:
     "Plugin WebSocket not connected. Ensure Godot is running with the plugin enabled. If running headless, launch with: godot --headless --editor --path <project>",
+  CONNECT_FAILED:
+    "Could not connect to the Godot editor plugin. Ensure Godot is running with the plugin enabled. If running headless, launch with: godot --headless --editor --path <project>",
   GAME_NOT_RUNNING:
     "No running game. Call editor_get_console(level_filter:['error']) for crash diagnostics. " +
     "If empty, the game may have crashed — debugger_get_log serves cached output from log file after a real crash (OS signal). " +

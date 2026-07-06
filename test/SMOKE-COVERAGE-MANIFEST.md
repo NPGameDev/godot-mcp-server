@@ -88,7 +88,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | node_get_property | 02, 07, 14, 25 | ✓ | ✓ (07: NOT_FOUND) | — | — | |
-| node_set_property | 02, 07, 10, 13, 14, 25, 31, 47 | ✓ | ✓ (07: INVALID_PATH, NOT_FOUND; 02: NOT_FOUND struct-component compound contract) | ✓ (Resource dict; **47: batch partial-failure → top-level `failed`+`hint`, + all-success control asserting both absent**) | — | **GAP:** LayerMask coercion, bare res:// guard |
+| node_set_property | 02, 07, 10, 13, 14, 25, 31, 47 | ✓ | ✓ (07: INVALID_PATH, NOT_FOUND, **cross-family wrong-type → SET_FAILED; convertible value → ADJUSTED success+`warning`, 41o C1/D1**; 02: NOT_FOUND struct-component compound contract) | ✓ (Resource dict; **07: z_index 2.9→2 adjusted warning; 47: batch partial-failure → top-level `failed`+`hint`, + all-success control asserting both absent**) | — | **GAP:** LayerMask coercion, bare res:// guard |
 | node_get_property_list | 05, 25 | ✓ | — | — | — | |
 | node_set_script | 16 | ✓ | ✓ (LOAD_FAILED, NOT_FOUND) | ✓ (attach, detach, properties) | — | |
 | node_call_method | 25 | ✓ | — | — | ✓ (25: C# hint) | Risk communicated via MCP annotations |
@@ -194,10 +194,10 @@ routinely.
 | runtime_screenshot | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | |
 | runtime_get_node_state | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | In runtime_advanced group |
 | debugger_get_log | 17 | ✓ | — | — | — | **GAP:** cache fallback after game stop; file source under a `text_filter` (smoke calls the default buffer source, no filter). ledger #9: total_lines (was total)/truncated (capped tail); 41n-ter-bis #7a: the file source now filters-then-slices, uniform with the buffer source (supersedes the file-path capped-tail `truncated=start>0`) |
-| input_simulate | 17 | ✓ (incl. send_text into fixture LineEdit) | — | ✓ (send_text event_type: node_path focus, submit, secret) | ✓ (send_text no-focus + bogus-node_path hints) | send_text (41n-sexies): §17 self-launches `test/fixtures/send_text_smoke.tscn` (skips if absent → positive coverage is sweep-owned), asserts text_changed/text_after + secret redaction (no raw-value leak) + submit. **GAP:** world_position hint |
+| input_simulate | 17 | ✓ (incl. send_text into fixture LineEdit; **17: unknown action → INVALID_PARAMS, 41o C6**) | — | ✓ (send_text event_type: node_path focus, submit, secret) | ✓ (send_text no-focus + bogus-node_path hints; 17: unknown-action names the action) | send_text (41n-sexies): §17 self-launches `test/fixtures/send_text_smoke.tscn` (skips if absent → positive coverage is sweep-owned), asserts text_changed/text_after + secret redaction (no raw-value leak) + submit. 41o C6: action-mode InputMap guard — unregistered action rejected (key/text/click modes unaffected). **GAP:** world_position hint |
 | animation_player_control | 17 | ✓ | — | — | — | In runtime_advanced group |
 | runtime_get_script_vars | 17 | ✓ | — | — | — | |
-| runtime_set_property | 17 | ✓ | — | — | — | |
+| runtime_set_property | 17 | ✓ | ✓ (17: cross-family wrong-type → SET_FAILED, 41o C1) | — | — | 41o C1/D1: shares the editor path's `contract/property_set_check.gd` tri-state detector (dropped/ok/adjusted; adjusted → success+`warning`); scalar/non-colon paths only. Runtime ADJUSTED is unit- + sweep-covered (20.8c); §17 smoke asserts the DROPPED leg |
 | execute_code | 17 | ✓ | — | — | — | Risk communicated via MCP annotations. **GAP:** context param, load() hint |
 
 ### Input Map (2 tools)
