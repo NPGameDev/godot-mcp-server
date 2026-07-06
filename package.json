@@ -50,6 +50,7 @@
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "check:arch": "bash scripts/check_arch_freshness.sh",
+    "audit": "npm audit --omit=dev",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
