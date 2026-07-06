@@ -92,7 +92,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     if (!inputSimulate?.success) fail(`input.simulate ui_accept: ${JSON.stringify(inputSimulate)}`);
     else pass("input.simulate action=ui_accept ok");
 
-    // 41o C6: an unknown input action must be REJECTED, not a silent no-op success.
+    // An unknown input action must be REJECTED, not a silent no-op success.
     // Unregistered actions match nothing in the InputMap; the runtime guard now
     // returns INVALID_PARAMS naming the action (action path only — key/text unaffected).
     const badAction = (await bridge.callRuntime(
@@ -144,7 +144,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       fail(`runtime.set_property /root: ${JSON.stringify(setProp)}`);
     }
 
-    // 41o regression: a wrong-type runtime write must be SET_FAILED even from a
+    // A wrong-type runtime write must be SET_FAILED even from a
     // NON-ZERO prior. A bound setter (position) Variant-converts the wrong type to a
     // ZERO and stores it (after ≠ before) — the case that regressed to a false
     // "adjusted" success (a zero prior would hide it). The runtime restores the prior,

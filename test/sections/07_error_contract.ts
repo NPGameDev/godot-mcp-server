@@ -55,7 +55,7 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
     ),
     "NOT_FOUND",
   );
-  // 41o C1: a wrong-type value must be REJECTED, not silently dropped with a false
+  // A wrong-type value must be REJECTED, not silently dropped with a false
   // success. Godot's Object.set() discards an unassignable Variant; the toolkit now
   // reads back and reports SET_FAILED. Probe on a throwaway Sprite2D so the check is
   // self-contained and independent of the working scene's node types.
@@ -93,7 +93,7 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
   if (restored?.value?.x === 50 && restored?.value?.y === 50)
     pass("node.set_property drop is non-destructive (prior (50,50) restored, not zeroed)");
   else ctx.fail(`node.set_property drop restore: expected position (50,50), got ${JSON.stringify(restored)}`);
-  // 41o D1: a convertible-but-ADJUSTED write is ACCEPTED (not dropped), but returns
+  // A convertible-but-ADJUSTED write is ACCEPTED (not dropped), but returns
   // a warning so the caller sees the stored value differs from the request. z_index
   // is int; 2.9 truncates to 2 → success + a `warning` naming the adjustment.
   const adjusted = (await bridge.call(
@@ -231,7 +231,7 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
     ctx.fail(`hint: INVALID_CLASS: unexpected code ${hintClass?.code}`);
   }
 
-  // 41o G3: the cold connect-failure path (editor down / plugin disabled) is the
+  // The cold connect-failure path (editor down / plugin disabled) is the
   // commonest new-user failure and was hintless. Assert CONNECT_FAILED now carries
   // a recovery hint. Constructed directly — a live smoke run has a healthy
   // connection, so CONNECT_FAILED can't be produced by a bridge.call here; this pins
