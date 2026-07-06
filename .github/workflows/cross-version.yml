@@ -100,7 +100,7 @@ on:
 # [run-cross-version-ci] (the bump IS the tested integration event); override ad-hoc via
 # the sibling-ref dispatch input. See Plan/Reference/ci-test-topology.md.
 env:
-  SIBLING_PIN_TOOLKIT: "e6162e86bd33bddb1614e8458d39ef174f46afe2"
+  SIBLING_PIN_TOOLKIT: "e6b7f6cf8fb69806dc004bcfa2efceeed5f31cdd"
 
 jobs:
   csharp-behavioral:
