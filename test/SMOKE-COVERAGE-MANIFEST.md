@@ -56,7 +56,7 @@ composite (CWD = the C# fixture; run_units_cold.sh invoked from the pinned toolk
 checkout), so the .NET tier covers **4.2–4.7**. The 4.2 row carries the SAME shared
 `--skip 10,14` / flows `--skip 2` as 4.3–4.7 — no 4.2-specific skip (local-validated
 smoke 450/0 + flows 19/0 + units 897/0 on 4.2.0-mono). Full local C# coverage remains
-the `godot-mcp-dogfood-NET` `csharp-audit` (24/24) + the C# tool sweep, scheduled
+the `godot-mcp-dogfood-NET` `csharp-audit` (18/18) + the C# tool sweep, scheduled
 routinely.
 
 > **Validation vocabulary (glossary).** **SWEEP** = toolkit, interactive,
