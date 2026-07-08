@@ -12,15 +12,19 @@ export const playtestTools: ToolDef[] = [
     name: "game_start",
     method: "game.start",
     description:
-      "Start playtest. Use wait_for_runtime:true (recommended) to block until runtime tools are available. scene_path:'main'|'current'(default)|res://path. if_running:'return' for idempotent mode.",
+      "Start playtest. Blocks until runtime is ready by default; wait_for_runtime:false launches without blocking. scene_path:'main'|'current'(default)|res://path. if_running:'return' for idempotent mode.",
     inputSchema: {
       scene_path: z.string().optional(),
       wait_for_runtime: coercedBoolean()
+        .default(true)
+        .describe(
+          "Defaults true — blocks until runtime connects (or times out) so runtime tools are immediately available. Pass wait_for_runtime:false to launch without blocking.",
+        ),
+      runtime_poll: coercedBoolean()
         .optional()
         .describe(
-          "Recommended. Blocks until runtime connects or times out, so runtime tools are immediately available.",
+          "With if_running:'return', re-check whether the already-running game's runtime has since connected. Default false.",
         ),
-      runtime_poll: coercedBoolean().optional(),
       if_running: z.enum(["return", "fail"]).optional(),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
@@ -53,8 +57,8 @@ export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<s
         /* parse failure — pass through unchanged */
       }
     }
-    // Nudge: if game started but runtime isn't ready and agent didn't use
-    // wait_for_runtime, add a hint suggesting the recommended approach.
+    // Nudge: the caller opted out of blocking (wait_for_runtime:false) but the
+    // runtime isn't ready yet — point them at the blocking and polling paths.
     if (!input.wait_for_runtime && result.content?.[0]?.type === "text" && !result.isError) {
       try {
         const payload = JSON.parse(result.content[0].text);

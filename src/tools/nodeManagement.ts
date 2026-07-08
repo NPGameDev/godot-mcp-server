@@ -42,11 +42,18 @@ export const nodeManagementTools: ToolDef[] = [
     description:
       "Manage node group membership. Groups are the idiomatic Godot way to tag and query game objects " +
       "(e.g. 'coins', 'enemies').\n\n" +
-      "Single: node_path + group. Batch: entries array of {node_path, group}.\n\n" +
+      "Single mode: node_path + group (node_path required for add/remove/list). " +
+      "Batch mode: entries array of {node_path, group} carries per-item paths, and the top-level " +
+      "node_path/group are ignored.\n\n" +
       "action: add — requires group. action: remove — requires group. action: list — returns all groups (single only).",
     inputSchema: {
       action: z.enum(["add", "remove", "list"]),
-      node_path: z.string().optional().describe("Single mode: target node path."),
+      node_path: z
+        .string()
+        .optional()
+        .describe(
+          "Single mode: target node path. Required for single add/remove/list; omit in batch mode (provide entries instead).",
+        ),
       group: z.string().optional().describe("Group name. Required for single add/remove."),
       persistent: coercedBoolean().optional().describe("For add: save to .tscn. Default true."),
       entries: z

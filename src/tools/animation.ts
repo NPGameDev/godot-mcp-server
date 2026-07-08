@@ -17,7 +17,7 @@ export const animationTools: ToolDef[] = [
       track_path: z.string(),
       time: z.coerce.number(),
       value: z.unknown().optional().describe("Required for action='add'."),
-      track_type: z.string().optional(),
+      track_type: z.enum(["value"]).optional().describe("Track type; only 'value' supported currently."),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
     successHint: "Verify keys with animation_get_keys. Configure AnimationTree with animationtree_edit.",
