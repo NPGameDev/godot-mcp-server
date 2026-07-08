@@ -78,7 +78,7 @@ routinely.
 | scene_delete_node | 02, 06, 10, 37 | ✓ | — | — | — | |
 | scene_create | 08, 10, 14, 33 | ✓ | ✓ (08: ALREADY_EXISTS, INVALID_PATH) | ✓ (if_exists modes; 08: root_name override + stem default) | — | |
 | scene_open | 04, 10 | ✓ | ✓ (04: NOT_FOUND) | — | — | |
-| scene_close | 01, 04 | ✓ (04, 4.5+) | ✓ (04: PATH_DENIED, NOT_FOUND, EDITED_SCENE last-tab; 4.5+) | — | ✓ (01: godotMinVersion=4.5) | 4.5+ only; §04 happy+guards gated `godotVer>=4.5` (skips on <4.5 — 41m-ter A0); structural in §01. **§01 behavioral (41n-duodecies):** the `cleanup` group summary OMITS scene_close on <4.5 and OFFERS it on 4.5+, keyed on `bridge.getGodotVersion()` — advertise==register, the cross-version CI guard (full smoke runs on real 4.2–4.7) |
+| scene_close | 01, 04 | ✓ (04, 4.5+) | ✓ (04: PATH_DENIED, NOT_FOUND, EDITED_SCENE last-tab; 4.5+) | — | ✓ (01: godotMinVersion=4.5) | 4.5+ only; §04 happy+guards gated `godotVer>=4.5` (skips on <4.5 — 41m-ter A0); structural in §01. **§01 behavioral (41n-duodecies):** the `cleanup` group summary OMITS scene_close on <4.5 and OFFERS it on 4.5+, keyed on `bridge.getGodotVersion()` — advertise==register, the cross-version CI guard (full smoke runs on real 4.2–4.7). Response discloses `unsaved_changes_discarded: <bool>` on 4.7+ (omitted below 4.7); §04 asserts presence/absence per version. destructiveHint=true. |
 | scene_delete | 08 | ✓ | ✓ (08: NOT_FOUND) | — | — | Scene file deletion (distinct from scene_delete_node) |
 | scene_instantiate | 10, 47 | ✓ | ✓ (10: PATH_DENIED, INVALID_PATH, NOT_FOUND) | ✓ (as_name, transform, FIX-K auto-rename, owner-set; 10: as_name-collision returned-path warning names ignored transform, absent when none passed; **47: batch all-success control → count=2, instances=2, failed/hint absent**) | — | Batch partial-failure not assertable via smoke — see §47 note |
 | scene_query | 36 | ✓ | ✓ (INVALID_PARAMS: no filters) | ✓ (class_filter, name_pattern, property_filters, limit) | — | |
@@ -246,7 +246,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | path2d_edit_curve | 29 | ✓ | ✓ (INVALID_CLASS) | ✓ (set, add, remove; handles in/out) | — | In path_editing group |
-| collision_from_texture | 31 | ✓ | ✓ (INVALID_CLASS) | ✓ (simplification) | — | In path_editing group |
+| collision_from_texture | 31 | ✓ | ✓ (INVALID_CLASS) | ✓ (simplification) | — | In path_editing group (`parent_path` param, renamed from `target_parent`) |
 
 ### 3D Tools (4 tools)
 
