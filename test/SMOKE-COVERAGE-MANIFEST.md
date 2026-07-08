@@ -7,6 +7,7 @@
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
 **Smoke sections:** 47 (sections 01–47)
 **Flow suite:** 4 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
+**Static structural layer:** `test/structural.ts` (the editor-free half of `npm run smoke:ci`) — asserts tool-name/param-schema/group-membership integrity plus catalogue-wide invariants: tool coverage cross-ref (Check 2), reachability (every tool eager or in an on-demand group), successHint canary (Check 5), and `enabled`-optionality parity (Check 7). Not tied to any single section — it guards the whole catalogue.
 
 ---
 
@@ -35,7 +36,7 @@ the plan repo's CLAUDE.md for cross-repo visibility.
 ## Cross-version C# behavioral coverage
 
 The C# (.NET) behavioral tier (`.github/workflows/cross-version.yml`) runs the
-**full smoke suite `--skip 10,14` + flows `--skip 2`** against the committed mono
+**full smoke suite + full flows suite (NO `--skip`)** against the committed mono
 fixture on **Godot 4.2–4.7** (was §25-only, `smoke:single --only 25`) — the .NET
 tier, driven by the SHARED language-parameterized composite
 `.github/actions/cross-version-behavioral` (`language: dotnet`); its section set is
@@ -97,7 +98,7 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| node_manage | 10 | ✓ (rename, reparent, reorder, duplicate) | — | ✓ (all 4 actions) | — | **GAP:** duplicate with properties override |
+| node_manage | 10 | ✓ (rename, reparent, reorder, duplicate) | — | ✓ (all 4 actions) | — | duplicate-with-properties: **soft/uncredited — hard-assert pending** (§10:449–474 regression case, soft `pass`) |
 | node_groups | 10, 47 | ✓ (add, remove, list) | — | ✓ (**47: batch partial-failure → top-level `failed`+`hint` via tolerant predicate on `{status?,error?}` entries, + all-success control asserting both absent**) | — | |
 | autoload_manage | 10 | ✓ (register, unregister, list) | — | — | — | **GAP:** DX hint (ProjectSettings restart) |
 
@@ -115,7 +116,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | editor_save_scene | 04, 07, 10, 14 | ✓ | — | — | — | |
-| editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id, source=buffer/file) | — | **GAP:** clear_buffer param. ledger #9: total_lines/next_id/truncated. **Editor parse-error capture is 4.5+ only** (Logger); 4.2-4.4 don't file-log editor parse errors → §14 gates the parse-error-filter assertions (#2/#3/#6) to 4.5+. "at:" continuation leveling for captured multi-line errors is toolkit-side + unit-tested (41m-ter A2/A3). **Headless:** those capture assertions also self-skip (`&& !headless`); §14 positively asserts the deterministic `headless_hint` (steers to script_check) whenever error capture is requested. **`source=file`:** the logger holds `godot.log` deny-nothing (`_SH_DENYNO`, every version — source-verified), so the reader's `open(READ)` always succeeds. On 4.3+ the CI composite passes `--log-file user://logs/godot.log` (globalizes to the reader's `user://logs/` dir) so §14 requires the real file-read path — **entries on every platform** (incl. the Windows 4.4.0 `get_modified_time=0` case the selection fall-through recovers), keyed on the `SMOKE_EXPECT_FILE_LOG` harness signal. **`LOG_BUSY` is not an engine effect** — it only arises from an external read-denying holder (antivirus/file-sync/backup); guardrail: POSIX `LOG_BUSY` → fail (never POSIX, never the engine, never 4.5+). 4.2 (no `--log-file` flag) + any no-`--log-file` run assert `LOG_UNAVAILABLE`; on the `LOG_UNAVAILABLE`/`LOG_BUSY` branches §14 asserts the **version-gated recovery `hint` FIELD** (`source="buffer"` present IFF 4.5+ — the `error`/`headless_hint` fields mention buffer on every version, so only `hint` discriminates) + (headless) the `headless_hint` steering to `source="buffer"` — 41n-quater-bis; model corrected 41n-undecies-bis-bis |
+| editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id, source=buffer/file, clear_buffer) | — | clear_buffer param: **soft/uncredited — hard-assert pending** (§14:557–568 calls clear_buffer=true, accepts unsupported). ledger #9: total_lines/next_id/truncated. **Editor parse-error capture is 4.5+ only** (Logger); 4.2-4.4 don't file-log editor parse errors → §14 gates the parse-error-filter assertions (#2/#3/#6) to 4.5+. "at:" continuation leveling for captured multi-line errors is toolkit-side + unit-tested (41m-ter A2/A3). **Headless:** those capture assertions also self-skip (`&& !headless`); §14 positively asserts the deterministic `headless_hint` (steers to script_check) whenever error capture is requested. **`source=file`:** the logger holds `godot.log` deny-nothing (`_SH_DENYNO`, every version — source-verified), so the reader's `open(READ)` always succeeds. On 4.3+ the CI composite passes `--log-file user://logs/godot.log` (globalizes to the reader's `user://logs/` dir) so §14 requires the real file-read path — **entries on every platform** (incl. the Windows 4.4.0 `get_modified_time=0` case the selection fall-through recovers), keyed on the `SMOKE_EXPECT_FILE_LOG` harness signal. **`LOG_BUSY` is not an engine effect** — it only arises from an external read-denying holder (antivirus/file-sync/backup); guardrail: POSIX `LOG_BUSY` → fail (never POSIX, never the engine, never 4.5+). 4.2 (no `--log-file` flag) + any no-`--log-file` run assert `LOG_UNAVAILABLE`; on the `LOG_UNAVAILABLE`/`LOG_BUSY` branches §14 asserts the **version-gated recovery `hint` FIELD** (`source="buffer"` present IFF 4.5+ — the `error`/`headless_hint` fields mention buffer on every version, so only `hint` discriminates) + (headless) the `headless_hint` steering to `source="buffer"` — 41n-quater-bis; model corrected 41n-undecies-bis-bis |
 | editor_screenshot | 04, 18 | ✓ (inline + save_path) | ✓ (18: PATH_DENIED) | — | — | In editor_advanced group |
 | editor_refresh | 03, 14, 16, 23 | ✓ | — | — | — | Renamed from editor_reload_scripts (S:6964946) |
 
@@ -184,7 +185,7 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| game_start | 10, 40 | ✓ | ✓ (ALREADY_PLAYING) | ✓ (wait_for_runtime=false) | — | **GAP:** wait_for_runtime=true, COMPILATION_FAILED, hint. **Headless:** §10 and §40 assert HEADLESS_UNSUPPORTED + script_check guidance for every game.start (early guard fires before param validation, so the cache/COMPILATION_FAILED-on-start paths are unreachable; display path unchanged) — 41n-quater-bis |
+| game_start | 10, 40 | ✓ | ✓ (ALREADY_PLAYING; **40: COMPILATION_FAILED** guard) | ✓ (wait_for_runtime=false; **10: wait_for_runtime=true hard-asserts runtime_discovery='bridge' + hint suppression**) | — | wait_for_runtime=true + COMPILATION_FAILED now hard-asserted (§10 / §40). **GAP:** hint. **Headless:** §10 and §40 assert HEADLESS_UNSUPPORTED + script_check guidance for every game.start (early guard fires before param validation, so the cache/COMPILATION_FAILED-on-start paths are unreachable; display path unchanged) — 41n-quater-bis |
 | game_stop | 10 | ✓ | — | ✓ (was_running=true/false) | — | |
 
 ### Runtime (7 tools)
@@ -193,7 +194,7 @@ routinely.
 |---|---|---|---|---|---|---|
 | runtime_screenshot | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | |
 | runtime_get_node_state | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | In runtime_advanced group |
-| debugger_get_log | 17 | ✓ | — | — | — | **GAP:** cache fallback after game stop; file source under a `text_filter` (smoke calls the default buffer source, no filter). ledger #9: total_lines (was total)/truncated (capped tail); 41n-ter-bis #7a: the file source now filters-then-slices, uniform with the buffer source (supersedes the file-path capped-tail `truncated=start>0`) |
+| debugger_get_log | 17, 40 | ✓ | — | — | — | cache fallback after game stop: **soft/uncredited — hard-assert pending** (§40:74–118 covers post-stop cached-log fallback, `fail` if GAME_NOT_RUNNING; the §17-scoped row under-reported it). file source under a `text_filter` (§17 calls the default buffer source, no filter). ledger #9: total_lines (was total)/truncated (capped tail); 41n-ter-bis #7a: the file source now filters-then-slices, uniform with the buffer source (supersedes the file-path capped-tail `truncated=start>0`) |
 | input_simulate | 17 | ✓ (incl. send_text into fixture LineEdit; **17: unknown action → INVALID_PARAMS, 41o C6**) | — | ✓ (send_text event_type: node_path focus, submit, secret) | ✓ (send_text no-focus + bogus-node_path hints; 17: unknown-action names the action) | send_text (41n-sexies): §17 self-launches `test/fixtures/send_text_smoke.tscn` (skips if absent → positive coverage is sweep-owned), asserts text_changed/text_after + secret redaction (no raw-value leak) + submit. 41o C6: action-mode InputMap guard — unregistered action rejected (key/text/click modes unaffected). **GAP:** world_position hint |
 | animation_player_control | 17 | ✓ | — | — | — | In runtime_advanced group |
 | runtime_get_script_vars | 17 | ✓ | — | — | — | |
