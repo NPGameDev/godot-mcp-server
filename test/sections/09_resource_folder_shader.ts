@@ -64,12 +64,35 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     "resource.write",
     { file_path: resourcePath, properties: { resource_name: "smoke2" } },
     CALL_TIMEOUT,
-  )) as { success?: boolean; status?: string; code?: string };
+  )) as { success?: boolean; status?: string; code?: string; warnings?: string[] };
   if (resourceUpdated?.success !== true)
     fail(`resource.write update: expected success=true, got ${JSON.stringify(resourceUpdated)}`);
   else if (resourceUpdated.status !== undefined)
     fail(`resource.write update must NOT carry status (upsert update): got ${resourceUpdated.status}`);
-  else pass(`resource.write update -> success, no status field`);
+  // No type passed → no "ignored type" disclosure appended.
+  else if ((resourceUpdated.warnings ?? []).some((w) => w.includes("ignored type")))
+    fail(
+      `resource.write update without type must not warn about type: got ${JSON.stringify(resourceUpdated.warnings)}`,
+    );
+  else pass(`resource.write update -> success, no status field, no type warning`);
+
+  // Returned-path disclosure: type is ignored when the file already exists; a
+  // passed type must be named in the appended warnings.
+  const resourceUpdatedWithType = (await bridge.call(
+    "resource.write",
+    { file_path: resourcePath, type: "Resource", properties: { resource_name: "smoke3" } },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; warnings?: string[] };
+  if (resourceUpdatedWithType?.success !== true)
+    fail(`resource.write update+type: expected success=true, got ${JSON.stringify(resourceUpdatedWithType)}`);
+  else if (
+    !Array.isArray(resourceUpdatedWithType.warnings) ||
+    !resourceUpdatedWithType.warnings.some((w) => w.includes("ignored type"))
+  )
+    fail(
+      `resource.write update+type: expected a warning naming ignored type, got ${JSON.stringify(resourceUpdatedWithType.warnings)}`,
+    );
+  else pass(`resource.write update + type -> warnings names ignored type`);
 
   // Guard rejections.
   assertGuard(

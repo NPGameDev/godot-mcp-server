@@ -45,14 +45,42 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
     "scene.create_node",
     { class_name: "Node", parent_path: ".", node_name: nodeName },
     CALL_TIMEOUT,
-  )) as { path?: string; status?: string; code?: string };
+  )) as { path?: string; status?: string; code?: string; warning?: string };
   if (!idempotentNode || idempotentNode.status !== "returned" || idempotentNode.path !== freshNode.path)
     fail(
       `scene.create_node idempotency: expected status='returned' at ${freshNode.path}, got ${JSON.stringify(idempotentNode)}`,
     );
   else if (idempotentNode.code !== undefined)
     fail(`scene.create_node collision success must not carry code (got ${idempotentNode.code})`);
-  else pass(`scene.create_node idempotent -> status='returned' at ${idempotentNode.path}`);
+  // No droppable args passed → no disclosure (response identical to a bare return).
+  else if (idempotentNode.warning !== undefined)
+    fail(`scene.create_node bare return must not warn (got ${idempotentNode.warning})`);
+  else pass(`scene.create_node idempotent -> status='returned' (code + warning absent)`);
+
+  // Returned-path disclosure: properties/unique_name are ignored on a collision
+  // return; the warning must name exactly the dropped args the caller passed.
+  const droppedArgsNode = (await bridge.call(
+    "scene.create_node",
+    {
+      class_name: "Node",
+      parent_path: ".",
+      node_name: nodeName,
+      properties: { name: "Renamed" },
+      unique_name: true,
+    },
+    CALL_TIMEOUT,
+  )) as { path?: string; status?: string; warning?: string };
+  if (droppedArgsNode?.status !== "returned")
+    fail(`scene.create_node dropped-args: expected status='returned', got ${JSON.stringify(droppedArgsNode)}`);
+  else if (
+    typeof droppedArgsNode.warning !== "string" ||
+    !droppedArgsNode.warning.includes("properties") ||
+    !droppedArgsNode.warning.includes("unique_name")
+  )
+    fail(
+      `scene.create_node dropped-args: expected warning naming properties + unique_name, got ${JSON.stringify(droppedArgsNode.warning)}`,
+    );
+  else pass(`scene.create_node returned + dropped args -> warning names properties, unique_name`);
 
   // unique_name flag.
   const uniqueNodeName = "SmokeUniqueProbe";

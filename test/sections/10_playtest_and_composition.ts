@@ -288,14 +288,42 @@ export async function testPlaytestAndComposition(ctx: TestCtx): Promise<void> {
     "scene.instantiate",
     { parent_path: ".", scene_path: instChildPath, as_name: defaultName },
     CALL_TIMEOUT,
-  )) as { status?: string; path?: string; code?: string };
+  )) as { status?: string; path?: string; code?: string; warning?: string };
   if (instantiateIdempotent?.status !== "returned" || instantiateIdempotent.path !== defaultName)
     fail(
       `scene.instantiate idempotent: expected status='returned' path='${defaultName}', got ${JSON.stringify(instantiateIdempotent)}`,
     );
   else if (instantiateIdempotent.code !== undefined)
     fail(`scene.instantiate returned must not carry code (got ${instantiateIdempotent.code})`);
-  else pass(`scene.instantiate idempotent -> status='returned' (code absent)`);
+  // No transform passed → no disclosure (response identical to a bare return).
+  else if (instantiateIdempotent.warning !== undefined)
+    fail(`scene.instantiate bare return must not warn (got ${instantiateIdempotent.warning})`);
+  else pass(`scene.instantiate idempotent -> status='returned' (code + warning absent)`);
+
+  // Returned-path disclosure: transform is ignored on an as_name collision; a
+  // passed transform must be named in the warning.
+  const instantiateDroppedTransform = (await bridge.call(
+    "scene.instantiate",
+    {
+      parent_path: ".",
+      scene_path: instChildPath,
+      as_name: defaultName,
+      transform: { position: { x: 10, y: 20 } },
+    },
+    CALL_TIMEOUT,
+  )) as { status?: string; path?: string; warning?: string };
+  if (instantiateDroppedTransform?.status !== "returned")
+    fail(
+      `scene.instantiate dropped-transform: expected status='returned', got ${JSON.stringify(instantiateDroppedTransform)}`,
+    );
+  else if (
+    typeof instantiateDroppedTransform.warning !== "string" ||
+    !instantiateDroppedTransform.warning.includes("transform")
+  )
+    fail(
+      `scene.instantiate dropped-transform: expected warning naming transform, got ${JSON.stringify(instantiateDroppedTransform.warning)}`,
+    );
+  else pass(`scene.instantiate returned + dropped transform -> warning names transform`);
 
   // Implicit name collision → auto-rename (Node, Node2, Node3...).
   const autoRenamed = (await bridge.call(
