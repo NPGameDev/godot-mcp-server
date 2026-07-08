@@ -20,12 +20,16 @@ export async function testSpriteframes(ctx: TestCtx): Promise<void> {
           name: "idle",
           fps: 8,
           loop: true,
-          frames: [{ texture: "res://icon.svg" }, { texture: "res://icon.svg", duration: 1.5 }],
+          frames: [{ texture_path: "res://icon.svg" }, { texture_path: "res://icon.svg", duration: 1.5 }],
         },
         {
           name: "run",
           fps: 12,
-          frames: [{ texture: "res://icon.svg" }, { texture: "res://icon.svg" }, { texture: "res://icon.svg" }],
+          frames: [
+            { texture_path: "res://icon.svg" },
+            { texture_path: "res://icon.svg" },
+            { texture_path: "res://icon.svg" },
+          ],
         },
       ],
     },
@@ -91,7 +95,7 @@ export async function testSpriteframes(ctx: TestCtx): Promise<void> {
       "spriteframes.create",
       {
         file_path: "res://mcp_smoke_bad2.tres",
-        animations: [{ name: "x", frames: [{ texture: "res://no_such_texture.png" }] }],
+        animations: [{ name: "x", frames: [{ texture_path: "res://no_such_texture.png" }] }],
       },
       CALL_TIMEOUT,
     ),

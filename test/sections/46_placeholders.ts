@@ -32,20 +32,20 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
   const made: string[] = [];
 
   const genTexture = async (label: string, params: Record<string, unknown>): Promise<GenResult> => {
-    const path = `${DIR}/${label}.png`;
-    made.push(path);
+    const filePath = `${DIR}/${label}.png`;
+    made.push(filePath);
     return (await bridge.call(
       "texture.generate",
-      { path, if_exists: "replace", ...params },
+      { file_path: filePath, if_exists: "replace", ...params },
       IMPORT_TIMEOUT,
     )) as GenResult;
   };
   const genSound = async (label: string, params: Record<string, unknown>): Promise<GenResult> => {
-    const path = `${DIR}/${label}.wav`;
-    made.push(path);
+    const filePath = `${DIR}/${label}.wav`;
+    made.push(filePath);
     return (await bridge.call(
       "sound.generate",
-      { path, if_exists: "replace", ...params },
+      { file_path: filePath, if_exists: "replace", ...params },
       IMPORT_TIMEOUT,
     )) as GenResult;
   };
@@ -115,10 +115,10 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
     // if_exists: replace then return (idempotent no-op) then fail.
     const idem = `${DIR}/if_exists.png`;
     made.push(idem);
-    await bridge.call("texture.generate", { path: idem, shape: "solid", if_exists: "replace" }, IMPORT_TIMEOUT);
+    await bridge.call("texture.generate", { file_path: idem, shape: "solid", if_exists: "replace" }, IMPORT_TIMEOUT);
     const ret = (await bridge.call(
       "texture.generate",
-      { path: idem, shape: "circle", if_exists: "return" },
+      { file_path: idem, shape: "circle", if_exists: "return" },
       IMPORT_TIMEOUT,
     )) as GenResult;
     if (ret?.success && ret.status === "returned") pass("texture.generate if_exists=return (idempotent no-op)");
@@ -126,7 +126,7 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
     assertGuard(
       ctx,
       "texture if_exists=fail on existing",
-      await bridge.call("texture.generate", { path: idem, if_exists: "fail" }, CALL_TIMEOUT),
+      await bridge.call("texture.generate", { file_path: idem, if_exists: "fail" }, CALL_TIMEOUT),
       "ALREADY_EXISTS",
       "exists",
     );
@@ -135,14 +135,14 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
     assertGuard(
       ctx,
       "texture wrong extension",
-      await bridge.call("texture.generate", { path: `${DIR}/x.jpg`, shape: "solid" }, CALL_TIMEOUT),
+      await bridge.call("texture.generate", { file_path: `${DIR}/x.jpg`, shape: "solid" }, CALL_TIMEOUT),
       "INVALID_PATH",
       "png",
     );
     assertGuard(
       ctx,
       "texture path traversal",
-      await bridge.call("texture.generate", { path: "res://../escape.png", shape: "solid" }, CALL_TIMEOUT),
+      await bridge.call("texture.generate", { file_path: "res://../escape.png", shape: "solid" }, CALL_TIMEOUT),
       "PATH_DENIED",
       "",
     );
@@ -152,7 +152,7 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
       await bridge.call(
         "texture.generate",
         {
-          path: `${DIR}/blank.png`,
+          file_path: `${DIR}/blank.png`,
           shape: "solid",
           fill_color: [0, 0, 0, 0],
           outline_color: [0, 0, 0, 0],
@@ -166,7 +166,7 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
     assertGuard(
       ctx,
       "texture bad shape",
-      await bridge.call("texture.generate", { path: `${DIR}/bad.png`, shape: "hexagon" }, CALL_TIMEOUT),
+      await bridge.call("texture.generate", { file_path: `${DIR}/bad.png`, shape: "hexagon" }, CALL_TIMEOUT),
       "INVALID_PARAMS",
       "shape",
     );
@@ -198,21 +198,21 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
     assertGuard(
       ctx,
       "sound wrong extension",
-      await bridge.call("sound.generate", { path: `${DIR}/x.mp3`, waveform: "sine" }, CALL_TIMEOUT),
+      await bridge.call("sound.generate", { file_path: `${DIR}/x.mp3`, waveform: "sine" }, CALL_TIMEOUT),
       "INVALID_PATH",
       "wav",
     );
     assertGuard(
       ctx,
       "sound bad waveform",
-      await bridge.call("sound.generate", { path: `${DIR}/bad.wav`, waveform: "fmsynth" }, CALL_TIMEOUT),
+      await bridge.call("sound.generate", { file_path: `${DIR}/bad.wav`, waveform: "fmsynth" }, CALL_TIMEOUT),
       "INVALID_PARAMS",
       "waveform",
     );
     assertGuard(
       ctx,
       "sound path traversal",
-      await bridge.call("sound.generate", { path: "res://../escape.wav", waveform: "sine" }, CALL_TIMEOUT),
+      await bridge.call("sound.generate", { file_path: "res://../escape.wav", waveform: "sine" }, CALL_TIMEOUT),
       "PATH_DENIED",
       "",
     );

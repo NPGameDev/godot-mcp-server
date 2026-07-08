@@ -17,7 +17,7 @@ export const textureTools: ToolDef[] = [
     description:
       "Generate a placeholder PNG (imports as Texture2D): a shape (solid/circle/triangle/diamond/arrow/checkerboard/grid) with fill/outline/background colours + an optional text label. Dimensions <=1024px.",
     inputSchema: {
-      path: z.string().describe("res:// destination ending in .png"),
+      file_path: z.string().describe("res:// destination ending in .png"),
       shape: z.enum(["solid", "circle", "triangle", "diamond", "arrow", "checkerboard", "grid"]).optional(),
       width: z.coerce.number().optional().describe("Pixels, 1-1024 (default 64)"),
       height: z.coerce.number().optional().describe("Pixels, 1-1024 (default 64)"),
@@ -34,7 +34,7 @@ export const textureTools: ToolDef[] = [
     annotations: { readOnlyHint: false, idempotentHint: false, destructiveHint: false, openWorldHint: false },
     successHint:
       "Assign the texture: node_set_property on Sprite2D.texture / TextureRect.texture / Button.icon, or feed spriteframes_create.",
-    pathParams: [{ param: "path", guard: "project" }],
+    pathParams: [{ param: "file_path", guard: "project" }],
   },
 ];
 

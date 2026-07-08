@@ -12,7 +12,7 @@ export const soundTools: ToolDef[] = [
     description:
       "Generate a placeholder sound effect (mono WAV): waveform sine/square/triangle/sawtooth/noise, frequency, duration <=5s, volume, optional pitch sweep + fade/decay envelope. SFX only, no music.",
     inputSchema: {
-      path: z.string().describe("res:// destination ending in .wav"),
+      file_path: z.string().describe("res:// destination ending in .wav"),
       waveform: z.enum(["sine", "square", "triangle", "sawtooth", "noise"]).optional(),
       frequency: z.coerce.number().optional().describe("Hz (default 440; ignored for noise)"),
       end_frequency: z.coerce
@@ -29,7 +29,7 @@ export const soundTools: ToolDef[] = [
     annotations: { readOnlyHint: false, idempotentHint: false, destructiveHint: false, openWorldHint: false },
     successHint:
       "Assign the stream: node_set_property on AudioStreamPlayer / AudioStreamPlayer2D / AudioStreamPlayer3D .stream.",
-    pathParams: [{ param: "path", guard: "project" }],
+    pathParams: [{ param: "file_path", guard: "project" }],
   },
 ];
 

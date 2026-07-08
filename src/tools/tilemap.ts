@@ -35,7 +35,7 @@ export const tilemapTools: ToolDef[] = [
       "Batch-set cells on TileMap or TileMapLayer. Returns cells_written + cells_unchanged. " +
       "source_id:-1 clears a cell. Use 'regions' for bulk rectangular fills (far more efficient than listing individual cells).",
     inputSchema: {
-      tilemap_path: z.string(),
+      node_path: z.string(),
       layer: z.coerce.number().optional(),
       cells: z
         .preprocess(jsonCoerce, z.array(z.record(z.string(), z.unknown())))

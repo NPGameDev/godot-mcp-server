@@ -141,7 +141,7 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
       "tilemap.set_cells no-tileset guard",
       await bridge.call(
         "tilemap.set_cells",
-        { tilemap_path: tilemapPath, cells: [{ x: 0, y: 0, source_id: 0, atlas_x: 0, atlas_y: 0 }] },
+        { node_path: tilemapPath, cells: [{ x: 0, y: 0, source_id: 0, atlas_x: 0, atlas_y: 0 }] },
         CALL_TIMEOUT,
       ),
       "INVALID_STATE",
@@ -163,7 +163,7 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     const tilemapClearResult = (await bridge.call(
       "tilemap.set_cells",
       {
-        tilemap_path: tilemapPath,
+        node_path: tilemapPath,
         cells: [
           { x: 0, y: 0, source_id: -1, atlas_x: 0, atlas_y: 0 },
           { x: 1, y: 0, source_id: -1, atlas_x: 0, atlas_y: 0 },
@@ -178,14 +178,14 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     assertGuard(
       ctx,
       "tilemap.set_cells non-tilemap",
-      await bridge.call("tilemap.set_cells", { tilemap_path: animSpritePath, cells: [] }, CALL_TIMEOUT),
+      await bridge.call("tilemap.set_cells", { node_path: animSpritePath, cells: [] }, CALL_TIMEOUT),
       "NOT_FOUND",
       "node",
     );
     assertGuard(
       ctx,
       "tilemap.set_cells malformed cell",
-      await bridge.call("tilemap.set_cells", { tilemap_path: tilemapPath, cells: [{ x: 0, y: 0 }] }, CALL_TIMEOUT),
+      await bridge.call("tilemap.set_cells", { node_path: tilemapPath, cells: [{ x: 0, y: 0 }] }, CALL_TIMEOUT),
       "INVALID_PARAMS",
       ["cells[0]", "source_id"],
     );

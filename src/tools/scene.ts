@@ -13,7 +13,7 @@ export const sceneTools: ToolDef[] = [
     description:
       'Return the current edited scene\'s node tree as nested JSON { name, class, path, children }. Paths use "." for root — pass them directly to other editor commands.',
     inputSchema: {
-      depth: z.coerce.number().optional().describe("Tree depth. Default 2. Use -1 for full tree."),
+      max_depth: z.coerce.number().optional().describe("Tree depth. Default 2. Use -1 for full tree."),
       include_properties: coercedBoolean().optional().describe("Embed property snapshot per node. Default false."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },

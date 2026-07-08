@@ -12,7 +12,7 @@ export const collisionTools: ToolDef[] = [
       "Auto-generate CollisionPolygon2D from a Sprite2D's texture alpha. Uses BitMap to trace opaque regions. For platformer terrain, character hitboxes, irregular shapes.",
     inputSchema: {
       sprite_path: z.string().describe("Path to a Sprite2D/TextureRect node with a texture"),
-      target_parent: z.string().optional().describe("Parent for the new CollisionPolygon2D (default: sprite's parent)"),
+      parent_path: z.string().optional().describe("Parent for the new CollisionPolygon2D (default: sprite's parent)"),
       target_name: z.string().optional().describe("Name for the CollisionPolygon2D (default: {sprite}_collision)"),
       simplification: z
         .number()

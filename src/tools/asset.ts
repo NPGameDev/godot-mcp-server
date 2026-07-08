@@ -12,14 +12,14 @@ export const assetTools: ToolDef[] = [
     name: "asset_list",
     method: "asset.list",
     description:
-      "Enumerate res:// assets with filters (path_prefix, name_glob, class_filter ancestry-aware, extension_filter). Returns [{path,class,modified_unix}]. Cap max_results 2000. " +
-      "+total_assets/truncated (cursor-less — narrow filters or raise max_results).",
+      "Enumerate res:// assets with filters (path_prefix, name_glob, class_filter ancestry-aware, extension_filter). Returns [{path,class,modified_unix}]. Cap limit 2000. " +
+      "+total_assets/truncated (cursor-less — narrow filters or raise limit).",
     inputSchema: {
       path_prefix: z.string().optional(),
       name_glob: z.string().optional(),
       class_filter: z.string().optional(),
       extension_filter: z.preprocess(jsonCoerce, z.array(z.string())).optional(),
-      max_results: z.coerce.number().optional(),
+      limit: z.coerce.number().optional().describe("Max assets returned (default 500, cap 2000)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint:
@@ -35,7 +35,7 @@ export const assetTools: ToolDef[] = [
     inputSchema: {
       file_path: z.string(),
       include_transitive: coercedBoolean().optional(),
-      max_results: z.coerce.number().optional(),
+      limit: z.coerce.number().optional().describe("Max dependencies returned (default 200)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     pathParams: [PROJECT_FILE_PATH],

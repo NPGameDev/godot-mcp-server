@@ -147,7 +147,7 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| asset_list | 14, 15 | ✓ | ✓ (14: PATH_DENIED) | ✓ (name_glob, class_filter, extension_filter, max_results) | — | ledger #9: total_assets/truncated (cursor-less) |
+| asset_list | 14, 15 | ✓ | ✓ (14: PATH_DENIED) | ✓ (name_glob, class_filter, extension_filter, limit) | — | ledger #9: total_assets/truncated (cursor-less) |
 | asset_get_dependencies | 14 | ✓ | ✓ (NOT_FOUND) | — | — | In asset_ops group; ledger #9: total_dependencies/truncated (cursor-less) |
 | asset_import | 15 | ✓ | ✓ (PATH_DENIED, ALREADY_EXISTS, INVALID_PARAMS) | ✓ (base64, if_exists modes) | — | In asset_ops group |
 

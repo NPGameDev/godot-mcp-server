@@ -23,7 +23,7 @@ export const themeTools: ToolDef[] = [
               property_type: z
                 .enum(["color", "constant", "font", "font_size", "icon", "stylebox"])
                 .describe("Theme property category"),
-              property_name: z.string().describe("Property name, e.g. 'font_color', 'font_size', 'panel'"),
+              property: z.string().describe("Property name, e.g. 'font_color', 'font_size', 'panel'"),
               value: z
                 .unknown()
                 .describe(

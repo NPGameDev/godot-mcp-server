@@ -100,6 +100,15 @@ source*). Grab-bag tokens (`utils`, `helpers`, `manager`) are allowed only with 
 that says *which* domain, never alone. *If the project maintains a glossary, align every public name
 to its canonical term.*
 
+1.7 **MCP tool param naming — path params.** A tool that takes a **single** filesystem/resource path
+names that param **`file_path`** (not bare `path`, not a domain-specific alias). A tool that takes
+**both an input and an output path** names them **`source_path`** and **`dest_path`** (the
+source→destination pair, per `asset_import`) — the two-path exception. Do NOT "correct" a genuine
+two-path tool down to a single `file_path`: `file_path` on a source/dest tool is ambiguous ("from or
+into?"). Node-tree paths (a node's path within the edited scene) are **`node_path`** / `parent_path`,
+distinct from filesystem paths. Result cursors follow the pagination contract (`total_<unit>` /
+`truncated` / `next_<cursor>`).
+
 ---
 
 ## 2. Module structure and declaration order

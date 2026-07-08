@@ -12,12 +12,12 @@ export async function testTheme(ctx: TestCtx): Promise<void> {
     {
       file_path: themePath,
       edits: [
-        { type_name: "Button", property_type: "color", property_name: "font_color", value: { r: 1, g: 0, b: 0, a: 1 } },
-        { type_name: "Label", property_type: "font_size", property_name: "font_size", value: 24 },
+        { type_name: "Button", property_type: "color", property: "font_color", value: { r: 1, g: 0, b: 0, a: 1 } },
+        { type_name: "Label", property_type: "font_size", property: "font_size", value: 24 },
         {
           type_name: "Panel",
           property_type: "stylebox",
-          property_name: "panel",
+          property: "panel",
           value: {
             type: "StyleBoxFlat",
             bg_color: { r: 0.2, g: 0.2, b: 0.2, a: 1 },
@@ -42,7 +42,7 @@ export async function testTheme(ctx: TestCtx): Promise<void> {
       "theme.edit",
       {
         file_path: themePath,
-        edits: [{ type_name: "Button", property_type: "invalid_type", property_name: "x", value: 1 }],
+        edits: [{ type_name: "Button", property_type: "invalid_type", property: "x", value: 1 }],
       },
       CALL_TIMEOUT,
     ),

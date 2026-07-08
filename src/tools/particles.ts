@@ -41,7 +41,7 @@ export const particleTools: ToolDef[] = [
       explosiveness: z.number().optional().describe("0-1, burst factor"),
       speed_scale: z.number().optional().describe("Simulation speed"),
       local_coords: z.boolean().optional().describe("Emit in local space"),
-      texture: z.string().optional().describe("Particle texture (2D, res:// path)"),
+      texture_path: z.string().optional().describe("Particle texture (2D, res:// path)"),
       mesh: z.enum(["quad", "box", "sphere"]).optional().describe("3D draw pass mesh"),
       emission_shape: z
         .enum(["point", "sphere", "sphere_surface", "box", "ring"])

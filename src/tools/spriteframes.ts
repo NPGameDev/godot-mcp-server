@@ -3,7 +3,7 @@ import type { ToolDef } from "../shared/types.js";
 import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 
 const frameSchema = z.object({
-  texture: z.string().describe("res:// path to frame texture"),
+  texture_path: z.string().describe("res:// path to frame texture"),
   atlas: z
     .object({
       x: z.number().int(),

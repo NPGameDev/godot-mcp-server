@@ -80,15 +80,15 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     fail(`asset.list extension_filter=gd: expected 1 .gd entry, got ${JSON.stringify(listByExtension)}`);
   else pass(`asset.list extension_filter=gd -> ${smokeListC}`);
 
-  // max_results truncation.
-  const listTruncated = (await bridge.call("asset.list", { max_results: 1 }, CALL_TIMEOUT)) as {
+  // limit truncation.
+  const listTruncated = (await bridge.call("asset.list", { limit: 1 }, CALL_TIMEOUT)) as {
     count?: number;
     truncated?: boolean;
     code?: string;
   };
   if (listTruncated?.count !== 1 || listTruncated?.truncated !== true)
-    fail(`asset.list max_results=1: expected count=1 truncated=true, got ${JSON.stringify(listTruncated)}`);
-  else pass(`asset.list max_results=1 -> truncated`);
+    fail(`asset.list limit=1: expected count=1 truncated=true, got ${JSON.stringify(listTruncated)}`);
+  else pass(`asset.list limit=1 -> truncated`);
 
   // Guard rejections.
   assertGuard(
@@ -107,8 +107,8 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   );
   assertGuard(
     ctx,
-    "asset.list max_results=5000",
-    await bridge.call("asset.list", { max_results: 5000 }, CALL_TIMEOUT),
+    "asset.list limit=5000",
+    await bridge.call("asset.list", { limit: 5000 }, CALL_TIMEOUT),
     "INVALID_PARAMS",
     "[1, 2000]",
   );
