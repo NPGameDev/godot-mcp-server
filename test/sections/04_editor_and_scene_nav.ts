@@ -100,9 +100,24 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     await bridge.call("scene.open", { file_path: closeTestPath }, CALL_TIMEOUT);
     const closedResult = (await bridge.call("scene.close", { file_path: closeTestPath }, CALL_TIMEOUT)) as {
       success?: boolean;
+      unsaved_changes_discarded?: boolean;
     };
     if (!closedResult?.success) fail(`scene.close happy path: ${JSON.stringify(closedResult)}`);
     else pass("scene.close happy path -> success");
+    // Dirty disclosure is best-effort: the field is reported only on Godot 4.7+
+    // (where a dirty query is bound) and omitted below it. Assert presence + type
+    // on 4.7, and confirmed absence below — not a fixed true/false, which depends
+    // on whether the closed tab actually held unsaved edits.
+    const has = Object.prototype.hasOwnProperty.call(closedResult, "unsaved_changes_discarded");
+    if (isVersionAtLeast(godotVer, "4.7")) {
+      if (has && typeof closedResult.unsaved_changes_discarded === "boolean")
+        pass("scene.close discloses unsaved_changes_discarded (bool) on 4.7+");
+      else fail(`scene.close 4.7 should disclose unsaved_changes_discarded: ${JSON.stringify(closedResult)}`);
+    } else if (has) {
+      fail(`scene.close <4.7 must omit unsaved_changes_discarded: ${JSON.stringify(closedResult)}`);
+    } else {
+      pass("scene.close omits unsaved_changes_discarded below 4.7");
+    }
     assertGuard(
       ctx,
       "scene.close already-closed",

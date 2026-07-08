@@ -67,9 +67,9 @@ export const editorTools: ToolDef[] = [
     name: "scene_close",
     method: "scene.close",
     description:
-      "Close any open scene tab by file_path (active or inactive). The editor auto-creates an empty scene if the last tab is closed. NOT_FOUND if not open. Requires Godot 4.5+.",
+      "Close an open scene tab by file_path. Discards unsaved edits — save with editor_save_scene first. Auto-creates an empty scene when the last tab closes. NOT_FOUND if not open. Requires Godot 4.5+.",
     inputSchema: { file_path: z.string() },
-    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
     godotMinVersion: "4.5",
     pathParams: [PROJECT_FILE_PATH],
   },
