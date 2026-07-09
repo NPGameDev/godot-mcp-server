@@ -7,7 +7,7 @@
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
 **Smoke sections:** 47 (sections 01–47)
 **Flow suite:** 4 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
-**Static structural layer:** `test/structural.ts` (the editor-free half of `npm run smoke:ci`) — asserts tool-name/param-schema/group-membership integrity plus catalogue-wide invariants: tool coverage cross-ref (Check 2), reachability (every tool eager or in an on-demand group), successHint canary (Check 5), and `enabled`-optionality parity (Check 7). Not tied to any single section — it guards the whole catalogue.
+**Static structural layer:** `test/structural.ts` (the editor-free half of `npm run smoke:ci`) — asserts tool-name/param-schema/group-membership integrity plus catalogue-wide invariants: tool coverage cross-ref (Check 2), reachability (every tool eager or in an on-demand group), successHint canary (Check 5), `enabled`-optionality parity (Check 7), and the scene_query `offset` pagination param (Check 8). Not tied to any single section — it guards the whole catalogue.
 
 ---
 
@@ -81,7 +81,7 @@ routinely.
 | scene_close | 01, 04 | ✓ (04, 4.5+) | ✓ (04: PATH_DENIED, NOT_FOUND, EDITED_SCENE last-tab; 4.5+) | — | ✓ (01: godotMinVersion=4.5) | 4.5+ only; §04 happy+guards gated `godotVer>=4.5` (skips on <4.5 — 41m-ter A0); structural in §01. **§01 behavioral (41n-duodecies):** the `cleanup` group summary OMITS scene_close on <4.5 and OFFERS it on 4.5+, keyed on `bridge.getGodotVersion()` — advertise==register, the cross-version CI guard (full smoke runs on real 4.2–4.7). Response discloses `unsaved_changes_discarded: <bool>` on 4.7+ (omitted below 4.7); §04 asserts presence/absence per version. destructiveHint=true. |
 | scene_delete | 08 | ✓ | ✓ (08: NOT_FOUND) | — | — | Scene file deletion (distinct from scene_delete_node) |
 | scene_instantiate | 10, 47 | ✓ | ✓ (10: PATH_DENIED, INVALID_PATH, NOT_FOUND) | ✓ (as_name, transform, FIX-K auto-rename, owner-set; 10: as_name-collision returned-path warning names ignored transform, absent when none passed; **47: batch all-success control → count=2, instances=2, failed/hint absent**) | — | Batch partial-failure not assertable via smoke — see §47 note |
-| scene_query | 36 | ✓ | ✓ (INVALID_PARAMS: no filters) | ✓ (class_filter, name_pattern, property_filters, limit) | — | |
+| scene_query | 36 | ✓ | ✓ (INVALID_PARAMS: no filters) | ✓ (class_filter, name_pattern, property_filters, limit, **offset pagination**) | ✓ (next_offset + hint on has_more) | **Paged envelope** (offset/limit/returned/total_matches/has_more/next_offset): §36 builds a 5-node `pagetest` group at limit 2 and asserts the paging invariants — total_matches constant across pages · Σreturned == total_matches · pages disjoint · union == full set · next_offset chain · has_more false only on final page · determinism · past-end empty page · negative-offset floor · limit>200 clamp + limit_clamped · no-match. `count`→`returned` (removed the ambiguous capped-size field); boundary flag is `has_more` (NOT truncated). Structural Check 8 pins the `offset` param. |
 | scene_create_inherited | 33 | ✓ | ✓ (NOT_FOUND: missing base) | ✓ (auto root name, custom root name, idempotency) | — | |
 
 ### Node Property & Method (5 tools)

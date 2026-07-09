@@ -413,6 +413,29 @@ function checkInputOptionality(tools: ToolDef[], pass: (msg: string) => void, fa
   }
 }
 
+// ── Check 8: scene_query exposes the pagination offset param ────────
+
+/**
+ * scene_query forwards its result verbatim, but the request schema STRIPS any
+ * param it doesn't declare — so without an `offset` entry the toolkit never
+ * receives the caller's offset and pagination is silently broken. This guard
+ * pins the offset param to the catalogue so a schema regression fails CI.
+ */
+function checkSceneQueryOffset(tools: ToolDef[], pass: (msg: string) => void, fail: (msg: string) => void): void {
+  const sq = tools.find((t) => t.name === "scene_query");
+  if (!sq) {
+    fail(`scene_query offset: scene_query tool not found in catalogue`);
+    return;
+  }
+  if (!("offset" in sq.inputSchema)) {
+    fail(
+      `scene_query offset: inputSchema is missing the "offset" pagination param (would be stripped from the toolkit call)`,
+    );
+    return;
+  }
+  pass(`scene_query offset: pagination param registered on scene_query inputSchema`);
+}
+
 // ── Entry point ─────────────────────────────────────────────────────
 
 export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
@@ -427,4 +450,5 @@ export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (m
   checkSuccessHints(tools, pass, fail);
   checkReachability(tools, pass, fail);
   checkInputOptionality(tools, pass, fail);
+  checkSceneQueryOffset(tools, pass, fail);
 }

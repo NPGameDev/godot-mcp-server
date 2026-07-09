@@ -97,6 +97,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     // The post-game_stop retry note (the first call may return GAME_NOT_RUNNING until the
     // session registry settles) must be spelled out for the agent — pushes past 200.
     "debugger_get_log",
+    // Offset pagination guidance — the offset/limit/returned/total_matches/has_more/next_offset
+    // envelope plus the between-pages mutation caveat must be spelled out (mirrors save_read).
+    "scene_query",
   ]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;
