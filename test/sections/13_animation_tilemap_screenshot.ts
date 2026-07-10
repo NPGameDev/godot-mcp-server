@@ -312,7 +312,7 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     "node",
   );
 
-  // Happy path: empty tilemap → cell_count=0 (TileMapLayer on 4.3+, legacy TileMap on 4.2).
+  // Happy path: empty tilemap → returned=0 (TileMapLayer on 4.3+, legacy TileMap on 4.2).
   const tmlNode = (await bridge.call(
     "scene.create_node",
     { class_name: tmClass, parent_path: ".", node_name: "MCPSmokeReadTML" },
@@ -323,20 +323,20 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
   if (tmlNode?.status === "created" || tmlNode?.status === "returned") {
     const readEmpty = (await bridge.call("tilemap.read_cells", { node_path: tmlPath }, CALL_TIMEOUT)) as {
       success?: boolean;
-      cell_count?: number;
+      returned?: number;
       total_cells?: number;
-      truncated?: boolean;
+      has_more?: boolean;
       bounds?: Record<string, number>;
     };
-    if (readEmpty?.success !== true || readEmpty.cell_count !== 0)
+    if (readEmpty?.success !== true || readEmpty.returned !== 0)
       fail(`tilemap.read_cells empty: ${JSON.stringify(readEmpty)}`);
-    else pass(`tilemap.read_cells empty ${tmClass} -> cell_count=0`);
-    // Canonical naming: total_cells; an empty read reports total_cells=0, truncated=false.
-    if (readEmpty?.success === true && readEmpty.total_cells === 0 && readEmpty.truncated === false)
-      pass(`tilemap.read_cells empty -> total_cells=0 truncated=false`);
+    else pass(`tilemap.read_cells empty ${tmClass} -> returned=0`);
+    // Canonical naming: total_cells; an empty read reports total_cells=0, has_more=false.
+    if (readEmpty?.success === true && readEmpty.total_cells === 0 && readEmpty.has_more === false)
+      pass(`tilemap.read_cells empty -> total_cells=0 has_more=false`);
     else
       fail(
-        `tilemap.read_cells empty pagination shape: ${JSON.stringify({ total_cells: readEmpty?.total_cells, truncated: readEmpty?.truncated })}`,
+        `tilemap.read_cells empty pagination shape: ${JSON.stringify({ total_cells: readEmpty?.total_cells, has_more: readEmpty?.has_more })}`,
       );
 
     await bridge.call("scene.delete_node", { node_path: tmlPath }, CALL_TIMEOUT);

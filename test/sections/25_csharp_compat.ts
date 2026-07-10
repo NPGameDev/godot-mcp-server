@@ -64,7 +64,7 @@ async function discoverCsGlobalClass(
     )) as {
       success?: boolean;
       classes?: Array<{ name?: string; source?: string; script_path?: string }>;
-      truncated?: boolean;
+      has_more?: boolean;
       next_offset?: number;
     };
     if (r?.success === false) return undefined;
@@ -75,7 +75,7 @@ async function discoverCsGlobalClass(
     if (hit && hit.name && typeof hit.script_path === "string") {
       return { name: hit.name, scriptPath: hit.script_path };
     }
-    if (!r.truncated || classes.length === 0) break;
+    if (!r.has_more || classes.length === 0) break;
     offset = typeof r.next_offset === "number" ? r.next_offset : offset + classes.length;
   }
   return undefined;

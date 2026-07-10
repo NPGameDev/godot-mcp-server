@@ -626,6 +626,26 @@ the cross-repo SSOT**, which this repo cross-links rather than restating.
   (`UNSUPPORTED`). The wrapper skips registration when the version is **not yet known** and the startup
   reconcile re-runs once it resolves (`src/registration/toolRegistry.ts:104`).
 
+### B5.x Paginating tools — shared fragment, REFLECT-only
+
+Paginating tools share one fragment module (request-param zod fragments +
+`paginationDoc(unit)` describe-builder + a read-side `PaginatedResult` type/consts).
+
+- **Spread the shared request-param fragment** (`offset`/`limit`, or
+  `start_line`/`end_line`) into the tool's `inputSchema` — the catalogue zod strips
+  undeclared top-level params, so an un-spread `offset`/`limit` never reaches the
+  toolkit (the load-bearing reason these params exist server-side).
+- **Response is REFLECT — build NO envelope here.** The toolkit's `Pagination` class
+  is the sole envelope author; the bridge forwards `message.result` verbatim. Never
+  re-encode or re-shape a paginated response server-side. The only server code that
+  *reads* the fields is the two NON-REFLECT summary handlers (`editor.ts`
+  consoleSummary, `runtime.ts` debuggerLog) — they read via the shared
+  `PaginatedResult` type/consts, never string literals, so a field rename touches
+  one place.
+- **Field names mirror the toolkit exactly** (`has_more`, `returned`,
+  `total_<unit>`) — the cross-repo contract recipe. Describe the envelope with
+  `paginationDoc(unit)` so every tool's prose is identical.
+
 ## B6. npm distribution, tooling & shipping hygiene
 
 - **The `files` allowlist is the ship-control.** `package.json` `files: ["dist", "README.md",

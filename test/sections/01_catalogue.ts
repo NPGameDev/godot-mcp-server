@@ -84,16 +84,24 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     // Audio-bus editing has many sub-actions — 218 chars is intentional.
     "audiobus_edit",
     // Byte-offset pagination guidance — the next_offset/
-    // total_bytes/truncated paging protocol must be spelled out for the agent.
+    // total_bytes/has_more paging protocol must be spelled out for the agent.
     "save_read",
     // Line-window pagination guidance — the next_start_line/
-    // total_lines/truncated paging protocol must be spelled out (mirrors save_read).
+    // total_lines/has_more paging protocol must be spelled out (mirrors save_read).
     "script_read",
-    // Long-form reads whose total_<unit>/truncated paging note pushes the description
-    // past 200 chars (mirrors save_read) — descWaiver granted.
+    // Long-form reads whose returned/total_<unit>/has_more paging note pushes the
+    // description past 200 chars (mirrors save_read) — descWaiver granted.
     "asset_list",
+    "asset_get_dependencies",
     "editor_get_console",
     "scene_spatial_map",
+    // classdb tools document the shared paged envelope plus their per-section /
+    // per-search limit param (default 200, clamped), pushing past 200 chars.
+    "classdb_get_info",
+    "classdb_search",
+    // Cursor-less cell reads document the returned/total_cells/has_more envelope
+    // plus the region/source_id narrowing guidance — past 200 chars.
+    "tilemap_read_cells",
     // The post-game_stop retry note (the first call may return GAME_NOT_RUNNING until the
     // session registry settles) must be spelled out for the agent — pushes past 200.
     "debugger_get_log",

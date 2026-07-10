@@ -28,15 +28,15 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
       path: "user://saves/smoke.json",
     },
     CALL_TIMEOUT,
-  )) as { success?: boolean; content?: string; truncated?: boolean };
+  )) as { success?: boolean; content?: string; has_more?: boolean };
   if (readResult?.success !== true) {
     fail(`save.read happy: ${JSON.stringify(readResult)}`);
   } else if (!readResult.content || !/untrusted-[0-9a-f]+ kind="user-file"/.test(readResult.content)) {
     fail(`save.read happy: missing nonce-tagged <untrusted-*> envelope`);
   } else if (!readResult.content?.includes('"test": 1')) {
     fail(`save.read happy: content missing expected body`);
-  } else if (readResult.truncated !== false) {
-    fail(`save.read happy: expected truncated=false`);
+  } else if (readResult.has_more !== false) {
+    fail(`save.read happy: expected has_more=false`);
   } else {
     pass(`save.read happy -> envelope + content verified`);
   }
@@ -58,15 +58,13 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
       max_bytes: 1024,
     },
     CALL_TIMEOUT,
-  )) as { success?: boolean; truncated?: boolean; total_bytes?: number; bytes_returned?: number };
-  if (truncRead?.success !== true || truncRead.truncated !== true) {
+  )) as { success?: boolean; has_more?: boolean; total_bytes?: number; returned?: number };
+  if (truncRead?.success !== true || truncRead.has_more !== true) {
     fail(`save.read truncation: ${JSON.stringify(truncRead)}`);
-  } else if (truncRead.bytes_returned !== 1024) {
-    fail(`save.read truncation: expected bytes_returned=1024, got ${truncRead.bytes_returned}`);
+  } else if (truncRead.returned !== 1024) {
+    fail(`save.read truncation: expected returned=1024, got ${truncRead.returned}`);
   } else {
-    pass(
-      `save.read truncation -> truncated=true, bytes_returned=${truncRead.bytes_returned}, total_bytes=${truncRead.total_bytes}`,
-    );
+    pass(`save.read truncation -> has_more=true, returned=${truncRead.returned}, total_bytes=${truncRead.total_bytes}`);
   }
 
   // save.read offset pagination — read a file in two windows and reassemble.
@@ -81,17 +79,17 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
   )) as {
     success?: boolean;
     content?: string;
-    truncated?: boolean;
+    has_more?: boolean;
     offset?: number;
     next_offset?: number;
-    bytes_returned?: number;
+    returned?: number;
     total_bytes?: number;
   };
-  if (page1?.success !== true || page1.truncated !== true) {
+  if (page1?.success !== true || page1.has_more !== true) {
     fail(`save.read page1: ${JSON.stringify(page1)}`);
-  } else if (page1.offset !== 0 || page1.bytes_returned !== win || page1.next_offset !== win) {
+  } else if (page1.offset !== 0 || page1.returned !== win || page1.next_offset !== win) {
     fail(
-      `save.read page1: expected offset=0 bytes_returned=${win} next_offset=${win}, got offset=${page1.offset} bytes_returned=${page1.bytes_returned} next_offset=${page1.next_offset}`,
+      `save.read page1: expected offset=0 returned=${win} next_offset=${win}, got offset=${page1.offset} returned=${page1.returned} next_offset=${page1.next_offset}`,
     );
   } else {
     const page2 = (await bridge.call(
@@ -101,10 +99,10 @@ export async function testUserScope(ctx: TestCtx): Promise<void> {
     )) as {
       success?: boolean;
       content?: string;
-      truncated?: boolean;
+      has_more?: boolean;
       offset?: number;
       next_offset?: number;
-      bytes_returned?: number;
+      returned?: number;
     };
     const inner1 = unwrapUntrusted(page1.content);
     const inner2 = unwrapUntrusted(page2.content);

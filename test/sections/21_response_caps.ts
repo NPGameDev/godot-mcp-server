@@ -63,6 +63,7 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
     start_line?: number;
     end_line?: number;
     total_lines?: number;
+    returned?: number;
     code?: string;
   };
   if (rangeResult?.code) {
@@ -71,13 +72,16 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
     fail(`script_read range: missing/unwrapped content: ${JSON.stringify(rangeResult)?.slice(0, 200)}`);
   } else if (rangeResult.start_line !== 1 || rangeResult.end_line !== 100) {
     fail(`script_read range: wrong line range: ${rangeResult.start_line}-${rangeResult.end_line}`);
+  } else if (rangeResult.returned !== 100) {
+    // returned = the number of lines in this window (100 for a 1-100 range read).
+    fail(`script_read range: expected returned=100, got ${rangeResult.returned}`);
   } else {
     const inner = unwrapUntrusted(rangeResult.content) as string;
     const lineCount = inner.split("\n").length;
     if (lineCount !== 100) {
       fail(`script_read range: expected 100 lines, got ${lineCount}`);
     } else {
-      pass(`script_read range: 1-100 of ${rangeResult.total_lines} lines`);
+      pass(`script_read range: 1-100 of ${rangeResult.total_lines} lines (returned=${rangeResult.returned})`);
     }
   }
 

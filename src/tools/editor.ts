@@ -8,6 +8,7 @@ import { toolErrorFromException, toolErrorFromPayload } from "../shared/errorCon
 import { stableStringify } from "../shared/schemaMin.js";
 import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
+import { PAGE_FIELD, type PaginatedResult } from "../shared/pagination.js";
 
 // ── Tool definitions ─────────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ export const editorTools: ToolDef[] = [
     method: "editor.get_console",
     description:
       "Tail editor Output panel. source='buffer'|'file'. level_filter, since_id, text_filter (is_regex=true for regex). " +
-      "Carries total_lines/next_id/truncated — page via since_id. " +
+      "Carries returned/total_lines/has_more + next_id — page via since_id. " +
       "Primary post-crash diagnostic tool — reads runtime errors even after game_stop.",
     inputSchema: {
       limit: z.coerce.number().optional(),
@@ -151,11 +152,13 @@ async function consoleSummaryHandler(bridge: Bridge, method: string, input: unkn
     const result = await bridge.call(method, parsed);
     const err = toolErrorFromPayload(result);
     if (err) return err;
-    const obj = result as Record<string, unknown>;
-    const count = typeof obj.count === "number" ? obj.count : 0;
+    // The toolkit is the sole envelope author (REFLECT); read its paged fields
+    // through PAGE_FIELD so a rename lands in one place, not scattered literals.
+    const obj = result as PaginatedResult;
+    const returned = typeof obj[PAGE_FIELD.returned] === "number" ? (obj[PAGE_FIELD.returned] as number) : 0;
     // total_lines: the pre-cap line count (full number of lines before the tail slice).
-    const total = typeof obj.total_lines === "number" ? obj.total_lines : count;
-    const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
+    const total = typeof obj[PAGE_FIELD.totalLines] === "number" ? (obj[PAGE_FIELD.totalLines] as number) : returned;
+    const summary = `${returned} line${returned !== 1 ? "s" : ""} (of ${total} total)`;
     const text = stableStringify({ _summary: summary, ...obj });
     return { content: [{ type: "text" as const, text }] };
   } catch (e) {

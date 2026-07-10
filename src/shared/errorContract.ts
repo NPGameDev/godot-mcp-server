@@ -5,6 +5,7 @@
  * depends on neither registration nor dispatch.
  */
 import { BridgeError } from "./errors.js";
+import { PAGE_FIELD } from "./pagination.js";
 import type { Bridge, ErrorCode, ToolTextResult } from "./types.js";
 
 // ── Error utilities ─────────────────────────────────────────────────
@@ -135,8 +136,8 @@ async function fetchCrashContext(bridge: Bridge): Promise<string> {
       string,
       unknown
     >;
-    const count = result?.count;
-    if (typeof count === "number" && count === 0) return "";
+    const returned = result?.[PAGE_FIELD.returned];
+    if (typeof returned === "number" && returned === 0) return "";
     const entries = result?.entries;
     if (typeof entries === "string" && entries.length > 0) return entries;
   } catch {

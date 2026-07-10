@@ -52,17 +52,17 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     "asset.list",
     { path_prefix: "res://", name_glob: "smoke_list_*" },
     CALL_TIMEOUT,
-  )) as { success?: boolean; count?: number; entries?: { path: string }[]; truncated?: boolean; code?: string };
-  if (!listByGlob?.success || typeof listByGlob.count !== "number" || listByGlob.count < 3)
+  )) as { success?: boolean; returned?: number; entries?: { path: string }[]; has_more?: boolean; code?: string };
+  if (!listByGlob?.success || typeof listByGlob.returned !== "number" || listByGlob.returned < 3)
     fail(
-      `asset.list name_glob: expected >=3 entries, got ${JSON.stringify({ count: listByGlob?.count, success: listByGlob?.success, code: (listByGlob as { code?: string })?.code })}`,
+      `asset.list name_glob: expected >=3 entries, got ${JSON.stringify({ returned: listByGlob?.returned, success: listByGlob?.success, code: (listByGlob as { code?: string })?.code })}`,
     );
-  else pass(`asset.list name_glob smoke_list_* -> count=${listByGlob.count}`);
+  else pass(`asset.list name_glob smoke_list_* -> returned=${listByGlob.returned}`);
 
   // class_filter (ancestry-aware).
   const listByClass = (await bridge.call("asset.list", { class_filter: "Curve" }, CALL_TIMEOUT)) as {
     entries?: { path: string }[];
-    count?: number;
+    returned?: number;
     code?: string;
   };
   const hasCurve = listByClass?.entries?.some((e) => e.path === smokeListB);
@@ -75,20 +75,20 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     "asset.list",
     { name_glob: "smoke_list_*", extension_filter: ["gd"] },
     CALL_TIMEOUT,
-  )) as { entries?: { path: string }[]; count?: number; code?: string };
-  if (listByExtension?.count !== 1 || listByExtension?.entries?.[0]?.path !== smokeListC)
+  )) as { entries?: { path: string }[]; returned?: number; code?: string };
+  if (listByExtension?.returned !== 1 || listByExtension?.entries?.[0]?.path !== smokeListC)
     fail(`asset.list extension_filter=gd: expected 1 .gd entry, got ${JSON.stringify(listByExtension)}`);
   else pass(`asset.list extension_filter=gd -> ${smokeListC}`);
 
   // limit truncation.
   const listTruncated = (await bridge.call("asset.list", { limit: 1 }, CALL_TIMEOUT)) as {
-    count?: number;
-    truncated?: boolean;
+    returned?: number;
+    has_more?: boolean;
     code?: string;
   };
-  if (listTruncated?.count !== 1 || listTruncated?.truncated !== true)
-    fail(`asset.list limit=1: expected count=1 truncated=true, got ${JSON.stringify(listTruncated)}`);
-  else pass(`asset.list limit=1 -> truncated`);
+  if (listTruncated?.returned !== 1 || listTruncated?.has_more !== true)
+    fail(`asset.list limit=1: expected returned=1 has_more=true, got ${JSON.stringify(listTruncated)}`);
+  else pass(`asset.list limit=1 -> has_more`);
 
   // Guard rejections.
   assertGuard(
@@ -105,12 +105,26 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     "INVALID_PARAMS",
     ["ClassDB", "ProjectSettings"],
   );
+  // Over-max limit clamps + discloses (limit_clamped) rather than rejecting: a
+  // limit above the [1, 2000] ceiling is served capped, not refused. (Sub-1 / non-int
+  // still reject — asserted below.)
+  const listOverMax = (await bridge.call("asset.list", { limit: 5000 }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    returned?: number;
+    limit_clamped?: boolean;
+    code?: string;
+  };
+  if (listOverMax?.success === true && listOverMax.limit_clamped === true)
+    pass(`asset.list limit=5000 -> clamped (limit_clamped=true, returned=${listOverMax.returned})`);
+  else fail(`asset.list limit=5000: expected clamp + limit_clamped=true, got ${JSON.stringify(listOverMax)}`);
+
+  // Sub-1 limit still rejects (only over-max clamps).
   assertGuard(
     ctx,
-    "asset.list limit=5000",
-    await bridge.call("asset.list", { limit: 5000 }, CALL_TIMEOUT),
+    "asset.list limit=0",
+    await bridge.call("asset.list", { limit: 0 }, CALL_TIMEOUT),
     "INVALID_PARAMS",
-    "[1, 2000]",
+    "must be >= 1",
   );
 
   // ── asset.get_dependencies ──
@@ -162,16 +176,16 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   const depsResult = (await bridge.call("asset.get_dependencies", { file_path: smokeDeps }, CALL_TIMEOUT)) as {
     success?: boolean;
     dependencies?: { path: string; class?: string }[];
-    count?: number;
+    returned?: number;
     code?: string;
   };
-  if (!depsResult?.success || !depsResult.dependencies || depsResult.count === undefined)
+  if (!depsResult?.success || !depsResult.dependencies || depsResult.returned === undefined)
     fail(`asset.get_dependencies: unexpected shape ${JSON.stringify(depsResult)}`);
   else {
     const hasIcon = depsResult.dependencies.some((d) => d.path.includes("icon.svg"));
     if (!hasIcon)
       fail(`asset.get_dependencies: expected icon.svg in deps, got ${JSON.stringify(depsResult.dependencies)}`);
-    else pass(`asset.get_dependencies ${smokeDeps} -> count=${depsResult.count}, includes icon.svg`);
+    else pass(`asset.get_dependencies ${smokeDeps} -> returned=${depsResult.returned}, includes icon.svg`);
   }
   assertGuard(
     ctx,
@@ -193,9 +207,9 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   const consoleBufferResult = (await bridge.call("editor.get_console", { limit: 50 }, CALL_TIMEOUT)) as {
     success?: boolean;
     entries?: unknown;
-    count?: number;
+    returned?: number;
     next_id?: number;
-    truncated?: boolean;
+    has_more?: boolean;
     source?: string;
     code?: string;
   };
@@ -210,7 +224,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     );
   } else {
     pass(
-      `editor.get_console source=buffer -> count=${consoleBufferResult.count} next_id=${consoleBufferResult.next_id}`,
+      `editor.get_console source=buffer -> returned=${consoleBufferResult.returned} next_id=${consoleBufferResult.next_id}`,
     );
   }
 
@@ -242,7 +256,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   const consoleFileResult = (await bridge.call("editor.get_console", { limit: 50, source: "file" }, CALL_TIMEOUT)) as {
     success?: boolean;
     entries?: unknown;
-    count?: number;
+    returned?: number;
     log_file?: string;
     code?: string;
     hint?: string;
@@ -291,7 +305,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     // (that = a silently-misaligned --log-file).
     if (fileHasEntries)
       pass(
-        `editor.get_console source=file (--log-file) -> entries count=${consoleFileResult.count} log_file=${consoleFileResult.log_file}`,
+        `editor.get_console source=file (--log-file) -> entries returned=${consoleFileResult.returned} log_file=${consoleFileResult.log_file}`,
       );
     else if (fileLogBusy)
       // Windows only (POSIX handled above): an external read-denying holder (antivirus / file-sync /
@@ -303,7 +317,9 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
       );
   } else if (fileHasEntries) {
     // No harness signal, but a log physically exists (a long-lived userdata dir) -> entries.
-    pass(`editor.get_console source=file -> count=${consoleFileResult.count} log_file=${consoleFileResult.log_file}`);
+    pass(
+      `editor.get_console source=file -> returned=${consoleFileResult.returned} log_file=${consoleFileResult.log_file}`,
+    );
   } else if (fileLogBusy) {
     // Windows only: an external read-denying holder is present. Tolerate + assert the gated hint.
     assertLogRecoveryHint(`editor.get_console source=file -> LOG_BUSY (external holder present)`);
@@ -376,9 +392,9 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
       "editor.get_console",
       { since_id: consolePoll.next_id, limit: 10 },
       CALL_TIMEOUT,
-    )) as { success?: boolean; count?: number; entries?: unknown[] };
+    )) as { success?: boolean; returned?: number; entries?: unknown[] };
     if (!consoleSinceId?.success) fail(`editor.get_console since_id: ${JSON.stringify(consoleSinceId)}`);
-    else pass(`editor.get_console since_id=${consolePoll.next_id} -> count=${consoleSinceId.count}`);
+    else pass(`editor.get_console since_id=${consolePoll.next_id} -> returned=${consoleSinceId.returned}`);
   } else {
     pass(`editor.get_console since_id: skipped (no next_id from base call)`);
   }
@@ -419,11 +435,11 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   // gate the parse-error-CAPTURE assertions (#2/#3/#6) to 4.5+. Filter MECHANICS that
   // don't need a seeded capture (#4 invalid regex, #5 literal parens, #7 no-match) run on
   // every version. (Runtime output IS captured on 4.2+ — see the level_filter=warning and
-  // source=file shape checks above.) Empirically confirmed on 4.2: source=file count=0.
+  // source=file shape checks above.) Empirically confirmed on 4.2: source=file returned=0.
   //
   // HEADLESS: even on 4.5+ a headless editor never GUI-revalidates the
   // recompiled script, so the filename-bearing parse error is re-cleared before it re-emits
-  // → count:0. The capture assertions self-skip headless exactly as they skip <4.5; the
+  // → returned:0. The capture assertions self-skip headless exactly as they skip <4.5; the
   // mechanics checks keep running. The toolkit compensates with a deterministic
   // headless_hint steering to script_check, asserted positively below (DX proof).
   // `headless`, `godotVer`, and `is45Plus` are declared once, above the source="file" block.
@@ -435,7 +451,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
       "editor.get_console",
       { text_filter: "txtflt_hit", limit: 100 },
       CALL_TIMEOUT,
-    )) as { success?: boolean; entries?: unknown; count?: number };
+    )) as { success?: boolean; entries?: unknown; returned?: number };
     const kwEntries = unwrapUntrusted(tfKeyword?.entries) as { message: string }[] | null;
     if (
       tfKeyword?.success &&
@@ -444,19 +460,20 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
       kwEntries.every((e) => /txtflt_hit/i.test(e.message)) &&
       !kwEntries.some((e) => /txtflt_miss/i.test(e.message))
     )
-      pass(`text_filter plain -> count=${tfKeyword.count}`);
-    else fail(`text_filter plain: ${JSON.stringify({ success: tfKeyword?.success, count: tfKeyword?.count })}`);
+      pass(`text_filter plain -> returned=${tfKeyword.returned}`);
+    else fail(`text_filter plain: ${JSON.stringify({ success: tfKeyword?.success, returned: tfKeyword?.returned })}`);
 
     // 3. Regex alternation with is_regex=true — both markers.
     const tfRegex = (await bridge.call(
       "editor.get_console",
       { text_filter: "txtflt_(hit|miss)", is_regex: true, limit: 100 },
       CALL_TIMEOUT,
-    )) as { success?: boolean; entries?: unknown; count?: number };
+    )) as { success?: boolean; entries?: unknown; returned?: number };
     const rxEntries = unwrapUntrusted(tfRegex?.entries) as { message: string }[] | null;
     const hasHit = rxEntries?.some((e) => /txtflt_hit/i.test(e.message));
     const hasMiss = rxEntries?.some((e) => /txtflt_miss/i.test(e.message));
-    if (tfRegex?.success && hasHit && hasMiss) pass(`text_filter is_regex=true alternation -> count=${tfRegex.count}`);
+    if (tfRegex?.success && hasHit && hasMiss)
+      pass(`text_filter is_regex=true alternation -> returned=${tfRegex.returned}`);
     else fail(`text_filter regex: hit=${hasHit} miss=${hasMiss}`);
   } else if (headless) {
     // Headless DX proof: editor parse-error capture is degraded headless, so the toolkit
@@ -498,9 +515,9 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     "editor.get_console",
     { text_filter: "Bogus(Hit)Class", limit: 100 },
     CALL_TIMEOUT,
-  )) as { success?: boolean; count?: number };
-  if (tfLiteral?.success && tfLiteral.count === 0) pass("text_filter plain with parens -> safe, no match (literal)");
-  else fail(`text_filter literal parens: count=${tfLiteral?.count}`);
+  )) as { success?: boolean; returned?: number };
+  if (tfLiteral?.success && tfLiteral.returned === 0) pass("text_filter plain with parens -> safe, no match (literal)");
+  else fail(`text_filter literal parens: returned=${tfLiteral?.returned}`);
 
   // 6. text_filter + level_filter composition (parse-error capture → 4.5+ only, see above).
   // Strengthened to require a hit (length>0) — the old empty-array .every() passed vacuously.
@@ -511,7 +528,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
       "editor.get_console",
       { text_filter: "txtflt_hit", level_filter: ["error"], limit: 100 },
       CALL_TIMEOUT,
-    )) as { success?: boolean; count?: number; entries?: unknown };
+    )) as { success?: boolean; returned?: number; entries?: unknown };
     const lvlEntries = unwrapUntrusted(tfLevel?.entries) as { message: string; level: string }[] | null;
     if (
       tfLevel?.success &&
@@ -519,9 +536,11 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
       lvlEntries.length > 0 &&
       lvlEntries.every((e) => /txtflt_hit/i.test(e.message) && e.level === "error")
     )
-      pass(`text_filter + level_filter=error -> count=${tfLevel.count}`);
+      pass(`text_filter + level_filter=error -> returned=${tfLevel.returned}`);
     else
-      fail(`text_filter + level_filter=error: ${JSON.stringify({ success: tfLevel?.success, count: tfLevel?.count })}`);
+      fail(
+        `text_filter + level_filter=error: ${JSON.stringify({ success: tfLevel?.success, returned: tfLevel?.returned })}`,
+      );
   } else {
     pass(
       headless
@@ -535,9 +554,9 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     "editor.get_console",
     { text_filter: "ZZZZZ_NO_MATCH_41k6", limit: 100 },
     CALL_TIMEOUT,
-  )) as { success?: boolean; count?: number };
-  if (tfNone?.success && tfNone.count === 0) pass("text_filter no match -> count=0");
-  else fail(`text_filter no match: count=${tfNone?.count}`);
+  )) as { success?: boolean; returned?: number };
+  if (tfNone?.success && tfNone.returned === 0) pass("text_filter no match -> returned=0");
+  else fail(`text_filter no match: returned=${tfNone?.returned}`);
 
   // REGRESSION: regex text_filter with \d returned 0 results in editor_get_console
   // (caller-side escaping issue). Canary: send a regex that would match digit-containing
@@ -546,23 +565,23 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     "editor.get_console",
     { text_filter: "\\d", is_regex: true, limit: 50 },
     CALL_TIMEOUT,
-  )) as { success?: boolean; count?: number };
-  if (tfRegexDigits?.success && typeof tfRegexDigits.count === "number") {
+  )) as { success?: boolean; returned?: number };
+  if (tfRegexDigits?.success && typeof tfRegexDigits.returned === "number") {
     // We can't guarantee the log has digits, but success without error means the regex processed.
-    pass(`REGRESSION text_filter regex \\d -> count=${tfRegexDigits.count} (regex accepted)`);
+    pass(`REGRESSION text_filter regex \\d -> returned=${tfRegexDigits.returned} (regex accepted)`);
   } else {
     fail(`REGRESSION text_filter regex \\d: ${JSON.stringify(tfRegexDigits)}`);
   }
 
   // clear_buffer param.
-  // Calling with clear_buffer=true should succeed and return a count.
+  // Calling with clear_buffer=true should succeed and return a count of entries served.
   const clearResult = (await bridge.call("editor.get_console", { limit: 10, clear_buffer: true }, CALL_TIMEOUT)) as {
     success?: boolean;
-    count?: number;
+    returned?: number;
     code?: string;
   };
   if (clearResult?.success) {
-    pass(`editor.get_console clear_buffer=true -> count=${clearResult.count}`);
+    pass(`editor.get_console clear_buffer=true -> returned=${clearResult.returned}`);
   } else {
     // If clear_buffer isn't supported yet, that's a known gap — not a fail.
     pass(`editor.get_console clear_buffer=true -> ${clearResult?.code ?? "unsupported"} (acceptable)`);

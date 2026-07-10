@@ -4,14 +4,15 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../shared/types.js";
 import { registerTools } from "../registration/toolRegistry.js";
 import { jsonCoerce } from "../shared/schemaCoercion.js";
+import { paginationDoc } from "../shared/pagination.js";
 
 export const tilemapTools: ToolDef[] = [
   {
     name: "tilemap_read_cells",
     method: "tilemap.read_cells",
     description:
-      "Read placed tile data from a TileMapLayer (4.3+) or deprecated TileMap. " +
-      "Returns cell coords, source_id, atlas_coords. 500-cell cap, paginate via region; +total_cells/truncated (cursor-less).",
+      "Read placed tile data from a TileMapLayer (4.3+) or deprecated TileMap. Returns cell coords, source_id, atlas_coords. 500-cell cap. " +
+      paginationDoc("cells", { resumable: false, cursorlessNav: "narrow with region/source_id" }),
     inputSchema: {
       node_path: z.string().describe("Path to TileMapLayer or TileMap node"),
       region: z

@@ -76,13 +76,13 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
 
     const debugLog = (await bridge.callRuntime("debugger.get_log", { limit: 50 }, CALL_TIMEOUT)) as {
       lines?: string[];
-      count?: number;
+      returned?: number;
       total_lines?: number;
       code?: string;
     };
-    if (!Array.isArray(debugLog?.lines) || typeof debugLog.count !== "number")
+    if (!Array.isArray(debugLog?.lines) || typeof debugLog.returned !== "number")
       fail(`debugger.get_log shape: ${JSON.stringify(debugLog)}`);
-    else pass(`debugger.get_log -> ${debugLog.count} of ${debugLog.total_lines} lines`);
+    else pass(`debugger.get_log -> ${debugLog.returned} of ${debugLog.total_lines} lines`);
 
     const inputSimulate = (await bridge.callRuntime(
       "input.simulate",

@@ -47,8 +47,8 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
 
   // ── script.read line-window pagination (uniform contract) ───────────────
   // Mirrors save.read offset paging: a range read before EOF returns
-  // truncated=true + next_start_line; a window reaching EOF returns
-  // truncated=false with no next_start_line. Uses its OWN temp script (NOT
+  // has_more=true + next_start_line; a window reaching EOF returns
+  // has_more=false with no next_start_line. Uses its OWN temp script (NOT
   // smoke_probe.gd, which section 18 reads later) and cleans it up below.
   const pagePath = "res://smoke_page_probe.gd";
   // 10 known lines: a header comment then 9 distinct lines (no trailing newline
@@ -67,7 +67,8 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
         start_line?: number;
         end_line?: number;
         total_lines?: number;
-        truncated?: boolean;
+        returned?: number;
+        has_more?: boolean;
         next_start_line?: number;
         code?: string;
       };
@@ -86,18 +87,25 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
         { file_path: pagePath, start_line: 9, end_line: 12 },
         CALL_TIMEOUT,
       )) as PageRead;
-      if (win1.truncated !== true || win1.next_start_line !== 5 || win1.total_lines !== 10) {
-        fail(`script.read page win1: expected truncated next_start_line=5 total_lines=10, got ${JSON.stringify(win1)}`);
-      } else if (win2.truncated !== true || win2.next_start_line !== 9) {
-        fail(`script.read page win2: expected truncated next_start_line=9, got ${JSON.stringify(win2)}`);
-      } else if (win3.truncated !== false || win3.next_start_line !== undefined) {
-        fail(`script.read page win3: expected truncated=false + no next_start_line, got ${JSON.stringify(win3)}`);
+      if (win1.has_more !== true || win1.next_start_line !== 5 || win1.total_lines !== 10) {
+        fail(`script.read page win1: expected has_more next_start_line=5 total_lines=10, got ${JSON.stringify(win1)}`);
+      } else if (win2.has_more !== true || win2.next_start_line !== 9) {
+        fail(`script.read page win2: expected has_more next_start_line=9, got ${JSON.stringify(win2)}`);
+      } else if (win3.has_more !== false || win3.next_start_line !== undefined) {
+        fail(`script.read page win3: expected has_more=false + no next_start_line, got ${JSON.stringify(win3)}`);
+      } else if (win1.returned !== 4 || win2.returned !== 4 || win3.returned !== 2) {
+        // returned = the line count of this window (win3 clamps to EOF: lines 9-10, not 9-12).
+        fail(
+          `script.read page returned: expected win1=4 win2=4 win3=2, got ${JSON.stringify({ w1: win1.returned, w2: win2.returned, w3: win3.returned })}`,
+        );
       } else {
         const reassembled = [win1.content, win2.content, win3.content].map((c) => unwrapUntrusted(c)).join("\n");
         if (reassembled !== pageBody) {
           fail(`script.read pagination: reassembled windows do not match original`);
         } else {
-          pass(`script.read pagination -> 3 windows page 1->5->9, truncated flips at EOF, reassemble ok`);
+          pass(
+            `script.read pagination -> 3 windows page 1->5->9, has_more flips at EOF, returned per window, reassemble ok`,
+          );
         }
       }
     }
@@ -148,12 +156,12 @@ export async function testScriptOps(ctx: TestCtx): Promise<void> {
   // editor.get_console (level_filter:["error"]) — response shape depends on <untrusted> wrapping.
   const errorsResult = (await bridge.call("editor.get_console", { level_filter: ["error"] }, CALL_TIMEOUT)) as {
     entries?: unknown;
-    count?: number;
+    returned?: number;
     success?: boolean;
   };
-  if (errorsResult?.entries === undefined || typeof errorsResult.count !== "number") {
+  if (errorsResult?.entries === undefined || typeof errorsResult.returned !== "number") {
     fail(`editor.get_console shape: ${JSON.stringify(errorsResult)}`);
   } else {
-    pass(`editor.get_console -> count=${errorsResult.count}`);
+    pass(`editor.get_console -> returned=${errorsResult.returned}`);
   }
 }

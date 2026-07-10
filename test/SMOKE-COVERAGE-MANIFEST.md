@@ -106,7 +106,7 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| script_read | 03, 21, 25 | ✓ | ✓ (03: NOT_FOUND) | ✓ (21: start_line/end_line range; 03: line-window pagination — truncated/next_start_line/total_lines) | — | |
+| script_read | 03, 21, 25 | ✓ | ✓ (03: NOT_FOUND) | ✓ (21: start_line/end_line range + returned; 03: line-window pagination — has_more/next_start_line/total_lines/returned per window) | — | ledger #20: has_more (was truncated); returned added (window line count) |
 | script_write | 03, 08, 09, 14, 16, 21, 23, 24, 25 | ✓ | — | ✓ (undoable flag) | — | **GAP:** inline diagnostics response, preload hint |
 | script_delete | 08, 09, 24, 25 | ✓ | — | — | — | In cleanup group |
 | script_check | 24, 25 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: .cs) | ✓ (valid/invalid scripts, diagnostics) | — | §24 asserts the version-aware diagnostics shape: error entry carries the real 1-based `line` on 4.5+, `line` key absent on <4.5 (never a fabricated 0), no `col` ever, hint entries never carry `line` — 41n-undecies S6.6 |
@@ -116,7 +116,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | editor_save_scene | 04, 07, 10, 14 | ✓ | — | — | — | |
-| editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id, source=buffer/file, clear_buffer) | — | clear_buffer param: **soft/uncredited — hard-assert pending** (§14:557–568 calls clear_buffer=true, accepts unsupported). ledger #9: total_lines/next_id/truncated. **Editor parse-error capture is 4.5+ only** (Logger); 4.2-4.4 don't file-log editor parse errors → §14 gates the parse-error-filter assertions (#2/#3/#6) to 4.5+. "at:" continuation leveling for captured multi-line errors is toolkit-side + unit-tested (41m-ter A2/A3). **Headless:** those capture assertions also self-skip (`&& !headless`); §14 positively asserts the deterministic `headless_hint` (steers to script_check) whenever error capture is requested. **`source=file`:** the logger holds `godot.log` deny-nothing (`_SH_DENYNO`, every version — source-verified), so the reader's `open(READ)` always succeeds. On 4.3+ the CI composite passes `--log-file user://logs/godot.log` (globalizes to the reader's `user://logs/` dir) so §14 requires the real file-read path — **entries on every platform** (incl. the Windows 4.4.0 `get_modified_time=0` case the selection fall-through recovers), keyed on the `SMOKE_EXPECT_FILE_LOG` harness signal. **`LOG_BUSY` is not an engine effect** — it only arises from an external read-denying holder (antivirus/file-sync/backup); guardrail: POSIX `LOG_BUSY` → fail (never POSIX, never the engine, never 4.5+). 4.2 (no `--log-file` flag) + any no-`--log-file` run assert `LOG_UNAVAILABLE`; on the `LOG_UNAVAILABLE`/`LOG_BUSY` branches §14 asserts the **version-gated recovery `hint` FIELD** (`source="buffer"` present IFF 4.5+ — the `error`/`headless_hint` fields mention buffer on every version, so only `hint` discriminates) + (headless) the `headless_hint` steering to `source="buffer"` — 41n-quater-bis; model corrected 41n-undecies-bis-bis |
+| editor_get_console | 14 | ✓ | ✓ (INVALID_PARAMS) | ✓ (level_filter, text_filter plain+regex, since_id, source=buffer/file, clear_buffer) | — | clear_buffer param: **soft/uncredited — hard-assert pending** (§14:557–568 calls clear_buffer=true, accepts unsupported). ledger #20: returned (was count)/total_lines/next_id/has_more (was truncated). **Editor parse-error capture is 4.5+ only** (Logger); 4.2-4.4 don't file-log editor parse errors → §14 gates the parse-error-filter assertions (#2/#3/#6) to 4.5+. "at:" continuation leveling for captured multi-line errors is toolkit-side + unit-tested (41m-ter A2/A3). **Headless:** those capture assertions also self-skip (`&& !headless`); §14 positively asserts the deterministic `headless_hint` (steers to script_check) whenever error capture is requested. **`source=file`:** the logger holds `godot.log` deny-nothing (`_SH_DENYNO`, every version — source-verified), so the reader's `open(READ)` always succeeds. On 4.3+ the CI composite passes `--log-file user://logs/godot.log` (globalizes to the reader's `user://logs/` dir) so §14 requires the real file-read path — **entries on every platform** (incl. the Windows 4.4.0 `get_modified_time=0` case the selection fall-through recovers), keyed on the `SMOKE_EXPECT_FILE_LOG` harness signal. **`LOG_BUSY` is not an engine effect** — it only arises from an external read-denying holder (antivirus/file-sync/backup); guardrail: POSIX `LOG_BUSY` → fail (never POSIX, never the engine, never 4.5+). 4.2 (no `--log-file` flag) + any no-`--log-file` run assert `LOG_UNAVAILABLE`; on the `LOG_UNAVAILABLE`/`LOG_BUSY` branches §14 asserts the **version-gated recovery `hint` FIELD** (`source="buffer"` present IFF 4.5+ — the `error`/`headless_hint` fields mention buffer on every version, so only `hint` discriminates) + (headless) the `headless_hint` steering to `source="buffer"` — 41n-quater-bis; model corrected 41n-undecies-bis-bis |
 | editor_screenshot | 04, 18 | ✓ (inline + save_path) | ✓ (18: PATH_DENIED) | — | — | In editor_advanced group |
 | editor_refresh | 03, 14, 16, 23 | ✓ | — | — | — | Renamed from editor_reload_scripts (S:6964946) |
 
@@ -140,15 +140,15 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| classdb_get_info | 23 | ✓ | ✓ (UNKNOWN_CLASS) | ✓ (sections filter, inherited props, offset pagination, global class) | ✓ (next_offset on truncation) | ledger #9: total_<section>/truncated/next_offset |
-| classdb_search | 23 | ✓ | ✓ (UNKNOWN_CLASS) | ✓ (base_class, pattern, offset pagination) | — | ledger #9: total_classes (was total)/truncated/next_offset |
+| classdb_get_info | 23 | ✓ | ✓ (UNKNOWN_CLASS, limit=0 INVALID_PARAMS) | ✓ (sections filter, inherited props, offset pagination, global class, **limit per-section: default 200, over-max clamp+limit_clamped**) | ✓ (next_offset on has_more) | ledger #20: total_<section>/has_more/next_offset/returned; per-section limit (D11) |
+| classdb_search | 23 | ✓ | ✓ (UNKNOWN_CLASS, limit=0 INVALID_PARAMS) | ✓ (base_class, pattern, offset pagination, **limit: default 200, over-max clamp+limit_clamped**) | — | ledger #20: total_classes/has_more/next_offset/returned; caller limit (D11) |
 
 ### Asset Management (3 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| asset_list | 14, 15 | ✓ | ✓ (14: PATH_DENIED) | ✓ (name_glob, class_filter, extension_filter, limit) | — | ledger #9: total_assets/truncated (cursor-less) |
-| asset_get_dependencies | 14 | ✓ | ✓ (NOT_FOUND) | — | — | In asset_ops group; ledger #9: total_dependencies/truncated (cursor-less) |
+| asset_list | 14, 15 | ✓ | ✓ (14: PATH_DENIED, bogus class_filter, **limit=0 INVALID_PARAMS**) | ✓ (name_glob, class_filter, extension_filter, limit=1 has_more, **over-max limit=5000 clamp+limit_clamped, D8**) | — | ledger #20: returned/total_assets/has_more (cursor-less); over-max limit clamps (D8, was INVALID_PARAMS) |
+| asset_get_dependencies | 14 | ✓ | ✓ (NOT_FOUND) | ✓ (returned) | — | In asset_ops group; ledger #20: returned/total_dependencies/has_more (cursor-less) |
 | asset_import | 15 | ✓ | ✓ (PATH_DENIED, ALREADY_EXISTS, INVALID_PARAMS) | ✓ (base64, if_exists modes) | — | In asset_ops group |
 
 ### Resource Management (3 tools)
@@ -194,7 +194,7 @@ routinely.
 |---|---|---|---|---|---|---|
 | runtime_screenshot | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | |
 | runtime_get_node_state | 17 | ✓ | ✓ (GAME_NOT_RUNNING) | — | — | In runtime_advanced group |
-| debugger_get_log | 17, 40 | ✓ | — | — | — | cache fallback after game stop: **soft/uncredited — hard-assert pending** (§40:74–118 covers post-stop cached-log fallback, `fail` if GAME_NOT_RUNNING; the §17-scoped row under-reported it). file source under a `text_filter` (§17 calls the default buffer source, no filter). ledger #9: total_lines (was total)/truncated (capped tail); 41n-ter-bis #7a: the file source now filters-then-slices, uniform with the buffer source (supersedes the file-path capped-tail `truncated=start>0`) |
+| debugger_get_log | 17, 40 | ✓ | — | — | — | cache fallback after game stop: **soft/uncredited — hard-assert pending** (§40:74–118 covers post-stop cached-log fallback, `fail` if GAME_NOT_RUNNING; the §17-scoped row under-reported it). file source under a `text_filter` (§17 calls the default buffer source, no filter). ledger #20: returned (was count)/total_lines/has_more (was truncated) (capped tail); 41n-ter-bis #7a: the file source now filters-then-slices, uniform with the buffer source (supersedes the file-path capped-tail `truncated=start>0`) |
 | input_simulate | 17 | ✓ (incl. send_text into fixture LineEdit; **17: unknown action → INVALID_PARAMS, 41o C6**) | — | ✓ (send_text event_type: node_path focus, submit, secret) | ✓ (send_text no-focus + bogus-node_path hints; 17: unknown-action names the action) | send_text (41n-sexies): §17 self-launches `test/fixtures/send_text_smoke.tscn` (skips if absent → positive coverage is sweep-owned), asserts text_changed/text_after + secret redaction (no raw-value leak) + submit. 41o C6: action-mode InputMap guard — unregistered action rejected (key/text/click modes unaffected). **GAP:** world_position hint |
 | animation_player_control | 17 | ✓ | — | — | — | In runtime_advanced group |
 | runtime_get_script_vars | 17 | ✓ | — | — | — | |
@@ -222,7 +222,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | tilemap_set_cells | 13 | ✓ (clear) | ✓ (NOT_FOUND, INVALID_PARAMS: malformed cell, INVALID_STATE: no tileset) | — | — | In tilemap group. **GAP:** regions param. §13 node version-branched: TileMapLayer 4.3+ / legacy TileMap 4.2 (41m-ter A1) |
-| tilemap_read_cells | 13 | ✓ (empty; TileMapLayer 4.3+ / TileMap 4.2) | ✓ (INVALID_CLASS, NOT_FOUND) | ✓ (total_cells/truncated on empty) | — | Redistributed from S43; node version-branched (41m-ter A1); ledger #9: total_cells (was cells_total)/truncated |
+| tilemap_read_cells | 13 | ✓ (empty; TileMapLayer 4.3+ / TileMap 4.2) | ✓ (INVALID_CLASS, NOT_FOUND) | ✓ (total_cells/has_more on empty, returned=0) | — | Redistributed from S43; node version-branched (41m-ter A1); ledger #20: returned (was cell_count)/total_cells/has_more (was truncated) |
 | tileset_create | 13, 44 | ✓ | ✓ (missing texture) | — | ✓ (S44: "TileMap") | In tilemap group |
 | tileset_add_source | 44 | ✓ | — | — | ✓ ("tilemap.set_cells") | |
 | tileset_remove_source | 44 | ✓ | ✓ (NOT_FOUND: invalid source) | — | ✓ ("tilemap.read_cells") | |
@@ -303,7 +303,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | save_write | 20 | ✓ | ✓ (20: PATH_DENIED, INVALID_PATH, INVALID_PARAMS) | — | — | |
-| save_read | 20 | ✓ | ✓ (20: oversized max_bytes → INVALID_PARAMS w/ cap) | ✓ (envelope wrapping, truncation, **offset pagination**: 2-window reassemble + next_offset) | — | `offset`/`next_offset`/`total_bytes` paging; cap configurable (`save_read_cap_kb`, server ceiling 4 MB) |
+| save_read | 20 | ✓ | ✓ (20: oversized max_bytes → INVALID_PARAMS w/ cap) | ✓ (envelope wrapping, truncation, **offset pagination**: 2-window reassemble + next_offset) | — | ledger #20: returned (was bytes_returned)/has_more (was truncated); `offset`/`next_offset`/`total_bytes` paging; cap configurable (`save_read_cap_kb`, server ceiling 4 MB) |
 | save_list | 20 | ✓ | — | ✓ (prefix filtering) | — | |
 | save_delete | 20 | ✓ | — | — | — | |
 
@@ -352,7 +352,7 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| scene_spatial_map | 45 | ✓ (2D overlaps / containment / nearest) | ✓ (INVALID_PARAMS: detail, region size) | ✓ (detail brief/normal/full, class, region, radius, subtree, max_nodes truncation) | ✓ (total_nodes on truncation) | eager; read-only; ledger #9: total_nodes (was node_count)/truncated |
+| scene_spatial_map | 45 | ✓ (2D overlaps / containment / nearest) | ✓ (INVALID_PARAMS: detail, region size) | ✓ (detail brief/normal/full, class, region, radius, subtree, max_nodes truncation) | ✓ (total_nodes on has_more) | eager; read-only; ledger #20: returned/total_nodes/has_more (was truncated) |
 | texture_generate | 46 | ✓ (all 7 shapes, class=Texture2D) | ✓ (INVALID_PATH png, PATH_DENIED, INVALID_PARAMS transparent/shape — bridge/direct path; cf. sweep -32602 via server) | ✓ (colour hex/named/[0-1]/[0-255], hollow, label, dim cap, if_exists, **default-path settle: class populated + no warning + elapsed_ms<1000 — Item B, 41m-sexies**) | — | placeholders group |
 | sound_generate | 46 | ✓ (all 5 waveforms, class=AudioStreamWAV) | ✓ (INVALID_PATH wav, PATH_DENIED, INVALID_PARAMS waveform — bridge/direct path; cf. sweep -32602) | ✓ (sweep, decay, duration cap, if_exists) | — | placeholders group |
 

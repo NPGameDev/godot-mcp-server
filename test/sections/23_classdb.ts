@@ -168,7 +168,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   // ─── classdb.search: base_class filter ──────────────────────────────────
   const searchPhysics = (await bridge.call("classdb.search", { base_class: "PhysicsBody3D" }, CALL_TIMEOUT)) as {
     success?: boolean;
-    count?: number;
+    returned?: number;
     classes?: { name: string }[];
   };
 
@@ -182,14 +182,14 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
       fail(`classdb.search PhysicsBody3D: missing RigidBody3D or CharacterBody3D (got ${names.join(", ")})`);
     else
       pass(
-        `classdb.search base_class=PhysicsBody3D -> ${searchPhysics.count} classes (includes RigidBody3D, CharacterBody3D)`,
+        `classdb.search base_class=PhysicsBody3D -> ${searchPhysics.returned} classes (includes RigidBody3D, CharacterBody3D)`,
       );
   }
 
   // ─── classdb.search: pattern filter ─────────────────────────────────────
   const searchCamera = (await bridge.call("classdb.search", { pattern: "Camera" }, CALL_TIMEOUT)) as {
     success?: boolean;
-    count?: number;
+    returned?: number;
     classes?: { name: string }[];
   };
 
@@ -200,7 +200,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     const has2d = names.includes("Camera2D");
     const has3d = names.includes("Camera3D");
     if (!has2d || !has3d) fail(`classdb.search Camera: missing Camera2D or Camera3D`);
-    else pass(`classdb.search pattern=Camera -> ${searchCamera.count} classes (includes Camera2D, Camera3D)`);
+    else pass(`classdb.search pattern=Camera -> ${searchCamera.returned} classes (includes Camera2D, Camera3D)`);
   }
 
   // ─── classdb.search: combined filter ────────────────────────────────────
@@ -208,14 +208,14 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     "classdb.search",
     { base_class: "Node", pattern: "Button" },
     CALL_TIMEOUT,
-  )) as { success?: boolean; count?: number; classes?: { name: string }[] };
+  )) as { success?: boolean; returned?: number; classes?: { name: string }[] };
 
   if (!searchNodeButton?.success) {
     fail(`classdb.search Node+Button: expected success`);
   } else {
     const names = searchNodeButton.classes?.map((c) => c.name) ?? [];
     if (!names.includes("Button")) fail(`classdb.search Node+Button: missing Button`);
-    else pass(`classdb.search base_class=Node pattern=Button -> ${searchNodeButton.count} classes`);
+    else pass(`classdb.search base_class=Node pattern=Button -> ${searchNodeButton.returned} classes`);
   }
 
   // ─── classdb.search: unknown base_class → UNKNOWN_CLASS ────────────────
@@ -231,7 +231,7 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     success?: boolean;
     methods?: unknown[];
     total_methods?: number;
-    truncated?: boolean;
+    has_more?: boolean;
     next_offset?: number;
   };
 
@@ -243,16 +243,16 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     } else {
       pass(`classdb.get_info Control inherited has total_methods=${controlInherited.total_methods}`);
     }
-    if (controlInherited.total_methods! > 200 && !controlInherited.truncated) {
-      fail(`classdb.get_info Control inherited: expected truncated=true when methods exceed 200`);
+    if (controlInherited.total_methods! > 200 && !controlInherited.has_more) {
+      fail(`classdb.get_info Control inherited: expected has_more=true when methods exceed 200`);
     } else if (controlInherited.total_methods! > 200) {
-      pass(`classdb.get_info Control inherited truncated=true (total_methods=${controlInherited.total_methods})`);
+      pass(`classdb.get_info Control inherited has_more=true (total_methods=${controlInherited.total_methods})`);
     }
-    // A truncated single-section read carries a next_offset resume cursor.
-    if (controlInherited.truncated) {
+    // A paged single-section read carries a next_offset resume field.
+    if (controlInherited.has_more) {
       if (typeof controlInherited.next_offset === "number")
-        pass(`classdb.get_info next_offset present on truncated single-section read (${controlInherited.next_offset})`);
-      else fail(`classdb.get_info: truncated single-section read missing next_offset`);
+        pass(`classdb.get_info next_offset present on paged single-section read (${controlInherited.next_offset})`);
+      else fail(`classdb.get_info: paged single-section read missing next_offset`);
     }
   }
 
@@ -289,14 +289,14 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
   const searchNoOffset = (await bridge.call("classdb.search", { base_class: "Node", pattern: "2D" }, CALL_TIMEOUT)) as {
     success?: boolean;
     total_classes?: number;
-    count?: number;
+    returned?: number;
   };
 
   const searchWithOffset = (await bridge.call(
     "classdb.search",
     { base_class: "Node", pattern: "2D", offset: 5 },
     CALL_TIMEOUT,
-  )) as { success?: boolean; total_classes?: number; count?: number };
+  )) as { success?: boolean; total_classes?: number; returned?: number };
 
   if (!searchNoOffset?.success || !searchWithOffset?.success) {
     fail(`classdb.search offset: expected success on both calls`);
@@ -311,35 +311,37 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
     }
     if (typeof searchNoOffset.total_classes !== "number") fail(`classdb.search: missing canonical total_classes field`);
     else pass(`classdb.search total_classes present (${searchNoOffset.total_classes})`);
-    if ((searchWithOffset.count ?? 0) >= (searchNoOffset.count ?? 0)) {
-      fail(`classdb.search offset=5: count should decrease`);
+    if ((searchWithOffset.returned ?? 0) >= (searchNoOffset.returned ?? 0)) {
+      fail(`classdb.search offset=5: returned should decrease`);
     } else {
-      pass(`classdb.search offset=5 count decreased (${searchNoOffset.count} -> ${searchWithOffset.count})`);
+      pass(`classdb.search offset=5 returned decreased (${searchNoOffset.returned} -> ${searchWithOffset.returned})`);
     }
   }
 
-  // ─── classdb.get_info: offset AT the exact end → truncated:false, no cursor ───
-  // An offset that lands at/after the last page must drop both truncated and the
-  // next_offset cursor; a dangling cursor with nothing left to fetch is the regression.
+  // ─── classdb.get_info: offset AT the exact end → has_more:false, no resume field ───
+  // An offset that lands at/after the last page must drop both has_more and the
+  // next_offset resume field; a dangling resume field with nothing left to fetch is the regression.
   if (typeof controlInherited?.total_methods === "number") {
     const atEnd = (await bridge.call(
       "classdb.get_info",
       { class_name: "Control", include_inherited: true, sections: ["methods"], offset: controlInherited.total_methods },
       CALL_TIMEOUT,
-    )) as { success?: boolean; truncated?: boolean; next_offset?: number };
+    )) as { success?: boolean; has_more?: boolean; next_offset?: number };
     if (!atEnd?.success) {
       fail(`classdb.get_info offset==total_methods: expected success`);
-    } else if (atEnd.truncated !== false) {
-      fail(`classdb.get_info offset==total_methods: expected truncated=false, got ${atEnd.truncated}`);
+    } else if (atEnd.has_more !== false) {
+      fail(`classdb.get_info offset==total_methods: expected has_more=false, got ${atEnd.has_more}`);
     } else if (atEnd.next_offset !== undefined) {
       fail(`classdb.get_info offset==total_methods: should not emit next_offset at the end`);
     } else {
-      pass(`classdb.get_info offset==total_methods (${controlInherited.total_methods}) -> truncated=false, no cursor`);
+      pass(
+        `classdb.get_info offset==total_methods (${controlInherited.total_methods}) -> has_more=false, no resume field`,
+      );
     }
   }
 
-  // ─── classdb.search: offset PAST the end → truncated:false, no self-loop ───
-  // Guards the documented "page until truncated=false" loop against never
+  // ─── classdb.search: offset PAST the end → has_more:false, no self-loop ───
+  // Guards the documented "page until has_more is false" loop against never
   // terminating: past the last page, search must not echo next_offset == offset.
   if (searchNoOffset?.success && typeof searchNoOffset.total_classes === "number") {
     const pastOffset = searchNoOffset.total_classes + 50;
@@ -347,15 +349,84 @@ export async function testClassdb(ctx: TestCtx): Promise<void> {
       "classdb.search",
       { base_class: "Node", pattern: "2D", offset: pastOffset },
       CALL_TIMEOUT,
-    )) as { success?: boolean; count?: number; truncated?: boolean; next_offset?: number };
+    )) as { success?: boolean; returned?: number; has_more?: boolean; next_offset?: number };
     if (!pastEnd?.success) {
       fail(`classdb.search offset past end: expected success`);
-    } else if (pastEnd.truncated !== false) {
-      fail(`classdb.search offset past end: expected truncated=false, got ${pastEnd.truncated}`);
+    } else if (pastEnd.has_more !== false) {
+      fail(`classdb.search offset past end: expected has_more=false, got ${pastEnd.has_more}`);
     } else if (pastEnd.next_offset !== undefined) {
       fail(`classdb.search offset past end: should not emit next_offset (infinite-loop guard)`);
     } else {
-      pass(`classdb.search offset past end (${pastOffset}) -> truncated=false, no cursor`);
+      pass(`classdb.search offset past end (${pastOffset}) -> has_more=false, no resume field`);
     }
   }
+
+  // ─── classdb.search: limit param (D11 — new caller-facing cap) ──────────────
+  // default 200 (behavior-preserving) / over-max clamps + limit_clamped / sub-1 rejects.
+  const searchLimit1 = (await bridge.call(
+    "classdb.search",
+    { base_class: "Node", pattern: "2D", limit: 1 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; returned?: number; has_more?: boolean; total_classes?: number };
+  if (searchLimit1?.success !== true) {
+    fail(`classdb.search limit=1: expected success, got ${JSON.stringify(searchLimit1)}`);
+  } else if (searchLimit1.returned !== 1) {
+    fail(`classdb.search limit=1: expected returned=1, got ${searchLimit1.returned}`);
+  } else if ((searchLimit1.total_classes ?? 0) > 1 && searchLimit1.has_more !== true) {
+    fail(`classdb.search limit=1: expected has_more=true when more than 1 class matches`);
+  } else {
+    pass(`classdb.search limit=1 -> returned=1, has_more=${searchLimit1.has_more}`);
+  }
+
+  const searchLimitOver = (await bridge.call(
+    "classdb.search",
+    { base_class: "Node", pattern: "2D", limit: 5000 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; limit_clamped?: boolean };
+  if (searchLimitOver?.success === true && searchLimitOver.limit_clamped === true)
+    pass(`classdb.search limit=5000 -> clamped (limit_clamped=true)`);
+  else fail(`classdb.search limit=5000: expected clamp + limit_clamped=true, got ${JSON.stringify(searchLimitOver)}`);
+
+  assertError(
+    ctx,
+    "classdb.search limit=0",
+    await bridge.call("classdb.search", { base_class: "Node", limit: 0 }, CALL_TIMEOUT),
+    "INVALID_PARAMS",
+  );
+
+  // ─── classdb.get_info: limit param (D11 — per-section cap) ───────────────────
+  // A small limit caps each section; over-max clamps + limit_clamped; sub-1 rejects.
+  const getInfoLimit = (await bridge.call(
+    "classdb.get_info",
+    { class_name: "Control", include_inherited: true, sections: ["methods"], limit: 5 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; methods?: unknown[]; total_methods?: number; has_more?: boolean };
+  if (getInfoLimit?.success !== true) {
+    fail(`classdb.get_info limit=5: expected success, got ${JSON.stringify(getInfoLimit)}`);
+  } else if ((getInfoLimit.methods?.length ?? 0) > 5) {
+    fail(`classdb.get_info limit=5: expected <=5 methods this page, got ${getInfoLimit.methods?.length}`);
+  } else if ((getInfoLimit.total_methods ?? 0) > 5 && getInfoLimit.has_more !== true) {
+    fail(`classdb.get_info limit=5: expected has_more=true when total_methods exceeds the limit`);
+  } else {
+    pass(
+      `classdb.get_info limit=5 -> ${getInfoLimit.methods?.length} methods this page, has_more=${getInfoLimit.has_more}`,
+    );
+  }
+
+  const getInfoLimitOver = (await bridge.call(
+    "classdb.get_info",
+    { class_name: "Control", include_inherited: true, sections: ["methods"], limit: 5000 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; limit_clamped?: boolean };
+  if (getInfoLimitOver?.success === true && getInfoLimitOver.limit_clamped === true)
+    pass(`classdb.get_info limit=5000 -> clamped (limit_clamped=true)`);
+  else
+    fail(`classdb.get_info limit=5000: expected clamp + limit_clamped=true, got ${JSON.stringify(getInfoLimitOver)}`);
+
+  assertError(
+    ctx,
+    "classdb.get_info limit=0",
+    await bridge.call("classdb.get_info", { class_name: "Control", limit: 0 }, CALL_TIMEOUT),
+    "INVALID_PARAMS",
+  );
 }

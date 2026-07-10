@@ -6,20 +6,22 @@ import { registerTools } from "../registration/toolRegistry.js";
 import { coercedBoolean, jsonCoerce } from "../shared/schemaCoercion.js";
 import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 import { assetWriteFields } from "./assetWrite.js";
+import { paginationDoc } from "../shared/pagination.js";
 
 export const assetTools: ToolDef[] = [
   {
     name: "asset_list",
     method: "asset.list",
     description:
-      "Enumerate res:// assets with filters (path_prefix, name_glob, class_filter ancestry-aware, extension_filter). Returns [{path,class,modified_unix}]. Cap limit 2000. " +
-      "+total_assets/truncated (cursor-less — narrow filters or raise limit).",
+      "Enumerate res:// assets with filters (path_prefix, name_glob, class_filter ancestry-aware, extension_filter). Returns [{path,class,modified_unix}]. " +
+      paginationDoc("assets", { resumable: false, cursorlessNav: "narrow filters or raise limit" }) +
+      "limit caps at 2000 (default 500); a request above 2000 is clamped and limit_clamped is set (a non-positive limit is rejected).",
     inputSchema: {
       path_prefix: z.string().optional(),
       name_glob: z.string().optional(),
       class_filter: z.string().optional(),
       extension_filter: z.preprocess(jsonCoerce, z.array(z.string())).optional(),
-      limit: z.coerce.number().optional().describe("Max assets returned (default 500, cap 2000)"),
+      limit: z.coerce.number().optional().describe("Max assets returned (default 500, clamped to 2000)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint:
@@ -31,7 +33,7 @@ export const assetTools: ToolDef[] = [
     method: "asset.get_dependencies",
     description:
       "Forward dependencies of a res:// resource/scene via EditorFileSystem cache. include_transitive walks deps-of-deps. Returns [{path,raw_path,class}]. " +
-      "+total_dependencies/truncated (cursor-less).",
+      paginationDoc("dependencies", { resumable: false, cursorlessNav: "narrow the query or raise limit" }),
     inputSchema: {
       file_path: z.string(),
       include_transitive: coercedBoolean().optional(),

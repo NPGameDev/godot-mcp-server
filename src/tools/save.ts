@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Bridge, ToolDef } from "../shared/types.js";
 import { registerTools } from "../registration/toolRegistry.js";
+import { byteWindowParams, paginationDoc } from "../shared/pagination.js";
 
 // save.* tools access user:// paths. The plugin-side file guard rejects
 // traversal, non-user:// prefixes, and the toolkit's own internal paths.
@@ -11,9 +12,15 @@ export const saveTools: ToolDef[] = [
     name: "save_read",
     method: "save.read",
     description:
-      "Read user:// file (default 64 KB window; cap configurable, default 256 KB). Read large files in successive max_bytes windows via byte offset (default 0); the response carries next_offset/total_bytes/truncated to drive paging — pass next_offset back as offset until truncated is false. Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8.",
+      "Read user:// file (default 64 KB window; cap configurable, default 256 KB). Read large files in successive max_bytes windows via byte offset. " +
+      paginationDoc("bytes", { resumable: true }) +
+      "Returns UTF-8 content in <untrusted> envelope, or base64 if non-UTF-8.",
     inputSchema: {
       path: z.string().describe("user:// file path"),
+      offset: byteWindowParams.offset,
+      // max_bytes stays inline: save_read keeps its shipped 4 MB outer ceiling on
+      // the window request (the toolkit clamps to the configured cap below this),
+      // a defensive bound the shared byte fragment intentionally leaves per-tool.
       max_bytes: z.coerce
         .number()
         .int()
@@ -21,12 +28,6 @@ export const saveTools: ToolDef[] = [
         .max(4194304)
         .optional()
         .describe("Bytes to read this window (default 64 KB; cap configurable, default 256 KB)"),
-      offset: z.coerce
-        .number()
-        .int()
-        .nonnegative()
-        .optional()
-        .describe("Byte offset to start at (default 0); pass next_offset from the prior response to page"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     pathParams: [{ param: "path", guard: "user" }],

@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../shared/types.js";
 import { registerTools } from "../registration/toolRegistry.js";
 import { jsonCoerce } from "../shared/schemaCoercion.js";
+import { paginationDoc } from "../shared/pagination.js";
 
 export const spatialTools: ToolDef[] = [
   {
@@ -11,7 +12,10 @@ export const spatialTools: ToolDef[] = [
     method: "scene.spatial_map",
     description:
       "Spatial layout of the current scene: per-node world position, bounds (2D Rect2 / 3D AABB), size, plus computed overlaps/gaps/containment. Call before placing or moving nodes to find clear space. " +
-      "+total_nodes/truncated (cursor-less).",
+      paginationDoc("nodes", {
+        resumable: false,
+        cursorlessNav: "narrow with subtree/class/region/radius or raise max_nodes",
+      }),
     inputSchema: {
       detail: z
         .enum(["brief", "normal", "full"])

@@ -9,6 +9,7 @@ import { toolErrorFromPayload, runtimeErrorWithCrashContext } from "../shared/er
 import { BridgeError } from "../shared/errors.js";
 import { stableStringify } from "../shared/schemaMin.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
+import { PAGE_FIELD, type PaginatedResult } from "../shared/pagination.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:6570. Only works while the game is running in a debug build
@@ -41,7 +42,7 @@ export const runtimeTools: ToolDef[] = [
     description:
       "Game output log. Works during gameplay AND after crash (auto-serves cached output). " +
       "source='buffer'|'file'. limit=200. text_filter + is_regex for search. " +
-      "+total_lines/truncated (capped tail). " +
+      "+returned/total_lines/has_more (capped tail). " +
       "Right after game_stop the first call may return GAME_NOT_RUNNING while the session registry settles — retry once (the cache serves the next call).",
     inputSchema: {
       limit: z.coerce.number().int().positive().optional(),
@@ -227,11 +228,13 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
       const result = await bridge.callRuntime(method, input, 5_000);
       const err = toolErrorFromPayload(result);
       if (err) return err;
-      const obj = result as Record<string, unknown>;
-      const count = typeof obj.count === "number" ? obj.count : 0;
+      // The toolkit is the sole envelope author (REFLECT); read its paged fields
+      // through PAGE_FIELD so a rename lands in one place, not scattered literals.
+      const obj = result as PaginatedResult;
+      const returned = typeof obj[PAGE_FIELD.returned] === "number" ? (obj[PAGE_FIELD.returned] as number) : 0;
       // total_lines: the full (pre-cap) line count from the runtime debugger log.
-      const total = typeof obj.total_lines === "number" ? obj.total_lines : count;
-      const summary = `${count} line${count !== 1 ? "s" : ""} (of ${total} total)`;
+      const total = typeof obj[PAGE_FIELD.totalLines] === "number" ? (obj[PAGE_FIELD.totalLines] as number) : returned;
+      const summary = `${returned} line${returned !== 1 ? "s" : ""} (of ${total} total)`;
       const text = stableStringify({ _summary: summary, ...obj });
       return { content: [{ type: "text" as const, text }] };
     } catch (e) {
@@ -250,17 +253,17 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
           const cached = await bridge.call("debugger.get_log", input, 5_000);
           const cErr = toolErrorFromPayload(cached);
           if (cErr) return runtimeErrorWithCrashContext(bridge, e);
-          // Always serve the editor-side response — even when count=0, the
+          // Always serve the editor-side response — even when returned=0, the
           // debug_state and note fields are valuable context for the agent.
-          const obj = cached as Record<string, unknown>;
-          const count = typeof obj.count === "number" ? obj.count : 0;
+          const obj = cached as PaginatedResult;
+          const returned = typeof obj[PAGE_FIELD.returned] === "number" ? (obj[PAGE_FIELD.returned] as number) : 0;
           const errorBuffer = Array.isArray(obj.error_buffer) ? obj.error_buffer : [];
           const parts: string[] = [];
           if (errorBuffer.length > 0) {
             parts.push(`${errorBuffer.length} error${errorBuffer.length !== 1 ? "s" : ""} from debugger bridge`);
           }
-          if (count > 0) {
-            parts.push(`${count} cached line${count !== 1 ? "s" : ""} from log file`);
+          if (returned > 0) {
+            parts.push(`${returned} cached line${returned !== 1 ? "s" : ""} from log file`);
           }
           const summary = parts.length > 0 ? parts.join(", ") : "no output from last game session";
           const text = stableStringify({ _summary: summary, ...obj });

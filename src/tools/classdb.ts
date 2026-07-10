@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Bridge, ToolDef } from "../shared/types.js";
 import { registerTools } from "../registration/toolRegistry.js";
 import { coercedBoolean } from "../shared/schemaCoercion.js";
+import { offsetLimitParams, paginationDoc } from "../shared/pagination.js";
 
 export const classdbTools: ToolDef[] = [
   {
@@ -11,7 +12,8 @@ export const classdbTools: ToolDef[] = [
     method: "classdb.get_info",
     description:
       "Inspect any Godot class: properties, methods, signals, constants, inheritance. Supports engine + user class_name classes. " +
-      "Each section has total_<section>/truncated (+next_offset when truncated).",
+      paginationDoc("<section>", { resumable: true }) +
+      "The envelope is per-section (properties, methods, signals, constants); offset and limit apply within each section (limit default 200, clamped above 200).",
     inputSchema: {
       class_name: z.string().describe("Engine class (e.g. RigidBody3D) or user-defined class_name."),
       include_inherited: coercedBoolean()
@@ -21,13 +23,7 @@ export const classdbTools: ToolDef[] = [
         .array(z.enum(["properties", "methods", "signals", "constants"]))
         .optional()
         .describe("Which sections to return (default: all). Limit to reduce token cost."),
-      offset: z
-        .number()
-        .int()
-        .optional()
-        .describe(
-          "Skip the first N entries per section; pass next_offset from a truncated response back as offset until truncated is false. Default 0.",
-        ),
+      ...offsetLimitParams,
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -36,19 +32,14 @@ export const classdbTools: ToolDef[] = [
     method: "classdb.search",
     description:
       "Find Godot classes by inheritance and/or name pattern. Returns class list with parent + instantiability. " +
-      "Carries total_classes/truncated/next_offset — page with offset until truncated is false.",
+      paginationDoc("classes", { resumable: true }) +
+      "limit default 200, clamped above 200.",
     inputSchema: {
       base_class: z.string().optional().describe("Filter to subclasses of this class."),
       pattern: z.string().optional().describe("Case-insensitive substring match on class name."),
       instantiable_only: coercedBoolean().optional().describe("Exclude abstract classes (default: true)."),
       include_global: coercedBoolean().optional().describe("Include user class_name classes (default: true)."),
-      offset: z
-        .number()
-        .int()
-        .optional()
-        .describe(
-          "Skip the first N matching classes; pass next_offset from a truncated response back as offset until truncated is false. Default 0.",
-        ),
+      ...offsetLimitParams,
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
