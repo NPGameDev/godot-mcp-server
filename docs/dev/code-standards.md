@@ -106,8 +106,8 @@ names that param **`file_path`** (not bare `path`, not a domain-specific alias).
 source→destination pair, per `asset_import`) — the two-path exception. Do NOT "correct" a genuine
 two-path tool down to a single `file_path`: `file_path` on a source/dest tool is ambiguous ("from or
 into?"). Node-tree paths (a node's path within the edited scene) are **`node_path`** / `parent_path`,
-distinct from filesystem paths. Result cursors follow the pagination contract (`total_<unit>` /
-`truncated` / `next_<cursor>`).
+distinct from filesystem paths. Result pages follow the pagination envelope (`returned` / `total_<unit>` /
+`has_more`; B5.x).
 
 ---
 
