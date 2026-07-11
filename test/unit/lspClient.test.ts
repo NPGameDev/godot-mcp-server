@@ -149,4 +149,29 @@ const TEST_PROJECT = "/tmp/godot-mcp-test-project";
   }
 }
 
+// ── closeDocument — clears open-document state ──────────────────────
+//
+// openDocument tracks a URI as open even when not connected (the didOpen
+// notification no-ops, but the bookkeeping still records it); closeDocument
+// must remove it so the client and server open-state stay in lockstep.
+
+{
+  const client = new LspClient(TEST_PROJECT);
+  const uri = "file:///tmp/godot-mcp-test-project/scripts/enemy.gd";
+  assert.equal(client.hasOpenDocument(uri), false);
+  await client.openDocument(uri, "extends Node");
+  assert.equal(client.hasOpenDocument(uri), true);
+  await client.closeDocument(uri);
+  assert.equal(client.hasOpenDocument(uri), false);
+}
+
+// ── closeDocument — safe to call on a never-opened URI ──────────────
+
+{
+  const client = new LspClient(TEST_PROJECT);
+  // Should not throw and should leave the URI un-open.
+  await client.closeDocument("file:///tmp/godot-mcp-test-project/scripts/never.gd");
+  assert.equal(client.hasOpenDocument("file:///tmp/godot-mcp-test-project/scripts/never.gd"), false);
+}
+
 console.log("All lsp_client tests passed.");

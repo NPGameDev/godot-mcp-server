@@ -38,9 +38,35 @@ Defined in: [src/lsp/lspClient.ts:251](https://github.com/NPGameDev/godot-mcp-se
 
 > **close**(): `Promise`\<`void`\>
 
-Defined in: [src/lsp/lspClient.ts:442](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L442)
+Defined in: [src/lsp/lspClient.ts:479](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L479)
 
 Graceful shutdown.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
+### closeDocument()
+
+> **closeDocument**(`uri`): `Promise`\<`void`\>
+
+Defined in: [src/lsp/lspClient.ts:409](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L409)
+
+Close a document in the LSP, clearing its open + diagnostics state.
+
+ Keeps client and server open-state in lockstep — the 4.7 GDScript LSP
+ erases per-peer parser state on didClose and ERR_FAILs a re-didOpen of a
+ file it still thinks is open, so a batch that reopens files must close
+ each first. Call only AFTER collecting a URI's diagnostics — never while a
+ waitForDiagnostics for it is still pending.
+
+#### Parameters
+
+##### uri
+
+`string`
 
 #### Returns
 
@@ -66,7 +92,7 @@ Ensure connection is established. Lazy — connects on first call.
 
 > **getEndpoint**(): `object`
 
-Defined in: [src/lsp/lspClient.ts:437](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L437)
+Defined in: [src/lsp/lspClient.ts:474](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L474)
 
 The host:port resolved for the most recent connect attempt (valid after
  doConnect set it — i.e. when a connect was attempted, success or failure).
@@ -89,7 +115,7 @@ The host:port resolved for the most recent connect attempt (valid after
 
 > **isConnected**(): `boolean`
 
-Defined in: [src/lsp/lspClient.ts:431](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L431)
+Defined in: [src/lsp/lspClient.ts:462](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L462)
 
 Check if the client is currently connected.
 
@@ -179,11 +205,18 @@ Send a JSON-RPC request and await the response.
 
 ### waitForDiagnostics()
 
-> **waitForDiagnostics**(`uri`, `timeoutMs?`): `Promise`\<[`DiagnosticEntry`](../type-aliases/DiagnosticEntry.md)[]\>
+> **waitForDiagnostics**(`uri`, `timeoutMs?`): `Promise`\<[`DiagnosticEntry`](../type-aliases/DiagnosticEntry.md)[] \| `undefined`\>
 
-Defined in: [src/lsp/lspClient.ts:397](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L397)
+Defined in: [src/lsp/lspClient.ts:425](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L425)
 
-Wait for diagnostics to arrive for a URI (with timeout).
+Wait for a diagnostics notification for a URI (with timeout).
+
+ Tri-state: a received notification returns its [DiagnosticEntry](../type-aliases/DiagnosticEntry.md)
+ array — which may be `[]` for a clean file (a clean file DOES publish an
+ empty-diagnostics notification on every supported Godot version). A
+ timeout with no notification returns `undefined` — status unknown, which
+ the caller must NOT conflate with clean. The distinction is load-bearing
+ for the project scan: a timed-out file is never counted clean.
 
 #### Parameters
 
@@ -197,4 +230,4 @@ Wait for diagnostics to arrive for a URI (with timeout).
 
 #### Returns
 
-`Promise`\<[`DiagnosticEntry`](../type-aliases/DiagnosticEntry.md)[]\>
+`Promise`\<[`DiagnosticEntry`](../type-aliases/DiagnosticEntry.md)[] \| `undefined`\>

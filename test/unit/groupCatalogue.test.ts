@@ -81,8 +81,16 @@ import { ALL_TOOL_DEFS } from "../../src/registration/catalogue.js";
   );
   assert.deepEqual(
     [...LSP_TOOLS].sort(),
-    ["lsp_completion", "lsp_definition", "lsp_diagnostics", "lsp_hover", "lsp_references", "lsp_symbols"],
-    "LSP_TOOLS holds exactly its 6 language-server tools",
+    [
+      "lsp_completion",
+      "lsp_definition",
+      "lsp_diagnostics",
+      "lsp_hover",
+      "lsp_project_diagnostics",
+      "lsp_references",
+      "lsp_symbols",
+    ],
+    "LSP_TOOLS holds exactly its 7 language-server tools",
   );
 
   for (const t of [...RUNTIME_TOOLS, ...LSP_TOOLS]) {

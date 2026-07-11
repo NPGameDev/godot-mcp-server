@@ -86,8 +86,8 @@ export const editorTools: ToolDef[] = [
     name: "editor_get_console",
     method: "editor.get_console",
     description:
-      "Tail editor Output panel. source='buffer'|'file'. level_filter, since_id, text_filter (is_regex=true for regex). " +
-      "Carries returned/total_lines/has_more + next_id — page via since_id. " +
+      "Tail editor Output. source='buffer' (default): live editor console on 4.5+, game-log tail on 4.2-4.4. source='file': the game-written log (never editor output, any version). " +
+      "level_filter, since_id, text_filter (is_regex=true for regex). Carries returned/total_lines/has_more + next_id — page via since_id. " +
       "Primary post-crash diagnostic tool — reads runtime errors even after game_stop.",
     inputSchema: {
       limit: z.coerce.number().optional(),

@@ -82,7 +82,10 @@ export function lspConnectFailureHint(port: number): string {
   );
 }
 
-async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClient> {
+/** Connect prologue: return the connected singleton {@link LspClient}, or a
+ *  tool-error result carrying the LSP failure code + hint. Exported for the
+ *  project-scan handler, which drives the client directly over many files. @internal */
+export async function ensureLsp(projectPath: string): Promise<ToolTextResult | LspClient> {
   const client = getLspClient(projectPath);
   try {
     await client.ensureConnected();
@@ -123,7 +126,10 @@ async function readFileContent(filePath: string, projectPath: string): Promise<s
   }
 }
 
-async function openDocInLsp(
+/** Read a `res://` file and open it in the LSP, returning its `file://` URI —
+ *  or a tool-error result if the read failed (e.g. the file vanished after the
+ *  walk). Exported for the project-scan handler's per-file open loop. @internal */
+export async function openDocInLsp(
   client: LspClient,
   filePath: string,
   projectPath: string,

@@ -14,7 +14,7 @@ import { addStringCoercion } from "../src/shared/schemaCoercion.js";
 // ── Canonical tool inventory (single source of truth) ───────────────
 import { ALL_TOOL_DEFS } from "../src/registration/catalogue.js";
 
-// ── Import TOOLS_TESTED from all 46 sections ────────────────────────
+// ── Import TOOLS_TESTED from every section ──────────────────────────
 import { TOOLS_TESTED as T01 } from "./sections/01_catalogue.js";
 import { TOOLS_TESTED as T02 } from "./sections/02_scene_node_basics.js";
 import { TOOLS_TESTED as T03 } from "./sections/03_script_ops.js";
@@ -62,6 +62,7 @@ import { TOOLS_TESTED as T44 } from "./sections/44_tileset.js";
 import { TOOLS_TESTED as T45 } from "./sections/45_spatial.js";
 import { TOOLS_TESTED as T46 } from "./sections/46_placeholders.js";
 import { TOOLS_TESTED as T47 } from "./sections/47_batch_partial_failure.js";
+import { TOOLS_TESTED as T48 } from "./sections/48_lsp_project_scan.js";
 
 // ── Unfiltered tool catalogue ───────────────────────────────────────
 
@@ -183,6 +184,7 @@ const ALL_TOOLS_TESTED = new Set([
   ...T45,
   ...T46,
   ...T47,
+  ...T48,
 ]);
 
 // ── Check 1: Schema integrity ───────────────────────────────────────

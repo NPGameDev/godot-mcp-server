@@ -1,11 +1,11 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-07-03 (41n-duodecies — §01 discover_tools version-gate advertise==register assertion)
+**Last updated:** 2026-07-11 (41o-undecies-ter — §48 lsp_project_diagnostics project-scan section)
 **Server commit:** S:11d8d0a (41n-quater-septies; superseded by the landing commit recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
-**Total tools (including on-demand groups):** 110 (33 eager + 77 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
+**Total tools (including on-demand groups):** 111 (33 eager + 78 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
-**Smoke sections:** 47 (sections 01–47)
+**Smoke sections:** 48 (sections 01–48)
 **Flow suite:** 4 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
 **Static structural layer:** `test/structural.ts` (the editor-free half of `npm run smoke:ci`) — asserts tool-name/param-schema/group-membership integrity plus catalogue-wide invariants: tool coverage cross-ref (Check 2), reachability (every tool eager or in an on-demand group), successHint canary (Check 5), `enabled`-optionality parity (Check 7), and the scene_query `offset` pagination param (Check 8). Not tied to any single section — it guards the whole catalogue.
 
@@ -316,7 +316,7 @@ routinely.
 | *(error contract)* | 22 | — | ✓ (empty file_path) | — | ✓ (error hint) | Bridge round-trip of MCPToolkitError shape (41l-vicies-ter) |
 | *(success contract)* | 22 | ✓ (scene.get_tree) | — | — | — | Verifies ADR 0004 success:true at bridge level (hints are server-side via callAndWrap) |
 
-### LSP / Language Intelligence (6 tools — on-demand group)
+### LSP / Language Intelligence (7 tools — on-demand group)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
@@ -326,6 +326,7 @@ routinely.
 | lsp_completion | 41 | ✓ (completion) | — | — | — | Via direct LspClient |
 | lsp_definition | 41 | ✓ (definition) | — | — | — | Via direct LspClient. May return null |
 | lsp_references | 41 | ✓ (references) | — | — | — | Via direct LspClient. May return null |
+| lsp_project_diagnostics | 48 | ✓ (project scan invariant) | ✓ (LSP_UNAVAILABLE mute-chunk → skip) | ✓ (include_addons, include_warnings) | — | Via direct LspClient + createLspHandler. Static: desc ≤200, readOnlyHint, LSP_TOOLS. Live gated on real connect (SKIP if unreachable) |
 
 > **Limitation:** LSP tools are server-side (LspClient connects to Godot's built-in LSP on port 6005). Bridge-level tests are not possible — the smoke test bridge connects directly to the Godot plugin. Group activation and guard tests validated by unit tests (undecies-quinquies).
 
@@ -405,7 +406,7 @@ No critical gaps remain. All tools have at least guard-level coverage.
 - **Partial coverage (missing params or sub-ops):** 18 tools
 - **Minimal coverage (guards only, no happy path):** 1 tool (animation_keyframe)
 - **No coverage:** 0 tools
-- **On-demand group coverage:** LSP (6/6 static, 5/6 live via direct LspClient), Debugger (4/4 via bridge)
+- **On-demand group coverage:** LSP (7/7 static, 6/7 live via direct LspClient), Debugger (4/4 via bridge)
 
 ---
 

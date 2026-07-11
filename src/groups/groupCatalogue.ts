@@ -74,4 +74,5 @@ export const LSP_TOOLS = new Set([
   "lsp_definition",
   "lsp_symbols",
   "lsp_references",
+  "lsp_project_diagnostics",
 ]);

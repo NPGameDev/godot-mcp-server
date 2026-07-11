@@ -373,6 +373,12 @@ export class LspClient {
 
   /** Open a document in the LSP (or update if already open). */
   async openDocument(uri: string, content: string): Promise<void> {
+    // Drop any diagnostics stored for this URI before (re)sending content: an
+    // entry present now predates the new text, and a late publish of it could
+    // otherwise poison the next waitForDiagnostics for this file (the batch
+    // scan multiplies that hazard). The map is keyed by normalizeUri (see
+    // handleNotification), so normalize here too.
+    this.diagnosticsByUri.delete(normalizeUri(uri));
     if (this.openDocuments.has(uri)) {
       // Already open — send didChange with full content.
       this.sendNotification("textDocument/didChange", {
@@ -393,11 +399,34 @@ export class LspClient {
     }
   }
 
-  /** Wait for diagnostics to arrive for a URI (with timeout). */
-  async waitForDiagnostics(uri: string, timeoutMs = 5000): Promise<DiagnosticEntry[]> {
+  /** Close a document in the LSP, clearing its open + diagnostics state.
+   *
+   *  Keeps client and server open-state in lockstep — the 4.7 GDScript LSP
+   *  erases per-peer parser state on didClose and ERR_FAILs a re-didOpen of a
+   *  file it still thinks is open, so a batch that reopens files must close
+   *  each first. Call only AFTER collecting a URI's diagnostics — never while a
+   *  waitForDiagnostics for it is still pending. */
+  async closeDocument(uri: string): Promise<void> {
+    if (this.openDocuments.has(uri)) {
+      this.sendNotification("textDocument/didClose", { textDocument: { uri } });
+    }
+    this.openDocuments.delete(uri);
+    this.diagnosticsByUri.delete(normalizeUri(uri));
+  }
+
+  /** Wait for a diagnostics notification for a URI (with timeout).
+   *
+   *  Tri-state: a received notification returns its {@link DiagnosticEntry}
+   *  array — which may be `[]` for a clean file (a clean file DOES publish an
+   *  empty-diagnostics notification on every supported Godot version). A
+   *  timeout with no notification returns `undefined` — status unknown, which
+   *  the caller must NOT conflate with clean. The distinction is load-bearing
+   *  for the project scan: a timed-out file is never counted clean. */
+  async waitForDiagnostics(uri: string, timeoutMs = 5000): Promise<DiagnosticEntry[] | undefined> {
     const normUri = normalizeUri(uri);
 
-    // Check if we already have diagnostics from the notification.
+    // Check if we already have diagnostics from the notification. `!== undefined`
+    // distinguishes a stored empty array (clean) from nothing stored (unknown).
     const existing = this.diagnosticsByUri.get(normUri);
     if (existing !== undefined) {
       this.diagnosticsByUri.delete(normUri);
@@ -405,12 +434,14 @@ export class LspClient {
     }
 
     // Wait for the notification to arrive.
-    return new Promise<DiagnosticEntry[]>((resolve) => {
+    return new Promise<DiagnosticEntry[] | undefined>((resolve) => {
       const timer = setTimeout(() => {
         this.diagnosticWaiters.delete(normUri);
-        // Final check — notification may have stored diagnostics under
-        // a slightly different key before normalization took effect.
-        const late = this.diagnosticsByUri.get(normUri) ?? [];
+        // Final check — a late publish may have stored diagnostics under
+        // normUri between the wait starting and the timer firing. Present =
+        // received (return it, possibly `[]`); absent = no notification arrived
+        // (return undefined — timed out, NOT clean).
+        const late = this.diagnosticsByUri.get(normUri);
         this.diagnosticsByUri.delete(normUri);
         resolve(late);
       }, timeoutMs);
@@ -418,7 +449,7 @@ export class LspClient {
       this.diagnosticWaiters.set(normUri, {
         resolve: () => {
           clearTimeout(timer);
-          const diags = this.diagnosticsByUri.get(normUri) ?? [];
+          const diags = this.diagnosticsByUri.get(normUri);
           this.diagnosticsByUri.delete(normUri);
           resolve(diags);
         },
@@ -430,6 +461,12 @@ export class LspClient {
   /** Check if the client is currently connected. */
   isConnected(): boolean {
     return this.initialized && !!this.socket && !this.socket.destroyed;
+  }
+
+  /** Whether `uri` is currently tracked as open (post-didOpen, pre-didClose).
+   *  Exposes the open-document bookkeeping for the close-lifecycle tests. @internal */
+  hasOpenDocument(uri: string): boolean {
+    return this.openDocuments.has(uri);
   }
 
   /** The host:port resolved for the most recent connect attempt (valid after

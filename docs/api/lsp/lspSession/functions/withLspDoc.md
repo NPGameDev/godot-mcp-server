@@ -8,7 +8,7 @@
 
 > **withLspDoc**(`filePath`, `projectPath`): `Promise`\<[`ToolTextResult`](../../../shared/types/type-aliases/ToolTextResult.md) \| \{ `client`: [`LspClient`](../../lspClient/classes/LspClient.md); `uri`: `string`; \}\>
 
-Defined in: [src/lsp/lspSession.ts:149](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspSession.ts#L149)
+Defined in: [src/lsp/lspSession.ts:155](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspSession.ts#L155)
 
 The shared LSP-tool prologue, folded into a single call: validate the path,
 ensure the LSP connection, then open the document. Returns the connected

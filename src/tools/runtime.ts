@@ -41,6 +41,8 @@ export const runtimeTools: ToolDef[] = [
     method: "debugger.get_log",
     description:
       "Game output log. Works during gameplay AND after crash (auto-serves cached output). " +
+      "print()/push_* from a running game are captured here on every version (4.2-4.7) — the 'read my own prints to validate a flow' path. " +
+      "Compile errors will NOT appear here (the game must run); use script_check (one file) or lsp_project_diagnostics (whole project). " +
       "source='buffer'|'file'. limit=200. text_filter + is_regex for search. " +
       "+returned/total_lines/has_more (capped tail). " +
       "Right after game_stop the first call may return GAME_NOT_RUNNING while the session registry settles — retry once (the cache serves the next call).",
