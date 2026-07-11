@@ -24,7 +24,14 @@ export const runtimeTools: ToolDef[] = [
     method: "runtime.screenshot",
     description:
       "Capture the running game window. Requires an active playtest (game_start). Use editor_screenshot for the editor viewport. Returns inline PNG.",
-    inputSchema: {},
+    inputSchema: {
+      force_foreground_game: z
+        .boolean()
+        .optional()
+        .describe(
+          "If true, un-minimize + raise/focus the game window before capturing (default false). Set it when runtime_screenshot reports RUNTIME_WINDOW_MINIMIZED; leave false to avoid fighting for focus (esp. parallel game instances).",
+        ),
+    },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint: "For editor viewport use editor_screenshot. Only available while game is running.",
   },
@@ -195,11 +202,19 @@ function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown
       const result = await bridge.callRuntime(method, input);
       const err = toolErrorFromPayload(result);
       if (err) return err;
-      const obj = result as { image_base64: string; mime_type: string; width: number; height: number; bytes: number };
+      const obj = result as {
+        image_base64: string;
+        mime_type: string;
+        width: number;
+        height: number;
+        bytes: number;
+        remediation?: string[];
+      };
       return buildScreenshotResult(obj.image_base64, obj.mime_type, {
         width: obj.width,
         height: obj.height,
         bytes: obj.bytes,
+        remediation: obj.remediation,
       });
     } catch (err) {
       return runtimeErrorWithCrashContext(bridge, err);

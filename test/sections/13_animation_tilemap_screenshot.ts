@@ -2,7 +2,9 @@ import type { TestCtx } from "../helpers.js";
 import {
   CALL_TIMEOUT,
   SCREENSHOT_TIMEOUT,
+  MANUAL_ASSIST,
   assertGuard,
+  manualCue,
   tilemapNodeClass,
   passIfHeadlessUnsupported,
 } from "../helpers.js";
@@ -342,5 +344,77 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     await bridge.call("scene.delete_node", { node_path: tmlPath }, CALL_TIMEOUT);
   } else {
     fail(`tilemap.read_cells: could not create ${tmClass}: ${JSON.stringify(tmlNode)}`);
+  }
+
+  await testEditorViewportRemediation(ctx);
+}
+
+type ScreenshotResult = {
+  image_base64?: string;
+  width?: number;
+  height?: number;
+  code?: string;
+  remediation?: string[];
+};
+
+// editor.screenshot collapsed-viewport remediation. These states (wrong main
+// screen, minimized window) can't be forced programmatically, so they need a
+// human to drive the editor on cue — gated on MCP_MANUAL_ASSIST so an
+// unattended / headless run green-skips instead of hanging. The auto-heal and
+// force_foreground_editor behavior otherwise validates through the toolkit sweep
+// (Validations/Sections/07-editor-console.md 7.2b–7.2e).
+async function testEditorViewportRemediation(ctx: TestCtx): Promise<void> {
+  const { bridge, pass } = ctx;
+  if (!MANUAL_ASSIST) {
+    pass(
+      "editor.screenshot remediation legs skipped (set MCP_MANUAL_ASSIST=1 to drive them; sweep owns positive coverage)",
+    );
+    return;
+  }
+
+  // Auto-heal: on a non-2D/3D main screen a wrong-screen capture heals to 2D/3D
+  // and discloses via remediation:["switched_main_screen"].
+  await manualCue("Select the SCRIPT main-screen tab in the editor");
+  const healed = (await bridge.call("editor.screenshot", {}, SCREENSHOT_TIMEOUT)) as ScreenshotResult;
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot auto-heal", healed)) {
+    // headless — nothing to heal
+  } else if (healed?.image_base64 && (healed.width ?? 0) > 16 && healed.remediation?.includes("switched_main_screen")) {
+    pass(
+      `editor.screenshot wrong-screen auto-heal -> ${healed.width}x${healed.height} remediation=switched_main_screen`,
+    );
+  } else {
+    ctx.fail(
+      `editor.screenshot auto-heal: expected usable frame + switched_main_screen, got ${JSON.stringify(healed).slice(0, 200)}`,
+    );
+  }
+
+  // Minimized: default (no force) returns EDITOR_VIEWPORT_UNAVAILABLE (not a 2x2
+  // PNG, not headless); force_foreground_editor:true un-minimizes + captures.
+  await manualCue("MINIMIZE the editor window now");
+  const minimized = (await bridge.call("editor.screenshot", {}, SCREENSHOT_TIMEOUT)) as ScreenshotResult;
+  if (!passIfHeadlessUnsupported(ctx, "editor.screenshot minimized", minimized)) {
+    if (minimized?.code === "EDITOR_VIEWPORT_UNAVAILABLE")
+      pass("editor.screenshot minimized -> EDITOR_VIEWPORT_UNAVAILABLE (not 2x2, not headless)");
+    else
+      ctx.fail(
+        `editor.screenshot minimized: expected EDITOR_VIEWPORT_UNAVAILABLE, got ${JSON.stringify(minimized).slice(0, 200)}`,
+      );
+  }
+
+  const forced = (await bridge.call(
+    "editor.screenshot",
+    { force_foreground_editor: true },
+    SCREENSHOT_TIMEOUT,
+  )) as ScreenshotResult;
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot force_foreground", forced)) {
+    // headless — nothing to foreground
+  } else if (forced?.image_base64 && (forced.width ?? 0) > 16 && forced.remediation?.includes("foregrounded_editor")) {
+    pass(
+      `editor.screenshot force_foreground_editor -> ${forced.width}x${forced.height} remediation=foregrounded_editor`,
+    );
+  } else {
+    ctx.fail(
+      `editor.screenshot force_foreground: expected usable frame + foregrounded_editor, got ${JSON.stringify(forced).slice(0, 200)}`,
+    );
   }
 }

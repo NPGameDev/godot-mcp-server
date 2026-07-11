@@ -8,7 +8,7 @@
 
 > **ToolDef** = `object`
 
-Defined in: [src/shared/types.ts:142](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L142)
+Defined in: [src/shared/types.ts:144](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L144)
 
 One built-in tool's static definition — the catalogue entry the registration
 layer turns into a live MCP tool. The catalogue is the SSOT; every field here
@@ -20,7 +20,7 @@ is consumed at registration time.
 
 > `optional` **annotations?**: [`ToolAnnotations`](ToolAnnotations.md)
 
-Defined in: [src/shared/types.ts:147](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L147)
+Defined in: [src/shared/types.ts:149](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L149)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [src/shared/types.ts:147](https://github.com/NPGameDev/godot-mcp-ser
 
 > **description**: `string`
 
-Defined in: [src/shared/types.ts:145](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L145)
+Defined in: [src/shared/types.ts:147](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L147)
 
 ***
 
@@ -36,7 +36,7 @@ Defined in: [src/shared/types.ts:145](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **godotMaxVersion?**: `string`
 
-Defined in: [src/shared/types.ts:151](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L151)
+Defined in: [src/shared/types.ts:153](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L153)
 
 Maximum Godot version supported ("major.minor", e.g. "4.6"). Omit for no upper bound.
 
@@ -46,7 +46,7 @@ Maximum Godot version supported ("major.minor", e.g. "4.6"). Omit for no upper b
 
 > `optional` **godotMinVersion?**: `string`
 
-Defined in: [src/shared/types.ts:149](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L149)
+Defined in: [src/shared/types.ts:151](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L151)
 
 Minimum Godot version required ("major.minor", e.g. "4.5"). Omit for 4.2+ (baseline).
 
@@ -56,7 +56,7 @@ Minimum Godot version required ("major.minor", e.g. "4.5"). Omit for 4.2+ (basel
 
 > **inputSchema**: `ZodRawShape`
 
-Defined in: [src/shared/types.ts:146](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L146)
+Defined in: [src/shared/types.ts:148](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L148)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [src/shared/types.ts:146](https://github.com/NPGameDev/godot-mcp-ser
 
 > **method**: `string`
 
-Defined in: [src/shared/types.ts:144](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L144)
+Defined in: [src/shared/types.ts:146](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L146)
 
 ***
 
@@ -72,7 +72,7 @@ Defined in: [src/shared/types.ts:144](https://github.com/NPGameDev/godot-mcp-ser
 
 > **name**: `string`
 
-Defined in: [src/shared/types.ts:143](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L143)
+Defined in: [src/shared/types.ts:145](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L145)
 
 ***
 
@@ -80,7 +80,7 @@ Defined in: [src/shared/types.ts:143](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **pathParams?**: readonly [`PathGuard`](PathGuard.md)[]
 
-Defined in: [src/shared/types.ts:157](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L157)
+Defined in: [src/shared/types.ts:159](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L159)
 
 Filesystem-path params to syntactically pre-filter before dispatch (strict
  subset of the toolkit guard). Omit for tools with no fs path, or for params
@@ -92,6 +92,6 @@ Filesystem-path params to syntactically pre-filter before dispatch (strict
 
 > `optional` **successHint?**: `string`
 
-Defined in: [src/shared/types.ts:153](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L153)
+Defined in: [src/shared/types.ts:155](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L155)
 
 Brief guidance appended to successful responses — next steps, related tools, common pitfalls. Omit for terminal actions or self-evident results. Does not overwrite toolkit-provided hints.

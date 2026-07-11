@@ -40,6 +40,7 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
         height?: number;
         bytes?: number;
         path?: string;
+        remediation?: string[];
       };
       if (!obj?.image_base64) {
         return toolErrorFromPayload({
@@ -54,6 +55,7 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
         height: obj.height,
         bytes: obj.bytes,
         path: obj.path,
+        remediation: obj.remediation,
       });
     } catch (err) {
       return toolErrorFromException(err);

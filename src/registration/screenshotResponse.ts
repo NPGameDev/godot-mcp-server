@@ -22,12 +22,15 @@ export type ScreenshotResult = {
  * @param mimeType    image MIME type; falls back to "image/png" when absent.
  * @param meta        metadata serialized into the text block. Editor/group
  *                    screenshots pass `path`; runtime omits it, so its `path` is
- *                    undefined and `JSON.stringify` drops the key.
+ *                    undefined and `JSON.stringify` drops the key. `remediation`
+ *                    names any visible side effect the toolkit took to produce a
+ *                    usable frame (main-screen switch, foregrounding) — absent
+ *                    when none, so the agent sees it only when it happened.
  */
 export function buildScreenshotResult(
   imageBase64: string,
   mimeType: string | undefined,
-  meta: { width?: number; height?: number; bytes?: number; path?: string },
+  meta: { width?: number; height?: number; bytes?: number; path?: string; remediation?: string[] },
 ): ScreenshotResult {
   return {
     content: [
@@ -39,6 +42,7 @@ export function buildScreenshotResult(
           height: meta.height,
           bytes: meta.bytes,
           path: meta.path,
+          remediation: meta.remediation,
         }),
       },
     ],

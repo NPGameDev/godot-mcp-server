@@ -7,8 +7,10 @@ import {
   PROBE_TIMEOUT_MS,
   CALL_TIMEOUT,
   SCREENSHOT_TIMEOUT,
+  MANUAL_ASSIST,
   probePort,
   assertHint,
+  manualCue,
   callRetryOnTimeout,
 } from "../helpers.js";
 
@@ -62,6 +64,47 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
       const buf = Buffer.from(runtimeScreenshot.image_base64, "base64");
       if (buf[0] !== 0x89 || buf[1] !== 0x50) fail("runtime.screenshot: PNG magic missing");
       else pass(`runtime.screenshot PNG ${buf.length}B (${runtimeScreenshot.width}x${runtimeScreenshot.height})`);
+    }
+
+    // Minimized game window — a suspended-render window returns a diagnostic
+    // RUNTIME_WINDOW_MINIMIZED (not a 30 s TIMEOUT, not a stale PNG);
+    // force_foreground_game:true un-minimizes + captures fresh. Can't be forced
+    // programmatically, so it's gated on MCP_MANUAL_ASSIST (a human minimizes the
+    // game on cue); otherwise green-skip. Positive coverage also lives in the
+    // toolkit sweep (Validations/Sections/20-runtime.md 20.5c–20.5d).
+    if (MANUAL_ASSIST) {
+      await manualCue("MINIMIZE the running game window now");
+      const minShot = (await bridge.callRuntime("runtime.screenshot", {}, SCREENSHOT_TIMEOUT)) as {
+        code?: string;
+      };
+      if (minShot?.code === "RUNTIME_WINDOW_MINIMIZED")
+        pass("runtime.screenshot minimized -> RUNTIME_WINDOW_MINIMIZED (not TIMEOUT, not stale PNG)");
+      else
+        fail(
+          `runtime.screenshot minimized: expected RUNTIME_WINDOW_MINIMIZED, got ${JSON.stringify(minShot).slice(0, 200)}`,
+        );
+
+      const forcedShot = (await bridge.callRuntime(
+        "runtime.screenshot",
+        { force_foreground_game: true },
+        SCREENSHOT_TIMEOUT,
+      )) as { image_base64?: string; width?: number; height?: number };
+      if (forcedShot?.image_base64) {
+        const fbuf = Buffer.from(forcedShot.image_base64, "base64");
+        if (fbuf[0] === 0x89 && fbuf[1] === 0x50)
+          pass(
+            `runtime.screenshot force_foreground_game -> fresh PNG ${fbuf.length}B (${forcedShot.width}x${forcedShot.height})`,
+          );
+        else fail("runtime.screenshot force_foreground_game: PNG magic missing");
+      } else {
+        fail(
+          `runtime.screenshot force_foreground_game: expected fresh PNG, got ${JSON.stringify(forcedShot).slice(0, 200)}`,
+        );
+      }
+    } else {
+      pass(
+        "runtime.screenshot minimized legs skipped (set MCP_MANUAL_ASSIST=1 to drive them; sweep owns positive coverage)",
+      );
     }
 
     const nodeState = (await bridge.callRuntime("runtime.get_node_state", { node_path: "/root" }, CALL_TIMEOUT)) as {

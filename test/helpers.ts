@@ -15,6 +15,26 @@ export const CALL_TIMEOUT = 5000;
 export const SCREENSHOT_TIMEOUT = 10000;
 export const IMPORT_TIMEOUT = 15000;
 
+/**
+ * True when a human is present to drive editor/game window state on cue (minimize
+ * the window, switch the main screen). Manual-assist behavioral legs — which can't
+ * be forced programmatically — run only when `MCP_MANUAL_ASSIST=1` is set;
+ * otherwise they green-skip so an unattended / headless run never hangs waiting on
+ * a person. Schema + error-contract assertions run regardless of this flag.
+ */
+export const MANUAL_ASSIST = process.env.MCP_MANUAL_ASSIST === "1";
+
+/**
+ * Pause for a human to set up the next manual-assist step, then continue. Prints
+ * the cue to stderr and waits `waitMs` (default 8 s) — long enough to minimize a
+ * window or switch a tab. Only called from a leg already gated on
+ * {@link MANUAL_ASSIST}.
+ */
+export async function manualCue(prompt: string, waitMs = 8000): Promise<void> {
+  process.stderr.write(`\n  [MANUAL-ASSIST] ${prompt} — continuing in ${Math.round(waitMs / 1000)}s...\n`);
+  await new Promise((r) => setTimeout(r, waitMs));
+}
+
 // ─── Version-aware node classes ────────────────────────────────────────────
 
 /**

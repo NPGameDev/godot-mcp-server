@@ -33,6 +33,12 @@ export const editorTools: ToolDef[] = [
         .object({ width: z.coerce.number(), height: z.coerce.number() })
         .optional()
         .describe("Output size when capturing a specific node (default 1280x720)"),
+      force_foreground_editor: z
+        .boolean()
+        .optional()
+        .describe(
+          "If true, un-minimize + raise/focus the editor window before capturing (default false). Set it when driving from a terminal and editor_screenshot reports EDITOR_VIEWPORT_UNAVAILABLE; leave false in interactive use so your window isn't raised.",
+        ),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint: "For running game visuals use runtime_screenshot. Pass node_path for focused capture.",
@@ -180,6 +186,7 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
     height?: number;
     bytes?: number;
     path?: string;
+    remediation?: string[];
   };
   try {
     result = (await bridge.call(method, input ?? {})) as typeof result;
@@ -201,6 +208,7 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
     height: result.height,
     bytes: result.bytes,
     path: result.path,
+    remediation: result.remediation,
   });
 }
 

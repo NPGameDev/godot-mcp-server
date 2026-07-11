@@ -1,9 +1,18 @@
 import { editorTools } from "../../src/tools/editor.js";
+import { runtimeTools } from "../../src/tools/runtime.js";
 import { ALL_TOOL_DEFS, ALL_TOOL_NAMES, META_TOOL_NAMES } from "../../src/registration/catalogue.js";
 import { GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "../../src/groups/groups.js";
 import { reportGroupStatusByName } from "../../src/groups/groupActivation.js";
 import { isVersionAtLeast } from "../../src/shared/version.js";
-import type { ToolDef } from "../../src/shared/types.js";
+import type { ErrorCode, ToolDef } from "../../src/shared/types.js";
+
+// The screenshot viewport-unavailable codes must remain members of the ErrorCode
+// union — a compile-time assertion, so a rename in types.ts breaks the build here
+// rather than silently drifting the cross-repo contract.
+const SCREENSHOT_ERROR_CODES = [
+  "EDITOR_VIEWPORT_UNAVAILABLE",
+  "RUNTIME_WINDOW_MINIMIZED",
+] as const satisfies readonly ErrorCode[];
 
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, deepEqual } from "../helpers.js";
@@ -138,6 +147,29 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
       `version-gate: scene_close has godotMinVersion=${(sceneClose as ToolDef & { godotMinVersion?: string }).godotMinVersion}`,
     );
   }
+
+  // Screenshot force-foreground params — the opt-in levers must be advertised on
+  // their tools' input schema so an agent can retry a viewport-unavailable
+  // capture. Structural, so it runs headless / in smoke:ci.
+  const editorShot = editorTools.find((t: ToolDef) => t.name === "editor_screenshot");
+  if (editorShot && "force_foreground_editor" in editorShot.inputSchema)
+    pass("editor_screenshot advertises force_foreground_editor");
+  else
+    fail(
+      `editor_screenshot missing force_foreground_editor param: ${JSON.stringify(Object.keys(editorShot?.inputSchema ?? {}))}`,
+    );
+
+  const runtimeShot = runtimeTools.find((t: ToolDef) => t.name === "runtime_screenshot");
+  if (runtimeShot && "force_foreground_game" in runtimeShot.inputSchema)
+    pass("runtime_screenshot advertises force_foreground_game");
+  else
+    fail(
+      `runtime_screenshot missing force_foreground_game param: ${JSON.stringify(Object.keys(runtimeShot?.inputSchema ?? {}))}`,
+    );
+
+  // The two viewport-unavailable codes are wired into the ErrorCode union (the
+  // `satisfies` above is the compile-time guard; this records it in the report).
+  pass(`viewport-unavailable codes in ErrorCode union (${SCREENSHOT_ERROR_CODES.join(", ")})`);
 }
 
 export async function testCatalogue(ctx: TestCtx): Promise<void> {
