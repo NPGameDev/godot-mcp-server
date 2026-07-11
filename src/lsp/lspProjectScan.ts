@@ -16,7 +16,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { DiagnosticEntry } from "./lspClient.js";
-import { severityLabel } from "./lspLabels.js";
+import { formatDiagnostic, type FormattedDiagnostic } from "./lspLabels.js";
 
 // LSP diagnostic severity 1 = Error (2 = Warning, 3 = Information, 4 = Hint).
 // The errors-only default keeps a file with only warnings classified as clean.
@@ -103,15 +103,6 @@ export type FileScanResult =
   | { filePath: string; kind: "diagnostics"; diagnostics: DiagnosticEntry[] }
   | { filePath: string; kind: "timed_out" }
   | { filePath: string; kind: "read_failed" };
-
-/** One diagnostic formatted for the response — 1-based line/character, severity label. */
-type FormattedDiagnostic = {
-  line: number;
-  character: number;
-  severity: string;
-  message: string;
-  code?: string | number;
-};
 
 /** A dirty file in the response payload — its `res://` path and formatted diagnostics. */
 type FileWithDiagnostics = {
@@ -201,15 +192,4 @@ export function aggregateScan(results: FileScanResult[], timeoutSeconds: number)
 export function filterBySeverity(diagnostics: DiagnosticEntry[], includeWarnings: boolean): DiagnosticEntry[] {
   if (includeWarnings) return diagnostics;
   return diagnostics.filter((d) => d.severity === SEVERITY_ERROR);
-}
-
-/** Map a raw diagnostic to the response shape — 1-based line/character, severity label, code only when present. */
-function formatDiagnostic(d: DiagnosticEntry): FormattedDiagnostic {
-  return {
-    line: d.line + 1,
-    character: d.character + 1,
-    severity: severityLabel(d.severity),
-    message: d.message,
-    ...(d.code != null ? { code: d.code } : {}),
-  };
 }

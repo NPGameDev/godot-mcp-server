@@ -1,8 +1,19 @@
 /**
  * Pure LSP enum → human-readable label mappings: diagnostic severity, symbol
- * kind, and completion-item kind, plus document-symbol tree formatting. Leaf
- * module — zero project dependencies, consumed by the LSP tool layer.
+ * kind, and completion-item kind, plus document-symbol + diagnostic formatting.
+ * Leaf module — depends only on the DiagnosticEntry shape; consumed by the LSP
+ * tool layer.
  */
+import type { DiagnosticEntry } from "./lspClient.js";
+
+/** A diagnostic formatted for a tool response: 1-based line/character, severity label, code only when present. */
+export type FormattedDiagnostic = {
+  line: number;
+  character: number;
+  severity: string;
+  message: string;
+  code?: string | number;
+};
 
 /** Severity number → human-readable label. */
 export function severityLabel(severity: number): string {
@@ -18,6 +29,23 @@ export function severityLabel(severity: number): string {
     default:
       return "Unknown";
   }
+}
+
+/**
+ * Map a raw {@link DiagnosticEntry} to its tool-response shape — the single
+ * source of the diagnostic-to-JSON contract shared by the single-file and
+ * project-wide diagnostics tools. Converts the LSP's 0-based line/character to
+ * 1-based for display, labels the numeric severity, and includes `code` only
+ * when the server supplied one.
+ */
+export function formatDiagnostic(d: DiagnosticEntry): FormattedDiagnostic {
+  return {
+    line: d.line + 1,
+    character: d.character + 1,
+    severity: severityLabel(d.severity),
+    message: d.message,
+    ...(d.code != null ? { code: d.code } : {}),
+  };
 }
 
 export function formatSymbol(sym: unknown): Record<string, unknown> {

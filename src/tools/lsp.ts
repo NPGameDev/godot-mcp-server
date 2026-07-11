@@ -11,7 +11,7 @@ import { toolError } from "../shared/errorContract.js";
 import { coercedBoolean } from "../shared/schemaCoercion.js";
 import { untrustedWrap } from "../security/untrusted.js";
 import { fileUriToRes } from "../lsp/lspUri.js";
-import { severityLabel, completionKindLabel, formatSymbol } from "../lsp/lspLabels.js";
+import { formatDiagnostic, completionKindLabel, formatSymbol } from "../lsp/lspLabels.js";
 import { withLspDoc, ensureLsp, openDocInLsp } from "../lsp/lspSession.js";
 import type { LspClient } from "../lsp/lspClient.js";
 import { enumerateGdFiles, aggregateScan, filterBySeverity, type FileScanResult } from "../lsp/lspProjectScan.js";
@@ -248,13 +248,7 @@ async function handleDiagnostics(input: unknown, projectPath: string): Promise<T
     };
   }
 
-  const formatted = diagnostics.map((d) => ({
-    line: d.line + 1, // Convert to 1-based for user display.
-    character: d.character + 1,
-    severity: severityLabel(d.severity),
-    message: d.message,
-    ...(d.code != null ? { code: d.code } : {}),
-  }));
+  const formatted = diagnostics.map(formatDiagnostic);
 
   return {
     content: [
