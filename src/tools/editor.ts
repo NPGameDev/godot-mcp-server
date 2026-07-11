@@ -25,14 +25,25 @@ export const editorTools: ToolDef[] = [
     name: "editor_screenshot",
     method: "editor.screenshot",
     description:
-      "Capture the editor viewport (NOT the running game). Use runtime_screenshot to capture the game window while it's running. Optional save_path (res:// .png) persists to disk. Pass node_path to focus + capture a specific node (atomic focus-restore).",
+      "Capture the editor viewport (NOT the running game — use runtime_screenshot for that). Pass node_path to focus one node. image_response_mode 'disk' saves the PNG and returns only its path.",
     inputSchema: {
-      save_path: z.string().optional(),
+      save_path: z
+        .string()
+        .optional()
+        .describe(
+          "Destination .png used by image_response_mode disk/both (res:// or user://screenshots/); auto-named under user://screenshots/ when omitted.",
+        ),
       node_path: z.string().optional().describe("Focus + capture a specific node instead of the full viewport"),
       size: z
         .object({ width: z.coerce.number(), height: z.coerce.number() })
         .optional()
         .describe("Output size when capturing a specific node (default 1280x720)"),
+      image_response_mode: z
+        .enum(["inline", "disk", "both"])
+        .optional()
+        .describe(
+          "How to return the capture: 'inline' (default) embeds the PNG; 'disk' persists it and returns only the path — use for very large captures or to conserve context tokens; 'both' does both.",
+        ),
       force_foreground_editor: z
         .boolean()
         .optional()
@@ -173,10 +184,11 @@ async function consoleSummaryHandler(bridge: Bridge, method: string, input: unkn
 }
 
 /**
- * Multi-content handler for editor screenshot tools. Both return the same
- * plugin-side shape ({ image_base64, mime_type, width, height, bytes,
- * path }); the difference is the input contract, which the bridge call
- * carries through unchanged.
+ * Handler for the editor screenshot tool. The inline/both capture returns an
+ * image block plus metadata; a disk-mode capture persists the PNG toolkit-side
+ * and returns just its file path (no image bytes) — that lean payload carries a
+ * `path` with no `image_base64`, so it takes the disk branch before the
+ * empty-content guard rather than being mistaken for a failed capture.
  */
 async function screenshotHandler(bridge: Bridge, method: string, input: unknown) {
   let result: {
@@ -187,6 +199,7 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
     bytes?: number;
     path?: string;
     remediation?: string[];
+    hint?: string;
   };
   try {
     result = (await bridge.call(method, input ?? {})) as typeof result;
@@ -195,6 +208,18 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
   }
   const payloadErr = toolErrorFromPayload(result);
   if (payloadErr) return payloadErr;
+  // Disk-mode capture: PNG persisted, only the path returned. A saved path with
+  // no image bytes is a success, not the empty-content failure below.
+  if (result?.path && !result.image_base64) {
+    return buildScreenshotResult(undefined, result.mime_type, {
+      width: result.width,
+      height: result.height,
+      bytes: result.bytes,
+      path: result.path,
+      remediation: result.remediation,
+      hint: result.hint,
+    });
+  }
   if (!result?.image_base64) {
     return toolErrorFromPayload({
       success: false,
@@ -209,6 +234,7 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
     bytes: result.bytes,
     path: result.path,
     remediation: result.remediation,
+    hint: result.hint,
   });
 }
 

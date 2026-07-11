@@ -4,6 +4,9 @@
  * (tools/editor.ts, tools/runtime.ts, groups.ts) shared: image-first ordering,
  * the "image/png" mime fallback, and the exact metadata JSON bytes (key order
  * width,height,bytes,path — with `path` for editor/group, dropped for runtime).
+ * Also pins the disk-mode variant: an undefined image yields a single lean text
+ * block (key order path,width,height,bytes,mime_type) with no image block, and
+ * the optional `hint` relays on both variants.
  */
 import assert from "node:assert/strict";
 import { buildScreenshotResult } from "../../src/registration/screenshotResponse.js";
@@ -41,6 +44,62 @@ import { buildScreenshotResult } from "../../src/registration/screenshotResponse
   assert.deepEqual(r.content, [
     { type: "image", data: "abc", mimeType: "image/jpeg" },
     { type: "text", text: '{"width":1,"height":2,"bytes":3,"path":"res://x.png"}' },
+  ]);
+}
+
+// ── Disk mode: undefined image → a single lean text block, no image block ─
+
+{
+  const r = buildScreenshotResult(undefined, "image/png", {
+    width: 1280,
+    height: 720,
+    bytes: 5498,
+    path: "C:/proj/screenshots/shot.png",
+  });
+  // Exactly one content part, and it is text (never an empty image block).
+  assert.equal(r.content.length, 1, "disk mode must return a single content part");
+  assert.equal(r.content[0].type, "text", "disk mode content must be the text block");
+  // Lean envelope, key order path,width,height,bytes,mime_type; no image_base64.
+  assert.deepEqual(r.content, [
+    {
+      type: "text",
+      text: '{"path":"C:/proj/screenshots/shot.png","width":1280,"height":720,"bytes":5498,"mime_type":"image/png"}',
+    },
+  ]);
+}
+
+// ── Disk mode: an absent mimeType is dropped from the lean envelope ──
+
+{
+  const r = buildScreenshotResult(undefined, undefined, { width: 1, height: 2, bytes: 3, path: "user://s/x.png" });
+  assert.deepEqual(r.content, [{ type: "text", text: '{"path":"user://s/x.png","width":1,"height":2,"bytes":3}' }]);
+}
+
+// ── hint passthrough (disk branch): appended after mime_type ─────────
+
+{
+  const r = buildScreenshotResult(undefined, "image/png", {
+    width: 1,
+    height: 2,
+    bytes: 3,
+    path: "user://s/x.png",
+    hint: "retry smaller",
+  });
+  assert.deepEqual(r.content, [
+    {
+      type: "text",
+      text: '{"path":"user://s/x.png","width":1,"height":2,"bytes":3,"mime_type":"image/png","hint":"retry smaller"}',
+    },
+  ]);
+}
+
+// ── hint passthrough (image branch): appended after remediation slot ──
+
+{
+  const r = buildScreenshotResult("abc", "image/png", { width: 1, height: 2, bytes: 3, hint: "foreground it" });
+  assert.deepEqual(r.content, [
+    { type: "image", data: "abc", mimeType: "image/png" },
+    { type: "text", text: '{"width":1,"height":2,"bytes":3,"hint":"foreground it"}' },
   ]);
 }
 

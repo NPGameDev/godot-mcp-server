@@ -4,34 +4,62 @@
  */
 
 /**
- * A screenshot tool's multi-content MCP response: an image block first, then a
- * text metadata block. Not `ToolTextResult` (which is text-only) — the MCP SDK
- * accepts image content at runtime and each handler casts at its registration
- * site.
+ * A screenshot tool's MCP response. With image bytes it is multi-content — an
+ * image block first, then a text metadata block; without them (a disk-only
+ * capture) it is a single text block carrying the on-disk file path. Not
+ * `ToolTextResult` (which is text-only), because the image variant carries an
+ * image block the MCP SDK accepts at runtime; each handler casts at its
+ * registration site.
  */
 export type ScreenshotResult = {
   content: ({ type: "image"; data: string; mimeType: string } | { type: "text"; text: string })[];
 };
 
 /**
- * Build the multi-content response for a screenshot tool: the captured image
- * first, then a JSON metadata text block. Image-first matches every screenshot
- * handler's wire contract — the agent sees the picture, then the dimensions.
+ * Build a screenshot tool's response from the toolkit payload.
  *
- * @param imageBase64 base64-encoded image bytes from the toolkit (`image_base64`).
- * @param mimeType    image MIME type; falls back to "image/png" when absent.
- * @param meta        metadata serialized into the text block. Editor/group
- *                    screenshots pass `path`; runtime omits it, so its `path` is
- *                    undefined and `JSON.stringify` drops the key. `remediation`
- *                    names any visible side effect the toolkit took to produce a
- *                    usable frame (main-screen switch, foregrounding) — absent
- *                    when none, so the agent sees it only when it happened.
+ * When `imageBase64` is present the response is image-first: the captured image
+ * block, then a JSON metadata text block — the agent sees the picture, then the
+ * dimensions. When it is absent (a `disk`-mode capture that persisted the PNG
+ * and returned only its path), the response is a single lean text block naming
+ * the on-disk `path` — no empty image block.
+ *
+ * @param imageBase64 base64 image bytes from the toolkit (`image_base64`), or
+ *                    `undefined` for a disk-only capture that persisted the PNG.
+ * @param mimeType    image MIME type; the image block falls back to "image/png"
+ *                    when absent, and the disk text block omits it when absent.
+ * @param meta        metadata serialized into the text block. `path` is the
+ *                    saved file path (disk/both) or a node echo (inline node
+ *                    focus); `hint` is any toolkit guidance to relay; `remediation`
+ *                    names a visible side effect the toolkit took (main-screen
+ *                    switch, foregrounding). Undefined keys are dropped by
+ *                    `JSON.stringify`, so each appears only when present.
  */
 export function buildScreenshotResult(
-  imageBase64: string,
+  imageBase64: string | undefined,
   mimeType: string | undefined,
-  meta: { width?: number; height?: number; bytes?: number; path?: string; remediation?: string[] },
+  meta: { width?: number; height?: number; bytes?: number; path?: string; remediation?: string[]; hint?: string },
 ): ScreenshotResult {
+  if (imageBase64 === undefined) {
+    // Disk-only capture: the toolkit saved the PNG and returned just its path.
+    // Lean text envelope (path first — the actionable field), no image block.
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            path: meta.path,
+            width: meta.width,
+            height: meta.height,
+            bytes: meta.bytes,
+            mime_type: mimeType,
+            remediation: meta.remediation,
+            hint: meta.hint,
+          }),
+        },
+      ],
+    };
+  }
   return {
     content: [
       { type: "image", data: imageBase64, mimeType: mimeType ?? "image/png" },
@@ -43,6 +71,7 @@ export function buildScreenshotResult(
           bytes: meta.bytes,
           path: meta.path,
           remediation: meta.remediation,
+          hint: meta.hint,
         }),
       },
     ],

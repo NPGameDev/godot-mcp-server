@@ -26,7 +26,11 @@ function handleSignalEmit(bridge: Bridge, def: ToolDef) {
   };
 }
 
-/** editor_screenshot returns multi-content (image + text metadata). */
+/**
+ * editor_screenshot returns an image block plus metadata for an inline/both
+ * capture, or a lean text-only path envelope for a disk-mode capture (PNG
+ * persisted toolkit-side, only its file path returned — no image bytes).
+ */
 function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
   return async (input: unknown) => {
     try {
@@ -41,7 +45,20 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
         bytes?: number;
         path?: string;
         remediation?: string[];
+        hint?: string;
       };
+      // Disk-mode capture: a saved path with no image bytes is a success, not the
+      // empty-content failure below.
+      if (obj?.path && !obj.image_base64) {
+        return buildScreenshotResult(undefined, obj.mime_type, {
+          width: obj.width,
+          height: obj.height,
+          bytes: obj.bytes,
+          path: obj.path,
+          remediation: obj.remediation,
+          hint: obj.hint,
+        });
+      }
       if (!obj?.image_base64) {
         return toolErrorFromPayload({
           success: false,
@@ -56,6 +73,7 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
         bytes: obj.bytes,
         path: obj.path,
         remediation: obj.remediation,
+        hint: obj.hint,
       });
     } catch (err) {
       return toolErrorFromException(err);

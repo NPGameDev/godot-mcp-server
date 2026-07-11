@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT, assertGuard, passIfHeadlessUnsupported } from "../helpers.js";
 
@@ -64,18 +66,39 @@ export async function testSecurity(ctx: TestCtx): Promise<void> {
     "..",
   );
 
-  // Screenshot user://screenshots/ whitelist.
+  // Screenshot user://screenshots/ whitelist — an ALLOWED destination must be
+  // accepted (no PATH_DENIED) and actually persisted. Persistence needs a
+  // disk-writing mode ("both" keeps the image assertion too); the returned path
+  // is the globalized absolute location of the saved file.
   const userShotPath = "user://screenshots/smoke_sec.png";
-  const userScreenshot = (await bridge.call("editor.screenshot", { save_path: userShotPath }, SCREENSHOT_TIMEOUT)) as {
+  const userScreenshot = (await bridge.call(
+    "editor.screenshot",
+    { save_path: userShotPath, image_response_mode: "both" },
+    SCREENSHOT_TIMEOUT,
+  )) as {
     path?: string;
     image_base64?: string;
     code?: string;
   };
   if (passIfHeadlessUnsupported(ctx, "editor.screenshot user://screenshots/ whitelist", userScreenshot)) {
     // headless — no capture
-  } else if (userScreenshot?.path !== userShotPath || !userScreenshot.image_base64)
-    fail(`editor.screenshot user://screenshots/ whitelist: ${JSON.stringify(userScreenshot)}`);
-  else pass(`editor.screenshot user://screenshots/ whitelist -> ${userScreenshot.path}`);
+  } else if (
+    !userScreenshot?.image_base64 ||
+    typeof userScreenshot.path !== "string" ||
+    !userScreenshot.path.endsWith("smoke_sec.png") ||
+    !fs.existsSync(userScreenshot.path)
+  ) {
+    fail(
+      `editor.screenshot user://screenshots/ whitelist: expected image + persisted file, got ${JSON.stringify({ ...userScreenshot, image_base64: userScreenshot?.image_base64 ? "<present>" : undefined })}`,
+    );
+  } else {
+    pass(`editor.screenshot user://screenshots/ whitelist -> accepted + persisted at ${userScreenshot.path}`);
+    try {
+      fs.unlinkSync(userScreenshot.path);
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
   const otherShot = await bridge.call("editor.screenshot", { save_path: "user://other/x.png" }, CALL_TIMEOUT);
   if (!passIfHeadlessUnsupported(ctx, "editor.screenshot user://other/x.png", otherShot)) {
     assertGuard(ctx, "editor.screenshot user://other/x.png", otherShot, "PATH_DENIED", "user://screenshots");

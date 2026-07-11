@@ -273,4 +273,41 @@ export async function testSceneNodeBasics(ctx: TestCtx): Promise<void> {
   } else {
     fail(`scene.create_node with unknown property should still create node: ${JSON.stringify(badPropNode)}`);
   }
+
+  // ── scene.create_node inline-property drop reporting ──
+  // Wire-form values that node_set_property rejects (a bare string for a Resource
+  // property, a bare array for a struct property) are dropped by Godot's set(),
+  // not applied. The inline-property loop must report them as properties_failed
+  // (not silently count them in properties_set), matching node_set_property's
+  // direct-call rejection of the same values.
+  const dropReportNode = (await bridge.call(
+    "scene.create_node",
+    {
+      class_name: "Sprite2D",
+      parent_path: ".",
+      node_name: "MCPSmokeDropReport",
+      properties: { texture: "res://icon.svg", scale: [4, 4] },
+    },
+    CALL_TIMEOUT,
+  )) as {
+    status?: string;
+    path?: string;
+    properties_set?: number;
+    properties_failed?: Array<{ name: string; error: string }>;
+  };
+  if (dropReportNode?.status === "created" || dropReportNode?.status === "returned") {
+    const failedNames = (dropReportNode.properties_failed ?? []).map((f) => f.name);
+    if (dropReportNode.properties_set !== 0)
+      fail(
+        `scene.create_node drop reporting: expected properties_set=0, got ${dropReportNode.properties_set} (failed: ${JSON.stringify(dropReportNode.properties_failed)})`,
+      );
+    else if (!failedNames.includes("texture") || !failedNames.includes("scale"))
+      fail(
+        `scene.create_node drop reporting: expected properties_failed naming texture + scale, got ${JSON.stringify(dropReportNode.properties_failed)}`,
+      );
+    else pass(`scene.create_node bad-form inline props -> properties_set=0, properties_failed names texture + scale`);
+    await bridge.call("scene.delete_node", { node_path: dropReportNode.path ?? "MCPSmokeDropReport" }, CALL_TIMEOUT);
+  } else {
+    fail(`scene.create_node bad-form inline props should still create node: ${JSON.stringify(dropReportNode)}`);
+  }
 }

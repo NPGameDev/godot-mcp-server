@@ -23,8 +23,20 @@ export const runtimeTools: ToolDef[] = [
     name: "runtime_screenshot",
     method: "runtime.screenshot",
     description:
-      "Capture the running game window. Requires an active playtest (game_start). Use editor_screenshot for the editor viewport. Returns inline PNG.",
+      "Capture the running game window. Requires an active playtest (game_start). Use editor_screenshot for the editor viewport. image_response_mode 'disk' saves the PNG and returns only its path.",
     inputSchema: {
+      save_path: z
+        .string()
+        .optional()
+        .describe(
+          "Destination .png used by image_response_mode disk/both (user://screenshots/ only); auto-named when omitted.",
+        ),
+      image_response_mode: z
+        .enum(["inline", "disk", "both"])
+        .optional()
+        .describe(
+          "How to return the capture: 'inline' (default) embeds the PNG; 'disk' persists it and returns only the path — use for very large captures or to conserve context tokens; 'both' does both.",
+        ),
       force_foreground_game: z
         .boolean()
         .optional()
@@ -34,6 +46,7 @@ export const runtimeTools: ToolDef[] = [
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint: "For editor viewport use editor_screenshot. Only available while game is running.",
+    pathParams: [{ param: "save_path", prefixes: ["user://screenshots/"] }],
   },
   {
     name: "runtime_get_node_state",
@@ -195,7 +208,11 @@ export const runtimeTools: ToolDef[] = [
 // tools (runtime_get_node_state, runtime_set_property, animation_player_control)
 // stay in the runtime_advanced group and are registered by groups.ts.
 
-/** runtime_screenshot returns multi-content (image + text metadata). */
+/**
+ * runtime_screenshot returns an image block plus metadata for an inline/both
+ * capture, or a lean text-only path envelope for a disk-mode capture (the PNG is
+ * persisted game-side and only its file path returns — no image bytes).
+ */
 function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown) {
   return (async () => {
     try {
@@ -203,18 +220,33 @@ function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown
       const err = toolErrorFromPayload(result);
       if (err) return err;
       const obj = result as {
-        image_base64: string;
-        mime_type: string;
-        width: number;
-        height: number;
-        bytes: number;
+        image_base64?: string;
+        mime_type?: string;
+        width?: number;
+        height?: number;
+        bytes?: number;
+        path?: string;
         remediation?: string[];
+        hint?: string;
       };
+      // Disk-mode capture: the game persisted the PNG and returned only its path.
+      if (obj.path && !obj.image_base64) {
+        return buildScreenshotResult(undefined, obj.mime_type, {
+          width: obj.width,
+          height: obj.height,
+          bytes: obj.bytes,
+          path: obj.path,
+          remediation: obj.remediation,
+          hint: obj.hint,
+        });
+      }
       return buildScreenshotResult(obj.image_base64, obj.mime_type, {
         width: obj.width,
         height: obj.height,
         bytes: obj.bytes,
+        path: obj.path,
         remediation: obj.remediation,
+        hint: obj.hint,
       });
     } catch (err) {
       return runtimeErrorWithCrashContext(bridge, err);

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 import type { TestCtx } from "../helpers.js";
 import {
   CALL_TIMEOUT,
@@ -42,18 +44,100 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     }
   }
 
-  // Screenshot with save_path.
+  // Screenshot with save_path + image_response_mode:"both" — the image is
+  // embedded AND persisted. path is now a globalized absolute file path (not the
+  // res:// input), so assert it ends with the file name and the file exists on
+  // disk. (This section talks straight to the toolkit WS, so it sees the raw
+  // payload — the server's disk/both shaping is unit-tested in screenshotResponse.)
   const savePath = "res://smoke_screenshots/smoke.png";
-  const savedScreenshot = (await bridge.call("editor.screenshot", { save_path: savePath }, SCREENSHOT_TIMEOUT)) as {
+  const savedScreenshot = (await bridge.call(
+    "editor.screenshot",
+    { save_path: savePath, image_response_mode: "both" },
+    SCREENSHOT_TIMEOUT,
+  )) as {
     image_base64?: string;
     path?: string;
     code?: string;
   };
-  if (passIfHeadlessUnsupported(ctx, "editor.screenshot save_path", savedScreenshot)) {
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot save_path both", savedScreenshot)) {
     // headless — no capture
-  } else if (savedScreenshot?.path !== savePath || !savedScreenshot.image_base64)
-    fail(`editor.screenshot save_path: ${JSON.stringify(savedScreenshot)}`);
-  else pass(`editor.screenshot save_path -> ${savedScreenshot.path}`);
+  } else if (
+    !savedScreenshot?.image_base64 ||
+    typeof savedScreenshot.path !== "string" ||
+    !savedScreenshot.path.endsWith("smoke.png") ||
+    !fs.existsSync(savedScreenshot.path)
+  ) {
+    fail(`editor.screenshot save_path both: ${JSON.stringify({ ...savedScreenshot, image_base64: "<omitted>" })}`);
+  } else {
+    pass(`editor.screenshot save_path both -> image + file at ${savedScreenshot.path}`);
+    try {
+      fs.unlinkSync(savedScreenshot.path);
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
+
+  // image_response_mode:"disk" (auto-named) — the PNG is persisted and only its
+  // path returns (no image bytes). Assert the lean envelope, the file on disk
+  // with PNG magic, then delete it.
+  const diskScreenshot = (await bridge.call(
+    "editor.screenshot",
+    { image_response_mode: "disk" },
+    SCREENSHOT_TIMEOUT,
+  )) as {
+    image_base64?: string;
+    path?: string;
+    width?: number;
+    height?: number;
+    bytes?: number;
+    mime_type?: string;
+    code?: string;
+  };
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot disk", diskScreenshot)) {
+    // headless — no capture
+  } else if (
+    diskScreenshot?.image_base64 !== undefined ||
+    typeof diskScreenshot?.path !== "string" ||
+    diskScreenshot.mime_type !== "image/png" ||
+    typeof diskScreenshot.bytes !== "number" ||
+    !fs.existsSync(diskScreenshot.path)
+  ) {
+    fail(`editor.screenshot disk: expected lean envelope + file, got ${JSON.stringify(diskScreenshot)}`);
+  } else {
+    const onDisk = fs.readFileSync(diskScreenshot.path);
+    if (onDisk[0] !== 0x89 || onDisk[1] !== 0x50 || onDisk[2] !== 0x4e || onDisk[3] !== 0x47) {
+      fail(`editor.screenshot disk: file at ${diskScreenshot.path} missing PNG magic`);
+    } else {
+      pass(`editor.screenshot disk -> no image, path=${diskScreenshot.path} (${onDisk.length}B on disk)`);
+    }
+    try {
+      fs.unlinkSync(diskScreenshot.path);
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
+
+  // image_response_mode:"inline" (default) with a save_path — save_path is
+  // validated but NOT persisted, so the response is the plain inline shape with
+  // NO path key (the capture is not written to disk).
+  const inlineWithSavePath = (await bridge.call(
+    "editor.screenshot",
+    { save_path: "res://smoke_screenshots/inline_ignored.png", image_response_mode: "inline" },
+    SCREENSHOT_TIMEOUT,
+  )) as {
+    image_base64?: string;
+    path?: string;
+    code?: string;
+  };
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot inline+save_path", inlineWithSavePath)) {
+    // headless — no capture
+  } else if (!inlineWithSavePath?.image_base64 || inlineWithSavePath.path !== undefined) {
+    fail(
+      `editor.screenshot inline+save_path: expected image + no path, got ${JSON.stringify({ ...inlineWithSavePath, image_base64: inlineWithSavePath?.image_base64 ? "<present>" : undefined })}`,
+    );
+  } else {
+    pass("editor.screenshot inline+save_path -> image present, no path (persist ignored)");
+  }
 
   // Reject non-res:// save_path.
   const rejectedScreenshot = (await bridge.call(

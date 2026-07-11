@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 import type { TestCtx } from "../helpers.js";
 import {
   CALL_TIMEOUT,
@@ -273,6 +275,32 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     // Node capture can return null if the editor viewport hasn't rendered
     // the freshly created node yet. Accept as a soft skip rather than fail.
     pass(`editor.screenshot node_path=${screenshotNodePath} -> null (timing-dependent; viewport capture skipped)`);
+  }
+
+  // Node-focused capture in disk mode — the PNG persists and only its FILE path
+  // returns (the inline node-path echo is superseded by the saved path). Assert
+  // the lean envelope, the file on disk, then delete it.
+  const nodeDiskShot = (await bridge.call(
+    "editor.screenshot",
+    { node_path: screenshotNodePath, image_response_mode: "disk" },
+    SCREENSHOT_TIMEOUT,
+  )) as { image_base64?: string; path?: string; bytes?: number; mime_type?: string; code?: string };
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot node_path disk", nodeDiskShot)) {
+    // headless — no viewport capture
+  } else if (
+    nodeDiskShot?.image_base64 !== undefined ||
+    typeof nodeDiskShot?.path !== "string" ||
+    !nodeDiskShot.path.toLowerCase().endsWith(".png") ||
+    !fs.existsSync(nodeDiskShot.path)
+  ) {
+    fail(`editor.screenshot node_path disk: expected lean envelope + file, got ${JSON.stringify(nodeDiskShot)}`);
+  } else {
+    pass(`editor.screenshot node_path disk -> no image, file at ${nodeDiskShot.path}`);
+    try {
+      fs.unlinkSync(nodeDiskShot.path);
+    } catch {
+      /* best-effort cleanup */
+    }
   }
 
   const missingNodeShot = await bridge.call("editor.screenshot", { node_path: "/root/NoSuch_15d_xyz" }, CALL_TIMEOUT);

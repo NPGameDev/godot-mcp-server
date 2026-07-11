@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 import { BridgeError } from "../../src/shared/errors.js";
 
 import type { TestCtx } from "../helpers.js";
@@ -268,7 +270,120 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
     }
   }
 
+  await testRuntimeDiskModes(ctx);
   await testSendText(ctx);
+}
+
+// runtime.screenshot image_response_mode disk/both + the save_path guard. These
+// need a live game, and in full-suite order no game is running when this section
+// starts (the playtest section stops its own) — so this block manages its own:
+// it reuses a game that is already up, otherwise launches the current scene, and
+// stops the game afterwards ONLY if it launched it (prior state left as found).
+// Headless editors can't launch a playtest (game.start returns its deterministic
+// guard), so the legs green-skip there like the suite's other display-bound legs.
+async function testRuntimeDiskModes(ctx: TestCtx): Promise<void> {
+  const { bridge, pass, fail } = ctx;
+
+  const wasRunning = await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS);
+  let startedHere = false;
+  if (!wasRunning) {
+    const started = (await callRetryOnTimeout(
+      bridge,
+      "game.start",
+      { scene_path: "current", wait_for_runtime: true },
+      SCREENSHOT_TIMEOUT,
+    )) as { success?: boolean; code?: string };
+    if (started?.success !== true) {
+      pass(
+        `runtime.screenshot disk/both legs skipped (game.start ${started?.code ?? "no success"} — display-bound playtest unavailable)`,
+      );
+      return;
+    }
+    startedHere = true;
+    // A cold first launch can outlast game.start's wait_for_runtime window —
+    // poll the runtime WS before the first call (same pattern as send_text).
+    let runtimeUp = false;
+    for (let i = 0; i < 15; i++) {
+      if (await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS)) {
+        runtimeUp = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    if (!runtimeUp) {
+      pass("runtime.screenshot disk/both legs skipped (runtime never connected after launch)");
+      await bridge.call("game.stop", {}, CALL_TIMEOUT).catch(() => undefined);
+      return;
+    }
+  }
+
+  try {
+    // image_response_mode:"disk" — the game persists the PNG and returns only its
+    // path (no image bytes). The game's user:// resolves to the same app_userdata
+    // dir as the editor (same project), so the globalized path exists on disk from
+    // this process too. Assert the lean envelope + the file, then delete it.
+    const rtDiskShot = (await bridge.callRuntime(
+      "runtime.screenshot",
+      { image_response_mode: "disk" },
+      SCREENSHOT_TIMEOUT,
+    )) as { image_base64?: string; path?: string; bytes?: number; mime_type?: string; code?: string };
+    if (
+      rtDiskShot?.image_base64 !== undefined ||
+      typeof rtDiskShot?.path !== "string" ||
+      rtDiskShot.mime_type !== "image/png" ||
+      !fs.existsSync(rtDiskShot.path)
+    ) {
+      fail(`runtime.screenshot disk: expected lean envelope + file, got ${JSON.stringify(rtDiskShot)}`);
+    } else {
+      pass(`runtime.screenshot disk -> no image, file at ${rtDiskShot.path} (${rtDiskShot.bytes}B)`);
+      try {
+        fs.unlinkSync(rtDiskShot.path);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+
+    // image_response_mode:"both" — image embedded AND persisted; the raw payload
+    // carries both image_base64 and the saved file path.
+    const rtBothShot = (await bridge.callRuntime(
+      "runtime.screenshot",
+      { image_response_mode: "both" },
+      SCREENSHOT_TIMEOUT,
+    )) as { image_base64?: string; path?: string; code?: string };
+    if (
+      !rtBothShot?.image_base64 ||
+      typeof rtBothShot.path !== "string" ||
+      !rtBothShot.path.toLowerCase().endsWith(".png") ||
+      !fs.existsSync(rtBothShot.path)
+    ) {
+      fail(
+        `runtime.screenshot both: expected image + file, got ${JSON.stringify({ ...rtBothShot, image_base64: "<omitted>" })}`,
+      );
+    } else {
+      pass(`runtime.screenshot both -> image + file at ${rtBothShot.path}`);
+      try {
+        fs.unlinkSync(rtBothShot.path);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+
+    // save_path guard — the runtime allowlist is user://screenshots/ only, so a
+    // res:// destination is rejected (validated whenever present, any mode).
+    const rtDeniedShot = (await bridge.callRuntime(
+      "runtime.screenshot",
+      { save_path: "res://runtime_shot_should_deny.png", image_response_mode: "disk" },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; code?: string; error?: string };
+    if (rtDeniedShot?.code !== "PATH_DENIED")
+      fail(`runtime.screenshot save_path res://: expected PATH_DENIED, got ${JSON.stringify(rtDeniedShot)}`);
+    else pass("runtime.screenshot save_path res:// -> PATH_DENIED");
+  } finally {
+    // Leave the game state as found: stop only a game this block launched.
+    if (startedHere) {
+      await bridge.call("game.stop", {}, CALL_TIMEOUT).catch(() => undefined);
+    }
+  }
 }
 
 // send_text (input_simulate event_type). Unlike the other

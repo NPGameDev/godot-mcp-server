@@ -81,7 +81,6 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     "autoload_manage",
     "input_simulate",
     "execute_code",
-    "editor_screenshot",
     "runtime_set_property",
     "node_set_property",
     "scene_create_node",
@@ -166,6 +165,27 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     fail(
       `runtime_screenshot missing force_foreground_game param: ${JSON.stringify(Object.keys(runtimeShot?.inputSchema ?? {}))}`,
     );
+
+  // image_response_mode disk/both must be advertised on both screenshot tools so
+  // an agent can request the lean disk envelope; runtime_screenshot also gains
+  // save_path (the disk destination). Structural, so it runs headless / in smoke:ci.
+  if (editorShot && "image_response_mode" in editorShot.inputSchema)
+    pass("editor_screenshot advertises image_response_mode");
+  else
+    fail(
+      `editor_screenshot missing image_response_mode param: ${JSON.stringify(Object.keys(editorShot?.inputSchema ?? {}))}`,
+    );
+
+  if (runtimeShot && "image_response_mode" in runtimeShot.inputSchema)
+    pass("runtime_screenshot advertises image_response_mode");
+  else
+    fail(
+      `runtime_screenshot missing image_response_mode param: ${JSON.stringify(Object.keys(runtimeShot?.inputSchema ?? {}))}`,
+    );
+
+  if (runtimeShot && "save_path" in runtimeShot.inputSchema) pass("runtime_screenshot advertises save_path");
+  else
+    fail(`runtime_screenshot missing save_path param: ${JSON.stringify(Object.keys(runtimeShot?.inputSchema ?? {}))}`);
 
   // The two viewport-unavailable codes are wired into the ErrorCode union (the
   // `satisfies` above is the compile-time guard; this records it in the report).
