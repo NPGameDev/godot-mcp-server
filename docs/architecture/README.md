@@ -79,7 +79,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="bdcd2a3" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -101,7 +101,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified d1c2a70*
+*Figure 1 — system context · verified bdcd2a3*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -154,7 +154,7 @@ single-responsibility siblings. The **dependency direction is one-way** — `ind
 `groups/groupCatalogue.ts` exist precisely to break what would otherwise be a
 `groups` ↔ `catalogue` cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="bdcd2a3" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -183,7 +183,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified d1c2a70*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified bdcd2a3*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -425,7 +425,7 @@ data modules in `groups/defs/`, plus the derived `GROUP_TOOL_NAMES` / `RUNTIME_T
 and the leaves `groupState.ts` / `groupResult.ts` / `groupTypes.ts`. `groups.ts` itself is
 the thin `discover_tools` orchestrator over them.
 
-<!-- data-depicts="src/groups/groups.ts src/groups/groupMatch.ts src/groups/groupActivation.ts src/groups/groupCatalogue.ts src/registration/toolRegistry.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/groups/groups.ts src/groups/groupMatch.ts src/groups/groupActivation.ts src/groups/groupCatalogue.ts src/registration/toolRegistry.ts" data-verified="bdcd2a3" -->
 ```mermaid
 flowchart TD
     req["discover_tools({ request, activate, reset, include_schemas })"] --> batch["batchToolRegistration — suppress per-op notifications"]
@@ -441,7 +441,7 @@ flowchart TD
     enrich --> resp["response: groups[] (+ >5-groups warning, fuzzy / reset hints)"]
     body --> one["exactly ONE tools/list_changed — fired in finally"]
 ```
-*Figure 8 — the `discover_tools` activation flow · verified d1c2a70*
+*Figure 8 — the `discover_tools` activation flow · verified bdcd2a3*
 
 **The load-bearing invariant**: one `discover_tools` call — however many groups it
 activates and deactivates — emits **exactly one** `tools/list_changed`. All mutation
@@ -528,7 +528,7 @@ JSON-RPC-over-TCP client) and was **not carved**. 083 carved only the *tool laye
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 the thin `tools/lsp.ts` (6 defs + 6 handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="a67cf4b" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -546,7 +546,7 @@ flowchart TD
     ep --> tcp["own TCP socket → Godot GDScript LSP<br/>(BYPASSES the WS bridge + mutation queue)"]
     tcp --> verdict["status verdict → lspStatusReporter.ts<br/>→ editor.set_lsp_status (de-duped by state:host:port)"]
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified d1c2a70*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified a67cf4b*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
