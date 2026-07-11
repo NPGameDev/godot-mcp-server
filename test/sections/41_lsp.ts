@@ -43,10 +43,10 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
   pass("lsp: all tools have readOnlyHint=true annotation");
 
   // Tool count.
-  if (lspTools.length !== 6) {
-    fail(`lsp: expected 6 tools, got ${lspTools.length}`);
+  if (lspTools.length !== 7) {
+    fail(`lsp: expected 7 tools, got ${lspTools.length}`);
   } else {
-    pass("lsp: 6 tools defined");
+    pass("lsp: 7 tools defined");
   }
 
   // ── Live LSP tests (skip decided by the real client's first connect) ──
