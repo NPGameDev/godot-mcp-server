@@ -528,7 +528,7 @@ JSON-RPC-over-TCP client) and was **not carved**. 083 carved only the *tool laye
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 the thin `tools/lsp.ts` (6 defs + 6 handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="a67cf4b" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="84d7087" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -546,7 +546,7 @@ flowchart TD
     ep --> tcp["own TCP socket → Godot GDScript LSP<br/>(BYPASSES the WS bridge + mutation queue)"]
     tcp --> verdict["status verdict → lspStatusReporter.ts<br/>→ editor.set_lsp_status (de-duped by state:host:port)"]
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified a67cf4b*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified 84d7087*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
