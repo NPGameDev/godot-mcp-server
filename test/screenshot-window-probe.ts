@@ -147,10 +147,13 @@ interface WindowState {
 
 /**
  * Run the user32.dll helper once with the given helper env vars and parse its
- * single JSON line. The script body is piped to `powershell -Command -` on stdin
- * (avoids a script-file ExecutionPolicy gate and any argv-quoting hazard) and the
- * inputs travel as environment variables. Returns `{ ok: false, error }` on any
- * failure (helper missing, PowerShell error, unparseable output).
+ * single JSON line. The script is passed via `-EncodedCommand` (base64 UTF-16LE),
+ * NOT stdin: PowerShell's line-based `-Command -` stdin reader mis-parses the C#
+ * here-string the helper uses for its P/Invoke `Add-Type`, silently producing no
+ * output. `-EncodedCommand` runs the exact script and, like `-Command`, needs no
+ * script-file ExecutionPolicy bypass; inputs travel as environment variables.
+ * Returns `{ ok: false, error }` on any failure (helper missing, PowerShell error,
+ * unparseable output).
  */
 function runHelper(env: Record<string, string>): WindowState {
   let script: string;
@@ -159,9 +162,10 @@ function runHelper(env: Record<string, string>): WindowState {
   } catch {
     return { ok: false, error: `window-control.ps1 not readable at ${WINDOW_CONTROL_PS1}` };
   }
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
   const parseLast = (out: string): WindowState | undefined => {
     // The helper prints exactly one compressed JSON line; tolerate any leading
-    // Add-Type/compiler noise by taking the last "{"-prefixed line.
+    // module-load/compiler noise by taking the last "{"-prefixed line.
     const line = out
       .split(/\r?\n/)
       .map((l) => l.trim())
@@ -175,8 +179,7 @@ function runHelper(env: Record<string, string>): WindowState {
     }
   };
   try {
-    const stdout = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "-"], {
-      input: script,
+    const stdout = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
       encoding: "utf-8",
       timeout: 20_000,
       env: { ...process.env, ...env },

@@ -11,10 +11,14 @@
 # find the editor / game process from the port each already connects to, instead
 # of depending on the toolkit's registry).
 #
-# Invocation (from Node via child_process): the script body is piped to
-#   powershell -NoProfile -NonInteractive -Command -
-# with inputs passed as environment variables (avoids a script-file
-# ExecutionPolicy gate and any argv-quoting hazard):
+# Invocation (from Node via child_process): the script is passed as a base64
+# UTF-16LE blob to
+#   powershell -NoProfile -NonInteractive -EncodedCommand <b64>
+# with inputs passed as environment variables. -EncodedCommand (not stdin
+# `-Command -`) is required: the line-based stdin reader mis-parses the C#
+# here-string this script uses for Add-Type, silently producing no output.
+# -EncodedCommand needs no script-file ExecutionPolicy bypass and avoids
+# argv-quoting hazards. Inputs:
 #   WCTL_ACTION  = query | minimize | restore | foreground | unfocus | portowner
 #   WCTL_PID     = (window actions) target process id (decimal). The FIRST visible
 #                  top-level window owned by this pid is acted on.
@@ -30,6 +34,9 @@
 # On any failure: {"ok":false,"error":"..."}.  Exit code is 0 on ok, 1 on error.
 
 $ErrorActionPreference = "Stop"
+# Silence the "Preparing modules for first use" progress record — it is emitted
+# as CLIXML on stderr and only clutters diagnostics (stdout stays clean JSON).
+$ProgressPreference = "SilentlyContinue"
 
 $signature = @'
 using System;
@@ -52,9 +59,12 @@ public static class WinCtl {
   public const int SW_RESTORE = 9;
   public const uint GW_OWNER = 4;
 
-  // First VISIBLE top-level window owned by pid that has a title (skips the
-  // invisible message-only / tool windows a process also owns). Falls back to
-  // any visible window if none has a title.
+  // FALLBACK window resolver: first VISIBLE top-level window owned by pid that
+  // has a title (skips the invisible message-only / tool windows a process also
+  // owns); falls back to any visible window if none has a title. Used only when
+  // Process.MainWindowHandle is 0 — Godot's main window does NOT map back to the
+  // socket-owning PID via GetWindowThreadProcessId (its window/thread ownership
+  // differs), so MainWindowHandle is the primary resolver (see the caller).
   public static IntPtr MainWindowForPid(uint target) {
     IntPtr titled = IntPtr.Zero;
     IntPtr anyVisible = IntPtr.Zero;
@@ -75,6 +85,20 @@ Add-Type -TypeDefinition $signature
 function Emit([hashtable]$obj) {
   # Compress to a single line so Node can read exactly one JSON payload.
   Write-Output ($obj | ConvertTo-Json -Compress)
+}
+
+# Resolve a process's top-level window handle. Primary: Process.MainWindowHandle
+# (finds Godot's main window, which an EnumWindows-by-PID scan misses because its
+# window/thread ownership does not map back to the socket-owning PID). Fallback:
+# the EnumWindows-by-PID scan for processes whose MainWindowHandle is 0. Returns
+# [IntPtr]::Zero when neither finds a window.
+function Resolve-Hwnd([int]$targetPid) {
+  if ($targetPid -le 0) { return [IntPtr]::Zero }
+  $proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
+  if ($null -ne $proc -and $proc.MainWindowHandle -ne [IntPtr]::Zero) {
+    return $proc.MainWindowHandle
+  }
+  return [WinCtl]::MainWindowForPid([uint32]$targetPid)
 }
 
 try {
@@ -103,7 +127,7 @@ try {
   [void][int]::TryParse($env:WCTL_PID, [ref]$pidValue)
   if ($pidValue -le 0) { throw "WCTL_PID missing or invalid: '$($env:WCTL_PID)'" }
 
-  $hwnd = [WinCtl]::MainWindowForPid([uint32]$pidValue)
+  $hwnd = Resolve-Hwnd $pidValue
   $found = ($hwnd -ne [IntPtr]::Zero)
 
   switch ($action) {
@@ -126,7 +150,7 @@ try {
       $otherPid = 0
       [void][int]::TryParse($env:WCTL_DESKTOP, [ref]$otherPid)
       if ($otherPid -gt 0) {
-        $otherHwnd = [WinCtl]::MainWindowForPid([uint32]$otherPid)
+        $otherHwnd = Resolve-Hwnd $otherPid
         if ($otherHwnd -ne [IntPtr]::Zero) { [void][WinCtl]::SetForegroundWindow($otherHwnd) }
       }
     }
