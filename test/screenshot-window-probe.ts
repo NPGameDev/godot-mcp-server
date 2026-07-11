@@ -12,10 +12,19 @@
  * @remarks
  * It reuses the smoke harness's proven driver: {@link createBridge} for the WS
  * connection (editor channel + lazy runtime channel), {@link discoverProjectPath}
- * for registry-based port/token discovery, and {@link probePort}/{@link printUnreachable}
+ * for the bridge's token derivation, and {@link probePort}/{@link printUnreachable}
  * for the graceful editor-down skip. The bridge's `callRuntime` reaches the game
  * runtime directly, so the probe sees the RAW toolkit payload (width/height/bytes/
  * `remediation`/`hint`/`code`) rather than the server's MCP-shaped multi-content.
+ *
+ * **Window/PID resolution comes from the OS, not the registry.** The editor PID is
+ * the process owning the LISTENING socket on the editor port (6550) the probe
+ * connected to; the game PID is the owner of the runtime port (6570). This keeps a
+ * display-only probe independent of the toolkit registry — a freshly-restarted
+ * editor may publish no findable registry pid. Either can be pinned with
+ * `--editor-pid=<n>` / `--game-pid=<n>` when port-owner resolution is ambiguous
+ * (multiple editors/games). The registry `runtime_pid` remains only a last-resort
+ * fallback for the game PID.
  *
  * **The embed-aware matrix (reconciled expectations).** On Godot 4.4+ a playtest
  * launched with embedding on (the desktop default) is an owner-linked top-level
@@ -37,8 +46,9 @@
  * non-zero on a real FAIL (0 on all-pass/skip, 2 on editor unreachable).
  *
  * Run: `npm run probe:screenshot` (optionally `MCP_MANUAL_ASSIST=1` for the
- * floating-game legs). It does NOT launch Godot — the editor must already be
- * running with the toolkit plugin active.
+ * floating-game legs; `-- --editor-pid=<n> --game-pid=<n>` to pin PIDs). It does
+ * NOT launch Godot — the editor must already be running with the toolkit plugin
+ * active.
  *
  * @module
  */
@@ -82,6 +92,20 @@ const WINDOW_SETTLE_MS = 1200;
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const WINDOW_CONTROL_PS1 = join(scriptDir, "window-control.ps1");
 
+/** Parse `--flag=<int>` from argv; `undefined` when absent or non-numeric. */
+function parsePidFlag(flag: string): number | undefined {
+  const prefix = `${flag}=`;
+  const arg = process.argv.find((a) => a.startsWith(prefix));
+  if (!arg) return undefined;
+  const n = parseInt(arg.slice(prefix.length), 10);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+/** Explicit editor/game PID pins (`--editor-pid=N` / `--game-pid=N`) — used when
+ *  port-owner auto-resolution is ambiguous (multiple editors/games). */
+const EDITOR_PID_OVERRIDE = parsePidFlag("--editor-pid");
+const GAME_PID_OVERRIDE = parsePidFlag("--game-pid");
+
 // ── Result model ─────────────────────────────────────────────────────────
 
 type Outcome = "PASS" | "FAIL" | "SKIP";
@@ -115,16 +139,62 @@ interface WindowState {
   /** GW_OWNER of the window: nonzero for an editor-embedded game (owner-linked
    *  top-level popup), 0 for a floating top-level. The ground-truth embed signal. */
   owner_hwnd?: number;
+  /** (portowner action) the pid owning the listening socket on the queried port,
+   *  or 0 when nothing is listening. */
+  pid?: number;
   error?: string;
 }
 
 /**
+ * Run the user32.dll helper once with the given helper env vars and parse its
+ * single JSON line. The script body is piped to `powershell -Command -` on stdin
+ * (avoids a script-file ExecutionPolicy gate and any argv-quoting hazard) and the
+ * inputs travel as environment variables. Returns `{ ok: false, error }` on any
+ * failure (helper missing, PowerShell error, unparseable output).
+ */
+function runHelper(env: Record<string, string>): WindowState {
+  let script: string;
+  try {
+    script = readFileSync(WINDOW_CONTROL_PS1, "utf-8");
+  } catch {
+    return { ok: false, error: `window-control.ps1 not readable at ${WINDOW_CONTROL_PS1}` };
+  }
+  const parseLast = (out: string): WindowState | undefined => {
+    // The helper prints exactly one compressed JSON line; tolerate any leading
+    // Add-Type/compiler noise by taking the last "{"-prefixed line.
+    const line = out
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("{"))
+      .pop();
+    if (!line) return undefined;
+    try {
+      return JSON.parse(line) as WindowState;
+    } catch {
+      return undefined;
+    }
+  };
+  try {
+    const stdout = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "-"], {
+      input: script,
+      encoding: "utf-8",
+      timeout: 20_000,
+      env: { ...process.env, ...env },
+    });
+    return parseLast(stdout) ?? { ok: false, error: `no JSON from helper (stdout: ${stdout.slice(0, 200)})` };
+  } catch (err) {
+    // execFileSync throws on a non-zero exit; the helper still prints its JSON to
+    // stdout in that case, so recover it before giving up.
+    const e = err as { stdout?: string; message?: string };
+    const recovered = typeof e.stdout === "string" ? parseLast(e.stdout) : undefined;
+    return recovered ?? { ok: false, error: e.message ?? "powershell invocation failed" };
+  }
+}
+
+/**
  * Drive one top-level window (identified by its owning process id) via the
- * user32.dll helper. Inputs are passed as environment variables and the script
- * body is piped to `powershell -Command -` on stdin — this avoids a script-file
- * ExecutionPolicy gate and any argv-quoting hazard. Returns the window's state
- * *after* the action (minimized / visible / foreground), or `{ ok: false }` on
- * any failure (helper missing, no window for the pid, PowerShell error).
+ * user32.dll helper. Returns the window's state *after* the action (minimized /
+ * visible / foreground / owner), or `{ ok: false }` on any failure.
  *
  * @param action    query | minimize | restore | foreground | unfocus
  * @param pid       owning process id whose main window is acted on
@@ -136,53 +206,23 @@ function windowControl(
   pid: number,
   desktopPid?: number,
 ): WindowState {
-  let script: string;
-  try {
-    script = readFileSync(WINDOW_CONTROL_PS1, "utf-8");
-  } catch {
-    return { ok: false, error: `window-control.ps1 not readable at ${WINDOW_CONTROL_PS1}` };
-  }
-  try {
-    const stdout = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "-"], {
-      input: script,
-      encoding: "utf-8",
-      timeout: 20_000,
-      env: {
-        ...process.env,
-        WCTL_ACTION: action,
-        WCTL_PID: String(pid),
-        WCTL_DESKTOP: desktopPid != null ? String(desktopPid) : "",
-      },
-    });
-    // The helper prints exactly one compressed JSON line; tolerate any leading
-    // Add-Type/compiler noise by taking the last non-empty line.
-    const lines = stdout
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.startsWith("{"));
-    const last = lines[lines.length - 1];
-    if (!last) return { ok: false, error: `no JSON from helper (stdout: ${stdout.slice(0, 200)})` };
-    return JSON.parse(last) as WindowState;
-  } catch (err) {
-    // execFileSync throws on non-zero exit; the helper still prints its JSON to
-    // stdout in that case, so try to recover it before giving up.
-    const e = err as { stdout?: string; message?: string };
-    if (typeof e.stdout === "string") {
-      const line = e.stdout
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter((l) => l.startsWith("{"))
-        .pop();
-      if (line) {
-        try {
-          return JSON.parse(line) as WindowState;
-        } catch {
-          /* fall through to the generic error */
-        }
-      }
-    }
-    return { ok: false, error: e.message ?? "powershell invocation failed" };
-  }
+  return runHelper({
+    WCTL_ACTION: action,
+    WCTL_PID: String(pid),
+    WCTL_DESKTOP: desktopPid != null ? String(desktopPid) : "",
+  });
+}
+
+/**
+ * Resolve the process id owning the LISTENING TCP socket on `port` — the OS-level
+ * way to find the editor / game process from the port the probe connected to,
+ * with no dependency on the toolkit registry. Returns the pid, or `undefined`
+ * when nothing is listening or the helper is unavailable.
+ */
+function portOwner(port: number): number | undefined {
+  const state = runHelper({ WCTL_ACTION: "portowner", WCTL_PORT: String(port) });
+  if (!state.ok || state.found !== true) return undefined;
+  return state.pid != null && state.pid > 0 ? state.pid : undefined;
 }
 
 /** True when the window-control helper can operate a window for `pid` at all —
@@ -331,13 +371,21 @@ function gameIsEmbedded(gamePid: number | undefined): boolean | undefined {
   return (state.owner_hwnd ?? 0) !== 0;
 }
 
-/** Read the game process id (the embedded/floating game window owner) from the
- *  registry entry's `runtime_pid`. No WS command exposes it — the toolkit only
- *  writes it to the registry, which the server reads via {@link lookupProject}. */
-function gameRuntimePid(projectPath: string | undefined): number | undefined {
+/**
+ * Resolve the game process id (the embedded/floating game window owner). Order:
+ *   1. an explicit `--game-pid` override (pin it when auto-resolution is
+ *      ambiguous, e.g. several editors/games),
+ *   2. the OS owner of the LISTENING runtime-WS port — deterministic, no registry,
+ *   3. the toolkit registry's `runtime_pid` as a last resort.
+ * The port-owner is primary; the registry is a fallback only. Returns `undefined`
+ * when none resolves.
+ */
+function resolveGamePid(projectPath: string | undefined): number | undefined {
+  if (GAME_PID_OVERRIDE != null) return GAME_PID_OVERRIDE;
+  const byPort = portOwner(RUNTIME_PORT);
+  if (byPort != null) return byPort;
   if (!projectPath) return undefined;
-  const entry = lookupProject(projectPath);
-  const pid = entry?.runtime_pid;
+  const pid = lookupProject(projectPath)?.runtime_pid;
   return pid != null && pid > 0 ? pid : undefined;
 }
 
@@ -376,7 +424,7 @@ async function runRuntimeLegs(bridge: Bridge, projectPath: string | undefined, e
   }
 
   try {
-    const gamePid = gameRuntimePid(projectPath);
+    const gamePid = resolveGamePid(projectPath);
     const embedded = gameIsEmbedded(gamePid);
 
     // R1 — baseline runtime capture: a usable fresh PNG of the game window.
@@ -621,19 +669,24 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // Skip ONLY when the editor port isn't listening — that's the sole "no editor"
+  // signal. The PID comes from the OS, not the registry.
   const reachable = await probePort(HOST, PORT, PROBE_TIMEOUT_MS);
   if (!reachable) {
     printUnreachable("probe:screenshot");
     process.exit(2);
   }
 
+  // Editor PID = the owner of the listening editor-port socket (or an explicit
+  // --editor-pid pin). No registry dependency: a freshly-restarted editor may
+  // publish no findable registry pid, and a display-only probe should not lean on
+  // the toolkit's registry at all.
   const projectPath = discoverProjectPath();
-  const entry = projectPath ? lookupProject(projectPath) : null;
-  const editorPid = entry?.pid ?? 0;
-  if (!editorPid || editorPid <= 0) {
+  const editorPid = EDITOR_PID_OVERRIDE ?? portOwner(PORT);
+  if (editorPid == null) {
     process.stdout.write(
-      "[probe] SKIP — editor is reachable but its PID is not in the registry, so window state can't be driven. " +
-        "Ensure the toolkit plugin is active (it publishes the editor PID).\n",
+      `[probe] SKIP — the editor port ${PORT} is listening, but its owning process could not be resolved ` +
+        "(the window-control helper may be unavailable). Pass --editor-pid=<n> to pin it.\n",
     );
     process.exit(0);
   }
@@ -646,8 +699,8 @@ async function main(): Promise<void> {
   }
 
   process.stdout.write(
-    `[probe] editor PID ${editorPid}; manual-assist ${MANUAL_ASSIST ? "ON" : "off"} ` +
-      "(floating-game legs run only with MCP_MANUAL_ASSIST=1).\n",
+    `[probe] editor PID ${editorPid} (${EDITOR_PID_OVERRIDE != null ? "--editor-pid pin" : `owner of port ${PORT}`}); ` +
+      `manual-assist ${MANUAL_ASSIST ? "ON" : "off"} (floating-game legs run only with MCP_MANUAL_ASSIST=1).\n`,
   );
   if (MANUAL_ASSIST) {
     await manualCue(

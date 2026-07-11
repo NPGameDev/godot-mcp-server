@@ -7,19 +7,26 @@
 # (minimized -> EDITOR_VIEWPORT_UNAVAILABLE / RUNTIME_WINDOW_MINIMIZED, etc.),
 # then restore it afterward.
 #
+# It also resolves a process id from a LISTENING TCP port (the probe uses this to
+# find the editor / game process from the port each already connects to, instead
+# of depending on the toolkit's registry).
+#
 # Invocation (from Node via child_process): the script body is piped to
 #   powershell -NoProfile -NonInteractive -Command -
 # with inputs passed as environment variables (avoids a script-file
 # ExecutionPolicy gate and any argv-quoting hazard):
-#   WCTL_ACTION  = query | minimize | restore | foreground | unfocus
-#   WCTL_PID     = target process id (decimal). The FIRST visible top-level
-#                  window owned by this pid is acted on.
+#   WCTL_ACTION  = query | minimize | restore | foreground | unfocus | portowner
+#   WCTL_PID     = (window actions) target process id (decimal). The FIRST visible
+#                  top-level window owned by this pid is acted on.
+#   WCTL_PORT    = (portowner only) TCP port whose LISTENING-socket owner pid to
+#                  resolve.
 #   WCTL_DESKTOP = (unfocus only) pid whose window should receive focus instead,
 #                  used to steal foreground away from WCTL_PID. Optional.
 #
 # Output: a single JSON line on stdout, e.g.
 #   {"ok":true,"action":"query","pid":1234,"found":true,"hwnd":66048,
 #    "minimized":false,"visible":true,"foreground":true}
+#   {"ok":true,"action":"portowner","port":6550,"found":true,"pid":19664}
 # On any failure: {"ok":false,"error":"..."}.  Exit code is 0 on ok, 1 on error.
 
 $ErrorActionPreference = "Stop"
@@ -72,9 +79,28 @@ function Emit([hashtable]$obj) {
 
 try {
   $action = $env:WCTL_ACTION
+  if ([string]::IsNullOrEmpty($action)) { throw "WCTL_ACTION not set" }
+
+  # portowner: resolve the pid owning the LISTENING socket on a TCP port. Takes a
+  # port, not a pid — handled up front, before the window-pid validation. Uses
+  # Get-NetTCPConnection (no netstat text parsing); returns the first listener.
+  if ($action -eq "portowner") {
+    $portValue = 0
+    [void][int]::TryParse($env:WCTL_PORT, [ref]$portValue)
+    if ($portValue -le 0) { throw "WCTL_PORT missing or invalid: '$($env:WCTL_PORT)'" }
+    $ownerPid = Get-NetTCPConnection -LocalPort $portValue -State Listen -ErrorAction SilentlyContinue |
+      Select-Object -First 1 -ExpandProperty OwningProcess
+    if ($null -eq $ownerPid) {
+      Emit @{ ok = $true; action = "portowner"; port = $portValue; found = $false; pid = 0 }
+    }
+    else {
+      Emit @{ ok = $true; action = "portowner"; port = $portValue; found = $true; pid = [int]$ownerPid }
+    }
+    exit 0
+  }
+
   $pidValue = 0
   [void][int]::TryParse($env:WCTL_PID, [ref]$pidValue)
-  if ([string]::IsNullOrEmpty($action)) { throw "WCTL_ACTION not set" }
   if ($pidValue -le 0) { throw "WCTL_PID missing or invalid: '$($env:WCTL_PID)'" }
 
   $hwnd = [WinCtl]::MainWindowForPid([uint32]$pidValue)
