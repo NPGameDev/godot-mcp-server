@@ -346,23 +346,28 @@ async function runEditorLegs(bridge: Bridge, editorPid: number): Promise<void> {
     }
   }
 
-  // E6 — unfocused editor: a fresh, full-size frame (SubViewport renders
-  // regardless of OS focus). Steal foreground to this Node process's window
-  // isn't possible, so unfocus by foregrounding the shell's own console via its
-  // pid; if that can't move focus, fall back to asserting a usable frame only.
+  // E6 — unfocused editor: a fresh, full-size frame (the editor viewport is a
+  // SubViewport that renders regardless of OS focus). We attempt to unfocus by
+  // foregrounding the runner's own console (process.pid), but a background Node
+  // process usually CANNOT take OS foreground — so in practice this leg most
+  // often verifies only the "capture works, no collapse" contract while the
+  // editor stays focused. The note records which condition was actually
+  // exercised so the result is never read as more than it proved; the stronger
+  // genuine-unfocused-while-visible check is a manual/interactive complement.
   {
     const unfocused = windowControl("unfocus", editorPid, process.pid);
     await new Promise((r) => setTimeout(r, WINDOW_SETTLE_MS));
     const shot = (await bridge.call("editor.screenshot", {}, SCREENSHOT_TIMEOUT)) as ShotResult;
-    // Whether or not focus actually moved, the contract is "fresh usable frame,
-    // no collapse." If we DID unfocus (foreground=false), that's the stronger
-    // assertion; either way a usable full-size frame is the pass condition.
+    // The contract is "fresh usable frame, no collapse" — a usable full-size
+    // frame is the pass condition either way. `focusMoved` distinguishes the
+    // stronger genuine-unfocus case (foreground=false) from the capture-only
+    // case (focus not moved), and the note surfaces which one actually held.
     const focusMoved = unfocused.ok && unfocused.foreground === false;
     if (isUsableFrame(shot)) {
       record(
         "E6 editor unfocused",
         "fresh full-size frame",
-        `${frameDesc(shot)}${focusMoved ? " (focus moved away)" : " (focus unchanged)"}`,
+        `${frameDesc(shot)}${focusMoved ? " (genuine unfocus: focus moved away)" : " (capture-only: OS focus not moved)"}`,
         "PASS",
       );
     } else {
