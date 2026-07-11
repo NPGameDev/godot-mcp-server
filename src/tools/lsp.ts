@@ -82,8 +82,8 @@ export const lspAnalysisTools: ToolDef[] = [
     // for its diagnostics, then closes it — chunked so the main-thread LSP
     // parser is not swamped.
     description:
-      "Compile-check every .gd in the project via the LSP. EXPENSIVE (~30s on 100+ files; editor may hitch) — use sparingly. " +
-      "Errors-only unless include_warnings; skips res://addons/ unless include_addons.",
+      "Guaranteed whole-project compile check via the LSP (every .gd). EXPENSIVE (~30s/100+ files; may hitch). " +
+      "On 4.5+, editor_refresh→console is a cheaper first pass; use this for the full guarantee.",
     inputSchema: {
       include_addons: coercedBoolean()
         .optional()
