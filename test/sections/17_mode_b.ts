@@ -84,18 +84,26 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
           `runtime.screenshot minimized: expected RUNTIME_WINDOW_MINIMIZED, got ${JSON.stringify(minShot).slice(0, 200)}`,
         );
 
+      // callRuntime bypasses the server's screenshot mapper (straight to the
+      // toolkit WS), so remediation is a top-level field on the raw toolkit
+      // payload — assert it discloses the un-minimize, mirroring §13's
+      // foregrounded_editor.
       const forcedShot = (await bridge.callRuntime(
         "runtime.screenshot",
         { force_foreground_game: true },
         SCREENSHOT_TIMEOUT,
-      )) as { image_base64?: string; width?: number; height?: number };
+      )) as { image_base64?: string; width?: number; height?: number; remediation?: string[] };
       if (forcedShot?.image_base64) {
         const fbuf = Buffer.from(forcedShot.image_base64, "base64");
-        if (fbuf[0] === 0x89 && fbuf[1] === 0x50)
-          pass(
-            `runtime.screenshot force_foreground_game -> fresh PNG ${fbuf.length}B (${forcedShot.width}x${forcedShot.height})`,
+        if (fbuf[0] !== 0x89 || fbuf[1] !== 0x50) fail("runtime.screenshot force_foreground_game: PNG magic missing");
+        else if (!forcedShot.remediation?.includes("foregrounded_game"))
+          fail(
+            `runtime.screenshot force_foreground_game: expected remediation foregrounded_game, got ${JSON.stringify(forcedShot.remediation)}`,
           );
-        else fail("runtime.screenshot force_foreground_game: PNG magic missing");
+        else
+          pass(
+            `runtime.screenshot force_foreground_game -> fresh PNG ${fbuf.length}B (${forcedShot.width}x${forcedShot.height}) remediation=foregrounded_game`,
+          );
       } else {
         fail(
           `runtime.screenshot force_foreground_game: expected fresh PNG, got ${JSON.stringify(forcedShot).slice(0, 200)}`,
