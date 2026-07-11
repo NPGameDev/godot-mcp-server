@@ -7,14 +7,17 @@
  * SKIP when nothing serves the endpoint (editor down / LSP disabled), the same
  * patient-handshake pattern as §41, never a raw probe-then-abort.
  *
- * Read-only: the scan opens/closes documents in the LSP but writes no res://
- * fixture, so there is nothing to pre-clean or tear down.
+ * The scan itself is read-only (opens/closes documents in the LSP), but the
+ * deterministic legs write two res://-root .gd fixtures (a parse-broken file
+ * and a warning-only file) to force known-dirty results; both are deleted in
+ * a finally block on every path, so nothing is left to pre-clean.
  */
 import { LspClient } from "../../src/lsp/lspClient.js";
 import { lspTools, lspAnalysisTools, createLspHandler } from "../../src/tools/lsp.js";
 import { LSP_TOOLS } from "../../src/groups/groups.js";
 
 import type { TestCtx } from "../helpers.js";
+import { CALL_TIMEOUT } from "../helpers.js";
 
 export const TOOLS_TESTED: string[] = ["lsp_project_diagnostics"];
 
@@ -33,7 +36,7 @@ type ScanPayload = {
 };
 
 export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
-  const { pass, fail } = ctx;
+  const { bridge, pass, fail } = ctx;
 
   // ── Static checks (always run) ──
 
@@ -145,5 +148,109 @@ export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
     }
   } else {
     pass("lsp_project_scan: no dirty files to shape-check (clean project — valid)");
+  }
+
+  // ── Deterministic dirty + include_warnings legs (fixture-driven) ──
+  //
+  // The scan above runs on whatever the dogfood project happens to hold, so its
+  // dirty-file shape check is only exercised when a real script is broken. These
+  // legs make the two contract-critical outcomes deterministic by writing their
+  // own fixtures: (1) a parse-broken .gd must surface as an Error with a 1-based
+  // line, and (2) include_warnings must gate a warning-only .gd in/out of
+  // files_with_diagnostics. The scan reads didOpen'd text directly, so a
+  // just-written file is seen with no editor_refresh. Scanned with defaults
+  // (include_addons off) so only the res:// project files — including these
+  // fixtures — are walked, keeping the leg fast. try/finally deletes both
+  // fixtures so the toolkit tree stays clean for the rest of the suite.
+  const brokenPath = "res://smoke_lsp_projdiag_broken.gd";
+  const warnPath = "res://smoke_lsp_projdiag_warn.gd";
+
+  /** Run the project scan with the given input; undefined = LSP went mute mid-scan. */
+  async function scan(input: { include_warnings?: boolean }): Promise<ScanPayload | undefined> {
+    const r = (await handler(input)) as { content: { text: string }[] };
+    const p = JSON.parse(r.content[0].text) as ScanPayload;
+    return p.code === "LSP_UNAVAILABLE" ? undefined : p;
+  }
+
+  /** Locate a scanned file's entry in files_with_diagnostics by res:// suffix. */
+  function dirtyEntry(p: ScanPayload, resPath: string) {
+    const leaf = resPath.replace(/^res:\/\//, "");
+    return p.files_with_diagnostics?.find((f) => (f.file_path ?? "").endsWith(leaf));
+  }
+
+  try {
+    // A parse error (unclosed dict literal) — guaranteed Error severity.
+    const wroteBroken = (await bridge.call(
+      "script.write",
+      { file_path: brokenPath, content: "extends Node\n\nfunc _ready() -> void:\n\tvar x = {\n" },
+      CALL_TIMEOUT,
+    )) as { success?: boolean };
+    // A lint warning only (unused local) — Warning severity, no parse error.
+    const wroteWarn = (await bridge.call(
+      "script.write",
+      { file_path: warnPath, content: "extends Node\n\nfunc _ready() -> void:\n\tvar unused_local := 42\n" },
+      CALL_TIMEOUT,
+    )) as { success?: boolean };
+
+    if (!wroteBroken?.success || !wroteWarn?.success) {
+      // Can't provision the fixtures → don't assert against them (honest skip).
+      pass("lsp_project_scan: SKIPPED deterministic legs — could not write .gd fixtures");
+    } else {
+      // (1) Broken file must appear dirty with an Error carrying a 1-based line.
+      const brokenScan = await scan({});
+      if (!brokenScan) {
+        pass("lsp_project_scan: SKIPPED dirty leg — LSP went mute mid-scan (editor busy)");
+      } else {
+        const entry = dirtyEntry(brokenScan, brokenPath);
+        const err = entry?.diagnostics?.find((d) => d.severity === "Error");
+        if (err && typeof err.line === "number" && err.line >= 1) {
+          pass(`lsp_project_scan: broken fixture surfaces Error at 1-based line ${err.line}`);
+        } else {
+          fail(`lsp_project_scan: broken fixture expected an Error with 1-based line, got ${JSON.stringify(entry)}`);
+        }
+        // The accounting invariant must still hold on this fixture-laden scan.
+        const acc =
+          (brokenScan.clean ?? 0) +
+          (brokenScan.files_with_diagnostics?.length ?? 0) +
+          (brokenScan.timed_out?.length ?? 0) +
+          (brokenScan.read_failed?.length ?? 0);
+        if ((brokenScan.scanned ?? -1) === acc) {
+          pass(`lsp_project_scan: invariant holds with fixtures (scanned ${brokenScan.scanned})`);
+        } else {
+          fail(
+            `lsp_project_scan: invariant violated with fixtures — scanned ${brokenScan.scanned} != accounted ${acc}`,
+          );
+        }
+      }
+
+      // (2) include_warnings gate: the warning-only file is absent when off,
+      // present as a Warning when on.
+      const scanOff = await scan({ include_warnings: false });
+      const scanOn = await scan({ include_warnings: true });
+      if (!scanOff || !scanOn) {
+        pass("lsp_project_scan: SKIPPED include_warnings leg — LSP went mute mid-scan (editor busy)");
+      } else {
+        const offEntry = dirtyEntry(scanOff, warnPath);
+        // The broken fixture is still present (it is an Error), so "absent" is
+        // specific to the warning-only file, not the whole dirty list.
+        if (!offEntry) {
+          pass("lsp_project_scan: include_warnings=false suppresses the warning-only file");
+        } else {
+          fail(
+            `lsp_project_scan: include_warnings=false expected warning-only file absent, got ${JSON.stringify(offEntry)}`,
+          );
+        }
+        const onEntry = dirtyEntry(scanOn, warnPath);
+        const warn = onEntry?.diagnostics?.find((d) => d.severity === "Warning");
+        if (warn) {
+          pass("lsp_project_scan: include_warnings=true surfaces the warning-only file as Warning");
+        } else {
+          fail(`lsp_project_scan: include_warnings=true expected a Warning entry, got ${JSON.stringify(onEntry)}`);
+        }
+      }
+    }
+  } finally {
+    await bridge.call("script.delete", { file_path: brokenPath }, CALL_TIMEOUT).catch(() => {});
+    await bridge.call("script.delete", { file_path: warnPath }, CALL_TIMEOUT).catch(() => {});
   }
 }

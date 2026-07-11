@@ -1,6 +1,6 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-07-11 (41o-duodecies — editor/runtime screenshot collapsed-viewport remediation: §01 structural param/code asserts + §13/§17 manual-assist behavioral legs for force_foreground_* + EDITOR_VIEWPORT_UNAVAILABLE/RUNTIME_WINDOW_MINIMIZED)
+**Last updated:** 2026-07-11 (41o-duodecies-bis — lsp_project_diagnostics coverage completion: §48 deterministic broken-fixture dirty leg + include_warnings behavioral gate, both LSP-connect-gated/green-skip)
 **Server commit:** S:11d8d0a (41n-quater-septies; superseded by the landing commit recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 111 (33 eager + 78 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
@@ -326,7 +326,7 @@ routinely.
 | lsp_completion | 41 | ✓ (completion) | — | — | — | Via direct LspClient |
 | lsp_definition | 41 | ✓ (definition) | — | — | — | Via direct LspClient. May return null |
 | lsp_references | 41 | ✓ (references) | — | — | — | Via direct LspClient. May return null |
-| lsp_project_diagnostics | 48 | ✓ (project scan invariant) | ✓ (LSP_UNAVAILABLE mute-chunk → skip) | ✓ (include_addons, include_warnings) | — | Via direct LspClient + createLspHandler. Static: desc ≤200, readOnlyHint, LSP_TOOLS. Live gated on real connect (SKIP if unreachable) |
+| lsp_project_diagnostics | 48 | ✓ (project scan invariant + **deterministic broken-fixture dirty leg**: Error at 1-based line, invariant holds with fixtures) | ✓ (LSP_UNAVAILABLE mute-chunk → skip) | ✓ (include_addons; **include_warnings behavioral gate**: warning-only fixture absent when false / present as Warning when true) | — | Via direct LspClient + createLspHandler. Static: desc ≤200, readOnlyHint, LSP_TOOLS. Live gated on real connect (SKIP if unreachable). Fixture legs write `smoke_lsp_projdiag_broken.gd` + `_warn.gd`, assert, and delete (try/finally) — scan reads didOpen text so no editor_refresh. Hint: successHint is injected by callAndWrap/registry, NOT on the direct-handler result, so not assertable here (same as §41) |
 
 > **Limitation:** LSP tools are server-side (LspClient connects to Godot's built-in LSP on port 6005). Bridge-level tests are not possible — the smoke test bridge connects directly to the Godot plugin. Group activation and guard tests validated by unit tests (undecies-quinquies).
 
