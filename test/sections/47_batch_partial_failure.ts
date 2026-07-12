@@ -22,19 +22,22 @@ import { CALL_TIMEOUT } from "../helpers.js";
 // Each tool gets a one-bad-entry case (asserts failed/hint present + correct)
 // plus an all-success control (asserts failed/hint ABSENT — locks additivity).
 //
-// scene.instantiate is the third results[]-bearing batch site: D-C3 (T:7244950)
-// wired the same `summarize_batch` rollup into `_batch_instantiate`
-// (scene_commands.gd:708). Only one path increments top-level `failed` —
-// `packed.instantiate() == null` (scene_commands.gd:625-628) — and all entries
+// scene.instantiate is the third results[]-bearing batch site: the same
+// `summarize_batch` rollup is wired into `_batch_instantiate`. Only one path
+// increments top-level `failed` — a null instantiate result — and all entries
 // share ONE already-validated PackedScene, so a per-entry instantiate failure is
 // NOT triggerable through the MCP surface from a valid .tscn (a bad scene fails
-// the whole call at LOAD_FAILED/NOT_FOUND before the batch loop; the
-// `instance==null` path is defensive). Per-key coerce errors attach as
-// `property_errors[]` to a SUCCEEDING entry — they do not fail it. So the
-// scene.instantiate partial-failure rollup is pinned at the helper level by the
-// toolkit headless unit `_test_summarize_batch` (which feeds it a {success:false}
-// shape), and smoke asserts only the all-success scene.instantiate batch control
-// below — locking the additive-only guarantee for site-3 end-to-end.
+// the whole call at LOAD_FAILED/NOT_FOUND before the batch loop; the null-instance
+// path is defensive). So the partial-failure rollup is pinned at the helper level
+// by the toolkit headless unit `_test_summarize_batch` (which feeds it a
+// {success:false} shape), and smoke asserts the all-success scene.instantiate
+// batch control below — locking the additive-only guarantee for site-3 end-to-end.
+//
+// A bare, untagged {x,y}/{x,y,z} position/scale is a distinct, reachable case: it
+// is REJECTED, not silently dropped. In batch it surfaces as a per-entry
+// `property_errors[]` on the (still-succeeding) entry WITHOUT bumping top-level
+// `failed`; in single-mode it bails with INVALID_PARAMS (no per-entry channel).
+// Both are asserted below.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const EXPECTED_HINT_NEEDLE = "inspect results[]";
@@ -293,6 +296,98 @@ export async function testBatchPartialFailure(ctx: TestCtx): Promise<void> {
         } catch {
           /* noop */
         }
+      }
+
+      // ── scene.instantiate batch — bare-dict transform → per-entry property_errors ──
+      // A bare, untagged {x,y} position/scale is REJECTED (not silently dropped):
+      // the entry still instantiates but carries a per-entry property_errors[]
+      // naming the offending property, and — because a coerce error attaches to a
+      // SUCCEEDING entry — top-level `failed` does NOT increment (additive-only
+      // guarantee holds). Uses one bad entry (bare-dict position) + one clean entry
+      // (tagged Vector2) so the per-entry scope is unambiguous.
+      const instBatchBadDict = (await bridge.call(
+        "scene.instantiate",
+        {
+          parent_path: ".",
+          scene_path: instFixture,
+          instances: [
+            { name: "BatchInstBad", position: { x: 10, y: 20 } },
+            { name: "BatchInstGood", position: { type: "Vector2", x: 30, y: 40 } },
+          ],
+        },
+        CALL_TIMEOUT,
+      )) as BatchResult;
+      // Per-entry outcomes (incl. property_errors) surface on the `results[]`
+      // channel — `instances[]` is only the created-nodes convenience list.
+      const badEntry = (instBatchBadDict.results ?? []).find(
+        (i) => (i as { name?: string }).name === "BatchInstBad",
+      ) as { property_errors?: Array<{ property?: string; error?: string }> } | undefined;
+      const posErr = badEntry?.property_errors?.find((e) => e.property === "position");
+      if (instBatchBadDict?.success !== true) {
+        fail(
+          `scene.instantiate batch bad-dict: expected success:true envelope, got ${JSON.stringify(instBatchBadDict)}`,
+        );
+      } else if (!posErr || typeof posErr.error !== "string" || !posErr.error.includes("tagged Vector2")) {
+        fail(
+          `scene.instantiate batch bad-dict: expected the bad entry to carry property_errors naming position with a tagged-Vector2 hint, got ${JSON.stringify(badEntry?.property_errors)}`,
+        );
+      } else if (instBatchBadDict.failed !== undefined) {
+        fail(
+          `scene.instantiate batch bad-dict: a per-entry coerce error must NOT bump top-level failed, got failed=${JSON.stringify(instBatchBadDict.failed)}`,
+        );
+      } else {
+        pass(`scene.instantiate batch bad-dict -> entry carries property_errors[position], top-level failed absent`);
+      }
+      // Clean up both spawned nodes (bad entry still instantiates).
+      for (const inst of instBatchBadDict.instances ?? []) {
+        const nodePath = (inst as { path?: string; name?: string }).path ?? (inst as { name?: string }).name;
+        if (typeof nodePath === "string" && nodePath.length > 0) {
+          try {
+            await bridge.call("scene.delete_node", { node_path: nodePath }, CALL_TIMEOUT);
+          } catch {
+            /* noop */
+          }
+        }
+      }
+      for (const name of ["BatchInstBad", "BatchInstGood"]) {
+        try {
+          await bridge.call("scene.delete_node", { node_path: name }, CALL_TIMEOUT);
+        } catch {
+          /* noop */
+        }
+      }
+
+      // ── scene.instantiate single-mode — bare-dict transform → INVALID_PARAMS ──
+      // The single-instance path rejects a bare, untagged {x,y} transform outright
+      // (the batch path reports it per-entry; single-mode has no per-entry channel,
+      // so it bails). Fresh create (no as_name collision) so the transform is
+      // actually applied and the coerce rejection is reached.
+      const instSingleBadDict = (await bridge.call(
+        "scene.instantiate",
+        {
+          parent_path: ".",
+          scene_path: instFixture,
+          as_name: "SingleInstBadDict",
+          transform: { position: { x: 12, y: 24 } },
+        },
+        CALL_TIMEOUT,
+      )) as BatchResult;
+      if (instSingleBadDict?.code !== "INVALID_PARAMS") {
+        fail(
+          `scene.instantiate single bad-dict: expected INVALID_PARAMS for a bare {x,y} transform, got ${JSON.stringify(instSingleBadDict)}`,
+        );
+      } else if (typeof instSingleBadDict.error !== "string" || !instSingleBadDict.error.includes("tagged Vector2")) {
+        fail(
+          `scene.instantiate single bad-dict: expected a tagged-Vector2 hint in the error, got ${JSON.stringify(instSingleBadDict.error)}`,
+        );
+      } else {
+        pass(`scene.instantiate single bad-dict -> INVALID_PARAMS with tagged-Vector2 hint`);
+      }
+      // In case the reject did not fire (e.g. a node was created), clean up.
+      try {
+        await bridge.call("scene.delete_node", { node_path: "SingleInstBadDict" }, CALL_TIMEOUT);
+      } catch {
+        /* noop */
       }
     }
   } finally {

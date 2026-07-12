@@ -135,7 +135,11 @@ export function paginationDoc(unit: string, opts: PaginationDocOptions = {}): st
   const { resumable = true, cursorlessNav, mutationCaveat = false } = opts;
   let doc = `Paged: returned, total_${unit}, has_more. `;
   if (resumable) {
-    doc += "When has_more, page via next_offset until has_more is false. ";
+    // The line-window family resumes on next_start_line, not the byte/index
+    // families' next_offset — the prose must name the field the tool actually
+    // returns or the caller pages with the wrong key.
+    const resumeField = unit === "lines" ? "next_start_line" : "next_offset";
+    doc += `When has_more, page via ${resumeField} until has_more is false. `;
   } else {
     doc += `Cursor-less — ${cursorlessNav ?? "narrow the query or raise limit"} for more. `;
   }

@@ -6,7 +6,7 @@
  * editor-bridge). A leaf factory — it depends on nothing group-internal above it.
  */
 import type { Bridge, ToolDef } from "../shared/types.js";
-import { callAndWrap } from "../registration/toolDispatch.js";
+import { callAndWrap, injectSuccessHint } from "../registration/toolDispatch.js";
 import { toolErrorFromPayload, toolErrorFromException } from "../shared/errorContract.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 import { RUNTIME_TOOLS, LSP_TOOLS } from "./groupCatalogue.js";
@@ -96,7 +96,18 @@ export function createGroupToolHandler(bridge: Bridge, def: ToolDef) {
     default: {
       if (LSP_TOOLS.has(def.name)) {
         const projectPath = process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
-        return createLspHandler(def.name, projectPath);
+        const handler = createLspHandler(def.name, projectPath);
+        // LSP handlers own their TCP transport and never flow through callAndWrap,
+        // so their declared successHint must be injected here, matching the
+        // custom-handler wrapping registerTools does. injectSuccessHint no-ops on
+        // an error result or a payload that already carries a hint.
+        if (!def.successHint) return handler;
+        const hintText = def.successHint;
+        return async (input: unknown) => {
+          const result = await handler(input);
+          if (!result.isError) injectSuccessHint(result, hintText);
+          return result;
+        };
       }
       const useRuntime = RUNTIME_TOOLS.has(def.name);
       return (input: unknown) => callAndWrap(bridge, def.method, input, { runtime: useRuntime });

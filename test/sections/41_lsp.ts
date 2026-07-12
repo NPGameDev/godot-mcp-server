@@ -8,7 +8,8 @@
  * comment). This avoids false failures in CI or headless runs.
  */
 import { LspClient, resolveLspEndpoint } from "../../src/lsp/lspClient.js";
-import { lspTools, createLspHandler } from "../../src/tools/lsp.js";
+import { lspTools, lspAnalysisTools, createLspHandler } from "../../src/tools/lsp.js";
+import { createGroupToolHandler } from "../../src/groups/groupToolHandlers.js";
 
 import type { TestCtx } from "../helpers.js";
 
@@ -22,7 +23,7 @@ export const TOOLS_TESTED: string[] = [
 ];
 
 export async function testLsp(ctx: TestCtx): Promise<void> {
-  const { pass, fail } = ctx;
+  const { bridge, pass, fail } = ctx;
 
   // ── Static checks (always run) ──
 
@@ -173,6 +174,31 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
         pass(`lsp_completion omitted limit -> count ${payload.count} <= default cap 10`);
       } else {
         fail(`lsp_completion omitted limit: expected count <= 10, got ${JSON.stringify(payload)}`);
+      }
+    }
+
+    // lsp_diagnostics carries a declared successHint; the group handler (the
+    // production registration path for the group-only LSP tools) injects it on a
+    // non-error result. Route a clean-file diagnostics call through the group
+    // handler and assert the hint landed. The group handler resolves its project
+    // path from GODOT_MCP_PROJECT_PATH, so pin it for construction and restore.
+    {
+      const diagDef = lspAnalysisTools.find((t) => t.name === "lsp_diagnostics");
+      const priorEnvPath = process.env.GODOT_MCP_PROJECT_PATH;
+      process.env.GODOT_MCP_PROJECT_PATH = projectPath;
+      let diagHandler: (input: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }>;
+      try {
+        diagHandler = createGroupToolHandler(bridge, diagDef!) as typeof diagHandler;
+      } finally {
+        if (priorEnvPath === undefined) delete process.env.GODOT_MCP_PROJECT_PATH;
+        else process.env.GODOT_MCP_PROJECT_PATH = priorEnvPath;
+      }
+      const diagResult = await diagHandler({ file_path: testFile });
+      const diagPayload = JSON.parse(diagResult.content[0].text) as { success?: boolean; hint?: string };
+      if (diagPayload.success && typeof diagPayload.hint === "string" && diagPayload.hint.includes("script_check")) {
+        pass(`lsp_diagnostics success hint injected via group handler`);
+      } else {
+        fail(`lsp_diagnostics: expected success hint mentioning script_check, got ${JSON.stringify(diagPayload.hint)}`);
       }
     }
 

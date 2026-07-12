@@ -30,9 +30,11 @@ export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
     fail(`signal.list: expected child_order_changed among ${signalListResult.signals.map((s) => s.name).join(",")}`);
   else pass(`signal.list -> ${signalListResult.signals.length} signals`);
 
-  // Connect + idempotent repeat + disconnect + NOT_FOUND.
+  // Connect + idempotent repeat + disconnect + NOT_FOUND. The source node is
+  // named by node_path (aligned with the output key); the success payload echoes
+  // it back under node_path.
   const connectionArgs = {
-    source_path: signalProbePath,
+    node_path: signalProbePath,
     signal_name: "child_order_changed",
     target_path: signalProbePath,
     method_name: "notify_property_list_changed",
@@ -41,12 +43,17 @@ export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
     status?: string;
     code?: string;
     signal?: string;
+    node_path?: string;
   };
   if (connectFresh?.status !== "created" || connectFresh.signal !== "child_order_changed")
     fail(
       `signal.manage connect first: expected status='created' with signal echoed, got ${JSON.stringify(connectFresh)}`,
     );
-  else pass(`signal.manage connect fresh -> status='created'`);
+  else if (connectFresh.node_path !== signalProbePath)
+    fail(
+      `signal.manage connect first: expected node_path echoed as '${signalProbePath}', got ${JSON.stringify(connectFresh.node_path)}`,
+    );
+  else pass(`signal.manage connect fresh -> status='created', node_path echoed`);
 
   const connectIdempotent = (await bridge.call(
     "signal.manage",
@@ -76,8 +83,13 @@ export async function testSignalsAndIntrospection(ctx: TestCtx): Promise<void> {
     "signal.manage",
     { action: "disconnect", ...connectionArgs },
     CALL_TIMEOUT,
-  )) as { success?: boolean; code?: string };
+  )) as { success?: boolean; code?: string; node_path?: string };
   if (!disconnectFirst?.success) fail(`signal.manage disconnect first: ${JSON.stringify(disconnectFirst)}`);
+  else if (disconnectFirst.node_path !== signalProbePath)
+    fail(
+      `signal.manage disconnect: expected node_path echoed as '${signalProbePath}', got ${JSON.stringify(disconnectFirst.node_path)}`,
+    );
+  else pass(`signal.manage disconnect -> success, node_path echoed`);
   const disconnectRepeat = (await bridge.call(
     "signal.manage",
     { action: "disconnect", ...connectionArgs },

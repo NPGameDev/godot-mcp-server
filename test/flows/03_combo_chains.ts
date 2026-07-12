@@ -70,7 +70,7 @@ async function comboSignalPersistence(ctx: TestCtx): Promise<void> {
     "signal.manage",
     {
       action: "connect",
-      source_path: sigPath,
+      node_path: sigPath,
       signal_name: "child_order_changed",
       target_path: sigPath,
       method_name: "notify_property_list_changed",
@@ -107,7 +107,7 @@ async function comboSignalPersistence(ctx: TestCtx): Promise<void> {
       "signal.manage",
       {
         action: "disconnect",
-        source_path: sigPath,
+        node_path: sigPath,
         signal_name: "child_order_changed",
         target_path: sigPath,
         method_name: "notify_property_list_changed",

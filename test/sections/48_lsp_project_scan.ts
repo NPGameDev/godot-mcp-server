@@ -15,6 +15,7 @@
 import { LspClient } from "../../src/lsp/lspClient.js";
 import { lspTools, lspAnalysisTools, createLspHandler } from "../../src/tools/lsp.js";
 import { LSP_TOOLS } from "../../src/groups/groups.js";
+import { createGroupToolHandler } from "../../src/groups/groupToolHandlers.js";
 
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT } from "../helpers.js";
@@ -33,6 +34,7 @@ type ScanPayload = {
   timed_out?: string[];
   read_failed?: string[];
   code?: string;
+  hint?: string;
 };
 
 export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
@@ -103,7 +105,23 @@ export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
   // The toolkit project keeps its dogfood scripts under addons/godot_mcp_toolkit/,
   // so include_addons picks up real .gd files; without it a clean run scans 0.
   const handler = createLspHandler("lsp_project_diagnostics", projectPath);
-  const result = (await handler({ include_addons: true })) as { content: { text: string }[] };
+
+  // Route the first scan through the production group handler so the success-hint
+  // injection (declared on the ToolDef, injected by createGroupToolHandler for the
+  // group-only LSP tools) is exercised, not just the raw handler. The group handler
+  // resolves its project path from GODOT_MCP_PROJECT_PATH, so pin it to the scan's
+  // path for construction and restore it — hermetic, no leak into later sections.
+  const groupDef = lspAnalysisTools.find((t) => t.name === "lsp_project_diagnostics");
+  const priorEnvPath = process.env.GODOT_MCP_PROJECT_PATH;
+  process.env.GODOT_MCP_PROJECT_PATH = projectPath;
+  let groupHandler: (input: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }>;
+  try {
+    groupHandler = createGroupToolHandler(bridge, groupDef!) as typeof groupHandler;
+  } finally {
+    if (priorEnvPath === undefined) delete process.env.GODOT_MCP_PROJECT_PATH;
+    else process.env.GODOT_MCP_PROJECT_PATH = priorEnvPath;
+  }
+  const result = await groupHandler({ include_addons: true });
   const payload = JSON.parse(result.content[0].text) as ScanPayload;
 
   if (payload.code === "LSP_UNAVAILABLE") {
@@ -118,6 +136,14 @@ export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
     return;
   }
   pass(`lsp_project_scan: scan succeeded (scanned ${payload.scanned}, clean ${payload.clean})`);
+
+  // The group handler injects the ToolDef successHint on a non-error scan — assert
+  // it landed and steers to the single-file and runtime-log tools.
+  if (typeof payload.hint === "string" && payload.hint.includes("lsp_diagnostics")) {
+    pass(`lsp_project_scan: success hint injected via group handler`);
+  } else {
+    fail(`lsp_project_scan: expected success hint mentioning lsp_diagnostics, got ${JSON.stringify(payload.hint)}`);
+  }
 
   // The core invariant: every scanned file is accounted for in exactly one bucket.
   const scanned = payload.scanned ?? -1;

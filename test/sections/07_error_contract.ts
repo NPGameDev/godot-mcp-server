@@ -139,7 +139,7 @@ export async function testErrorContract(ctx: TestCtx): Promise<void> {
       "signal.manage",
       {
         action: "connect",
-        source_path: ".",
+        node_path: ".",
         signal_name: "no_such_signal_xyz",
         target_path: ".",
         method_name: "notify_property_list_changed",

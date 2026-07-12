@@ -1,6 +1,6 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-07-11 (41o-duodecies-ter — screenshot `image_response_mode` disk/both + runtime `save_path`: §04/§13/§17 disk-mode envelope legs, §01 param-presence asserts, §02 scene_create_node bad-form-inline-props drop reporting)
+**Last updated:** 2026-07-12 (4.2-leg fix batch — signal_manage output key source_path→node_path (§05/§07); audiobus_list buses now untrusted-enveloped (§34); scene_instantiate bare-untagged transform now rejected — batch per-entry property_errors + single-mode INVALID_PARAMS (§47); lsp success hint now injected via the group handler → asserted for lsp_project_diagnostics (§48) + lsp_diagnostics (§41))
 **Server commit:** S:11d8d0a (41n-quater-septies; superseded by the landing commit recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 111 (33 eager + 78 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
@@ -80,7 +80,7 @@ routinely.
 | scene_open | 04, 10 | ✓ | ✓ (04: NOT_FOUND) | — | — | |
 | scene_close | 01, 04 | ✓ (04, 4.5+) | ✓ (04: PATH_DENIED, NOT_FOUND, EDITED_SCENE last-tab; 4.5+) | — | ✓ (01: godotMinVersion=4.5) | 4.5+ only; §04 happy+guards gated `godotVer>=4.5` (skips on <4.5 — 41m-ter A0); structural in §01. **§01 behavioral (41n-duodecies):** the `cleanup` group summary OMITS scene_close on <4.5 and OFFERS it on 4.5+, keyed on `bridge.getGodotVersion()` — advertise==register, the cross-version CI guard (full smoke runs on real 4.2–4.7). Response discloses `unsaved_changes_discarded: <bool>` on 4.7+ (omitted below 4.7); §04 asserts presence/absence per version. destructiveHint=true. |
 | scene_delete | 08 | ✓ | ✓ (08: NOT_FOUND) | — | — | Scene file deletion (distinct from scene_delete_node) |
-| scene_instantiate | 10, 47 | ✓ | ✓ (10: PATH_DENIED, INVALID_PATH, NOT_FOUND) | ✓ (as_name, transform, FIX-K auto-rename, owner-set; 10: as_name-collision returned-path warning names ignored transform, absent when none passed; **47: batch all-success control → count=2, instances=2, failed/hint absent**) | — | Batch partial-failure not assertable via smoke — see §47 note |
+| scene_instantiate | 10, 47 | ✓ | ✓ (10: PATH_DENIED, INVALID_PATH, NOT_FOUND; **47: bare-untagged transform rejected — single-mode INVALID_PARAMS, batch per-entry `property_errors`**) | ✓ (as_name, transform, FIX-K auto-rename, owner-set; 10: as_name-collision returned-path warning names ignored transform, absent when none passed; **47: batch all-success control → count=2, instances=2, failed/hint absent**) | — | Batch instantiate-null partial-failure not assertable via smoke — see §47 note. Bare-dict transform (`{x,y}` with no `type` tag) is now a reported failure: batch attaches `property_errors[{property,error}]` to the still-succeeding entry (top-level `failed` NOT bumped), single-mode bails INVALID_PARAMS |
 | scene_query | 36 | ✓ | ✓ (INVALID_PARAMS: no filters) | ✓ (class_filter, name_pattern, property_filters, limit, **offset pagination**) | ✓ (next_offset + hint on has_more) | **Paged envelope** (offset/limit/returned/total_matches/has_more/next_offset): §36 builds a 5-node `pagetest` group at limit 2 and asserts the paging invariants — total_matches constant across pages · Σreturned == total_matches · pages disjoint · union == full set · next_offset chain · has_more false only on final page · determinism · past-end empty page · negative-offset floor · limit>200 clamp + limit_clamped · no-match. `count`→`returned` (removed the ambiguous capped-size field); boundary flag is `has_more` (NOT truncated). Structural Check 8 pins the `offset` param. |
 | scene_create_inherited | 33 | ✓ | ✓ (NOT_FOUND: missing base) | ✓ (auto root name, custom root name, idempotency) | — | |
 
@@ -172,7 +172,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | signal_list | 05, 07, 25 | ✓ | ✓ (07: NOT_FOUND) | — | — | In signals group |
-| signal_manage | 05, 07 | ✓ (connect/disconnect) | ✓ (07: NOT_FOUND, INVALID_PARAMS) | ✓ (idempotency: status=returned) | — | **GAP:** method hint assertion |
+| signal_manage | 05, 07 | ✓ (connect/disconnect) | ✓ (07: NOT_FOUND, INVALID_PARAMS) | ✓ (idempotency: status=returned; **05: success payload echoes the source node under `node_path`** — connect-created + disconnect assert it) | — | Input param + success output key are both `node_path` (was `source_path`); §05/§07 pass `node_path` as input. **GAP:** method hint assertion |
 | signal_emit | 05 | ✓ | — | — | — | In signals group |
 
 ### Diff (1 tool)
@@ -270,7 +270,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | audiobus_edit | 34 | ✓ | ✓ (INVALID_PARAMS: Master removal) | ✓ (add_bus, add_effect, remove_bus) | — | In audio group. list extracted to audiobus_list (ledger #3 CQS split). **GAP:** set_volume, remove_effect, move_effect sub-ops |
-| audiobus_list | 34 | ✓ | — | — | — | In audio group; read-only bus-layout snapshot (extracted from audiobus_edit, ledger #3) |
+| audiobus_list | 34 | ✓ | — | — | ✓ (34: `buses` untrusted-enveloped) | In audio group; read-only bus-layout snapshot (extracted from audiobus_edit, ledger #3). §34 asserts the `buses` structured array is wrapped in a nonce-tagged `<untrusted-* kind="audiobus" source="project-audio">` envelope (parity with resource.load — see §18); `bus_count` stays an unwrapped top-level scalar |
 
 ### SpriteFrames (3 tools)
 
@@ -320,13 +320,13 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| lsp_diagnostics | 41 | — | — | — | — | Static checks only (desc, annotations). Live tests use direct LspClient (server-side) |
+| lsp_diagnostics | 41 | ✓ (clean-file diagnostics via group handler) | — | — | ✓ (41: successHint on non-error result) | Static checks (desc, annotations) + a clean-file diagnostics call routed through the production `createGroupToolHandler` to assert the injected successHint (steers to script_check / editor_get_console). Other live LSP requests use direct LspClient (server-side) |
 | lsp_symbols | 41 | ✓ (documentSymbol) | — | — | — | Via direct LspClient |
 | lsp_hover | 41 | ✓ (hover) | — | — | — | Via direct LspClient. Null at 0:0 is valid |
 | lsp_completion | 41 | ✓ (completion) | — | — | — | Via direct LspClient |
 | lsp_definition | 41 | ✓ (definition) | — | — | — | Via direct LspClient. May return null |
 | lsp_references | 41 | ✓ (references) | — | — | — | Via direct LspClient. May return null |
-| lsp_project_diagnostics | 48 | ✓ (project scan invariant + **deterministic broken-fixture dirty leg**: Error at 1-based line, invariant holds with fixtures) | ✓ (LSP_UNAVAILABLE mute-chunk → skip) | ✓ (include_addons; **include_warnings behavioral gate**: warning-only fixture absent when false / present as Warning when true) | — | Via direct LspClient + createLspHandler. Static: desc ≤200, readOnlyHint, LSP_TOOLS. Live gated on real connect (SKIP if unreachable). Fixture legs write `smoke_lsp_projdiag_broken.gd` + `_warn.gd`, assert, and delete (try/finally) — scan reads didOpen text so no editor_refresh. Hint: successHint is injected by callAndWrap/registry, NOT on the direct-handler result, so not assertable here (same as §41) |
+| lsp_project_diagnostics | 48 | ✓ (project scan invariant + **deterministic broken-fixture dirty leg**: Error at 1-based line, invariant holds with fixtures) | ✓ (LSP_UNAVAILABLE mute-chunk → skip) | ✓ (include_addons; **include_warnings behavioral gate**: warning-only fixture absent when false / present as Warning when true) | ✓ (48: successHint on clean scan) | Via direct LspClient. Static: desc ≤200, readOnlyHint, LSP_TOOLS. Live gated on real connect (SKIP if unreachable). Fixture legs write `smoke_lsp_projdiag_broken.gd` + `_warn.gd`, assert, and delete (try/finally) — scan reads didOpen text so no editor_refresh. **Hint:** the first live scan runs through the production `createGroupToolHandler` (which injects the ToolDef successHint for the group-only LSP tools) so the hint is asserted present on a non-error scan; the fixture legs stay on the raw `createLspHandler` |
 
 > **Limitation:** LSP tools are server-side (LspClient connects to Godot's built-in LSP on port 6005). Bridge-level tests are not possible — the smoke test bridge connects directly to the Godot plugin. Group activation and guard tests validated by unit tests (undecies-quinquies).
 
@@ -381,7 +381,7 @@ is pinned at the helper level by the toolkit headless unit `_test_summarize_batc
 |---|---|---|---|
 | node_set_property (batch) | 47 | ✓ partial-fail (failed=1, hint contains "1 of 2 entries failed" + "inspect results[]") + ✓ all-success control (failed/hint absent) | Bad entry = nonexistent `node_path` → per-entry `{success:false, error:"node not found"}`; predicate counts `success==false` |
 | node_groups (batch) | 47 | ✓ partial-fail (failed=1, same hint) + ✓ all-success control (failed/hint absent) | Bad entry = nonexistent `node_path` → per-entry `{error:"node not found"}` with **no `success` key**; exercises the helper's tolerant predicate (no-success + error ⇒ failure) |
-| scene_instantiate (batch) | 47 | ✓ all-success control (count=2, instances=2, failed/hint **absent**); partial-fail **not assertable via smoke** | Site-3 rollup **is** wired — D-C3 (T:7244950) added `summarize_batch` to `_batch_instantiate` (`scene_commands.gd:708`). But the only path that increments top-level `failed` is `packed.instantiate()==null` (`scene_commands.gd:625-628`), and all entries share ONE already-validated `PackedScene`, so a per-entry instantiate failure is **not triggerable through the MCP surface** from a valid `.tscn` (a bad scene fails the whole call at LOAD_FAILED/NOT_FOUND before the batch loop; `instance==null` is a defensive/unreachable path). Per-key coerce errors attach as `property_errors[]` to a **succeeding** entry — they do not increment `failed`. The partial-failure rollup is therefore pinned at the helper level by the toolkit headless unit `_test_summarize_batch` (feeds a `{success:false}` shape); smoke covers the **all-success** scene_instantiate batch control end-to-end. |
+| scene_instantiate (batch) | 47 | ✓ all-success control (count=2, instances=2, failed/hint **absent**); ✓ **bare-dict transform → per-entry `property_errors[position]`, top-level `failed` absent**; ✓ **single-mode bare-dict → INVALID_PARAMS**; instantiate-null partial-fail **not assertable via smoke** | The `summarize_batch` rollup is wired into `_batch_instantiate`. The only path that increments top-level `failed` is a null instantiate result, and all entries share ONE already-validated `PackedScene`, so a per-entry instantiate failure is **not triggerable through the MCP surface** from a valid `.tscn` (a bad scene fails the whole call at LOAD_FAILED/NOT_FOUND before the batch loop; the null-instance path is defensive/unreachable). Per-key coerce errors attach as `property_errors[]` to a **succeeding** entry — they do not increment `failed`. That rollup is pinned at the helper level by the toolkit headless unit `_test_summarize_batch` (feeds a `{success:false}` shape); smoke covers the all-success batch control end-to-end. A bare, untagged `{x,y}`/`{x,y,z}` position/scale is now a **reported** failure (was a silent drop): batch surfaces it as a per-entry `property_errors[]` on the still-succeeding entry (no top-level `failed` bump), single-mode bails `INVALID_PARAMS` — both asserted in §47. |
 
 > **Hint wording (committed source of truth, `editor_helpers.gd` `summarize_batch`):**
 > `"%d of %d entries failed — inspect results[] for per-entry .error."`. Assertions
@@ -406,7 +406,7 @@ No critical gaps remain. All tools have at least guard-level coverage.
 - **Partial coverage (missing params or sub-ops):** 18 tools
 - **Minimal coverage (guards only, no happy path):** 1 tool (animation_keyframe)
 - **No coverage:** 0 tools
-- **On-demand group coverage:** LSP (7/7 static, 6/7 live via direct LspClient), Debugger (4/4 via bridge)
+- **On-demand group coverage:** LSP (7/7 static; 7/7 live — 5/7 via direct LspClient, lsp_diagnostics + lsp_project_diagnostics via the production group handler), Debugger (4/4 via bridge)
 
 ---
 
