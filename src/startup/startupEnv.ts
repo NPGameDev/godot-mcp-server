@@ -9,6 +9,7 @@
 
 import { ALL_TOOL_DEFS, META_TOOL_NAMES } from "../registration/catalogue.js";
 import { GROUP_TOOL_NAMES, GROUPS } from "../groups/groups.js";
+import { MODULE_ALLOWED } from "./serverMode.js";
 import type { CliArgs } from "./cliArgs.js";
 import { formatHelp } from "./cliArgs.js";
 
@@ -22,6 +23,47 @@ export function enforceNodeVersion(): void {
     );
     process.exit(1);
   }
+}
+
+/** The static built-in tool manifest by name: the eagerly-registered set, the
+ *  always-on meta tools, and each on-demand group's tools. Excludes dynamic
+ *  extension tools. */
+export interface EagerManifest {
+  /** Names registered eagerly at startup (always in the initial tools/list). */
+  eager: readonly string[];
+  /** Always-on meta tool names (discover_tools, extensions_refresh). */
+  meta: readonly string[];
+  /** Group name → the tools that group activates on demand. */
+  groups: Record<string, readonly string[]>;
+}
+
+/**
+ * Build the static built-in tool manifest by name, deterministically sorted.
+ *
+ * The eager set is derived from `MODULE_ALLOWED` — the same set index.ts hands to
+ * `registerBuiltinModules` — so the manifest reflects the names registered
+ * eagerly rather than a parallel list. Meta names come from `META_TOOL_NAMES` and
+ * group membership from `GROUPS`, the same sources `--tools-count` counts.
+ *
+ * @returns the manifest; every array and every `groups` key ascending-sorted so
+ *   the serialization is byte-stable across turns
+ * @remarks Names only, and only the static built-in surface — per-project
+ *   extension tools are dynamic and excluded, matching `--tools-count`.
+ */
+export function buildEagerManifest(): EagerManifest {
+  const eager = [...MODULE_ALLOWED].sort();
+  const meta = [...META_TOOL_NAMES].sort();
+  const groups: Record<string, string[]> = {};
+  for (const group of [...GROUPS].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    groups[group.name] = [...group.tools].sort();
+  }
+  return { eager, meta, groups };
+}
+
+/** Print the eager+meta tool manifest as pretty JSON to stdout — a pre-transport
+ *  CLI report. Names only; a clean early-exit emit before any MCP wiring. */
+function printEagerList(): void {
+  process.stdout.write(JSON.stringify(buildEagerManifest(), null, 2) + "\n");
 }
 
 /** Print the static tool-count summary to stdout — a pre-transport CLI report,
@@ -46,6 +88,7 @@ function printToolCount(): void {
  *   - `--help` → usage on **stdout**, exit 0 (a CLI invocation, not an MCP session)
  *   - a parse error → the message + usage on **stderr**, exit 1 (fail loud)
  *   - `--tools-count` → the static count on **stdout**, exit 0
+ *   - `--list-eager` → the static tool manifest as JSON on **stdout**, exit 0
  *
  * No-op when argv carries none of these. `--help` wins over a parse error so a
  * bad flag alongside `--help` still prints usage rather than erroring.
@@ -61,6 +104,10 @@ export function applyCliMetaGates(cli: CliArgs): void {
   }
   if (cli.toolsCount) {
     printToolCount();
+    process.exit(0);
+  }
+  if (cli.listEager) {
+    printEagerList();
     process.exit(0);
   }
 }

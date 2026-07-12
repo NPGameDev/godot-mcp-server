@@ -26,6 +26,8 @@ export interface CliArgs {
   help: boolean;
   /** `--tools-count` was passed — the caller prints the static tool count and exits 0. */
   toolsCount: boolean;
+  /** `--list-eager` was passed — the caller prints the eager+meta tool manifest (JSON) and exits 0. */
+  listEager: boolean;
   /** First fatal parse problem (unknown flag / stray arg / missing value); the
    *  caller prints it plus usage to stderr and exits 1. undefined when argv is clean. */
   error?: string;
@@ -52,7 +54,7 @@ const VALUE_FLAGS: Readonly<Record<string, "editorPort" | "runtimePort" | "lspPo
  *   missing-value error rather than silently swallowing the following flag.
  */
 export function parseCliArgs(argv: readonly string[]): CliArgs {
-  const args: CliArgs = { help: false, toolsCount: false };
+  const args: CliArgs = { help: false, toolsCount: false, listEager: false };
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i];
     if (!token.startsWith("--")) {
@@ -69,6 +71,10 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     }
     if (name === "--tools-count") {
       args.toolsCount = true;
+      continue;
+    }
+    if (name === "--list-eager") {
+      args.listEager = true;
       continue;
     }
 
@@ -112,6 +118,7 @@ export function formatHelp(): string {
     "",
     "Other options:",
     "  --tools-count        Print the static tool-count summary and exit",
+    "  --list-eager         Print the eager+meta tool manifest (JSON) and exit",
     "  --help               Show this help and exit",
     "",
     "These flags move the DIAL target only. The ports the editor/runtime BIND",

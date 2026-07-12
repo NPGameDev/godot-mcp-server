@@ -9,7 +9,7 @@
  * @remarks
  * Owns sequencing and wiring only — no domain logic (that lives in the modules it
  * composes). The ordering is load-bearing: preflight may `process.exit` (Node
- * version check, `--help` / a CLI parse error / `--tools-count`); the transport
+ * version check, `--help` / a CLI parse error / `--tools-count` / `--list-eager`); the transport
  * connects only after the full tool surface and the notification router are ready.
  *
  * @module
@@ -40,7 +40,7 @@ import { installProcessHandlers } from "./startup/lifecycle.js";
 // ── Preflight (may exit) ─────────────────────────────────────────────
 startupEnv.enforceNodeVersion();
 const cli = parseCliArgs(process.argv.slice(2));
-startupEnv.applyCliMetaGates(cli); // --help / parse error / --tools-count
+startupEnv.applyCliMetaGates(cli); // --help / parse error / --tools-count / --list-eager
 
 // ── Bridge setup ─────────────────────────────────────────────────────
 
