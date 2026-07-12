@@ -84,39 +84,56 @@ export async function testDebugger(ctx: TestCtx): Promise<void> {
   // so assert BOTH branches deterministically (the section is green under either
   // config). A built-in script editor binds the breakpoint on its CodeEdit; an
   // external editor (Editor Settings → Text Editor → External) can't, so the tool
-  // returns EXTERNAL_EDITOR_ACTIVE up front. Probe with an always-present dogfood
-  // script — this fork is decided by editor config, not by the file — then dispatch
-  // to the matching branch's assertions.
+  // returns EXTERNAL_EDITOR_ACTIVE up front. The fork is decided by editor config,
+  // not by the file — but the probe still needs a real script to bind, so gate the
+  // live cycle on the dogfood fixture being present ON DISK. It is absent only on a
+  // non-dogfood project (e.g. the C# mono CI leg), where the toolkit sweep owns
+  // positive coverage; skip cleanly there, exactly as §41 skips its live LSP tests.
+  // Keyed off disk ground-truth (not the tool's own answer) so a NOT_FOUND regression
+  // on the dogfood project still FAILs rather than silently skipping.
   const testFile = "res://Validations/fixtures/env_probe.gd";
-  const setResult = (await bridge.call(
-    "debug.set_breakpoint",
-    { file_path: testFile, line: 1, enabled: true },
-    CALL_TIMEOUT,
-  )) as {
-    success?: boolean;
-    file_path?: string;
-    line?: number;
-    enabled?: boolean;
-    code?: string;
-    hint?: string;
-  };
-  if (setResult?.code === "EXTERNAL_EDITOR_ACTIVE") {
-    // External-editor branch: a clear refusal with a hint that steers the caller to
-    // switch back to the built-in editor. Assert the coded failure + a non-empty hint.
-    if (setResult.success === false && typeof setResult.hint === "string" && setResult.hint.length > 0) {
-      pass("debug.set_breakpoint: EXTERNAL_EDITOR_ACTIVE with a steering hint (external editor active)");
+  const projectPath = ctx.projectPath ?? process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
+  let fixtureOnDisk = true;
+  try {
+    const { access } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    await access(join(projectPath, testFile.replace(/^res:\/\//, "")));
+  } catch {
+    fixtureOnDisk = false;
+  }
+  if (!fixtureOnDisk) {
+    pass(`debug.set_breakpoint: SKIPPED live breakpoint tests — ${testFile} not found (non-dogfood project)`);
+  } else {
+    const setResult = (await bridge.call(
+      "debug.set_breakpoint",
+      { file_path: testFile, line: 1, enabled: true },
+      CALL_TIMEOUT,
+    )) as {
+      success?: boolean;
+      file_path?: string;
+      line?: number;
+      enabled?: boolean;
+      code?: string;
+      hint?: string;
+    };
+    if (setResult?.code === "EXTERNAL_EDITOR_ACTIVE") {
+      // External-editor branch: a clear refusal with a hint that steers the caller to
+      // switch back to the built-in editor. Assert the coded failure + a non-empty hint.
+      if (setResult.success === false && typeof setResult.hint === "string" && setResult.hint.length > 0) {
+        pass("debug.set_breakpoint: EXTERNAL_EDITOR_ACTIVE with a steering hint (external editor active)");
+      } else {
+        fail(
+          `debug.set_breakpoint(external editor): expected {success:false, hint:string}, got ${JSON.stringify(setResult)}`,
+        );
+      }
+    } else if (setResult?.success === true) {
+      // Built-in-editor branch: the full identity-bind contract.
+      await testBuiltInIdentityBind(ctx, testFile, setResult);
     } else {
       fail(
-        `debug.set_breakpoint(external editor): expected {success:false, hint:string}, got ${JSON.stringify(setResult)}`,
+        `debug.set_breakpoint: expected success or EXTERNAL_EDITOR_ACTIVE on ${testFile}, got ${JSON.stringify(setResult)}`,
       );
     }
-  } else if (setResult?.success === true) {
-    // Built-in-editor branch: the full identity-bind contract.
-    await testBuiltInIdentityBind(ctx, testFile, setResult);
-  } else {
-    fail(
-      `debug.set_breakpoint: expected success or EXTERNAL_EDITOR_ACTIVE on ${testFile}, got ${JSON.stringify(setResult)}`,
-    );
   }
 
   // Guards: .cs rejection. The .cs type check precedes the external-editor detection
