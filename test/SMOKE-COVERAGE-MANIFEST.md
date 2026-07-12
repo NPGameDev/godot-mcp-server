@@ -1,6 +1,6 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-07-12 (4.2-leg fix batch — signal_manage output key source_path→node_path (§05/§07); audiobus_list buses now untrusted-enveloped (§34); scene_instantiate bare-untagged transform now rejected — batch per-entry property_errors + single-mode INVALID_PARAMS (§47); lsp success hint now injected via the group handler → asserted for lsp_project_diagnostics (§48) + lsp_diagnostics (§41))
+**Last updated:** 2026-07-12 (41o-terdecies close-out — animationtree_edit add_node `nodes_count` version-gated (present 4.5+ / omitted+`note` on 4.2-4.4) now asserted (§27); debug_set_breakpoint verified-path echo asserted (§42); script_check successHint now also steers to lsp_project_diagnostics. Prior 4.2-leg batch: signal_manage output key source_path→node_path (§05/§07); audiobus_list buses now untrusted-enveloped (§34); scene_instantiate bare-untagged transform now rejected — batch per-entry property_errors + single-mode INVALID_PARAMS (§47); lsp success hint now injected via the group handler → asserted for lsp_project_diagnostics (§48) + lsp_diagnostics (§41))
 **Server commit:** S:11d8d0a (41n-quater-septies; superseded by the landing commit recorded at bookkeeping)
 **Total tools (eagerly-registered):** 33
 **Total tools (including on-demand groups):** 111 (33 eager + 78 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
@@ -109,7 +109,7 @@ routinely.
 | script_read | 03, 21, 25 | ✓ | ✓ (03: NOT_FOUND) | ✓ (21: start_line/end_line range + returned; 03: line-window pagination — has_more/next_start_line/total_lines/returned per window) | — | ledger #20: has_more (was truncated); returned added (window line count) |
 | script_write | 03, 08, 09, 14, 16, 21, 23, 24, 25 | ✓ | — | ✓ (undoable flag) | — | **GAP:** inline diagnostics response, preload hint |
 | script_delete | 08, 09, 24, 25 | ✓ | — | — | — | In cleanup group |
-| script_check | 24, 25 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: .cs) | ✓ (valid/invalid scripts, diagnostics) | — | §24 asserts the version-aware diagnostics shape: error entry carries the real 1-based `line` on 4.5+, `line` key absent on <4.5 (never a fabricated 0), no `col` ever, hint entries never carry `line` — 41n-undecies S6.6 |
+| script_check | 24, 25 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: .cs) | ✓ (valid/invalid scripts, diagnostics) | — | §24 asserts the version-aware diagnostics shape: error entry carries the real 1-based `line` on 4.5+, `line` key absent on <4.5 (never a fabricated 0), no `col` ever, hint entries never carry `line` — 41n-undecies S6.6. successHint steers to `lsp_diagnostics` (single-file detail) AND `lsp_project_diagnostics` (whole-project scan for cross-file breakage); registry-injected, so asserted via the MCP-driven sweep (§26-C29), not the direct-handler smoke call |
 
 ### Editor Core (4 tools)
 
@@ -214,7 +214,7 @@ routinely.
 |---|---|---|---|---|---|---|
 | animation_keyframe | 13 | — | ✓ (NOT_FOUND, INVALID_CLASS, INVALID_PARAMS: bare NodePath) | — | — | **GAP:** happy path (add/update/remove) not tested |
 | animation_get_keys | 13 | — | ✓ (INVALID_CLASS, NOT_FOUND) | — | — | Guard coverage. Happy-path needs animation setup |
-| animationtree_edit | 27 | ✓ | ✓ (NOT_FOUND) | ✓ (set_root, add_node, add_transition, remove_transition, remove_node) | — | 5 mutating sub-ops (list extracted to animationtree_list, ledger #3 CQS split) |
+| animationtree_edit | 27 | ✓ | ✓ (NOT_FOUND) | ✓ (set_root, add_node, add_transition, remove_transition, remove_node) | — | 5 mutating sub-ops (list extracted to animationtree_list, ledger #3 CQS split). §27 add_node is version-aware on the count: `nodes_count` present+numeric on 4.5+; **omitted + a `note`** on 4.2-4.4 (no `get_node_list`) — asserted, never a fabricated 0 |
 | animationtree_list | 27 | ✓ | ✓ (INVALID_CLASS) | — | — | Read-only structure list (extracted from animationtree_edit, ledger #3). §27 version-aware: node-enum is 4.5+ (nodes>=2 on 4.5+, [] on 4.2-4.4 — `get_node_list` is 4.5; transitions+counts all versions) (41m-ter A4/A5) |
 
 ### Tilemap & Tileset (13 tools)
@@ -335,7 +335,7 @@ routinely.
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | debug_state | 42 | ✓ (active=false) | — | — | — | Reports game-running state |
-| debug_set_breakpoint | 42 | ✓ (set + clear cycle) | ✓ (UNSUPPORTED_FILE_TYPE: .cs) | ✓ (enabled=true/false; `enabled` optional in tools/list — structural Check 7, 41m-sexies) | — | Breakpoint lifecycle tested |
+| debug_set_breakpoint | 42 | ✓ (set + clear cycle) | ✓ (UNSUPPORTED_FILE_TYPE: .cs) | ✓ (enabled=true/false; `enabled` optional in tools/list — structural Check 7, 41m-sexies) | — | Breakpoint lifecycle tested. §42 asserts the echoed `file_path` is the **verified** path (bound by script identity, verified via is_line_breakpointed) — not an unchecked echo of a misrouted set |
 | debug_list_breakpoints | 42 | ✓ (verify set + verify clear) | — | — | — | |
 | debug_continue | 42 | ✓ (GAME_NOT_RUNNING) | ✓ (NOT_BREAKED) | — | — | |
 

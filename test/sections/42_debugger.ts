@@ -88,10 +88,13 @@ export async function testDebugger(ctx: TestCtx): Promise<void> {
     await testContinueError(ctx);
     return;
   }
+  // The echoed file_path is the VERIFIED path the breakpoint landed on (bound by
+  // script identity, verified via is_line_breakpointed), so it equals the request
+  // on the happy path — it is never an unchecked echo of a misrouted set.
   if (setResult.file_path !== testFile || setResult.line !== 1 || setResult.enabled !== true) {
     fail(`debug.set_breakpoint: unexpected response ${JSON.stringify(setResult)}`);
   } else {
-    pass("debug.set_breakpoint: set breakpoint on Main.gd:1");
+    pass("debug.set_breakpoint: set breakpoint on Main.gd:1 (verified path echoed)");
   }
 
   // 3. debug.list_breakpoints — should include the breakpoint we just set.

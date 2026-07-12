@@ -48,9 +48,31 @@ export async function testAnimationTree(ctx: TestCtx): Promise<void> {
       position: { x: 0, y: 0 },
     },
     CALL_TIMEOUT,
-  )) as { success?: boolean; status?: string; node_name?: string; nodes_count?: number; code?: string };
+  )) as {
+    success?: boolean;
+    status?: string;
+    node_name?: string;
+    nodes_count?: number;
+    note?: string;
+    code?: string;
+  };
   if (addIdle?.success === true && addIdle.status === "created" && addIdle.node_name === "idle") {
-    pass(`animationtree.edit add_node idle -> created, nodes_count=${addIdle.nodes_count}`);
+    // Version-aware count: nodes_count is present + accurate on 4.5+ (get_node_list);
+    // on 4.2-4.4 it is OMITTED (never a fabricated 0) and a note explains the gap.
+    const addVer = bridge.getGodotVersion();
+    if (addVer != null && isVersionAtLeast(addVer, "4.5")) {
+      if (typeof addIdle.nodes_count === "number")
+        pass(`animationtree.edit add_node idle -> created, nodes_count=${addIdle.nodes_count} (4.5+)`);
+      else
+        fail(`animationtree.edit add_node idle (4.5+): expected numeric nodes_count, got ${JSON.stringify(addIdle)}`);
+    } else {
+      if (addIdle.nodes_count === undefined && typeof addIdle.note === "string")
+        pass(`animationtree.edit add_node idle -> created, nodes_count omitted + note (4.2-4.4)`);
+      else
+        fail(
+          `animationtree.edit add_node idle (4.2-4.4): expected nodes_count omitted + note, got ${JSON.stringify(addIdle)}`,
+        );
+    }
   } else {
     fail(`animationtree.edit add_node idle: ${JSON.stringify(addIdle)}`);
   }

@@ -50,7 +50,8 @@ export const scriptTools: ToolDef[] = [
       "Offline GDScript validation — pass/fail + diagnostics. On 4.5+ the error diagnostic carries the real line (1-based; omitted on 4.2-4.4). Columns are lsp_diagnostics' domain. Works without editor.",
     inputSchema: { file_path: z.string().describe("res:// path to a .gd file") },
     annotations: { readOnlyHint: true, openWorldHint: false },
-    successHint: "For detailed diagnostics use lsp_diagnostics. For runtime errors use editor_get_console.",
+    successHint:
+      "For detailed diagnostics on this file use lsp_diagnostics; to check whether the change broke another script, use lsp_project_diagnostics (whole-project scan). For runtime errors use editor_get_console.",
     pathParams: [PROJECT_FILE_PATH],
   },
 ];
