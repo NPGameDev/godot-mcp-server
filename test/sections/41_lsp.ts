@@ -110,20 +110,22 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
   }
 
   try {
-    // Test documentSymbol on a known file (Main.gd exists in the toolkit project).
-    const testFile = "res://Main.gd";
+    // Test documentSymbol on an always-present dogfood script — its @tool method
+    // (get_engine_version) gives documentSymbol a real symbol to return.
+    const testFile = "res://Validations/fixtures/env_probe.gd";
     const absPath = testFile.replace(/^res:\/\//, "");
     const fullPath = `${projectPath.replace(/\\/g, "/")}/${absPath}`;
     const uri = /^[A-Za-z]:/.test(fullPath) ? `file:///${fullPath}` : `file://${fullPath}`;
 
-    // Read file content for didOpen.
+    // Read file content for didOpen. Absent only when the smoke runs against a
+    // non-dogfood project (the toolkit sweep owns the positive coverage there).
     let content: string;
     try {
       const { readFile } = await import("node:fs/promises");
       const { join } = await import("node:path");
       content = await readFile(join(projectPath, absPath), "utf-8");
     } catch {
-      pass("lsp: SKIPPED live tests — Main.gd not found in project");
+      pass(`lsp: SKIPPED live tests — ${testFile} not found (non-dogfood project)`);
       return;
     }
 

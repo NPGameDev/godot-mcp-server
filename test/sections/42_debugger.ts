@@ -1,9 +1,15 @@
 /**
- * Section 43 — Debugger tools
+ * Section 42 — Debugger tools
  *
  * Tests debug.state, debug.list_breakpoints, debug.set_breakpoint,
- * debug.continue via the bridge. Breakpoint set/list/clear cycle
- * validates round-trip through the EditorDebuggerPlugin bridge.
+ * debug.continue via the bridge. debug.set_breakpoint forks on the editor's
+ * script-editor mode, and BOTH branches are asserted deterministically so the
+ * section is green under either config: with the built-in editor the set/list/
+ * clear cycle exercises the identity-bind contract for real (the echoed file_path
+ * is the path the breakpoint actually landed on, verified via is_line_breakpointed;
+ * a second script echoes its own path; a missing file errors NOT_FOUND rather than
+ * lying); with an external editor active the tool returns EXTERNAL_EDITOR_ACTIVE
+ * with a hint steering the user back to the built-in editor.
  */
 import { debugTools } from "../../src/tools/debug.js";
 
@@ -74,30 +80,106 @@ export async function testDebugger(ctx: TestCtx): Promise<void> {
     pass("debug.state: active=false (no game running)");
   }
 
-  // 2. debug.set_breakpoint — set a breakpoint on Main.gd line 1.
-  const testFile = "res://Main.gd";
+  // 2. debug.set_breakpoint — behavior forks on the editor's script-editor mode,
+  // so assert BOTH branches deterministically (the section is green under either
+  // config). A built-in script editor binds the breakpoint on its CodeEdit; an
+  // external editor (Editor Settings → Text Editor → External) can't, so the tool
+  // returns EXTERNAL_EDITOR_ACTIVE up front. Probe with an always-present dogfood
+  // script — this fork is decided by editor config, not by the file — then dispatch
+  // to the matching branch's assertions.
+  const testFile = "res://Validations/fixtures/env_probe.gd";
   const setResult = (await bridge.call(
     "debug.set_breakpoint",
     { file_path: testFile, line: 1, enabled: true },
     CALL_TIMEOUT,
-  )) as { success?: boolean; file_path?: string; line?: number; enabled?: boolean; code?: string };
-  if (setResult?.success !== true) {
-    // Main.gd might not exist in the project — skip remaining breakpoint tests.
-    pass(`debug.set_breakpoint: SKIPPED — ${setResult?.code ?? "unknown"} (Main.gd may not exist)`);
-    // Still test continue error.
-    await testContinueError(ctx);
-    return;
+  )) as {
+    success?: boolean;
+    file_path?: string;
+    line?: number;
+    enabled?: boolean;
+    code?: string;
+    hint?: string;
+  };
+  if (setResult?.code === "EXTERNAL_EDITOR_ACTIVE") {
+    // External-editor branch: a clear refusal with a hint that steers the caller to
+    // switch back to the built-in editor. Assert the coded failure + a non-empty hint.
+    if (setResult.success === false && typeof setResult.hint === "string" && setResult.hint.length > 0) {
+      pass("debug.set_breakpoint: EXTERNAL_EDITOR_ACTIVE with a steering hint (external editor active)");
+    } else {
+      fail(
+        `debug.set_breakpoint(external editor): expected {success:false, hint:string}, got ${JSON.stringify(setResult)}`,
+      );
+    }
+  } else if (setResult?.success === true) {
+    // Built-in-editor branch: the full identity-bind contract.
+    await testBuiltInIdentityBind(ctx, testFile, setResult);
+  } else {
+    fail(
+      `debug.set_breakpoint: expected success or EXTERNAL_EDITOR_ACTIVE on ${testFile}, got ${JSON.stringify(setResult)}`,
+    );
   }
-  // The echoed file_path is the VERIFIED path the breakpoint landed on (bound by
-  // script identity, verified via is_line_breakpointed), so it equals the request
-  // on the happy path — it is never an unchecked echo of a misrouted set.
+
+  // Guards: .cs rejection. The .cs type check precedes the external-editor detection
+  // in the handler, so this is editor-config-independent (runs under either branch).
+  const csResult = await bridge.call("debug.set_breakpoint", { file_path: "res://script.cs", line: 1 }, CALL_TIMEOUT);
+  assertGuard(ctx, "debug.set_breakpoint(.cs)", csResult, "UNSUPPORTED_FILE_TYPE", "GDScript");
+
+  // debug.continue error.
+  await testContinueError(ctx);
+}
+
+/**
+ * Built-in-editor identity-bind assertions for debug.set_breakpoint: the echoed
+ * file_path is the VERIFIED path the breakpoint landed on (bound by script identity,
+ * confirmed via is_line_breakpointed), a second real script echoes ITS own path (not
+ * the first's), a missing path errors NOT_FOUND rather than lying, and list/clear
+ * round-trip. Only reachable when the first set succeeded (built-in script editor).
+ */
+async function testBuiltInIdentityBind(
+  ctx: TestCtx,
+  testFile: string,
+  setResult: { file_path?: string; line?: number; enabled?: boolean },
+): Promise<void> {
+  const { bridge, pass, fail } = ctx;
+  const otherFile = "res://scripts/test_framework/check_all_scripts.gd";
+
+  // The echoed file_path equals the request — never an unchecked echo of a misrouted set.
   if (setResult.file_path !== testFile || setResult.line !== 1 || setResult.enabled !== true) {
     fail(`debug.set_breakpoint: unexpected response ${JSON.stringify(setResult)}`);
   } else {
-    pass("debug.set_breakpoint: set breakpoint on Main.gd:1 (verified path echoed)");
+    pass(`debug.set_breakpoint: set breakpoint on ${testFile}:1 (verified path echoed)`);
   }
 
-  // 3. debug.list_breakpoints — should include the breakpoint we just set.
+  // Identity bind: a second call to a DIFFERENT real script must echo THAT script's
+  // path — not the first file's. The echo is the path the breakpoint actually landed
+  // on, so a phantom/stale current tab can never make it lie.
+  const otherSet = (await bridge.call(
+    "debug.set_breakpoint",
+    { file_path: otherFile, line: 1, enabled: true },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; file_path?: string; line?: number };
+  if (otherSet?.success !== true || otherSet.file_path !== otherFile) {
+    fail(`debug.set_breakpoint(identity): expected echoed file_path=${otherFile}, got ${JSON.stringify(otherSet)}`);
+  } else {
+    pass(`debug.set_breakpoint: second script echoes its own path ${otherFile} (identity bind, not the first file)`);
+  }
+  // Clear the second breakpoint so only the first remains for the list checks.
+  await bridge.call("debug.set_breakpoint", { file_path: otherFile, line: 1, enabled: false }, CALL_TIMEOUT);
+
+  // A non-existent path must ERROR (NOT_FOUND) — never a lying success that echoes a
+  // path the breakpoint never bound to.
+  const missingSet = (await bridge.call(
+    "debug.set_breakpoint",
+    { file_path: "res://no_such_script_smoke_42.gd", line: 1, enabled: true },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; code?: string; file_path?: string };
+  if (missingSet?.success === false && missingSet.code === "NOT_FOUND") {
+    pass("debug.set_breakpoint(missing file): NOT_FOUND (no lying echo)");
+  } else {
+    fail(`debug.set_breakpoint(missing file): expected NOT_FOUND, got ${JSON.stringify(missingSet)}`);
+  }
+
+  // debug.list_breakpoints — should include the breakpoint we just set.
   const listResult = (await bridge.call("debug.list_breakpoints", {}, CALL_TIMEOUT)) as {
     success?: boolean;
     breakpoints?: { file_path: string; line: number }[];
@@ -108,13 +190,13 @@ export async function testDebugger(ctx: TestCtx): Promise<void> {
   } else {
     const found = listResult.breakpoints?.some((bp) => bp.file_path === testFile && bp.line === 1);
     if (!found) {
-      fail(`debug.list_breakpoints: expected Main.gd:1 in ${JSON.stringify(listResult.breakpoints)}`);
+      fail(`debug.list_breakpoints: expected ${testFile}:1 in ${JSON.stringify(listResult.breakpoints)}`);
     } else {
-      pass(`debug.list_breakpoints: found Main.gd:1 (${listResult.count} total)`);
+      pass(`debug.list_breakpoints: found ${testFile}:1 (${listResult.count} total)`);
     }
   }
 
-  // 4. debug.set_breakpoint — clear the breakpoint.
+  // debug.set_breakpoint — clear the breakpoint.
   const clearResult = (await bridge.call(
     "debug.set_breakpoint",
     { file_path: testFile, line: 1, enabled: false },
@@ -123,10 +205,10 @@ export async function testDebugger(ctx: TestCtx): Promise<void> {
   if (clearResult?.success !== true || clearResult.enabled !== false) {
     fail(`debug.set_breakpoint(clear): unexpected ${JSON.stringify(clearResult)}`);
   } else {
-    pass("debug.set_breakpoint: cleared breakpoint on Main.gd:1");
+    pass(`debug.set_breakpoint: cleared breakpoint on ${testFile}:1`);
   }
 
-  // 5. debug.list_breakpoints — breakpoint should be gone.
+  // debug.list_breakpoints — breakpoint should be gone.
   const list2 = (await bridge.call("debug.list_breakpoints", {}, CALL_TIMEOUT)) as {
     success?: boolean;
     breakpoints?: { file_path: string; line: number }[];
@@ -136,39 +218,11 @@ export async function testDebugger(ctx: TestCtx): Promise<void> {
   } else {
     const stillThere = list2.breakpoints?.some((bp) => bp.file_path === testFile && bp.line === 1);
     if (stillThere) {
-      fail("debug.list_breakpoints: Main.gd:1 still present after clear");
+      fail(`debug.list_breakpoints: ${testFile}:1 still present after clear`);
     } else {
-      pass("debug.list_breakpoints: Main.gd:1 gone after clear");
+      pass(`debug.list_breakpoints: ${testFile}:1 gone after clear`);
     }
   }
-
-  // 6. Guards: .cs rejection.
-  const csResult = await bridge.call("debug.set_breakpoint", { file_path: "res://script.cs", line: 1 }, CALL_TIMEOUT);
-  assertGuard(ctx, "debug.set_breakpoint(.cs)", csResult, "UNSUPPORTED_FILE_TYPE", "GDScript");
-
-  // 7. Guard: nonexistent file (outside res:// or missing).
-  const badPathResult = await bridge.call(
-    "debug.set_breakpoint",
-    { file_path: "res://no_such_script_smoke_43.gd", line: 1 },
-    CALL_TIMEOUT,
-  );
-  // The plugin may accept any res:// path for breakpoints (breakpoints are
-  // set by path, not validated against the filesystem). If so, success is
-  // acceptable — the breakpoint simply won't fire. Either outcome is valid.
-  if ((badPathResult as { success?: boolean })?.success === true) {
-    pass("debug.set_breakpoint(missing file): accepted (breakpoint won't fire — valid)");
-    // Clean up the orphan breakpoint.
-    await bridge.call(
-      "debug.set_breakpoint",
-      { file_path: "res://no_such_script_smoke_43.gd", line: 1, enabled: false },
-      CALL_TIMEOUT,
-    );
-  } else {
-    pass(`debug.set_breakpoint(missing file): rejected with ${(badPathResult as { code?: string })?.code ?? "error"}`);
-  }
-
-  // 8. debug.continue error.
-  await testContinueError(ctx);
 }
 
 async function testContinueError(ctx: TestCtx): Promise<void> {
