@@ -6,7 +6,8 @@
  * width,height,bytes,path — with `path` for editor/group, dropped for runtime).
  * Also pins the disk-mode variant: an undefined image yields a single lean text
  * block (key order path,width,height,bytes,mime_type) with no image block, and
- * the optional `hint` relays on both variants.
+ * the optional `hint`, `image_detail`, and `returned` disclosures relay on both
+ * variants.
  */
 import assert from "node:assert/strict";
 import { buildScreenshotResult } from "../../src/registration/screenshotResponse.js";
@@ -100,6 +101,44 @@ import { buildScreenshotResult } from "../../src/registration/screenshotResponse
   assert.deepEqual(r.content, [
     { type: "image", data: "abc", mimeType: "image/png" },
     { type: "text", text: '{"width":1,"height":2,"bytes":3,"hint":"foreground it"}' },
+  ]);
+}
+
+// ── image_detail + returned relay (image branch): the applied inline level and
+// the returned "WxH" are threaded verbatim into the text block after hint ──
+
+{
+  const r = buildScreenshotResult("abc", "image/png", {
+    width: 512,
+    height: 288,
+    bytes: 3,
+    image_detail: "low",
+    returned: "512x288",
+  });
+  assert.deepEqual(r.content, [
+    { type: "image", data: "abc", mimeType: "image/png" },
+    { type: "text", text: '{"width":512,"height":288,"bytes":3,"image_detail":"low","returned":"512x288"}' },
+  ]);
+}
+
+// ── image_detail + returned relay (disk branch): a disk-only capture reports the
+// applied level and the full-res "WxH" of the saved file alongside the hint ──
+
+{
+  const r = buildScreenshotResult(undefined, "image/png", {
+    width: 1920,
+    height: 1080,
+    bytes: 5498,
+    path: "user://s/x.png",
+    hint: "Saved full-res → user://s/x.png. Read it for pixel detail without re-capturing.",
+    image_detail: "full",
+    returned: "1920x1080",
+  });
+  assert.deepEqual(r.content, [
+    {
+      type: "text",
+      text: '{"path":"user://s/x.png","width":1920,"height":1080,"bytes":5498,"mime_type":"image/png","hint":"Saved full-res → user://s/x.png. Read it for pixel detail without re-capturing.","image_detail":"full","returned":"1920x1080"}',
+    },
   ]);
 }
 

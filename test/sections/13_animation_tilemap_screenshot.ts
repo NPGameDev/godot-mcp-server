@@ -308,13 +308,44 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
     assertGuard(ctx, "editor.screenshot node_path missing", missingNodeShot, "NOT_FOUND", "node");
   }
 
-  const tinySizeShot = await bridge.call(
+  // image_detail on a node-focused capture: full is native, mid/low downscale the
+  // inline image proportionally. This talks straight to the toolkit WS, so the
+  // applied level (image_detail) and the resulting "WxH" (returned) are top-level
+  // fields on the raw payload. Capture the full-detail baseline dims, then assert
+  // mid stays within its long-edge cap and no larger than the baseline.
+  const fullDetailShot = (await bridge.call(
     "editor.screenshot",
-    { node_path: screenshotNodePath, size: { width: 32, height: 32 } },
-    CALL_TIMEOUT,
-  );
-  if (!passIfHeadlessUnsupported(ctx, "editor.screenshot node_path tiny size", tinySizeShot)) {
-    assertGuard(ctx, "editor.screenshot node_path tiny size", tinySizeShot, "INVALID_PARAMS", ["64", "4096"]);
+    { node_path: screenshotNodePath, image_detail: "full" },
+    SCREENSHOT_TIMEOUT,
+  )) as { image_base64?: string; width?: number; height?: number; image_detail?: string; returned?: string };
+  if (!passIfHeadlessUnsupported(ctx, "editor.screenshot node_path image_detail=full", fullDetailShot)) {
+    if (
+      fullDetailShot?.image_detail !== "full" ||
+      fullDetailShot.returned !== `${fullDetailShot.width}x${fullDetailShot.height}`
+    )
+      fail(
+        `editor.screenshot image_detail=full disclosure: ${JSON.stringify({ ...fullDetailShot, image_base64: "<omitted>" })}`,
+      );
+    else pass(`editor.screenshot image_detail=full -> native ${fullDetailShot.returned} (image_detail=full)`);
+
+    // mid: long edge capped near 1024, and never upscaled past the full-detail dims.
+    const midDetailShot = (await bridge.call(
+      "editor.screenshot",
+      { node_path: screenshotNodePath, image_detail: "mid" },
+      SCREENSHOT_TIMEOUT,
+    )) as { width?: number; height?: number; image_detail?: string; returned?: string };
+    const midLongEdge = Math.max(midDetailShot?.width ?? 0, midDetailShot?.height ?? 0);
+    const fullLongEdge = Math.max(fullDetailShot.width ?? 0, fullDetailShot.height ?? 0);
+    if (
+      midDetailShot?.image_detail !== "mid" ||
+      midDetailShot.returned !== `${midDetailShot.width}x${midDetailShot.height}` ||
+      midLongEdge > 1024 ||
+      midLongEdge > fullLongEdge
+    )
+      fail(
+        `editor.screenshot image_detail=mid: expected <=1024 long edge, <=full, got ${JSON.stringify(midDetailShot)} (full long edge ${fullLongEdge})`,
+      );
+    else pass(`editor.screenshot image_detail=mid -> ${midDetailShot.returned} (long edge ${midLongEdge} <= 1024)`);
   }
 
   try {

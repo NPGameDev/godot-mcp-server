@@ -124,6 +124,44 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
         else pass(`runtime.screenshot PNG ${buf.length}B (${runtimeScreenshot.width}x${runtimeScreenshot.height})`);
       }
 
+      // image_detail on the running-game capture: mid/low downscale the inline image
+      // proportionally and disclose the applied level (image_detail) + resulting
+      // "WxH" (returned). callRuntime talks straight to the toolkit WS, so both are
+      // top-level fields on the raw payload.
+      const midRtShot = (await bridge.callRuntime(
+        "runtime.screenshot",
+        { image_detail: "mid" },
+        SCREENSHOT_TIMEOUT,
+      )) as { image_base64?: string; width?: number; height?: number; image_detail?: string; returned?: string };
+      const midRtLongEdge = Math.max(midRtShot?.width ?? 0, midRtShot?.height ?? 0);
+      if (
+        !midRtShot?.image_base64 ||
+        midRtShot.image_detail !== "mid" ||
+        midRtShot.returned !== `${midRtShot.width}x${midRtShot.height}` ||
+        midRtLongEdge > 1024
+      )
+        fail(
+          `runtime.screenshot image_detail=mid: expected image + mid disclosure + <=1024 long edge, got ${JSON.stringify({ ...midRtShot, image_base64: midRtShot?.image_base64 ? "<present>" : undefined })}`,
+        );
+      else pass(`runtime.screenshot image_detail=mid -> ${midRtShot.returned} (long edge ${midRtLongEdge} <= 1024)`);
+
+      const lowRtShot = (await bridge.callRuntime(
+        "runtime.screenshot",
+        { image_detail: "low" },
+        SCREENSHOT_TIMEOUT,
+      )) as { image_base64?: string; width?: number; height?: number; image_detail?: string; returned?: string };
+      const lowRtLongEdge = Math.max(lowRtShot?.width ?? 0, lowRtShot?.height ?? 0);
+      if (
+        !lowRtShot?.image_base64 ||
+        lowRtShot.image_detail !== "low" ||
+        lowRtShot.returned !== `${lowRtShot.width}x${lowRtShot.height}` ||
+        lowRtLongEdge > 512
+      )
+        fail(
+          `runtime.screenshot image_detail=low: expected image + low disclosure + <=512 long edge, got ${JSON.stringify({ ...lowRtShot, image_base64: lowRtShot?.image_base64 ? "<present>" : undefined })}`,
+        );
+      else pass(`runtime.screenshot image_detail=low -> ${lowRtShot.returned} (long edge ${lowRtLongEdge} <= 512)`);
+
       // Minimized game window — a suspended-render window returns a diagnostic
       // RUNTIME_WINDOW_MINIMIZED (not a 30 s TIMEOUT, not a stale PNG);
       // force_foreground_game:true un-minimizes + captures fresh. Can't be forced
@@ -487,6 +525,47 @@ async function testRuntimeDiskModes(ctx: TestCtx): Promise<void> {
       pass(`runtime.screenshot both -> image + file at ${rtBothShot.path}`);
       try {
         fs.unlinkSync(rtBothShot.path);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+
+    // Disk × detail orthogonality — image_response_mode:"both" + image_detail:"low".
+    // The inline image downscales to a ≈512 px long edge (image_detail applies to the
+    // returned inline image ONLY), but the SAVED file stays full resolution and the
+    // response hint says so, so an agent can Read the file for pixel detail. This is
+    // the proof that disk persistence ignores image_detail.
+    const rtDiskDetailShot = (await bridge.callRuntime(
+      "runtime.screenshot",
+      { image_response_mode: "both", image_detail: "low" },
+      SCREENSHOT_TIMEOUT,
+    )) as {
+      image_base64?: string;
+      path?: string;
+      width?: number;
+      height?: number;
+      image_detail?: string;
+      returned?: string;
+      hint?: string;
+    };
+    const rtDiskDetailLongEdge = Math.max(rtDiskDetailShot?.width ?? 0, rtDiskDetailShot?.height ?? 0);
+    if (
+      !rtDiskDetailShot?.image_base64 ||
+      typeof rtDiskDetailShot.path !== "string" ||
+      !fs.existsSync(rtDiskDetailShot.path) ||
+      rtDiskDetailShot.image_detail !== "low" ||
+      rtDiskDetailLongEdge > 512 ||
+      !rtDiskDetailShot.hint?.toLowerCase().includes("full-res")
+    ) {
+      fail(
+        `runtime.screenshot both+low: expected <=512 inline long edge + saved file + full-res hint, got ${JSON.stringify({ ...rtDiskDetailShot, image_base64: rtDiskDetailShot?.image_base64 ? "<present>" : undefined })}`,
+      );
+    } else {
+      pass(
+        `runtime.screenshot both+image_detail=low -> inline ${rtDiskDetailShot.returned} (<=512), disk full-res file at ${rtDiskDetailShot.path} (hint says full-res)`,
+      );
+      try {
+        fs.unlinkSync(rtDiskDetailShot.path);
       } catch {
         /* best-effort cleanup */
       }

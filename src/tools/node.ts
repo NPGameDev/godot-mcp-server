@@ -88,7 +88,7 @@ export const nodeTools: ToolDef[] = [
         .enum(["common", "all", "groups", "script"])
         .optional()
         .describe(
-          "Property filter. 'common' (default) returns 8-12 most-edited. 'all' returns full list. 'groups' returns names+usage only. 'script' returns script variables with visibility label.",
+          "Property filter. 'common' (default) returns 8-12 most-edited. 'all' returns full list. 'groups' returns names+usage only. 'script' returns script variables with visibility label. Prefer 'common' or node_get_property; 'all' returns the full list and is large.",
         ),
       visibility: z
         .enum(["public", "private", "all"])

@@ -190,6 +190,27 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   else
     fail(`runtime_screenshot missing save_path param: ${JSON.stringify(Object.keys(runtimeShot?.inputSchema ?? {}))}`);
 
+  // image_detail (inline-image resolution: full/mid/low) must be advertised on
+  // both screenshot tools so an agent can request a leaner inline capture. The
+  // toolkit owns the default, so the server declares it optional with no default.
+  if (editorShot && "image_detail" in editorShot.inputSchema) pass("editor_screenshot advertises image_detail");
+  else
+    fail(`editor_screenshot missing image_detail param: ${JSON.stringify(Object.keys(editorShot?.inputSchema ?? {}))}`);
+
+  if (runtimeShot && "image_detail" in runtimeShot.inputSchema) pass("runtime_screenshot advertises image_detail");
+  else
+    fail(
+      `runtime_screenshot missing image_detail param: ${JSON.stringify(Object.keys(runtimeShot?.inputSchema ?? {}))}`,
+    );
+
+  // The retired size param (node-focus exact-WxH) must no longer be advertised —
+  // proportional image_detail supersedes it, and node framing stays node_path's job.
+  if (editorShot && !("size" in editorShot.inputSchema)) pass("editor_screenshot no longer advertises size");
+  else
+    fail(
+      `editor_screenshot still advertises retired size param: ${JSON.stringify(Object.keys(editorShot?.inputSchema ?? {}))}`,
+    );
+
   // The two viewport-unavailable codes are wired into the ErrorCode union (the
   // `satisfies` above is the compile-time guard; this records it in the report).
   pass(`viewport-unavailable codes in ErrorCode union (${SCREENSHOT_ERROR_CODES.join(", ")})`);

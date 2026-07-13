@@ -34,15 +34,17 @@ export const editorTools: ToolDef[] = [
           "Destination .png used by image_response_mode disk/both (res:// or user://screenshots/); auto-named under user://screenshots/ when omitted.",
         ),
       node_path: z.string().optional().describe("Focus + capture a specific node instead of the full viewport"),
-      size: z
-        .object({ width: z.coerce.number(), height: z.coerce.number() })
-        .optional()
-        .describe("Output size when capturing a specific node (default 1280x720)"),
       image_response_mode: z
         .enum(["inline", "disk", "both"])
         .optional()
         .describe(
-          "How to return the capture: 'inline' (default) embeds the PNG; 'disk' persists it and returns only the path — use for very large captures or to conserve context tokens; 'both' does both.",
+          "How to return the capture: 'inline' (default) embeds the PNG; 'disk' persists it and returns only the path — use for very large captures or to conserve context tokens; 'both' does both. Files written to disk are always full resolution, regardless of image_detail.",
+        ),
+      image_detail: z
+        .enum(["full", "mid", "low"])
+        .optional()
+        .describe(
+          "Resolution of the returned inline image only. full = native; mid ≈ 1024 px long edge; low ≈ 512 px (gross layout/motion only — not for reading text). Does not affect files written to disk.",
         ),
       force_foreground_editor: z
         .boolean()
@@ -200,6 +202,8 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
     path?: string;
     remediation?: string[];
     hint?: string;
+    image_detail?: string;
+    returned?: string;
   };
   try {
     result = (await bridge.call(method, input ?? {})) as typeof result;
@@ -218,6 +222,8 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
       path: result.path,
       remediation: result.remediation,
       hint: result.hint,
+      image_detail: result.image_detail,
+      returned: result.returned,
     });
   }
   if (!result?.image_base64) {
@@ -235,6 +241,8 @@ async function screenshotHandler(bridge: Bridge, method: string, input: unknown)
     path: result.path,
     remediation: result.remediation,
     hint: result.hint,
+    image_detail: result.image_detail,
+    returned: result.returned,
   });
 }
 

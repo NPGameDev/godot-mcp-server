@@ -32,13 +32,27 @@ export type ScreenshotResult = {
  *                    saved file path (disk/both) or a node echo (inline node
  *                    focus); `hint` is any toolkit guidance to relay; `remediation`
  *                    names a visible side effect the toolkit took (main-screen
- *                    switch, foregrounding). Undefined keys are dropped by
- *                    `JSON.stringify`, so each appears only when present.
+ *                    switch, foregrounding); `image_detail` is the detail level the
+ *                    toolkit applied to the inline image (`full`/`mid`/`low`);
+ *                    `returned` is the returned image's `"WxH"` — for disk-only the
+ *                    full-res dims of the saved file. Both are relayed verbatim from
+ *                    the toolkit payload — this builder never recomputes dimensions.
+ *                    Undefined keys are dropped by `JSON.stringify`, so each appears
+ *                    only when present.
  */
 export function buildScreenshotResult(
   imageBase64: string | undefined,
   mimeType: string | undefined,
-  meta: { width?: number; height?: number; bytes?: number; path?: string; remediation?: string[]; hint?: string },
+  meta: {
+    width?: number;
+    height?: number;
+    bytes?: number;
+    path?: string;
+    remediation?: string[];
+    hint?: string;
+    image_detail?: string;
+    returned?: string;
+  },
 ): ScreenshotResult {
   if (imageBase64 === undefined) {
     // Disk-only capture: the toolkit saved the PNG and returned just its path.
@@ -55,6 +69,8 @@ export function buildScreenshotResult(
             mime_type: mimeType,
             remediation: meta.remediation,
             hint: meta.hint,
+            image_detail: meta.image_detail,
+            returned: meta.returned,
           }),
         },
       ],
@@ -72,6 +88,8 @@ export function buildScreenshotResult(
           path: meta.path,
           remediation: meta.remediation,
           hint: meta.hint,
+          image_detail: meta.image_detail,
+          returned: meta.returned,
         }),
       },
     ],

@@ -44,6 +44,37 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     }
   }
 
+  // image_detail:"low" on a full-viewport capture — the inline image downscales to
+  // a ≈512 px long edge and the response discloses the applied level (image_detail)
+  // and the resulting "WxH" (returned). This section talks straight to the toolkit
+  // WS, so both are top-level fields on the raw payload.
+  const lowDetailShot = (await bridge.call("editor.screenshot", { image_detail: "low" }, SCREENSHOT_TIMEOUT)) as {
+    image_base64?: string;
+    width?: number;
+    height?: number;
+    image_detail?: string;
+    returned?: string;
+    code?: string;
+  };
+  if (passIfHeadlessUnsupported(ctx, "editor.screenshot image_detail=low", lowDetailShot)) {
+    // headless — no viewport capture
+  } else {
+    const lowLongEdge = Math.max(lowDetailShot?.width ?? 0, lowDetailShot?.height ?? 0);
+    if (
+      !lowDetailShot?.image_base64 ||
+      lowDetailShot.image_detail !== "low" ||
+      lowDetailShot.returned !== `${lowDetailShot.width}x${lowDetailShot.height}` ||
+      lowLongEdge > 512
+    )
+      fail(
+        `editor.screenshot image_detail=low: expected image + low disclosure + <=512 long edge, got ${JSON.stringify({ ...lowDetailShot, image_base64: lowDetailShot?.image_base64 ? "<present>" : undefined })}`,
+      );
+    else
+      pass(
+        `editor.screenshot image_detail=low -> ${lowDetailShot.returned} (long edge ${lowLongEdge} <= 512, image_detail=low)`,
+      );
+  }
+
   // Screenshot with save_path + image_response_mode:"both" — the image is
   // embedded AND persisted. path is now a globalized absolute file path (not the
   // res:// input), so assert it ends with the file name and the file exists on

@@ -35,7 +35,13 @@ export const runtimeTools: ToolDef[] = [
         .enum(["inline", "disk", "both"])
         .optional()
         .describe(
-          "How to return the capture: 'inline' (default) embeds the PNG; 'disk' persists it and returns only the path — use for very large captures or to conserve context tokens; 'both' does both.",
+          "How to return the capture: 'inline' (default) embeds the PNG; 'disk' persists it and returns only the path — use for very large captures or to conserve context tokens; 'both' does both. Files written to disk are always full resolution, regardless of image_detail.",
+        ),
+      image_detail: z
+        .enum(["full", "mid", "low"])
+        .optional()
+        .describe(
+          "Resolution of the returned inline image only. full = native; mid ≈ 1024 px long edge; low ≈ 512 px (gross layout/motion only — not for reading text). Does not affect files written to disk.",
         ),
       force_foreground_game: z
         .boolean()
@@ -228,6 +234,8 @@ function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown
         path?: string;
         remediation?: string[];
         hint?: string;
+        image_detail?: string;
+        returned?: string;
       };
       // Disk-mode capture: the game persisted the PNG and returned only its path.
       if (obj.path && !obj.image_base64) {
@@ -238,6 +246,8 @@ function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown
           path: obj.path,
           remediation: obj.remediation,
           hint: obj.hint,
+          image_detail: obj.image_detail,
+          returned: obj.returned,
         });
       }
       return buildScreenshotResult(obj.image_base64, obj.mime_type, {
@@ -247,6 +257,8 @@ function runtimeScreenshotHandler(bridge: Bridge, method: string, input: unknown
         path: obj.path,
         remediation: obj.remediation,
         hint: obj.hint,
+        image_detail: obj.image_detail,
+        returned: obj.returned,
       });
     } catch (err) {
       return runtimeErrorWithCrashContext(bridge, err);
