@@ -123,6 +123,31 @@ jobs:
       - name: dotnet build (editor-free)
         run: dotnet build test/fixtures/csharp-project/McpValCs.csproj -c Debug
 
+  # Editor-free distribution smoke: prove the PUBLISHED package installs globally
+  # and its bin runs on Linux. The smoke harness spawns `tsx test/smoke.ts` (never
+  # the bin), and release.yml publishes without install-and-run — so nothing else
+  # exercises `npm install -g` → `godot-mcp-server`. `--tools-count` is static (no
+  # editor / no MCP connection), so this belongs in the per-push floor.
+  pack-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack the package
+        run: npm pack
+      - name: Install the packed tarball globally
+        run: npm install -g ./npgamedev-godot-mcp-server-*.tgz
+      - name: Run the installed bin (asserts PATH + shebang + expected output)
+        run: |
+          out=$(godot-mcp-server --tools-count)
+          echo "$out"
+          echo "$out" | grep -q "Total tools:"
+
   # ── Aggregate floor gate (D8) ────────────────────────────────────────────────
   # "Server floor OK" is the SINGLE name that becomes a required check once the repo
   # is public — never an individual matrix row. A required check pinned to a matrix
@@ -132,7 +157,7 @@ jobs:
   # success here, whereas a `paths:`-skipped required check would deadlock as pending.
   floor-ok:
     name: "Server floor OK"
-    needs: [build-lint-smoke, csharp-build]
+    needs: [build-lint-smoke, csharp-build, pack-install]
     if: always()
     runs-on: ubuntu-latest
     steps:
