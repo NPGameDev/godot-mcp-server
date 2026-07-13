@@ -46,6 +46,8 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
         path?: string;
         remediation?: string[];
         hint?: string;
+        image_detail?: string;
+        returned?: string;
       };
       // Disk-mode capture: a saved path with no image bytes is a success, not the
       // empty-content failure below.
@@ -57,6 +59,8 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
           path: obj.path,
           remediation: obj.remediation,
           hint: obj.hint,
+          image_detail: obj.image_detail,
+          returned: obj.returned,
         });
       }
       if (!obj?.image_base64) {
@@ -74,6 +78,8 @@ function handleEditorScreenshot(bridge: Bridge, def: ToolDef) {
         path: obj.path,
         remediation: obj.remediation,
         hint: obj.hint,
+        image_detail: obj.image_detail,
+        returned: obj.returned,
       });
     } catch (err) {
       return toolErrorFromException(err);

@@ -1,6 +1,8 @@
 import fs from "node:fs";
 
 import type { TestCtx } from "../helpers.js";
+import { createGroupToolHandler } from "../../src/groups/groupToolHandlers.js";
+import type { ToolDef } from "../../src/shared/types.js";
 import {
   CALL_TIMEOUT,
   SCREENSHOT_TIMEOUT,
@@ -346,6 +348,32 @@ export async function testAnimationTilemapScreenshot(ctx: TestCtx): Promise<void
         `editor.screenshot image_detail=mid: expected <=1024 long edge, <=full, got ${JSON.stringify(midDetailShot)} (full long edge ${fullLongEdge})`,
       );
     else pass(`editor.screenshot image_detail=mid -> ${midDetailShot.returned} (long edge ${midLongEdge} <= 1024)`);
+
+    // The bridge.call legs above prove the TOOLKIT emits the disclosure, but they
+    // bypass the server. editor_screenshot is a group tool: the normal agent path
+    // activates it on-demand and dispatches through createGroupToolHandler, which
+    // RESHAPES the payload — so route one capture through that production handler and
+    // assert image_detail/returned survive the reshape (a plain WS call cannot catch a
+    // drop in that server-side shaping).
+    const shotDef: ToolDef = {
+      name: "editor_screenshot",
+      method: "editor.screenshot",
+      description: "editor screenshot",
+      inputSchema: {},
+    };
+    const shotHandler = createGroupToolHandler(bridge, shotDef) as (i: unknown) => Promise<{
+      content: { type: string; text?: string }[];
+      isError?: boolean;
+    }>;
+    const groupShot = await shotHandler({ node_path: screenshotNodePath, image_detail: "mid" });
+    const groupMetaText = groupShot.content.find((c) => c.type === "text")?.text;
+    const groupMeta = groupMetaText ? (JSON.parse(groupMetaText) as { image_detail?: string; returned?: string }) : {};
+    if (groupShot.isError || groupMeta.image_detail !== "mid" || typeof groupMeta.returned !== "string")
+      fail(`editor_screenshot group-handler disclosure dropped: ${JSON.stringify(groupMeta)}`);
+    else
+      pass(
+        `editor_screenshot group-handler relays image_detail=${groupMeta.image_detail} returned=${groupMeta.returned}`,
+      );
   }
 
   try {

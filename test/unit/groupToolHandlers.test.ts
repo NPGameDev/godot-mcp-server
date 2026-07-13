@@ -6,7 +6,8 @@
  *   1. signal_emit dual-mode — editor → bridge.call, runtime → bridge.callRuntime,
  *      with the param reshape (node_path/signal_name/args; omitted args → []).
  *   2. editor_screenshot multi-content — an image payload → buildScreenshotResult
- *      shape (image block first, then JSON metadata); empty payload → EMPTY_CONTENT.
+ *      shape (image block first, then JSON metadata); empty payload → EMPTY_CONTENT;
+ *      the image_detail/returned disclosure threads through the inline + disk branches.
  *   3. an LSP_TOOLS member → createLspHandler — its .cs validation fires (an
  *      LSP-handler-specific error) and the bridge is never touched (own TCP client).
  *   4. a RUNTIME_TOOLS member → callAndWrap(runtime:true) → bridge.callRuntime.
@@ -122,6 +123,43 @@ async function testEditorScreenshot() {
     "EMPTY_CONTENT",
     "empty screenshot payload → EMPTY_CONTENT code",
   );
+
+  // Disclosure relay — the on-demand group path must carry the same never-silent
+  // image_detail/returned disclosure the dedicated capture handler does, on BOTH
+  // branches. Inline branch: the fields thread into the metadata text block.
+  const detail = makeBridge({
+    image_base64: "QUJD",
+    mime_type: "image/png",
+    width: 1024,
+    height: 495,
+    bytes: 8000,
+    path: "res://shot.png",
+    image_detail: "mid",
+    returned: "1024x495",
+  });
+  const detailHandler: Handler = createGroupToolHandler(detail.bridge, def("editor_screenshot", "editor.screenshot"));
+  const detailShot = (await detailHandler({})) as { content: { type: string; text?: string }[] };
+  const detailMeta = JSON.parse((detailShot.content[1] as { text: string }).text);
+  assert.equal(detailMeta.image_detail, "mid", "inline group screenshot threads the applied image_detail");
+  assert.equal(detailMeta.returned, "1024x495", "inline group screenshot threads the returned WxH");
+
+  // Disk branch: a disk-only capture (no image bytes) → lean text envelope that must
+  // also carry image_detail + returned.
+  const disk = makeBridge({
+    mime_type: "image/png",
+    width: 1996,
+    height: 965,
+    bytes: 120000,
+    path: "user://screenshots/shot.png",
+    hint: "Saved full-res → user://screenshots/shot.png. Read it for pixel detail without re-capturing.",
+    image_detail: "full",
+    returned: "1996x965",
+  });
+  const diskHandler: Handler = createGroupToolHandler(disk.bridge, def("editor_screenshot", "editor.screenshot"));
+  const diskShot = (await diskHandler({})) as { content: { type: string; text: string }[] };
+  const diskMeta = JSON.parse(diskShot.content[0].text);
+  assert.equal(diskMeta.image_detail, "full", "disk group screenshot threads the applied image_detail");
+  assert.equal(diskMeta.returned, "1996x965", "disk group screenshot threads the returned WxH");
 }
 
 // ── Block 3 — LSP tool routes to createLspHandler (bridge untouched) ──
