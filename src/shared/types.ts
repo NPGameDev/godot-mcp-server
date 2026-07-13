@@ -91,6 +91,7 @@ export type ErrorCode =
   | "NO_SCENE"
   | "NOT_A_RESOURCE"
   | "NOT_FOUND"
+  | "NOT_UNIQUE"
   | "PACK_FAILED"
   | "PARENT_NOT_FOUND"
   | "PARSE_ERROR"

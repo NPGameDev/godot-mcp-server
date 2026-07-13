@@ -39,7 +39,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   // Tool count — the complete canonical catalogue (ALL_TOOL_DEFS). Bump this
   // when tools are added/removed; `godot-mcp-server --tools-count` prints the
   // live value.
-  const expectedToolCount = 111;
+  const expectedToolCount = 112;
   const allTools = getAllToolDefs();
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else pass(`tool count == ${expectedToolCount}`);
@@ -86,6 +86,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     "scene_create_node",
     "scene_instantiate",
     "script_write",
+    // Surgical edit documents the NOT_FOUND / NOT_UNIQUE / replace_all semantics
+    // and the diagnostics contract — the recovery loop must be spelled out.
+    "script_edit",
     "tilemap_set_cells",
     "editor_refresh",
     "input_map_event",

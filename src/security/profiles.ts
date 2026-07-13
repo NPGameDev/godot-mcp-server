@@ -3,7 +3,7 @@
  * (GODOT_MCP_READ_ONLY=1) filters out mutating tools.
  */
 
-/** 33 eager tools (discover_tools + extensions_refresh added programmatically → 35 total). */
+/** 34 eager tools (discover_tools + extensions_refresh added programmatically → 36 total). */
 export const EAGER_TOOLS: readonly string[] = [
   // Scene (5)
   "scene_get_tree",
@@ -24,9 +24,10 @@ export const EAGER_TOOLS: readonly string[] = [
   "node_groups",
   "autoload_manage",
   "control_set_layout",
-  // Script (2)
+  // Script (3)
   "script_read",
   "script_write",
+  "script_edit",
   // Editor (4) — editor_screenshot lives in the editor_advanced group;
   // there is no editor_get_errors (use editor_get_console with level_filter).
   "editor_save_scene",

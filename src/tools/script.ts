@@ -34,6 +34,30 @@ export const scriptTools: ToolDef[] = [
     pathParams: [PROJECT_FILE_PATH],
   },
   {
+    name: "script_edit",
+    method: "script.edit",
+    description:
+      "Surgically replace a span in an existing .gd/.cs/.gdshader/.gdshaderinc file (res:// only) — the MCP analogue of the native Edit tool. " +
+      "old_string must match the file byte-for-byte (whitespace and indentation included); no regex, no fuzzy match. " +
+      "old_string not found -> NOT_FOUND; matches more than once without replace_all -> NOT_UNIQUE. " +
+      "new_string:'' deletes the span. replace_all replaces every occurrence and returns replacements:N. " +
+      "Prefer this over rewriting the whole file with script_write for a small change — it keeps the editor undo entry, reindexing, and inline diagnostics. " +
+      "For .gd files, returns inline diagnostics (valid: bool, diagnostics: [...]) — check valid before proceeding.",
+    inputSchema: {
+      file_path: z.string(),
+      old_string: z.string().describe("exact byte-for-byte span to replace (whitespace/indent must match)"),
+      new_string: z.string().describe("replacement text; empty string deletes the span"),
+      replace_all: z
+        .boolean()
+        .optional()
+        .describe("replace every occurrence instead of requiring a unique match (default false)"),
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    successHint:
+      "Validate .gd with script_check (offline) or lsp_diagnostics. Shaders (.gdshader/.gdshaderinc) have no offline validator — neither script_check nor lsp_diagnostics check them; shader errors surface when the editor imports/compiles the shader (open it, or run the game), via editor_get_console (level_filter:['error']).",
+    pathParams: [PROJECT_FILE_PATH],
+  },
+  {
     name: "script_delete",
     method: "script.delete",
     description:

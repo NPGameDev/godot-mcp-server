@@ -1,11 +1,11 @@
 # Smoke Coverage Manifest
 
-**Last updated:** 2026-07-12 (41o-terdecies close-out — animationtree_edit add_node `nodes_count` version-gated (present 4.5+ / omitted+`note` on 4.2-4.4) now asserted (§27); debug_set_breakpoint verified-path echo asserted (§42); script_check successHint now also steers to lsp_project_diagnostics. Prior 4.2-leg batch: signal_manage output key source_path→node_path (§05/§07); audiobus_list buses now untrusted-enveloped (§34); scene_instantiate bare-untagged transform now rejected — batch per-entry property_errors + single-mode INVALID_PARAMS (§47); lsp success hint now injected via the group handler → asserted for lsp_project_diagnostics (§48) + lsp_diagnostics (§41))
+**Last updated:** 2026-07-13 (41o-quater-bis — surgical `script_edit` tool added (eager; wire `script.edit`): §49 covers happy-path single replace, NOT_FOUND, NOT_UNIQUE, replace_all (newline-adjacency), empty-`new_string` span delete, and no-op / empty-`old_string` INVALID_PARAMS rejections. Prior (41o-terdecies close-out): animationtree_edit add_node `nodes_count` version-gated (present 4.5+ / omitted+`note` on 4.2-4.4) now asserted (§27); debug_set_breakpoint verified-path echo asserted (§42); script_check successHint now also steers to lsp_project_diagnostics)
 **Server commit:** S:11d8d0a (41n-quater-septies; superseded by the landing commit recorded at bookkeeping)
-**Total tools (eagerly-registered):** 33
-**Total tools (including on-demand groups):** 111 (33 eager + 78 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
+**Total tools (eagerly-registered):** 34
+**Total tools (including on-demand groups):** 112 (34 eager + 78 on-demand) — authoritative via `src/catalogue.ts`; run `godot-mcp-server --tools-count` for the live breakdown
 **Meta-tools:** 2 (discover_tools, extensions_refresh — server-side, not in ToolDef arrays)
-**Smoke sections:** 48 (sections 01–48)
+**Smoke sections:** 49 (sections 01–49)
 **Flow suite:** 4 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
 **Static structural layer:** `test/structural.ts` (the editor-free half of `npm run smoke:ci`) — asserts tool-name/param-schema/group-membership integrity plus catalogue-wide invariants: tool coverage cross-ref (Check 2), reachability (every tool eager or in an on-demand group), successHint canary (Check 5), `enabled`-optionality parity (Check 7), and the scene_query `offset` pagination param (Check 8). Not tied to any single section — it guards the whole catalogue.
 
@@ -102,12 +102,13 @@ routinely.
 | node_groups | 10, 47 | ✓ (add, remove, list) | — | ✓ (**47: batch partial-failure → top-level `failed`+`hint` via tolerant predicate on `{status?,error?}` entries, + all-success control asserting both absent**) | — | |
 | autoload_manage | 10 | ✓ (register, unregister, list) | — | — | — | **GAP:** DX hint (ProjectSettings restart) |
 
-### Script Management (4 tools)
+### Script Management (5 tools)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
 | script_read | 03, 21, 25 | ✓ | ✓ (03: NOT_FOUND) | ✓ (21: start_line/end_line range + returned; 03: line-window pagination — has_more/next_start_line/total_lines/returned per window) | — | ledger #20: has_more (was truncated); returned added (window line count) |
 | script_write | 03, 08, 09, 14, 16, 21, 23, 24, 25 | ✓ | — | ✓ (undoable flag) | — | **GAP:** inline diagnostics response, preload hint |
+| script_edit | 49 | ✓ (single unique replace: replacements=1 + undoable/indexed/valid, content verified) | ✓ (49: NOT_FOUND absent old_string, NOT_FOUND missing file, NOT_UNIQUE ambiguous, INVALID_PARAMS no-op + empty old_string) | ✓ (49: replace_all replacements=N with newline-adjacency intact; empty new_string deletes the span) | — | eager; surgical MCP analogue of native Edit. Routes through script_write's write/undo/index/diagnose pipeline (`_commit_content`); returns the script_write envelope + `replacements`. Connects direct to toolkit WS → tests toolkit `_cmd_script_edit` behavior |
 | script_delete | 08, 09, 24, 25 | ✓ | — | — | — | In cleanup group |
 | script_check | 24, 25 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: .cs) | ✓ (valid/invalid scripts, diagnostics) | — | §24 asserts the version-aware diagnostics shape: error entry carries the real 1-based `line` on 4.5+, `line` key absent on <4.5 (never a fabricated 0), no `col` ever, hint entries never carry `line` — 41n-undecies S6.6. successHint steers to `lsp_diagnostics` (single-file detail) AND `lsp_project_diagnostics` (whole-project scan for cross-file breakage); registry-injected, so asserted via the MCP-driven sweep (§26-C29), not the direct-handler smoke call |
 
