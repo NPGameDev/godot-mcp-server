@@ -225,7 +225,7 @@ export async function testPlaceholders(ctx: TestCtx): Promise<void> {
       }
     }
     try {
-      await bridge.call("folder.delete", { folder_path: DIR }, CALL_TIMEOUT);
+      await bridge.call("folder.delete", { path: DIR }, CALL_TIMEOUT);
     } catch {
       /* noop */
     }

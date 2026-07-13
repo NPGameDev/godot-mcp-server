@@ -18,7 +18,7 @@ export const FLOW_PROBE_DIR = "res://flow_probes";
 /** Create the probe dir, tolerating "already exists". */
 export async function ensureProbeDir(ctx: TestCtx): Promise<void> {
   try {
-    await ctx.bridge.call("folder.create", { folder_path: FLOW_PROBE_DIR }, CALL_TIMEOUT);
+    await ctx.bridge.call("folder.create", { path: FLOW_PROBE_DIR }, CALL_TIMEOUT);
   } catch {
     // Folder may already exist from a prior run — non-fatal.
   }
@@ -27,7 +27,7 @@ export async function ensureProbeDir(ctx: TestCtx): Promise<void> {
 /** Recursively delete the probe dir, tolerating "missing". Best-effort. */
 export async function cleanupProbeDir(ctx: TestCtx): Promise<void> {
   try {
-    await ctx.bridge.call("folder.delete", { folder_path: FLOW_PROBE_DIR, recursive: true }, CALL_TIMEOUT);
+    await ctx.bridge.call("folder.delete", { path: FLOW_PROBE_DIR, recursive: true }, CALL_TIMEOUT);
   } catch {
     // Already gone — non-fatal.
   }

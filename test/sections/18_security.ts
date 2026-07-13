@@ -54,7 +54,7 @@ export async function testSecurity(ctx: TestCtx): Promise<void> {
   assertGuard(
     ctx,
     "FileGuard folder.create ../../up",
-    await bridge.call("folder.create", { folder_path: "../../up" }, CALL_TIMEOUT),
+    await bridge.call("folder.create", { path: "../../up" }, CALL_TIMEOUT),
     "PATH_DENIED",
     "..",
   );

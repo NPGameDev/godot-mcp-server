@@ -35,7 +35,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     /* noop */
   }
   try {
-    await bridge.call("folder.delete", { folder_path: folderRoot, recursive: true }, CALL_TIMEOUT);
+    await bridge.call("folder.delete", { path: folderRoot, recursive: true }, CALL_TIMEOUT);
   } catch {
     /* noop */
   }
@@ -113,7 +113,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   // Pre-clean in case a prior pass left stale data.
   try {
     await bridge.call("resource.delete", { file_path: "res://no_such_dir_smoke/foo.tres" }, CALL_TIMEOUT);
-    await bridge.call("folder.delete", { folder_path: "res://no_such_dir_smoke", recursive: true }, CALL_TIMEOUT);
+    await bridge.call("folder.delete", { path: "res://no_such_dir_smoke", recursive: true }, CALL_TIMEOUT);
   } catch {
     /* best-effort pre-clean */
   }
@@ -130,7 +130,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   // Cleanup auto-created file + directory.
   try {
     await bridge.call("resource.delete", { file_path: "res://no_such_dir_smoke/foo.tres" }, CALL_TIMEOUT);
-    await bridge.call("folder.delete", { folder_path: "res://no_such_dir_smoke", recursive: true }, CALL_TIMEOUT);
+    await bridge.call("folder.delete", { path: "res://no_such_dir_smoke", recursive: true }, CALL_TIMEOUT);
   } catch {
     /* best-effort cleanup */
   }
@@ -246,7 +246,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   );
 
   // folder.create — recursive + idempotency.
-  const folderCreated = (await bridge.call("folder.create", { folder_path: folderDeep }, CALL_TIMEOUT)) as {
+  const folderCreated = (await bridge.call("folder.create", { path: folderDeep }, CALL_TIMEOUT)) as {
     success?: boolean;
     status?: string;
     path?: string;
@@ -255,7 +255,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   if (folderCreated?.status !== "created" || folderCreated.path !== folderDeep)
     fail(`folder.create recursive: expected status='created' path=${folderDeep}, got ${JSON.stringify(folderCreated)}`);
   else pass(`folder.create recursive ${folderDeep} -> status='created'`);
-  const folderIdempotent = (await bridge.call("folder.create", { folder_path: folderDeep }, CALL_TIMEOUT)) as {
+  const folderIdempotent = (await bridge.call("folder.create", { path: folderDeep }, CALL_TIMEOUT)) as {
     status?: string;
     code?: string;
   };
@@ -267,7 +267,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   assertGuard(
     ctx,
     "folder.create /tmp path",
-    await bridge.call("folder.create", { folder_path: "/tmp/smoke_bogus" }, CALL_TIMEOUT),
+    await bridge.call("folder.create", { path: "/tmp/smoke_bogus" }, CALL_TIMEOUT),
     "PATH_DENIED",
     "absolute",
   );
@@ -278,7 +278,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   const pathInUseDir = "res://smoke_path_in_use";
   const pathInUseProbe = `${pathInUseDir}/probe.tscn`;
   try {
-    await bridge.call("folder.create", { folder_path: pathInUseDir }, CALL_TIMEOUT);
+    await bridge.call("folder.create", { path: pathInUseDir }, CALL_TIMEOUT);
   } catch {
     /* noop */
   }
@@ -288,11 +288,14 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     CALL_TIMEOUT,
   );
   await bridge.call("scene.open", { file_path: pathInUseProbe }, CALL_TIMEOUT);
-  const folderInUse = (await bridge.call(
-    "folder.delete",
-    { folder_path: pathInUseDir, recursive: true },
-    CALL_TIMEOUT,
-  )) as { success?: boolean; switched_to?: string; tab_closed?: string; hint?: string; code?: string; error?: string };
+  const folderInUse = (await bridge.call("folder.delete", { path: pathInUseDir, recursive: true }, CALL_TIMEOUT)) as {
+    success?: boolean;
+    switched_to?: string;
+    tab_closed?: string;
+    hint?: string;
+    code?: string;
+    error?: string;
+  };
   if (folderInUse?.success && (folderInUse.switched_to || folderInUse.tab_closed)) {
     const detail = folderInUse.switched_to
       ? `auto-switched to ${folderInUse.switched_to}`
@@ -311,34 +314,34 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
   assertGuard(
     ctx,
     "folder.delete project root",
-    await bridge.call("folder.delete", { folder_path: "res://" }, CALL_TIMEOUT),
+    await bridge.call("folder.delete", { path: "res://" }, CALL_TIMEOUT),
     "FOLDER_PROTECTED",
     "root",
   );
   assertGuard(
     ctx,
     "folder.delete res://addons",
-    await bridge.call("folder.delete", { folder_path: "res://addons" }, CALL_TIMEOUT),
+    await bridge.call("folder.delete", { path: "res://addons" }, CALL_TIMEOUT),
     "FOLDER_PROTECTED",
     "addons",
   );
   assertGuard(
     ctx,
     "folder.delete toolkit plugin dir",
-    await bridge.call("folder.delete", { folder_path: "res://addons/godot_mcp_toolkit" }, CALL_TIMEOUT),
+    await bridge.call("folder.delete", { path: "res://addons/godot_mcp_toolkit" }, CALL_TIMEOUT),
     "PATH_DENIED",
     "plugin's own source",
   );
   assertGuard(
     ctx,
     "folder.delete non-empty without recursive",
-    await bridge.call("folder.delete", { folder_path: folderRoot }, CALL_TIMEOUT),
+    await bridge.call("folder.delete", { path: folderRoot }, CALL_TIMEOUT),
     "DIR_NOT_EMPTY",
     "recursive:true",
   );
 
   // folder.delete — empty leaf success.
-  const folderDeleteLeaf = (await bridge.call("folder.delete", { folder_path: folderDeep }, CALL_TIMEOUT)) as {
+  const folderDeleteLeaf = (await bridge.call("folder.delete", { path: folderDeep }, CALL_TIMEOUT)) as {
     success?: boolean;
     path?: string;
     files_deleted?: number;
@@ -355,7 +358,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
 
   const folderDeleteRecursive = (await bridge.call(
     "folder.delete",
-    { folder_path: folderRoot, recursive: true },
+    { path: folderRoot, recursive: true },
     CALL_TIMEOUT,
   )) as { success?: boolean; files_deleted?: number; directories_deleted?: number; code?: string };
   if (folderDeleteRecursive?.success !== true)
@@ -422,7 +425,7 @@ export async function testResourceFolderShader(ctx: TestCtx): Promise<void> {
     /* noop */
   }
   try {
-    await bridge.call("folder.delete", { folder_path: folderRoot, recursive: true }, CALL_TIMEOUT);
+    await bridge.call("folder.delete", { path: folderRoot, recursive: true }, CALL_TIMEOUT);
   } catch {
     /* noop */
   }

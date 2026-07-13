@@ -146,7 +146,7 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   // Pre-clean in case a prior pass left stale data.
   try {
     await bridge.call("scene.delete", { file_path: "res://nonexistent_smoke_dir/foo.tscn" }, CALL_TIMEOUT);
-    await bridge.call("folder.delete", { folder_path: "res://nonexistent_smoke_dir", recursive: true }, CALL_TIMEOUT);
+    await bridge.call("folder.delete", { path: "res://nonexistent_smoke_dir", recursive: true }, CALL_TIMEOUT);
   } catch {
     /* best-effort pre-clean */
   }
@@ -163,7 +163,7 @@ export async function testSceneFileLifecycle(ctx: TestCtx): Promise<void> {
   // Cleanup auto-created file + directory.
   try {
     await bridge.call("scene.delete", { file_path: "res://nonexistent_smoke_dir/foo.tscn" }, CALL_TIMEOUT);
-    await bridge.call("folder.delete", { folder_path: "res://nonexistent_smoke_dir", recursive: true }, CALL_TIMEOUT);
+    await bridge.call("folder.delete", { path: "res://nonexistent_smoke_dir", recursive: true }, CALL_TIMEOUT);
   } catch {
     /* best-effort cleanup */
   }
