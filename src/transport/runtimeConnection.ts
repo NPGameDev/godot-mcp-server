@@ -162,8 +162,17 @@ export function createRuntimeConnection(
     async callRuntime(method, params, timeoutMs, signal) {
       // Static port override — same as explicit-port behaviour.
       if (opts?.explicitRuntimePort) {
+        // The pinned channel is built once at construct, but clearRuntime()
+        // (game_stopped notification on game stop/crash) nulls it. Unlike the
+        // discovery path there is no watcher to rebuild it, so lazily re-create
+        // it against the pinned port here — otherwise the next call dereferences
+        // an undefined channel and every runtime tool is dead until restart.
+        if (!runtimeChannel) {
+          runtimeChannel = createRuntimeChannel(opts.explicitRuntimePort);
+          cachedRuntimePort = Number(opts.explicitRuntimePort);
+        }
         try {
-          return await runtimeChannel!.call(method, params, timeoutMs, signal);
+          return await runtimeChannel.call(method, params, timeoutMs, signal);
         } catch (err) {
           if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
             throw new BridgeError(

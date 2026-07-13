@@ -17,6 +17,7 @@
  *   2. the watcher — onDiscovered swap/port/heartbeat.start/waiter-resolve; onRemoved heartbeat.stop/close/undefined
  *   3. callRuntime paths — fast / normal / explicit + the CONNECT_FAILED/DISCONNECTED → GAME_NOT_RUNNING mapping
  *   4. clearRuntime — heartbeat.stop + close + undefined both
+ *   4b. explicit-port re-creation — after clearRuntime nulls the pinned channel, the next callRuntime rebuilds it instead of dereferencing undefined
  *   5. waitForRuntimeConnection timeout — no-projectPath → undefined; deadline+no-discovery → undefined after the timer
  */
 
@@ -329,6 +330,35 @@ async function testClearRuntime() {
   console.log("  PASS: clearRuntime stops the heartbeat, closes + clears the channel");
 }
 
+// ── 4b. explicit-port channel re-creation after clearRuntime ──────────
+
+async function testExplicitPortRecreateAfterClear() {
+  const t = makeDeps();
+  const rc = createRuntimeConnection({ explicitRuntimePort: "9500" }, t.deps);
+  assert.equal(t.channels.length, 1, "precondition: the pinned channel is built at construct");
+
+  t.setCallImpl(() => Promise.resolve({ pong: true }));
+  await rc.callRuntime("ping");
+  assert.equal(t.channels[0].callLog.length, 1, "the first call routed to the pinned channel");
+
+  // game_stopped notification (game stop/crash) nulls the pinned channel.
+  rc.clearRuntime();
+  assert.equal(t.channels[0].closeCalls, 1, "clearRuntime closed the pinned channel");
+
+  // The next call must lazily re-create the channel against the pinned port,
+  // not dereference the nulled one (the undefined.call crash this test guards).
+  const r = await rc.callRuntime("ping");
+  assert.deepEqual(r, { pong: true }, "callRuntime after clearRuntime re-creates and routes, not throws");
+  assert.equal(t.channels.length, 2, "a fresh pinned channel was created for the post-clear call");
+  assert.equal(t.channels[1].url, "ws://127.0.0.1:9500", "the re-created channel targets the same pinned port");
+  assert.equal(t.channels[1].callLog.length, 1, "the post-clear call routed to the re-created channel");
+
+  // The game_stop → runtime-cycle behavior end-to-end (editor emits game_stopped,
+  // then a runtime tool re-cycles cleanly) needs a live editor and is covered by
+  // the cross-version behavioral CI tier, not this pure unit.
+  console.log("  PASS: explicit-port channel re-creates after clearRuntime (no undefined.call crash)");
+}
+
 // ── 5. waitForRuntimeConnection timeout ───────────────────────────────
 
 async function testWaitForRuntimeConnection() {
@@ -372,6 +402,7 @@ async function main() {
   await testWatcher();
   await testCallRuntimePaths();
   await testClearRuntime();
+  await testExplicitPortRecreateAfterClear();
   await testWaitForRuntimeConnection();
   console.log("All runtime_connection tests passed.");
 }
