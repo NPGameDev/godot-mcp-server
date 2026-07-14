@@ -20,6 +20,7 @@ export const animationTools: ToolDef[] = [
       track_type: z.enum(["value"]).optional().describe("Track type; only 'value' supported currently."),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
     successHint: "Verify keys with animation_get_keys. Configure AnimationTree with animationtree_edit.",
   },
   {
@@ -76,6 +77,7 @@ export const animationTools: ToolDef[] = [
       value: z.unknown().optional().describe("For set_property: value to assign."),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: true },
+    operationParam: "action",
   },
   {
     name: "animationtree_list",

@@ -8,6 +8,7 @@
 // Port resolution lives in its own collaborator (portConfig.ts).
 
 import { ALL_TOOL_DEFS, META_TOOL_NAMES } from "../registration/catalogue.js";
+import { countBuiltinOperations } from "../registration/operations.js";
 import { GROUP_TOOL_NAMES, GROUPS } from "../groups/groups.js";
 import { MODULE_ALLOWED } from "./serverMode.js";
 import type { CliArgs } from "./cliArgs.js";
@@ -78,6 +79,7 @@ function printToolCount(): void {
       `  On-demand:  ${onDemand}\n` +
       `Meta:         ${META_TOOL_NAMES.length} (also eager — always in tools/list)\n` +
       `Groups:       ${GROUPS.length}\n` +
+      `Operations (built-in): ${countBuiltinOperations(ALL_TOOL_DEFS)}\n` +
       `Startup surface (eager + meta): ${eager + META_TOOL_NAMES.length}\n`,
   );
 }

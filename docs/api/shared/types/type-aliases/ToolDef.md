@@ -8,7 +8,7 @@
 
 > **ToolDef** = `object`
 
-Defined in: [src/shared/types.ts:145](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L145)
+Defined in: [src/shared/types.ts:146](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L146)
 
 One built-in tool's static definition — the catalogue entry the registration
 layer turns into a live MCP tool. The catalogue is the SSOT; every field here
@@ -20,7 +20,7 @@ is consumed at registration time.
 
 > `optional` **annotations?**: [`ToolAnnotations`](ToolAnnotations.md)
 
-Defined in: [src/shared/types.ts:150](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L150)
+Defined in: [src/shared/types.ts:151](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L151)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [src/shared/types.ts:150](https://github.com/NPGameDev/godot-mcp-ser
 
 > **description**: `string`
 
-Defined in: [src/shared/types.ts:148](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L148)
+Defined in: [src/shared/types.ts:149](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L149)
 
 ***
 
@@ -36,7 +36,7 @@ Defined in: [src/shared/types.ts:148](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **godotMaxVersion?**: `string`
 
-Defined in: [src/shared/types.ts:154](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L154)
+Defined in: [src/shared/types.ts:155](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L155)
 
 Maximum Godot version supported ("major.minor", e.g. "4.6"). Omit for no upper bound.
 
@@ -46,7 +46,7 @@ Maximum Godot version supported ("major.minor", e.g. "4.6"). Omit for no upper b
 
 > `optional` **godotMinVersion?**: `string`
 
-Defined in: [src/shared/types.ts:152](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L152)
+Defined in: [src/shared/types.ts:153](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L153)
 
 Minimum Godot version required ("major.minor", e.g. "4.5"). Omit for 4.2+ (baseline).
 
@@ -56,7 +56,7 @@ Minimum Godot version required ("major.minor", e.g. "4.5"). Omit for 4.2+ (basel
 
 > **inputSchema**: `ZodRawShape`
 
-Defined in: [src/shared/types.ts:149](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L149)
+Defined in: [src/shared/types.ts:150](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L150)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [src/shared/types.ts:149](https://github.com/NPGameDev/godot-mcp-ser
 
 > **method**: `string`
 
-Defined in: [src/shared/types.ts:147](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L147)
+Defined in: [src/shared/types.ts:148](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L148)
 
 ***
 
@@ -72,7 +72,31 @@ Defined in: [src/shared/types.ts:147](https://github.com/NPGameDev/godot-mcp-ser
 
 > **name**: `string`
 
-Defined in: [src/shared/types.ts:146](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L146)
+Defined in: [src/shared/types.ts:147](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L147)
+
+***
+
+### operationParam?
+
+> `optional` **operationParam?**: `string`
+
+Defined in: [src/shared/types.ts:165](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L165)
+
+Names the tool's operation-discriminator enum param — the top-level inputSchema
+ key whose values are the distinct operations this tool performs (e.g. "action",
+ "operation"). Drives the human-facing operation count; not surfaced to the model.
+
+***
+
+### operations?
+
+> `optional` **operations?**: readonly `string`[]
+
+Defined in: [src/shared/types.ts:169](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L169)
+
+Explicit operation list for a tool whose discriminator is not a plain top-level
+ z.enum (e.g. an enum nested inside a union/array). Used in place of operationParam
+ when the count can't be read from a top-level enum.
 
 ***
 
@@ -80,7 +104,7 @@ Defined in: [src/shared/types.ts:146](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **pathParams?**: readonly [`PathGuard`](PathGuard.md)[]
 
-Defined in: [src/shared/types.ts:160](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L160)
+Defined in: [src/shared/types.ts:161](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L161)
 
 Filesystem-path params to syntactically pre-filter before dispatch (strict
  subset of the toolkit guard). Omit for tools with no fs path, or for params
@@ -92,6 +116,6 @@ Filesystem-path params to syntactically pre-filter before dispatch (strict
 
 > `optional` **successHint?**: `string`
 
-Defined in: [src/shared/types.ts:156](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L156)
+Defined in: [src/shared/types.ts:157](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L157)
 
 Brief guidance appended to successful responses — next steps, related tools, common pitfalls. Omit for terminal actions or self-evident results. Does not overwrite toolkit-provided hints.

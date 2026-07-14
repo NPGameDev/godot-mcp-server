@@ -124,6 +124,10 @@ export const runtimeTools: ToolDef[] = [
       summary: coercedBoolean().optional(),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    // The operation discriminator (event_type) lives inside the `events` union,
+    // not as a top-level enum param, so the count is stated explicitly here rather
+    // than read from an operationParam.
+    operations: ["key", "mouse_button", "mouse_motion", "action", "click", "click_node", "send_text"],
   },
   {
     name: "animation_player_control",
@@ -137,6 +141,7 @@ export const runtimeTools: ToolDef[] = [
       time: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "operation",
   },
   {
     name: "runtime_get_script_vars",

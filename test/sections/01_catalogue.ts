@@ -1,6 +1,7 @@
 import { editorTools } from "../../src/tools/editor.js";
 import { runtimeTools } from "../../src/tools/runtime.js";
 import { ALL_TOOL_DEFS, ALL_TOOL_NAMES, META_TOOL_NAMES } from "../../src/registration/catalogue.js";
+import { countBuiltinOperations } from "../../src/registration/operations.js";
 import { GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "../../src/groups/groups.js";
 import { reportGroupStatusByName } from "../../src/groups/groupActivation.js";
 import { isVersionAtLeast } from "../../src/shared/version.js";
@@ -134,6 +135,41 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   const readonlyCount = allTools.filter((t: ToolDef) => t.annotations?.readOnlyHint === true).length;
   if (readonlyCount !== expectedReadonly) fail(`readonly count: expected ${expectedReadonly}, got ${readonlyCount}`);
   else pass(`readonly count == ${expectedReadonly} (readOnlyHint canary)`);
+
+  // Operation-discriminator integrity — every operationParam must name a real
+  // top-level inputSchema param on its tool, else the operation count is a lie.
+  // Tools using the operations[] fallback (nested/union discriminators) carry no
+  // operationParam and are correctly skipped by the filter.
+  const badOperationParam = allTools
+    .filter((t: ToolDef) => t.operationParam !== undefined)
+    .filter((t: ToolDef) => !(t.operationParam! in t.inputSchema));
+  if (badOperationParam.length)
+    fail(
+      `operationParam names missing param: ${badOperationParam.map((t) => `${t.name}.${t.operationParam}`).join(", ")}`,
+    );
+  else pass(`operationParam integrity: all discriminators name a real inputSchema param`);
+
+  // Empty operations[] would silently count as one implicit operation, hiding a
+  // mis-annotation — an explicit fallback list must never be empty.
+  const emptyOperations = allTools.filter((t: ToolDef) => t.operations && t.operations.length === 0);
+  if (emptyOperations.length) fail(`empty operations list: ${emptyOperations.map((t) => t.name).join(", ")}`);
+  else pass(`operations fallback: no empty lists`);
+
+  // Operation grand-total canary — the built-in operation count. Bump this
+  // deliberately when a discriminator enum gains/loses a value; the same
+  // derivation drives `godot-mcp-server --tools-count` and the tool-reference.
+  const expectedOperations = 160;
+  const operationCount = countBuiltinOperations(allTools);
+  if (operationCount !== expectedOperations)
+    fail(`operation count: expected ${expectedOperations}, got ${operationCount}`);
+  else pass(`operation count == ${expectedOperations} (built-in operations canary)`);
+
+  // The published operation figure rounds down from the live count, so the count
+  // must never dip below it — otherwise the headline claim becomes a lie.
+  const headlineOperationsClaim = 150;
+  if (operationCount < headlineOperationsClaim)
+    fail(`operation count ${operationCount} < published headline ${headlineOperationsClaim} — the claim is now a lie`);
+  else pass(`operation count ${operationCount} >= headline claim ${headlineOperationsClaim}`);
 
   // Version-gate structural check — scene_close has godotMinVersion.
   // Dynamic visibility (hidden on Godot < 4.5) is validated by unit tests

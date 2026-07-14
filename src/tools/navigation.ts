@@ -21,6 +21,7 @@ export const navigationTools: ToolDef[] = [
       index: z.number().int().optional().describe("For 'remove_outline': outline index"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
+    operationParam: "action",
     successHint: "After defining polygons, call with action 'bake' to generate the navigation mesh.",
   },
 ];

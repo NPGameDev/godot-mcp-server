@@ -64,6 +64,7 @@ export const spriteframesTools: ToolDef[] = [
       new_index: z.number().int().optional().describe("New position (for reorder)"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
     pathParams: [PROJECT_FILE_PATH],
   },
   {

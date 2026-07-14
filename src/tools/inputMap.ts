@@ -22,6 +22,7 @@ export const inputMapTools: ToolDef[] = [
       deadzone: z.coerce.number().optional(),
     },
     annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
     successHint: "Bind events with input_map_event after creating the action.",
   },
   // Deliberately detailed description: all 4 event types (key, mouse_button,
@@ -53,6 +54,7 @@ export const inputMapTools: ToolDef[] = [
       ),
     },
     annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
   },
 ];
 

@@ -360,11 +360,11 @@ When Godot runs with `--headless --editor`, the plugin loads and 51 of 53 tools 
 
 ## Token efficiency
 
-The MCP tool catalogue consumes context window tokens. Schema minification (enabled by default) reduces this by ~19%.
+The MCP tool catalogue consumes context window tokens. On-demand groups keep the startup surface lean — you pay only for the tools you load.
 
-Standard catalogue: ~3,600 tokens (+ ~200–600 per on-demand group). Read-only mode: ~1,600 tokens (mutating tools filtered).
+Startup surface: ~8,800 tokens (eager + meta tools; + ~150–1,800 per on-demand group). Read-only mode: ~7,800 tokens (mutating tools filtered).
 
-Run `npx tsx scripts/measure-tokens.ts` to regenerate measurements after adding or modifying tools. See [docs/token-efficiency.md](docs/token-efficiency.md) for the full per-tool breakdown, group costs, and methodology.
+Run `npm run measure:tokens` to regenerate measurements after adding or modifying tools. See [docs/token-efficiency.md](docs/token-efficiency.md) for the full per-tool breakdown, group costs, and methodology.
 
 ## CI coverage
 

@@ -6,56 +6,49 @@ How much context window does the MCP catalogue consume? This page provides concr
 
 When your MCP client connects, the server sends a `tools/list` response containing every eagerly-registered tool. Additional tools are loaded on demand via `discover_tools`.
 
-| Configuration | Tools | Catalogue size | Est. tokens |
-|---------------|------:|---------------:|------------:|
-| **Standard (base)** | 38 | 14.1 KB | ~3,600 |
-| **Standard + all groups** | 60 | 22.7 KB | ~5,800 |
-| **Read-only mode** | ~24 | ~8.5 KB | ~2,100 |
+| Surface | Tools | Catalogue size | Est. tokens |
+|---------|------:|---------------:|------------:|
+| **Startup surface** | 36 | 34.6 KB | ~8,800 |
+| **Full surface** | 114 | 113.3 KB | ~29,000 |
+| **Read-only mode** | 39 | 30.3 KB | ~7,800 |
 
-Sizes shown are with schema minification enabled (the default). Token estimates use the standard bytes/4 heuristic.
+Token estimates use the standard bytes/4 heuristic.
 
-The standard profile starts at ~3,600 tokens and grows incrementally as you load groups on demand. Read-only mode (`GODOT_MCP_READ_ONLY=1`) strips mutating tools, reducing the base catalogue.
+- **Startup surface** — the eager tools plus the two meta tools (`discover_tools`, `extensions_refresh`), always in the initial `tools/list`.
+- **Full surface** — the startup surface with every on-demand group activated.
+- **Read-only mode** (`GODOT_MCP_READ_ONLY=1`) — mutating tools filtered out, leaving the read-only set.
+
+The startup surface starts at ~8,800 tokens and grows incrementally as you load groups on demand.
 
 ## On-demand group costs
 
-Specialized tool groups are loaded via `discover_tools`. Each group adds a known token cost:
+Specialized tool groups are loaded via `discover_tools`. Each group adds a known token cost on top of the startup surface:
 
 | Group | Tools | Added tokens |
 |-------|------:|------------:|
-| runtime | 5 | ~450 |
-| signals | 3 | ~320 |
-| animation_authoring | 2 | ~260 |
-| input_map | 2 | ~200 |
-| asset_management | 6 | ~580 |
-| user_data | 4 | ~370 |
+| tileset | 6 | ~1,812 |
+| tileset_edit | 5 | ~1,074 |
+| animation_authoring | 4 | ~1,005 |
+| placeholders | 2 | ~805 |
+| runtime_advanced | 3 | ~555 |
+| signals | 1 | ~142 |
 
-Loading all 6 groups adds ~2,200 tokens to the standard baseline.
-
-## Schema minification savings
-
-The server applies schema minification (stripping `additionalProperties`, `$schema`, compressing parameter descriptions) to reduce catalogue size:
-
-| Configuration | Before | After | Reduction |
-|---------------|-------:|------:|----------:|
-| Standard | 17.3 KB | 14.1 KB | 18% |
-| Standard + all groups | 28.0 KB | 22.7 KB | 19% |
-
-Minification saves ~19% and is enabled by default with no configuration.
+Group costs scale with the size and description length of the tools they carry; `discover_tools` reports the exact incremental cost when you activate a group.
 
 ## Per-tool cost range
 
-- **Heaviest:** `classdb_get_info` at ~160 tokens (rich schema with section filters and inheritance options)
-- **Lightest:** `editor_refresh` at ~63 tokens (no parameters)
-- **Average:** ~97 tokens per tool
+- **Heaviest:** `particles_create` (~1,409 tokens) — a large parameter schema with many typed fields
+- **Lightest:** `audiobus_list` (~85 tokens) — parameterless, description only
+- **Average:** ~1,021 bytes (~256 tokens) per tool
 
-Tools with more parameters and detailed descriptions cost more tokens. All descriptions stay under the 200-character limit (I2 invariant); the average is 130 characters.
+Tools with more parameters and detailed descriptions cost more tokens. Most descriptions stay under the 200-character limit (I2 invariant), with documented waivers for action-consolidated tools that document per-operation behavior.
 
 ## How to measure
 
 Rerun the measurement script after adding or modifying tools:
 
 ```bash
-npx tsx scripts/measure-tokens.ts
+npm run measure:tokens
 ```
 
-The script imports all tool definitions, converts their Zod schemas to JSON Schema (matching the MCP wire format), and measures catalogue sizes with and without minification.
+The script imports all tool definitions, converts their Zod schemas to JSON Schema (matching the MCP wire format), and measures catalogue sizes per surface. Tool counts agree with `godot-mcp-server --tools-count`.

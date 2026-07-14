@@ -32,6 +32,7 @@ export const pathTools: ToolDef[] = [
       index: z.number().int().optional().describe("Insert position (add) or point index to remove"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
   },
 ];
 

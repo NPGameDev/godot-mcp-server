@@ -159,6 +159,14 @@ export type ToolDef = {
    *  subset of the toolkit guard). Omit for tools with no fs path, or for params
    *  the toolkit doesn't guard (absolute-allowed source_path, node-tree paths). */
   pathParams?: readonly PathGuard[];
+  /** Names the tool's operation-discriminator enum param — the top-level inputSchema
+   *  key whose values are the distinct operations this tool performs (e.g. "action",
+   *  "operation"). Drives the human-facing operation count; not surfaced to the model. */
+  operationParam?: string;
+  /** Explicit operation list for a tool whose discriminator is not a plain top-level
+   *  z.enum (e.g. an enum nested inside a union/array). Used in place of operationParam
+   *  when the count can't be read from a top-level enum. */
+  operations?: readonly string[];
 };
 
 /** An MCP tool response — one or more text blocks; `isError` marks a tool-level failure. */

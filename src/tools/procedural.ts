@@ -41,6 +41,7 @@ export const proceduralTools: ToolDef[] = [
       interpolation_mode: z.enum(["linear", "cubic", "constant"]).optional().describe("Interpolation between stops"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
     pathParams: [PROJECT_FILE_PATH],
   },
   {
@@ -74,6 +75,7 @@ export const proceduralTools: ToolDef[] = [
       max_value: z.number().optional().describe("Curve maximum Y value"),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
     pathParams: [PROJECT_FILE_PATH],
   },
   {

@@ -33,6 +33,7 @@ export const nodeManagementTools: ToolDef[] = [
         .describe("For duplicate: property overrides on the copy (e.g. {position:{x:100,y:200}})."),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
     successHint:
       "After rename/reparent/reorder, scripts using $Path, get_node() paths, or %UniqueNames referencing the affected node may break. Check scripts on the moved node and its immediate neighbors.",
   },
@@ -66,6 +67,7 @@ export const nodeManagementTools: ToolDef[] = [
         ),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
   },
   {
     name: "autoload_manage",
@@ -84,6 +86,7 @@ export const nodeManagementTools: ToolDef[] = [
       enabled: coercedBoolean().optional().describe("For register: auto-initialize on startup. Default true."),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
   },
 ];
 

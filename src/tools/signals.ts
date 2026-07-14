@@ -34,6 +34,7 @@ export const signalTools: ToolDef[] = [
       method_name: z.string(),
     },
     annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false },
+    operationParam: "action",
   },
   {
     name: "signal_emit",
