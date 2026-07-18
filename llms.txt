@@ -1,0 +1,38 @@
+# Godot MCP Server
+
+> The npm-distributed MCP bridge (`@npgamedev/godot-mcp-server`, TypeScript)
+> that connects an MCP client — Claude Code, Claude Desktop, Cursor, and
+> others — to a Godot 4.2+ editor. It pairs with the `godot-mcp-toolkit`
+> editor plugin, which hosts localhost WebSocket servers inside the editor and
+> the running game; this server speaks MCP over stdio to the client and
+> translates tool calls onto those channels.
+
+This repository is the npm package root. The editor plugin lives in its own
+repository and ships via the Godot Asset Library.
+
+## Docs
+
+- [Documentation map](docs/README.md): every docs surface, organized by what
+  you want to do (use, extend, contribute).
+- [Tool reference](docs/tool-reference/README.md): generated reference of
+  every tool and operation — the canonical list.
+- [MCP client setup](docs/mcp-clients.md): per-client configuration (Claude
+  Code, Claude Desktop, Cursor, VS Code, and more) with per-OS paths and
+  gotchas.
+- [Architecture](docs/architecture/README.md): subsystems, transport, the
+  contract surface shared with the toolkit, key decisions, with diagrams.
+- [Token efficiency](docs/token-efficiency.md): measured context-window cost
+  of the tool surface.
+- [Security policy](SECURITY.md): how to report a vulnerability, the security
+  model, and isolation guidance.
+- [Contributing](CONTRIBUTING.md): environment setup, checks, commit format,
+  and the documentation rules.
+
+## Companion plugin (godot-mcp-toolkit)
+
+- [Troubleshooting](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/troubleshooting.md):
+  the 60-second checklist, connectivity probe, and symptom-to-fix entries —
+  one canonical page for both repositories.
+- [Compatibility](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/compatibility.md):
+  supported Godot versions, per-version tool behavior, headless mode, C#
+  requirements, export stripping.

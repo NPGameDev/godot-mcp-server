@@ -64,8 +64,8 @@ The rules that keep it honest:
    depicted files moved since their `data-verified` SHA. It over-flags by design — a false
    re-check costs a glance; a missed drift ships a lying diagram.
 
-Diagrams below are all re-verified against `d1c2a70` (the 41n-series finalization pass) —
-each diagram's own `data-verified` comment is authoritative.
+Each diagram's own `data-verified` comment is authoritative for when it was last
+re-checked against the code — the SHAs vary per diagram.
 
 ---
 
@@ -73,13 +73,13 @@ each diagram's own `data-verified` comment is authoritative.
 
 An AI assistant talks **MCP over stdio** to this npm bridge; the bridge talks
 **JSON-RPC over a localhost WebSocket** to the toolkit's two servers — one inside the
-**editor** (Mode A, for authoring) and one inside a **running game** (Mode B, for
-runtime inspection). It is **registry-driven**, not a blind port scanner: it reads each
+**editor** (the Editor channel, for authoring) and one inside a **running game** (the
+Runtime channel, for runtime inspection). It is **registry-driven**, not a blind port scanner: it reads each
 live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="bdcd2a3" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="eb70bc1" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -88,8 +88,8 @@ flowchart LR
       Lsp["lsp/lspClient.ts<br/>GDScript LSP client"]
     end
     subgraph toolkit["godot-mcp-toolkit · addon · GDScript"]
-      ModeA["Mode A — editor server<br/>ports 6550-6560"]
-      ModeB["Mode B — runtime server<br/>ports 6570-6585"]
+      ModeA["Editor channel — server in the editor<br/>ports 6550-6560"]
+      ModeB["Runtime channel — server in the running game<br/>ports 6570-6585"]
       GodotLsp["Godot GDScript LSP<br/>port 6005"]
     end
     Registry[("projects.json<br/>machine-wide registry")]
@@ -101,7 +101,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified bdcd2a3*
+*Figure 1 — system context · verified eb70bc1*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -154,7 +154,7 @@ single-responsibility siblings. The **dependency direction is one-way** — `ind
 `groups/groupCatalogue.ts` exist precisely to break what would otherwise be a
 `groups` ↔ `catalogue` cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="bdcd2a3" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="eb70bc1" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -183,7 +183,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified bdcd2a3*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified eb70bc1*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -192,14 +192,14 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 
 ## 3. The MCP entrypoint & startup
 
-`index.ts` is the **composition root** (~155 LOC: "construct + wire + sequence, not
+`index.ts` is the **composition root** (~175 LOC: "construct + wire + sequence, not
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="eb70bc1" -->
 ```mermaid
 flowchart TD
-    pre["preflight (may process.exit)<br/>Node ≥ 20 gate · --help / --tools-count / parse-error exit<br/>portConfig (cli → env → registry → 6550) · response caps · config-version warn"]
+    pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>portConfig (cli → env → registry → 6550) · response caps · config-version warn"]
     bridge["createBridge(ws://127.0.0.1:&lt;port&gt;)"]
     srv["new McpServer<br/>capabilities.tools.listChanged = true"]
     hooks["createHookPipeline + setGlobalHookPipeline"]
@@ -211,14 +211,14 @@ flowchart TD
     recon["reconciler.armStartupReconcile<br/>(complete the surface once the version is known)"]
     conn["installProcessHandlers → server.connect(StdioServerTransport) — LAST"]
     pre --> bridge --> srv --> hooks --> subsys --> reg --> mcpcap --> eager --> notif --> recon --> conn
-    part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 33)<br/>+ 2 meta = 35-tool startup surface; group tools absent (no stubs).<br/>110 total / 33 eager / 77 on-demand / 28 groups"]
+    part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 34)<br/>+ 2 meta = 36-tool startup surface; group tools absent (no stubs).<br/>112 total / 34 eager / 78 on-demand / 28 groups"]
     reg -.-> part
 ```
-*Figure 3 — composition-root boot order · verified d1c2a70*
+*Figure 3 — composition-root boot order · verified eb70bc1*
 
 - **Preflight** (`startup/startupEnv.ts` + `startup/cliArgs.ts` + `startup/portConfig.ts`) runs
-  before anything stateful: a hard Node ≥ 20 gate, the `--help` / `--tools-count` /
-  parse-error early `process.exit` (editor-independent), port resolution
+  before anything stateful: a hard Node ≥ 22 gate, the `--help` / `--tools-count` /
+  `--list-eager` / parse-error early `process.exit` (editor-independent), port resolution
   (`--editor-port` / `GODOT_MCP_EDITOR_PORT` → `lookupProject` registry hit → `6550` fallback,
   in `portConfig.ts` with precedence CLI > env > discovery > default; pinned values
   validated as integers 1–65535, invalid → exit 1), response cap parse/clamp, and a
@@ -232,8 +232,8 @@ flowchart TD
   tools** (`discover_tools`, `extensions_refresh`, registered directly). On-demand
   **group tools are absent (no stubs)** until `discover_tools` activates them
   ([§7](#7-tool-surface-management-discover_tools)). The counts (also printed by
-  `--tools-count`): **110 total / 33 eager / 77 on-demand / 28 groups**; startup surface
-  = 35.
+  `--tools-count`): **112 total / 34 eager / 78 on-demand / 28 groups**; startup surface
+  = 36.
 - **The cold-start completion** (`startup/reconcile.ts`, concern 071): when the editor
   reports its version *after* eager registration, the startup reconcile re-registers the
   version-gated and extension tools exactly once, fired immediately if the version is
@@ -292,7 +292,7 @@ on the MCP wire.
 The bridge composes a **persistent editor channel** and a **discovered runtime channel**,
 each with their own resilience policy:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="eb70bc1" -->
 ```mermaid
 flowchart TD
     bridge["bridge.ts — editor-side facade + composition"]
@@ -313,7 +313,7 @@ flowchart TD
     note3["fs.watch on projects.json (diffAndNotify on runtime_port)<br/>→ connect / teardown; token re-read each connect → auth self-heals"]
     rc -.-> note3
 ```
-*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified d1c2a70*
+*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified eb70bc1*
 
 - **Editor channel** — persistent and reconnecting with exponential backoff
   (`1·2·4·8·16·32·60·60…` s; **reset on a successful round-trip, not on open**, so a
@@ -329,7 +329,10 @@ flowchart TD
   fails (~60 s) → proactive teardown. The `isAlive` self-stop guard is load-bearing —
   `callRuntime`/`clearRuntime` can null the channel without stopping the heartbeat,
   relying on the next tick's guard. Discovery is via an `fs.watch` on `projects.json`
-  whose `diffAndNotify` reacts **only** to `runtime_port` transitions. Auth self-heals
+  whose `diffAndNotify` reacts **only** to `runtime_port` transitions. A **pinned**
+  runtime port (`GODOT_MCP_RUNTIME_PORT` / `--runtime-port`) skips discovery — and since
+  no watcher exists to rebuild its channel after a game stop clears it, the next call
+  lazily re-creates the channel against the pin. Auth self-heals
   because the token is re-read each connect.
 
 ---
@@ -340,7 +343,10 @@ flowchart TD
 deduplicated spread of every per-module `ToolDef` array under `src/tools/`. A CI gate
 (`test/sections/01_catalogue.ts`) asserts the GROUP / RUNTIME / LSP routing names are a
 subset of `ALL_TOOL_NAMES` and that there are no duplicates, so a tool can never be
-counted in one place and missed in another.
+counted in one place and missed in another. The human-readable
+[tool reference](../tool-reference/README.md) is generated from this same catalogue
+(`npm run docs:tools`) — the canonical list of every tool and operation, never
+hand-edited.
 
 <!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="d1c2a70" -->
 ```mermaid
@@ -381,7 +387,7 @@ default body — "one bridge call → JSON-stringify the result". The `name` (sn
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/schemaMin.ts" data-verified="d12f313" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/schemaMin.ts" data-verified="eb70bc1" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}
@@ -394,7 +400,7 @@ flowchart TD
     exc -.-> note
     pe -.-> note
 ```
-*Figure 7 — the response & error contract (REFLECT) · verified d12f313*
+*Figure 7 — the response & error contract (REFLECT) · verified eb70bc1*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
 result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`
@@ -416,7 +422,7 @@ This is documented contract, not drift.
 
 ## 7. Tool-surface management: `discover_tools`
 
-The on-demand tool surface (28 groups, 77 group tools) is one bounded context carved into
+The on-demand tool surface (28 groups, 78 group tools) is one bounded context carved into
 `groups/`: `groupCatalogue.ts` (the static `GROUPS` array assembled from 28 one-per-file
 data modules in `groups/defs/`, plus the derived `GROUP_TOOL_NAMES` / `RUNTIME_TOOLS` /
 `LSP_TOOLS` index sets and the `allDefs` lookup), `groupMatch.ts` (pure keyword scoring),
@@ -477,7 +483,7 @@ guards.
 tool is **never registered** (absent from `tools/list`, with **no per-call forward-time
 reject**):
 
-<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="eb70bc1" -->
 ```mermaid
 flowchart TD
     env["GODOT_MCP_READ_ONLY=1"] --> pred["profiles.isExcludedByReadOnly(readOnly, annotations)"]
@@ -491,7 +497,7 @@ flowchart TD
     sites["Applied at EVERY registration site:<br/>modules (registerTools) · groups (registerGroupTools)<br/>· extensions (registerExtensionTool)"]
     sites -.-> pred
 ```
-*Figure 9 — read-only enforcement points · verified d1c2a70*
+*Figure 9 — read-only enforcement points · verified eb70bc1*
 
 STRICT means a tool is exposed iff `readOnlyHint: true ∧ ¬destructiveHint`; **an
 unannotated tool defaults to excluded (safe)**, and the `readOnlyHint ∧ destructiveHint`
@@ -520,15 +526,15 @@ toolkit's wrapper.
 
 The GDScript LSP client (`lsp/lspClient.ts`) is a lazily-connected JSON-RPC-over-TCP
 client to Godot's built-in language server — the **headline non-finding** of the refactor.
-At **~554 LOC it is the largest module in the repository and the one file deliberately kept
+At **~630 LOC it is the largest module in the repository and the one file deliberately kept
 above the ~500-LOC cohesion guideline**, because it is genuinely cohesive (a single
 JSON-RPC-over-TCP client) and was **not carved**. 083 carved only the *tool layer*:
 `lsp/lspUri.ts` (`res://` ↔ `file://`), `lsp/lspLabels.ts` (enum → label maps),
 `lsp/lspSession.ts` (the connect/session integrator — `ensureLsp`, the singleton client,
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
-the thin `tools/lsp.ts` (6 defs + 6 handlers + `createLspHandler`).
+`tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="84d7087" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="eb70bc1" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -546,7 +552,7 @@ flowchart TD
     ep --> tcp["own TCP socket → Godot GDScript LSP<br/>(BYPASSES the WS bridge + mutation queue)"]
     tcp --> verdict["status verdict → lspStatusReporter.ts<br/>→ editor.set_lsp_status (de-duped by state:host:port)"]
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified 84d7087*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified eb70bc1*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -718,7 +724,7 @@ no `.npmignore`): `dist` + `README.md` + `LICENSE` + `ATTRIBUTIONS.md`. So `dist
 git-ignored and rebuilt by `prepublishOnly → build → postbuild (add-shebang)`, and
 `src/`, **`/docs` (this architecture doc plus the typedoc `docs/api/`)**, `scripts/`, and
 `test/` all stay out of the package — which is exactly why this architecture document is
-**unshipped**. `--tools-count` is an early-exit CLI for audits. Pattern B: the toolkit
+**unshipped**. `--tools-count` and `--list-eager` are early-exit CLIs for audits. Pattern B: the toolkit
 ships via the Godot Asset Library, the server via npm, so users never fetch what they
 don't need.
 
@@ -738,7 +744,7 @@ the toolkit's `docs/dev/contract.md`. The consumer-side headline rows:
 | C2 | Auth handshake (first-frame token; mode-divergent reply) | public |
 | C3 | Response envelope (`success` / `error` shape) | public |
 | C4 | Error-code vocabulary (own string-tolerant `ErrorCode`) | public |
-| C5 | Dispatch + concurrency notifications (`_queued` / `_executing` / `_cancel`; id coercion) | public |
+| C5 | Dispatch + concurrency notifications (`_queued` / `_executing` / `_cancel`; id coercion; JSON-RPC codes) | public |
 | C6 | Idempotency (`status` + `if_exists`) | public |
 | C7 | Type-tag coercion vocabulary (request-path only) | public |
 | C8 | Tool names & param schemas (`domain.verb` ⟷ snake_case) | public |
@@ -749,7 +755,7 @@ the toolkit's `docs/dev/contract.md`. The consumer-side headline rows:
 | C13 | Extension API (annotations; version bounds; group projection) | semi-public |
 | C14 | Extension surface signaling (`extensions.list` / `refresh` / `changed`) | semi-public |
 | C15 | LSP status round-trip (server → toolkit `set_lsp_status`) | semi-public |
-| C16–C22 | `projects.json` format, project hash, token-path derivation, LSP / runtime publishing, untrusted envelope, ProjectSettings keys | internal |
+| C16–C22 | `projects.json` format, project hash, token-path discovery, LSP / runtime publishing, untrusted envelope, ProjectSettings keys | internal |
 
 Tiers feed semver: **public** = a break is a major bump; **semi-public** =
 deprecate-then-change in a minor; **internal** = no guarantee.
