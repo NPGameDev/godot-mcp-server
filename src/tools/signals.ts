@@ -40,7 +40,7 @@ export const signalTools: ToolDef[] = [
     name: "signal_emit",
     method: "signal.emit",
     description:
-      "Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (live game, Mode B).",
+      "Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (the running game).",
     inputSchema: {
       node_path: z.string(),
       signal_name: z.string(),

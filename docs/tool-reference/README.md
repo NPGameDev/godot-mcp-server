@@ -707,7 +707,7 @@ _1 tool, 1 operations._
 <!-- tool:signal_emit -->
 ### `signal_emit`
 
-Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (live game, Mode B).
+Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (the running game).
 
 on-demand (group: `signals`)
 
