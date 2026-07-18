@@ -2,89 +2,146 @@
 
 All notable changes to the Godot MCP Server are documented in this file.
 
-This changelog is auto-generated from [Conventional Commits](https://www.conventionalcommits.org/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [Unreleased]
+
+Nothing has been released yet; every change below ships in the first tagged
+release.
 
 ### Breaking Changes
 
-- **Renamed `GODOT_MCP_PORT` → `GODOT_MCP_EDITOR_PORT`** — pre-1.0 clean break, no alias. Update any `.mcp.json` or shell env that sets the old name.
-- **Removed the no-op `--lite` flag and `GODOT_MCP_PROFILE` env var** (dead deprecation stubs). Use `GODOT_MCP_READ_ONLY=1` for restricted access.
+These are pre-1.0 clean breaks with no aliases or deprecation shims. Update any
+`.mcp.json`, shell environment, or scripts that use the old names.
 
-### Features
+- Renamed the editor-port environment variable `GODOT_MCP_PORT` to
+  `GODOT_MCP_EDITOR_PORT`, so all three channels (editor, runtime, LSP) now use a
+  consistent `GODOT_MCP_*_PORT` scheme.
+- Changed the default ports: the editor channel now uses `6550` (was `6505`) and
+  the runtime channel uses `6570` (was `6525`).
+- Canonicalized tool parameter names in a single pass so every tool uses one
+  clear name for the same idea (for example, folder tools now take `path`, not
+  `folder_path`; `project_set_setting` takes `setting`, not `key`; `input_map`
+  takes `name`, not `action_name`). There are no aliases for the old names.
+- Removed the profile system. The `GODOT_MCP_PROFILE` environment variable is no
+  longer read, the no-op `--lite` flag is gone, and there is no custom-tool list
+  (`GODOT_MCP_CUSTOM_TOOLS`). Set `GODOT_MCP_READ_ONLY=1` for a read-only tool
+  surface; the full tool surface is otherwise always available and expands
+  on demand.
+- Removed the feature-gate system, including the `GODOT_MCP_ALLOW_*` environment
+  variables. Tools are no longer gated behind allow flags.
+- Removed the `enable_tool_group` tool. Use `discover_tools` to find and activate
+  the tool group you need.
 
-- **CLI port flags** — `--editor-port` / `--runtime-port` / `--lsp-port` / `--lsp-host` (plus `--help`), resolved with precedence CLI flag > env var > registry discovery > default. `--tools-count` is now recognised by the same parser.
-- **Fail-fast desync cross-check** — a pinned editor port that cannot connect, or whose auth handshake fails because a foreign server occupies the pinned port, now reports a precise, actionable error naming the port mismatch (or the absent registry entry) instead of hanging on a dead socket.
-- **Startup port validation** — pinned port values (CLI flags and env vars, all three channels) must be integers 1–65535; an invalid value exits with a precise error instead of an `ERR_INVALID_URL` crash at first dial. An invalid `GODOT_MCP_LSP_PORT` rewritten mid-session by a config reload is skipped with a stderr warning (falls through to discovery).
-- **Startup port observability** — each channel's resolved port + source (cli / env / discovery / default) is logged to stderr at startup.
+### Added
 
-## Features
+- Language-server tools backed by each project's GDScript language server:
+  diagnostics, document symbols, go-to-definition, find-references, hover, and
+  completion, plus a project-wide `lsp_project_diagnostics` error scan. LSP ports
+  are discovered per project, and a port collision is reported instead of silently
+  reaching the wrong editor.
+- A debugger tool group: set and clear breakpoints, step through code, and inspect
+  debug state.
+- A `discover_tools` meta-tool that finds and activates on-demand tool groups by
+  keyword. It reports honestly when a group is already loaded, returns each newly
+  available tool's schema in the activation response, and matches on keywords
+  rather than exact names.
+- On-demand extension tools: tools registered by third-party addons appear and
+  disappear live as extensions are loaded, reloaded, or removed, with an
+  `extensions_refresh` tool to resync on demand.
+- New tool groups mirroring the toolkit's expanded command surface: TileSet
+  authoring, theme editing, AnimationTree editing, project layer-name management,
+  3D scene helpers, Path2D curve editing, collision-shape generation from a
+  texture, inherited-scene creation, audio-bus editing, SpriteFrames editing, GPU
+  particle systems, navigation, and a filtered `scene_query`.
+- `execute_code`, which runs a snippet in the editor or in the running game
+  (selected by `context`, defaulting to the running game).
+- `scene_spatial_map`, reporting node positions and bounds, plus
+  `texture_generate` and `sound_generate` for placeholder assets, and
+  `script_edit` for targeted edits to a script instead of whole-file rewrites.
+- A `send_text` event on `input_simulate` for typing into a focused text field,
+  and support for passing a single input event instead of only an array.
+- CLI flags `--editor-port`, `--runtime-port`, `--lsp-port`, `--lsp-host`, and
+  `--help`, resolved with the precedence CLI flag > environment variable >
+  registry discovery > default. `--tools-count` and `--list-eager` print the tool
+  surface (counts and the eager tool list) and exit without needing an editor.
+- A generated tool-reference document (`docs/tool-reference/`) covering every
+  built-in tool and its operations, kept in sync with the catalogue by the
+  `docs:tools` script.
+- Startup diagnostics: each channel logs its resolved port and where the value
+  came from (CLI, environment, discovery, or default), and pinned ports are
+  validated as integers in range so an invalid value exits with a precise error
+  instead of crashing at first connection.
+- A fail-fast desync check: a pinned editor port that cannot connect, or whose
+  handshake fails because another server occupies it, now reports exactly which
+  port is wrong instead of hanging on a dead socket.
+- A version handshake between the server and the plugin, reporting a clear
+  incompatibility message when the two are out of sync.
+- Client-side cancellation of in-flight tool calls.
+- `runtime_poll` on `game_start` to re-probe the running game's connection
+  without restarting it, and `wait_for_runtime` so a single `game_start` call
+  waits for the game to be ready and reports the precise stage and hint if it is
+  not.
+- `scene_close` reports whether it discarded unsaved changes, and gains a
+  destructive marker in its tool metadata.
+- A `root_name` input parameter on `scene_create`.
+- Next-step `successHint` suggestions on many tools, and per-tool path validation
+  that reports a clear `PATH_DENIED` error for a path outside the project.
+- A clear error at startup when the Node.js version is below the supported
+  minimum.
 
-- feat(server): websocket bridge, mcp server, stdio transport, ping tool, smoke harness (`60d7b0e`)
-- feat(tools): register scene and node mcp tools (`cd5e05a`)
-- feat(tools): register script and editor mcp tools (`00ae6e7`)
-- feat(tools): editor_screenshot accepts optional save_path (`70262ca`)
-- feat(server): drop ping, shebang postbuild, LICENSE + ATTRIBUTIONS + CLAUDE.md + README refresh (`1f9b040`)
-- feat(tools): register tier 1 — script undo note, editor_reload_scripts, scene_open, project_get_settings (`ea79d3c`)
-- feat(tools): tier 2 — register runtime_screenshot, runtime_get_node_state, debugger_get_log (mode b) (`cf0a3e0`)
-- feat(tools): tier 3 — signals, resource_load, node_get_property_list registrations (`adbb016`)
-- feat(tools): tier 3 — input_simulate, animation_player_control, scene_diff, env-gated game_eval (`49ca092`)
-- feat(server): exponential-backoff reconnection + in-flight DISCONNECTED rejection (`433d347`)
-- feat(server): scene_create/delete + script_delete + --lite + idempotency smoke (`daf3bdc`)
-- feat(server): resource + folder tool registrations + shader mentions + smoke (`2d0c55f`)
-- feat(server): playtest + scene.instantiate + node.call_method tool registrations + smoke (guards + round-trip + resource-coercion) (`8dbe567`)
-- feat(server): content-authoring tool registrations (input_map, animation, tilemap, project_set_setting, editor_screenshot_node) + smoke (`efe443b`)
-- feat(server): asset discovery + editor.get_console registrations + editor.get_errors description refresh + smoke (guards + round-trip + console-probe) (`544c626`)
-- feat(server): asset.import + editor.wait_for_idle registrations + smoke (base64 round-trip + guards + catalogue 52/29) (`32a1040`)
-- feat(server): scene_close ToolDef + smoke probe teardown + catalogue 53/30 (`4aa3c7f`)
-- feat(server): node_set_script ToolDef + scene_create_node class description update + smoke + catalogue 54/31 (`4379082`)
-- feat(server): file_delete ToolDef + smoke (round-trip + guards + catalogue 55/31) (`900bbf5`)
-- feat(server): token-auth handshake on bridge connect (`1817bef`)
-- feat(server): FeatureGate helper + registration-time filtering of gated tools (`cd74838`)
-- feat(server): save.* tool registrations + conditional smoke (gate-off catalogue filter + gate-on round-trip + whitelist enforcement) (`26f55d5`)
-- feat(server): 256 KB response cap + script_read_range tool (`1d8e410`)
-- feat(server): iter 22 — profiles, lazy groups, stubs, schema minification, tool merges (`e639387`)
-- feat(server): project-path-keyed bridge discovery via registry (editor + runtime ports) (`250c902`)
-- feat(server): per-worktree bridge discovery via absolute-path hash (`81223a5`)
-- feat(server): MCP Prompts/Resources/Roots + hooks middleware pipeline (`8004337`)
-- feat(server): classdb_get_info tool (lite) + smoke + catalogue 48/16 (`0c37e4e`)
-- feat(server): classdb_search tool (lite) + smoke + catalogue 49/17 (`c420a03`)
-- feat(server): script_check tool (lite) + smoke + catalogue 50/18 (`757238b`)
+### Changed
 
-## Bug Fixes
+- Renamed `game_eval` to `execute_code` and `editor_reload_scripts` to
+  `editor_refresh`.
+- Screenshot tools take an `image_detail` option (replacing `size`) to choose
+  between an inline downscaled image and a save-to-disk path, and clearly report
+  when a viewport cannot be captured instead of returning a blank image.
+- `game_start` waits for the running game to actually be ready in a single call
+  and reports the precise failure stage and a recovery hint when it is not.
+- Real pagination (offset, limit, and total) on class-browsing, script and save
+  reads, and scene queries, with configurable size caps.
+- Read-only visibility is derived from each tool's own annotations, so
+  `GODOT_MCP_READ_ONLY=1` consistently hides every mutating tool.
+- The eager tool set was re-tiered as tools landed, so the most commonly needed
+  tools (including runtime screenshot, input, and log tools, and node and group
+  management) are available immediately on connect.
+- Schemas were tightened across several tools: `wait_for_runtime` defaults to
+  true, animation `track_type` is a fixed enum, and node-group inputs are stricter.
+- Raised the minimum supported Godot version ceiling to 4.7.
+- Simplified the macOS setup guidance: the standard `npx` invocation works with
+  modern clients, and fallbacks are documented only where they are actually needed.
+- Error hints no longer mention retired concepts (feature gates, profiles, or
+  documentation that does not ship).
 
-- fix(tools): consume plugin's inline-base64 screenshot; revert smoke ordering (`1ade3bf`)
-- fix(server): rename package to @npgamedev/godot-mcp-server (`516eb05`)
-- fix(smoke): prevent "Could not save one or more scenes!" popup (`25f452c`)
-- fix(server): gate-aware dual-pass smoke runner + iter-18 test alignment (`2f5162c`)
-- fix(server): nonce-based untrusted envelope + smoke test updates (`0530646`)
-- fix(test): close smoke_deps tab in cleanup + fix flaky last-tab assertion (`1014181`)
-- fix(server): re-discover editor port from registry on connection loss (`9e04af6`)
-- fix(server): resolve project name from projectPath, not just CWD (`a14ec7f`)
-- fix(server): resolve project name from projectPath, not just CWD (`c3d33b8`)
-- fix(server): classdb smoke — use ok field from script.write response (`9fff7fa`)
-- fix(server): exception handling audit + runtime port reference update (9090 → 6525) (`4c22004`)
+### Fixed
 
-## Refactors
+- A startup race that could omit extension or version-gated tools from the first
+  tool list, and a double-registration crash that could occur when the client
+  reconnected.
+- `.gdshader` files are no longer mis-parsed as GDScript by the language tools.
+- Windows LSP paths are returned as `res://` paths rather than leaking a raw
+  filesystem path.
+- Optional parameters that take a JSON-encoded string are no longer advertised as
+  required.
+- A false "the toolkit did not report its version" warning that could appear when
+  launching the game.
+- Crash-context and error reporting: the correct error code and richer hints are
+  returned, log reads distinguish a transient lock from a missing log and fall
+  back to the debug log, and `LOG_BUSY` and `LOG_UNAVAILABLE` hints point at the
+  real cause. Console and log tools gain `source`, `text_filter`, and `is_regex`
+  options.
+- `debug_set_breakpoint` handles its `enabled` and `line` parameters correctly.
+- Many tool descriptions and schemas were corrected to match actual behavior.
 
-- refactor(tools): toolError helper + unified isError response contract across all handlers (`9830648`)
-- refactor(server): single-source tier tags replace LITE_CORE; tool modules export register() (`6756bee`)
-- refactor(tools): rename schema parameters for LLM discoverability (`b9bb6a3`)
-- refactor(server): modular smoke test with named sections + readable variables (`081ebc2`)
-- refactor(server): split smoke.ts into 19 section files + shared helpers (`c82f011`)
-- refactor(server): remove dead tier field + type, iteration refs, redundant comments; generalize to MCP client (`9bf40b4`)
+### Removed
 
-## Documentation
+- The placeholder security gates (`os_execute`, `outbound_http`) and the
+  never-enforced user-scope allowlist.
 
-- docs(server): propagate @npgamedev/godot-mcp-server scoped name to README + CLAUDE + lockfile (`ae9adb5`)
+## Prior history
 
-## Chores
-
-- chore(plan): scaffold server repo (npm package shell + empty src/) (`a2fde2c`)
-- chore(config): bump to 1.0.0, pin all deps to exact versions, add version script (`8d9d638`)
-- chore(config): add ESLint + Prettier with npm lint/format scripts (`047a2c2`)
-
-## Other
-
-- Initial commit (`fdfd51e`)
-
+Before this changelog adopted the Keep a Changelog format, entries were derived
+from the commit history. The full pre-release development history is available in
+the Git log.
