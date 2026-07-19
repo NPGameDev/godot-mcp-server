@@ -4,41 +4,57 @@
 ![version](https://img.shields.io/badge/version-1.0.0-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[MCP](https://modelcontextprotocol.io) server that connects AI coding assistants to the Godot 4.x editor. 61 tools for scene manipulation, script editing, resource management, playtesting, and more.
+The npm bridge that connects AI coding assistants to the Godot 4.2+ editor over the [Model Context Protocol](https://modelcontextprotocol.io). Your assistant can create scenes, edit scripts, inspect nodes, run playtests, and read the results — directly inside the editor, with you watching. It pairs with the [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) editor plugin, which hosts the WebSocket servers this bridge talks to.
 
-> **[Architecture &rarr;](docs/architecture/README.md)** — how the server is built: the entrypoint & startup, the WebSocket bridge, the catalogue/dispatch pipeline, `discover_tools`, the GDScript LSP client, and the registry consumer. Also rendered at [npgamedev.github.io/godot-mcp-server/architecture](https://npgamedev.github.io/godot-mcp-server/architecture/).
+> Runs fully locally — no telemetry, no cloud services, no account. Nothing leaves your machine.
+>
+> This is an independent community project, not affiliated with or endorsed by the Godot Foundation or Anthropic.
 
-## What it does
+> 📐 **[Architecture →](docs/architecture/README.md)** — how the server is built: the entrypoint & startup, the WebSocket bridge, the catalogue/dispatch pipeline, `discover_tools`, the GDScript LSP client, and the registry consumer. Also rendered at [npgamedev.github.io/godot-mcp-server/architecture](https://npgamedev.github.io/godot-mcp-server/architecture/).
 
-This Node.js process bridges your AI coding assistant to a running Godot editor. It speaks MCP over stdio to the assistant and forwards tool calls over a localhost WebSocket to the companion [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) plugin.
+## Why this one?
 
-Tested primarily with [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Compatible with any MCP client that supports the Model Context Protocol.
+*Built to fit your workflow, not the other way around.*
+
+Up to **112 tools** (an always-on core plus **28 on-demand groups**) covering **150+ operations**. A tool is not an operation: we consolidate related actions behind one tool, so the tool count stays small enough to fit any client's tool budget while the operation count reflects what the toolkit can actually do. Some tools and operations are version-gated, so older Godot versions (down to 4.2) expose fewer — "up to" is literal.
+
+Two things drive the design:
+
+- **Extensibility and customization.** The extension API lets you add project-specific tools in GDScript; extensions hot-reload and appear to the agent like built-ins. C#/.NET projects are fully supported — evidence that it fits every project, not a separate feature. We deliberately keep heuristic or third-party-dependent tools out of the core; the extension API is how you add them.
+- **Results you can check.** We treat the agent's context window as a budget: the tool surface starts small (~8,800 tokens) and grows only when the agent asks for more. The evidence section below lists what CI asserts on every build, what the test manifests cover, and what was measured when — links, not adjectives.
+
+Tested primarily with [Claude Code](https://docs.anthropic.com/en/docs/claude-code); compatible with any MCP client.
 
 ## Quick start
 
-### 1. Install
+### 1. Install the bridge
 
 ```bash
 npm install -g @npgamedev/godot-mcp-server
 ```
 
-Or run directly with npx (no global install):
+Requires Node.js 22 or newer (`node --version` to check). Clients can also run it without a global install via `npx -y @npgamedev/godot-mcp-server` — that is the form the config files below use.
 
-```bash
-npx -y @npgamedev/godot-mcp-server
+### 2. Install and enable the Godot plugin
+
+Install the [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) from the Godot AssetLib (or GitHub Releases), then enable it: Project Settings → Plugins → **Godot MCP Toolkit** → Active.
+
+You should see: the MCP dock appears, and the Output log prints
+
+```
+[MCPServer] listening on 127.0.0.1:6550
 ```
 
-Requires Node.js 22+.
-
-> **macOS, launching your client from Finder/Dock?** Modern GUI clients (Claude Desktop, Cursor, VS Code) capture your login shell's environment and resolve a bare `npx` themselves, so the standard config works whether you launch from Finder/Dock or a terminal. If a client won't connect, see [macOS: if a GUI-launched client won't connect](#macos-gui-launch) under *Configure your MCP client* below.
-
-### 2. Install the Godot plugin
-
-This server requires the companion [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) plugin running in the Godot editor. Install it via AssetLib or GitHub Releases, then enable it in Project Settings &rarr; Plugins.
+(the port may land anywhere in 6550–6560; the dock's status section names the live one).
 
 ### 3. Configure your MCP client
 
-In your Godot project root, create `.mcp.json`:
+The easiest path: let the plugin write the config. **Project → Tools → MCP Toolkit → Write .mcp.json** creates a correct `.mcp.json` at your project root (Windows wrapper included), and the dock keeps it healthy.
+
+For every other client — Claude Desktop, Cursor, Windsurf, VS Code, Cline, Codex CLI, Gemini CLI — and the per-OS gotchas, use the **[client setup guide](docs/mcp-clients.md)**. It is the canonical setup matrix.
+
+<details>
+<summary>Prefer to write .mcp.json by hand?</summary>
 
 ```json
 {
@@ -51,8 +67,7 @@ In your Godot project root, create `.mcp.json`:
 }
 ```
 
-<details>
-<summary>Windows: use the cmd wrapper</summary>
+On Windows, `npx` is a `.cmd` shim, so wrap it:
 
 ```json
 {
@@ -67,57 +82,120 @@ In your Godot project root, create `.mcp.json`:
 
 </details>
 
-<a id="macos-gui-launch"></a>
-
 <details>
-<summary>macOS: if a GUI-launched client won't connect</summary>
+<summary>Prefer to let the agent set it up?</summary>
 
-Modern GUI-launched MCP clients — Claude Desktop, VS Code, and Cursor — capture your login shell's environment and resolve a bare `npx` to a version-manager Node on their own, so the standard `npx -y @npgamedev/godot-mcp-server` config connects whether you launch the client from Finder/Dock or a terminal. If a client won't connect, launch it from a terminal to see its error, confirm `.mcp.json` is present at your project root, and confirm Node 22+ is installed (`node --version`). If your Node lives behind a version manager whose init is only in `~/.zshrc`, move it into `~/.zprofile` so login-shell launches see it too — or install Node from the official [nodejs.org](https://nodejs.org) installer, which lands on the default `PATH` with zero setup.
+Paste this into Claude Code from your project directory. It was tested end-to-end with Claude Code; other clients adapt via the [client setup guide](docs/mcp-clients.md). The agent drives the command-line steps; you open the editor and reconnect the client when it asks.
 
-**Advanced fallbacks** (only if the standard config still won't connect):
-
-- **`env.PATH` variant (e.g. Homebrew).** Keep `"command": "npx"` and put your Node directory on `env.PATH`. The `env` block **replaces** the inherited environment rather than extending it, so declare a full working `PATH`:
-  ```json
-  {
-    "command": "npx",
-    "args": ["-y", "@npgamedev/godot-mcp-server"],
-    "env": { "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" }
-  }
-  ```
-
-- **Login-shell wrapper — last resort, not a safe default.**
-  ```json
-  { "command": "zsh", "args": ["-lc", "exec npx -y @npgamedev/godot-mcp-server"] }
-  ```
-  The stdio transport reserves the child's **stdout** for JSON-RPC — a single stray byte breaks the connection. A login shell **sources your startup files _before_ `exec` runs**, so any banner they print lands on stdout ahead of the handshake and corrupts it — and `exec` cannot un-emit bytes already written before it runs. With `-lc` (login, non-interactive) that noise comes from `~/.zprofile`, `~/.zshenv`, `/etc/zprofile`, and login/motd banners. Note the catch-22: `-lc` does **not** read `~/.zshrc`, so if your nvm/fnm init lives there the wrapper won't even find Node — and switching to an interactive shell (`-ilc`) to pick it up re-introduces the full startup-banner surface (Powerlevel10k, oh-my-zsh). Only consider this form if your login profile prints nothing on startup, and silence toolchain init (e.g. `nvm use --silent >/dev/null 2>&1`).
+```text
+Set up the Godot MCP Toolkit for this project:
+1. Install the bridge: npm install -g @npgamedev/godot-mcp-server (check Node >= 22 first).
+2. If this project has no .mcp.json, create one with a "godot-mcp-toolkit" server entry
+   running "npx -y @npgamedev/godot-mcp-server" (on Windows, wrap with cmd /c).
+3. Fresh setup only: if addons/godot_mcp_toolkit exists but project.godot has no
+   [editor_plugins] entry enabling it, add the enable line so the plugin loads on first launch.
+   If this project is already open in Godot, tell me to enable it via Project Settings > Plugins instead —
+   do not edit project.godot under a running editor.
+4. Then STOP and tell me to: open the project in Godot, confirm the dock shows
+   "[MCPServer] listening", and reconnect you (the MCP client) so the new config loads.
+5. After I confirm, run one read-only probe (list the scene tree or read project settings)
+   and report what you see.
+```
 
 </details>
 
-### 4. Connect
+**macOS, launching your client from Finder/Dock?** The standard config connects either way for modern clients. If yours won't, the [client setup guide](docs/mcp-clients.md#macos-if-a-gui-launched-client-wont-connect) has the fix, from PATH diagnosis to the safe fallbacks.
 
-Launch your MCP client from the project root. The server discovers the plugin automatically via a shared project registry and authenticates with a per-session token.
+### 4. Connect and ask for something
+
+Launch your MCP client from the project root — the server discovers the plugin through a shared project registry and authenticates with a per-session token automatically.
+
+Then try the first prompt below. This is the kind of result it produces:
+
+<!-- captured: pre-1.0, Godot 4.5, 2026-07-19, via editor_screenshot against an agent-built scene; image lives in the toolkit repo (docs/media/); absolute raw URL so it renders on npm. -->
+![Godot editor viewport with a 2D platformer blockout built by the agent: a player character with a sprite and collision shape standing on one of four textured platforms](https://raw.githubusercontent.com/NPGameDev/godot-mcp-toolkit/main/docs/media/outcome-scene-2d.png)
+
+If a step does not produce its "you should see", head to the [troubleshooting guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/troubleshooting.md) — it starts with a 60-second checklist and a connectivity probe.
+
+## Try asking…
+
+1. *"Add a CharacterBody2D named Player to the main scene, with a Sprite2D and a CollisionShape2D under it."*
+2. *"Create a main menu scene with a Start button that switches to the game scene when clicked."*
+3. *"Run the game, then tell me the Player's position and velocity while it's running."*
+4. *"Build a small brick-breaker: paddle, ball, a wall of bricks, a score label, and a game-over screen — then playtest it."*
+
+The first three run in seconds. The last one is a real project: the same kind of small game we build end-to-end when validating a release, in a single agent session. Larger games span multiple sessions, with or without MCP.
+
+## What the tools cover
+
+The always-on core handles the everyday work: scenes, nodes, scripts, project settings, playtests, screenshots, input simulation, code execution. Specialized surfaces load on demand — the assistant activates them mid-session with `discover_tools`, by keyword or by name:
+
+| Group | What it unlocks |
+|-------|-----------------|
+| `3d_tools` | 3D primitives, lights, cameras, and environment setups |
+| `animation_authoring` | Keyframes, tracks, and AnimationTree state machines |
+| `asset_ops` | Asset listing, dependency queries, binary imports |
+| `audio` | Audio buses, effects, and volume settings |
+| `classdb` | Godot class hierarchy — properties, methods, signals, inheritance |
+| `cleanup` | Deleting files, scripts, scenes, resources, folders; closing scenes |
+| `debugger` | Debugger state, breakpoints, execution flow |
+| `editor_advanced` | Editor screenshots, filesystem refresh, wait-for-idle |
+| `input_map` | Input actions and their key/controller bindings |
+| `layer_naming` | Physics, render, and navigation layer names |
+| `lsp_code_analysis` | GDScript diagnostics, symbols, hover, project-wide compile check |
+| `lsp_code_navigation` | Completion, go-to-definition, find references |
+| `navigation` | Navigation regions, meshes, obstacle avoidance |
+| `particles` | GPU particle systems |
+| `path_editing` | Path2D curves; collision shapes from sprite textures |
+| `placeholders` | Procedural placeholder textures and sound effects |
+| `procedural` | Gradients, curves, and noise resources |
+| `resource_io` | Loading and writing `.tres`/`.res` resources |
+| `runtime_advanced` | Live node state, runtime property sets, AnimationPlayer control |
+| `scene_advanced` | Scene diffs; batch instantiation |
+| `scene_inheritance` | Inherited scenes (variants) |
+| `signals` | Emitting signals at editor-time or runtime |
+| `spriteframes` | SpriteFrames animations; spritesheet imports |
+| `theme` | UI theme overrides: styleboxes, fonts, colors, constants |
+| `tilemap` | TileMap cell reads, paints, bulk fills |
+| `tileset` | TileSet resources, atlas sources, layers, alternatives |
+| `tileset_edit` | Per-tile physics, terrain, navigation, visuals, custom data |
+| `user_data` | `user://` save files: read, write, delete, list |
+
+The authoritative per-tool list — every tool, operation, parameter, and version gate — is the generated **[tool reference](docs/tool-reference/README.md)**. Which tools exist on which Godot version is in the shipped [compatibility guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/compatibility.md).
+
+## How it is designed
+
+A few deliberate choices shape the tool surface:
+
+- **Consolidated tools.** Related actions share one tool with an action parameter instead of registering one tool each. A small tool list fits every client's tool budget and costs fewer context tokens, while the operation count stays honest about breadth.
+- **Read/write discipline.** Every tool carries read-only and destructive annotations, so clients can auto-allow safe tools and gate risky ones — and read-only mode can hide every mutating tool with one switch.
+- **Two channels.** The bridge dials the Editor channel (the WebSocket server inside the editor) for authoring, and the Runtime channel (the server inside the running game) during playtests. One side channel — the GDScript language-server client — connects to Godot's LSP directly.
+- **Registry-driven discovery.** Every endpoint (editor port, runtime port, LSP, auth token) resolves from the plugin's machine-wide project registry — no blind port scanning, no manual setup for multiple editors or git worktrees.
+- **Version-adaptive.** Tools degrade gracefully across Godot 4.2–4.7: version-gated tools are filtered from the list rather than failing cryptically, and the surface completes itself once the editor's version is known.
 
 ## Configuration
 
-### Environment variables
+Everything works with zero configuration — the registry handles discovery. The variables below override the **dial** (connect) side; the **listen** side (the ports the editor and game bind) is configured on the plugin — see the shipped [advanced configuration guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/advanced_configuration.md).
 
-These configure the **dial** (connect) side — where the server reaches the editor. The **listen** side (the ports the editor and runtime *bind*) is configured on the plugin, toolkit-side; see the toolkit's advanced-configuration docs.
+### Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GODOT_MCP_EDITOR_PORT` | auto | Override the editor WebSocket port to dial (default: auto-discovered from the project registry) |
-| `GODOT_MCP_RUNTIME_PORT` | auto | Override the game runtime WebSocket port to dial |
-| `GODOT_MCP_LSP_PORT` | auto | Override the GDScript LSP port to dial |
-| `GODOT_MCP_LSP_HOST` | `127.0.0.1` | Override the GDScript LSP host to dial |
+| `GODOT_MCP_EDITOR_PORT` | auto | Editor WebSocket port to dial (default: discovered from the project registry) |
+| `GODOT_MCP_RUNTIME_PORT` | auto | Running game's WebSocket port to dial |
+| `GODOT_MCP_LSP_PORT` | auto | GDScript language-server port to dial |
+| `GODOT_MCP_LSP_HOST` | `127.0.0.1` | GDScript language-server host to dial |
 | `GODOT_MCP_PROJECT_PATH` | `cwd` | Absolute path to the Godot project |
-| `GODOT_MCP_PROJECT_NAME` | from `project.godot` | Project name for token resolution |
-| `GODOT_MCP_TOKEN_PATH` | platform-specific | Override the auth token file path |
-| `GODOT_MCP_READ_ONLY` | `0` | Set to `1` to remove all mutating tools |
+| `GODOT_MCP_TOKEN_PATH` | auto | Auth-token file override (default: the path the plugin publishes in the registry) |
+| `GODOT_MCP_READ_ONLY` | `0` | Set to `1` to hide every mutating tool (server-enforced) |
 | `GODOT_MCP_RATE_LIMIT` | `0` | Max tool calls per second (`0` = unlimited) |
+| `GODOT_MCP_SCRIPT_READ_LIMIT` | built-in cap | Size cap (bytes) on script-read responses |
+| `GODOT_MCP_WS_BUFFER_LIMIT` | built-in cap | Size cap (bytes) on the WebSocket receive buffer |
+| `GODOT_MCP_CONFIG_VERSION` | written by the plugin | Config-schema version stamp in `.mcp.json`; the server warns on stderr if it is missing or does not match |
 
 ### CLI flags
 
-Equivalent dial-target overrides, resolved with precedence **CLI flag > env var > registry discovery > default** (a flag always wins when supplied):
+Dial-target overrides, resolved with precedence **CLI flag > env var > registry discovery > default**:
 
 | Flag | Equivalent env var |
 |------|--------------------|
@@ -125,282 +203,62 @@ Equivalent dial-target overrides, resolved with precedence **CLI flag > env var 
 | `--runtime-port <n>` | `GODOT_MCP_RUNTIME_PORT` |
 | `--lsp-port <n>` | `GODOT_MCP_LSP_PORT` |
 | `--lsp-host <h>` | `GODOT_MCP_LSP_HOST` |
-| `--tools-count` | — (print the static tool-count summary and exit) |
+| `--tools-count` | — (print the static tool/operation/group summary and exit) |
+| `--list-eager` | — (print the always-on and meta tool names as JSON and exit) |
 | `--help` | — (print usage and exit) |
 
-Both `--flag value` and `--flag=value` forms are accepted. These flags move the **dial** target only — they cannot reach the plugin's **listen** ports.
+Both `--flag value` and `--flag=value` forms are accepted.
 
-### Multiple editors / parallel instances
+### Multiple editors / pinned ports
 
-With no configuration, the server discovers each editor's port through the shared project registry — no manual setup for parallel worktrees. To make a setup deterministic (skip discovery entirely), **pin** a port on *both* sides with the same value:
+With no configuration, the server discovers each editor's port through the shared project registry — parallel editors and git worktrees need no setup. Pin a port only when you need a deterministic setup (CI, containers).
 
-```bash
-# One environment inherited by BOTH child processes → they agree with zero discovery.
-export GODOT_MCP_EDITOR_PORT=6560
-godot --editor path/to/project &   # the plugin binds 6560 (listen side)
-godot-mcp-server                   # the server dials 6560 (connect side)
-```
-
-An environment variable is **not a sync channel** — it is two independent per-process reads. The two sides agree only if **both launches inherit the same value**. The common failure: `.mcp.json` sets the pin for the *server only* while the editor is launched separately (on Windows a desktop shortcut does **not** inherit a shell's transient export) — the server then dials a port nobody is listening on. When that happens the server **fails fast** with a precise message naming the mismatch instead of hanging on a dead socket. If you don't want to manage env on both sides, omit the pin and let discovery handle it. The toolkit's advanced-configuration docs carry the full listen-side + harness recipe.
+> [!IMPORTANT]
+> A pinned port must be pinned on **both** sides with the same value: the editor binds where *its* environment says, and the server dials where *yours* says. An environment variable is not a sync channel — it is two independent per-process reads, and the common failure is `.mcp.json` pinning the server while the editor launches without the value (a desktop shortcut does not inherit a shell's export). The server fails fast with a message naming the mismatch instead of hanging; if you don't want to manage this, don't pin.
 
 ## Read-only mode
 
-For supervised environments (classrooms, CI, demos), set `GODOT_MCP_READ_ONLY=1` in `.mcp.json` env to restrict to read-only tools. All mutating tools are hidden.
-
-### On-demand tool groups
-
-The `discover_tools` meta-tool lets the AI assistant search for and unlock additional capabilities during a session. Search by keyword (`discover_tools({request: "animation"})`) or activate groups directly (`discover_tools({groups: ["signals"]})`):
-
-| Group | Tools | What it unlocks |
-|-------|-------|-----------------|
-| `runtime_advanced` | 2 | Live node state inspection, animation player control |
-| `signals` | 3 | Signal connect/disconnect, emit |
-| `animation_authoring` | 2 | Keyframe editing, key inspection |
-| `input_map` | 2 | InputMap action/event management |
-| `asset_management` | 10 | Asset import/dependencies, resource/scene/file/folder deletion, scene close, resource load/write |
-| `user_data` | 4 | `user://` file read/write/delete/list |
-| `scene_advanced` | 2 | Scene diff, scene instantiation (single + batch) |
-| `editor_advanced` | 3 | Editor screenshot, script reload, wait-for-idle |
-| `tilemap` | 3 | TileMap cell painting, TileSet creation and per-tile editing |
-
-## Tool reference
-
-<details>
-<summary><strong>Scene tools</strong> (9)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `scene_get_tree` | Return the edited scene's node tree as nested JSON |
-| `scene_create_node` | Create a node under a parent (engine or custom classes) |
-| `scene_delete_node` | Delete a node by path (refuses scene root) |
-| `scene_create` | Create a `.tscn` file with a typed root node |
-| `scene_delete` | Delete a `.tscn` and its `.uid` companion |
-| `scene_instantiate` | Instantiate a PackedScene under a parent |
-| `scene_open` | Open a scene as the active edited tab |
-| `scene_close` | Close an open scene tab |
-| `scene_diff` | Compare scene-tree snapshots for changes |
-
-</details>
-
-<details>
-<summary><strong>Node tools</strong> (5)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `node_get_property` | Read a property from a node |
-| `node_set_property` | Set a property on a node |
-| `node_get_property_list` | List inspector-visible properties |
-| `node_set_script` | Attach a script to a node |
-| `node_call_method` | Call a method on a node |
-
-</details>
-
-<details>
-<summary><strong>Script tools</strong> (5)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `script_read` | Read a GDScript file |
-| `script_write` | Write a `.gd` / `.cs` / `.gdshader` file |
-| `script_read_range` | Read a specific line range from a script |
-| `script_delete` | Delete a script file and its `.uid` companion |
-| `script_check` | Validate GDScript — structured diagnostics with line numbers |
-
-</details>
-
-<details>
-<summary><strong>Editor tools</strong> (7)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `editor_save_scene` | Save (or save-as) the current scene |
-| `editor_refresh` | Refresh editor filesystem — picks up new/changed/deleted files and reloads scripts |
-| `editor_get_console` | Tail the editor Output panel |
-| `editor_wait_for_idle` | Wait for EditorFileSystem scan to complete |
-| `project_get_settings` | List ProjectSettings (optional prefix filter) |
-| `project_set_setting` | Write a ProjectSettings key |
-
-</details>
-
-<details>
-<summary><strong>Resource tools</strong> (3)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `resource_load` | Load a resource — class, path, properties, metadata |
-| `resource_write` | Write/create a `.tres` / `.res` resource |
-| `resource_delete` | Delete a resource and its `.uid` companion |
-
-</details>
-
-<details>
-<summary><strong>Folder & file tools</strong> (3)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `folder_create` | Create a directory (recursive, idempotent) |
-| `folder_delete` | Delete a directory (optional recursive) |
-| `file_delete` | Delete any file under `res://` with `.import` cleanup |
-
-</details>
-
-<details>
-<summary><strong>Asset tools</strong> (3)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `asset_list` | Enumerate `res://` assets with filters (path, name, class, extension) |
-| `asset_get_dependencies` | Get forward dependencies of a resource or scene |
-| `asset_import` | Import binary assets (image/audio/font/3D) via file path or base64 |
-
-</details>
-
-<details>
-<summary><strong>Playtest tools</strong> (2)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `game_start` | Start a playtest; optionally wait for runtime connection |
-| `game_stop` | Stop the running game (idempotent) |
-
-</details>
-
-<details>
-<summary><strong>Runtime tools</strong> (7)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `runtime_screenshot` | Capture a frame from the running game |
-| `runtime_get_node_state` | Inspect a live node in the running game |
-| `runtime_get_script_vars` | Get script variables for a live game node |
-| `debugger_get_log` | Read recent game log lines |
-| `input_simulate` | Inject input events into the running game |
-| `animation_player_control` | Drive an AnimationPlayer at runtime |
-| `game_eval` | Evaluate GDScript via Expression |
-
-</details>
-
-<details>
-<summary><strong>Signal tools</strong> (3)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `signal_list` | List signals on a node |
-| `signal_manage` | Connect or disconnect signals |
-| `signal_emit` | Emit a signal (editor or runtime mode) |
-
-</details>
-
-<details>
-<summary><strong>Animation authoring tools</strong> (2)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `animation_keyframe` | Add or remove a keyframe on a track |
-| `animation_get_keys` | List keys on an AnimationPlayer track |
-
-</details>
-
-<details>
-<summary><strong>Input map tools</strong> (2)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `input_map_action` | Add or remove an InputMap action |
-| `input_map_event` | Bind or unbind input events to actions |
-
-</details>
-
-<details>
-<summary><strong>User data tools</strong> (4)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `save_read` | Read a whitelisted `user://` file |
-| `save_write` | Write to a whitelisted `user://` file |
-| `save_delete` | Delete a whitelisted `user://` file |
-| `save_list` | List files in a whitelisted `user://` directory |
-
-</details>
-
-<details>
-<summary><strong>ClassDB tools</strong> (2)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `classdb_get_info` | Inspect any Godot class — properties, methods, signals, constants, inheritance |
-| `classdb_search` | Find classes by inheritance chain or name pattern |
-
-</details>
-
-<details>
-<summary><strong>Node management tools</strong> (3, on-demand group)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `node_manage` | Structural node operations: rename, reparent, reorder, duplicate (UndoRedo-wrapped) |
-| `node_groups` | Manage node group membership: add, remove, list |
-| `autoload_manage` | Manage project autoload singletons: register, unregister, list |
-
-</details>
-
-<details>
-<summary><strong>Meta tools</strong> (2)</summary>
-
-| Tool | Description |
-|------|-------------|
-| `discover_tools` | Search and activate tool groups by keyword or name |
-| `extensions_refresh` | Re-scan for third-party extension tools |
-
-</details>
+For supervised environments (classrooms, CI, demos, reviewing an unfamiliar project), set `GODOT_MCP_READ_ONLY=1` in the server's env. Every mutating tool is left unregistered — absent from the tool list entirely, no matter what the client or the model asks for. Turn it off and reconnect the client to restore full access; the tool list is decided at connect time. For per-tool permission rules on top (auto-allowing reads, prompting on writes), see the [permissions section of the client setup guide](docs/mcp-clients.md#permissions-and-read-only-mode).
 
 ## Headless mode
 
-When Godot runs with `--headless --editor`, the plugin loads and 51 of 53 tools work normally — including scene tree operations, node manipulation, and signal management (not just file I/O). Only screenshot tools (`editor_screenshot`, `runtime_screenshot`) require a display and return `HEADLESS_UNSUPPORTED`. Verified across Godot 4.2 through 4.7 on Windows. See the [plugin COMPATIBILITY.md](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/COMPATIBILITY.md#headless-mode---headless) for the full per-tool matrix.
+Most tools work under `godot --headless --editor` — file, scene, node, script, ClassDB, and project tools all function without a display. Screenshot tools return `HEADLESS_UNSUPPORTED`, and everything that needs a running game degrades with clear errors (a headless environment has no display for the game process to present). The canonical per-tool headless matrix is in the shipped [compatibility guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/compatibility.md#headless-mode---headless).
 
 ## Token efficiency
 
-The MCP tool catalogue consumes context window tokens. On-demand groups keep the startup surface lean — you pay only for the tools you load.
+The tool catalogue consumes context-window tokens, so the surface starts small and grows on demand: the startup surface costs **~8,800 tokens**, the full surface (every group activated) **~29,000**, and read-only mode **~7,800**. Per-group costs, the measurement method, and the regeneration command are in [docs/token-efficiency.md](docs/token-efficiency.md).
 
-Startup surface: ~8,800 tokens (eager + meta tools; + ~150–1,800 per on-demand group). Read-only mode: ~7,800 tokens (mutating tools filtered).
+## How we know it works
 
-Run `npm run measure:tokens` to regenerate measurements after adding or modifying tools. See [docs/token-efficiency.md](docs/token-efficiency.md) for the full per-tool breakdown, group costs, and methodology.
+CI fails the build if any of these numbers drift: **112 tools** (34 always-on + 2 meta, 78 on-demand) in **28 groups**, covering **150+ operations**; **39 tools** visible in read-only mode.
 
-## CI coverage
-
-CI runs `npm run smoke:ci` which validates the static tool catalogue without a Godot editor. Checks include tool count, description length, JSON Schema integrity, per-section test coverage, annotation completeness, and naming conventions. Full interactive smoke tests (44 sections, 250+ assertions) require a local Godot 4.x editor with the toolkit plugin enabled — run `npm run smoke` locally after changes that touch tool behavior.
-
-## Accuracy eval
-
-An accuracy eval suite (`npm run eval`) tests two dimensions against a live Godot instance:
-
-- **Correctness** (5 scenarios, 58 assertions): scene creation workflows, ClassDB accuracy, script validation, error recovery hints, read/write round-trips. Baseline: 100% pass rate.
-- **Efficiency** (3 workflows, 18 assertions): player character creation (7 calls), physics-body configuration (3 calls), script debugging (4 calls). Baseline: 100% optimal — 14 tool calls across all workflows match known-optimal sequences.
-
-The eval suite is separate from the smoke test. Smoke validates "does it work" (255 assertions); eval validates "does it work well" (76 assertions). Run `npm run eval` to establish or verify the baseline.
+- Every tool has smoke coverage (happy path, guards, error hints) — mapped in the [smoke coverage manifest](test/SMOKE-COVERAGE-MANIFEST.md). Cross-tool stateful flows run as their own deterministic suite (`npm run flows`), and dispatch behavior (mutation serialization, cancellation, disconnects) as another — separate suites, separately maintained.
+- Every tool is also exercised end-to-end from GDScript in the toolkit's interactive sweep — mapped in the [sweep coverage manifest](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/Validations/SWEEP-COVERAGE-MANIFEST.md). Last full pass: 479 cases on Godot 4.7 (2026-07-03).
+- CI exercises Godot **4.2 through 4.7**, on **Windows, macOS, and Linux**, in both **GDScript and C# (mono)** editors. The floor — build, unit tests, lint, format, and the static catalogue gate — runs on every push; the full behavioral matrix is an opt-in deep tier, and headless-incompatible sections (screenshots, display-bound input) are skipped there and validated locally.
+- An accuracy eval suite (`npm run eval`) validates tool-call correctness and workflow efficiency against a live editor — "does it work well", separate from smoke's "does it work".
+- Five small games — a clicker, a brick-breaker, chess, a platformer, and a tower defense — were each built end-to-end in a single agent session as release validation.
+- Concurrent human + AI editing is validated for specific scenarios: creating nodes during manual scene-tree edits, undo interleaving, editing a node while its Inspector is open, and mid-drag reparenting. Complex viewport interactions may benefit from taking turns.
 
 ## Known limitations
 
-### `claude -p` does not support dynamic tool loading
-
-**Affected:** `discover_tools` lazy-loading (Claude Code 2.1.104, confirmed 2026-05-06).
-
-`claude -p` (pipe mode) does not process `tools/list_changed` MCP notifications. The server sends the notification after `discover_tools` registers new tools, but the pipe-mode client does not re-fetch the tool list. Dynamically loaded tools are unreachable.
-
-**Workaround:** No current workaround for pipe mode. Interactive `claude` sessions handle dynamic loading correctly.
+- **Dynamic tool loading needs a client that processes `tools/list_changed`.** Tools activated mid-session via `discover_tools` appear only if the MCP client handles that notification. Current Claude Code versions do, in both interactive and pipe (`claude -p`) mode — verified 2026-07-19; earlier versions did not process it in pipe mode. If newly activated tools do not appear, reconnect or upgrade the client — or call `extensions_refresh` to force a re-sync of extension tools.
+- **Screenshot capture size.** A full-size viewport capture (a 3D viewport especially) can exceed the WebSocket transport buffer and fail with `RESPONSE_TOO_LARGE`. Pass `image_response_mode: "disk"` to save the PNG and receive its path, or request a lower `image_detail`.
 
 ## Security
 
-The toolkit implements defense-in-depth security. See the [plugin README](https://github.com/NPGameDev/godot-mcp-toolkit#security) for full details.
+The default posture is localhost-only, token-authenticated, and auditable:
 
 - **Session auth** — random 64-char hex token per plugin start; unauthorized connections rejected
-- **Filesystem sandbox** — `res://` only by default; path traversal and symlink escapes blocked
+- **Filesystem sandbox** — `res://` only by default; path traversal blocked (lexical canonicalization, plugin-side), with a fast server-side pre-filter
+- **Read-only mode** — `GODOT_MCP_READ_ONLY=1` hides every mutating tool, enforced here server-side
 - **Audit log** — every tool call logged with timestamp and parameter hash
 - **Response caps** — size-limited reads prevent accidental data exfiltration
 - **Untrusted envelopes** — per-call nonce-tagged wrappers mitigate prompt injection
-- **Localhost only** — `127.0.0.1` bind; never `0.0.0.0`
+- **Localhost only** — `127.0.0.1` bind on every socket; never `0.0.0.0`
 
-> **Disclaimer:** We take security seriously and design every layer with defense-in-depth, but no software is immune to misuse or unforeseen vulnerabilities. This project is provided under the [MIT License](LICENSE) with no warranty. You are responsible for evaluating whether it meets your security requirements before use.
+Vulnerability reporting and isolation guidance (containers, VMs, restricted accounts) are in [SECURITY.md](SECURITY.md). Per-tool risk notes and recommended client-side permission rules: the shipped [security recommendations](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/security-recommendations.md); a ready-made Claude Code allow-list example is in the [client setup guide](docs/mcp-clients.md#permissions-and-read-only-mode).
+
+> **Disclaimer:** We design every layer with defense-in-depth, but no software is immune to misuse or unforeseen vulnerabilities. This project is provided under the [MIT License](LICENSE) with no warranty. You are responsible for evaluating whether it meets your security requirements before use.
 
 ## Architecture
 
@@ -410,18 +268,79 @@ The toolkit implements defense-in-depth security. See the [plugin README](https:
 │  (AI agent) │          │  (this package)     │  :6550   │  (Godot plugin)    │
 └─────────────┘          └─────────┬───────────┘          └─────────┬──────────┘
                                    │                                │
-                                   └──── ws :6570 (Mode B) ────────>│
-                                         (playtest runtime)        (autoload)
+                                   └──── ws :6570 (runtime) ───────>│
+                                         (the running game)        (autoload)
 ```
 
-- **Mode A** (editor, default port 6550) — operates on the edited scene via `EditorInterface`.
-- **Mode B** (runtime, default port 6570) — operates on the live `SceneTree` during playtests. Auto-connected when `game_start` runs with `wait_for_runtime: true`.
+- **Editor channel** (default port 6550) — operates on the edited scene via `EditorInterface`.
+- **Runtime channel** (default port 6570) — operates on the live `SceneTree` in the running game. Auto-connected when `game_start` runs with `wait_for_runtime: true`.
 
-Port discovery is automatic via a shared project registry; `GODOT_MCP_EDITOR_PORT` (or `--editor-port`) overrides if needed. Auth tokens are resolved per-project (and per-worktree for multi-instance setups).
+Port discovery is automatic via the shared project registry; auth tokens resolve per project (and per worktree). The full story — startup, transport, dispatch, security boundaries, with diagrams — is in [docs/architecture/README.md](docs/architecture/README.md).
+
+## FAQ
+
+<details>
+<summary><strong>Can it build a whole game in one shot?</strong></summary>
+
+Small games, yes — our validation minigames were each built in a single agent session (the brick-breaker in the examples above is one of them). Larger games take multiple sessions, with or without MCP.
+
+</details>
+
+<details>
+<summary><strong>Can I use it commercially?</strong></summary>
+
+Yes — MIT, both the server and the addon.
+
+</details>
+
+<details>
+<summary><strong>Should I commit the addon to my game repo?</strong></summary>
+
+Yes. The bundled export plugin strips it (and its auth tokens) from exported builds; the runtime piece self-disables outside debug builds.
+
+</details>
+
+<details>
+<summary><strong>Does it work headless / in CI?</strong></summary>
+
+Yes, with honest caveats: most tools work under `--headless --editor`; screenshots and everything needing a running game degrade — see [Headless mode](#headless-mode) above and the shipped [compatibility guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/compatibility.md)'s headless matrix.
+
+</details>
+
+<details>
+<summary><strong>C# projects?</strong></summary>
+
+Supported — use the mono (.NET) Godot editor build; the standard build cannot load `.cs` scripts. See the C# section of the shipped [compatibility guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/compatibility.md).
+
+</details>
+
+<details>
+<summary><strong>Multiple editors or git worktrees?</strong></summary>
+
+Yes — per-project instance isolation (hash-based subdirectories) and per-editor port ranges. See the shipped [multi-instance guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/multi-instance.md).
+
+</details>
+
+<details>
+<summary><strong>What leaves my machine?</strong></summary>
+
+Nothing — runs fully locally, no telemetry, no cloud services, no account.
+
+</details>
+
+## Documentation
+
+- [Documentation map](docs/README.md) — every doc, organized by what you want to do.
+- [Client setup](docs/mcp-clients.md) — per-client configuration with per-OS paths and gotchas.
+- [Tool reference](docs/tool-reference/README.md) (generated) — every tool, operation, parameter, and version gate.
+- [Token efficiency](docs/token-efficiency.md) — the measured context cost of the tool surface.
+- [Testing locally](docs/testing-locally.md) — every test layer and how to add coverage.
+- [Troubleshooting](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/troubleshooting.md) — 60-second checklist, connectivity probe, symptom-to-fix entries.
+- [Architecture](docs/architecture/README.md) — subsystems, transport, contract surface, with diagrams.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) — environment setup, the test layers, and the documentation rules.
 
 ## License
 

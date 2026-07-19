@@ -23,6 +23,15 @@ Full dev-doc map, in read order:
 4. [`docs/dev/glossary.md`](docs/dev/glossary.md) — server-owned terms; cross-links the toolkit glossary (the shared-vocabulary SSOT).
 5. **Rationale trail** — commit history + [`docs/architecture/README.md`](docs/architecture/README.md). (This repo has no `docs/adr/`.)
 
+User-facing doc surfaces (full index: [`docs/README.md`](docs/README.md); agent-facing
+summary: [`llms.txt`](llms.txt)): [`docs/tool-reference/`](docs/tool-reference/README.md)
+(generated via `npm run docs:tools` — never hand-edit),
+[`docs/mcp-clients.md`](docs/mcp-clients.md) (client setup + permissions),
+[`docs/testing-locally.md`](docs/testing-locally.md) (test workflow),
+[`SECURITY.md`](SECURITY.md), and the toolkit-hosted
+[troubleshooting page](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/troubleshooting.md)
+(one canonical page for both repos).
+
 ---
 
 ## What this repo is
@@ -51,8 +60,8 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   `isAllowedInReadOnly`, `isExcludedByReadOnly`). Defines `EAGER_TOOLS`.
 - `src/groups/groups.ts` — lazy-load group system. `registerGroupSystem` registers
   `discover_tools` meta-tool. `GROUP_TOOL_NAMES` tracks group membership.
-- `src/shared/schemaMin.ts` — `minifySchema` + `stableStringify` (sorted-key JSON for
-  prompt-cache hits).
+- `src/shared/schemaMin.ts` — `stableStringify` (sorted-key JSON for deterministic,
+  cache-friendly output).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
   `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,
   `inputMap`, `animation`, `tilemap`, `asset`, `file`, `save`, `classdb`,
@@ -94,9 +103,10 @@ Source of truth: each tool's `annotations.readOnlyHint`, filtered by
 
 ### Lazy-load groups
 
-24 groups (61 tools) loaded via `discover_tools`. `node_manage`,
-`node_groups`, `autoload_manage` were promoted to the eager set
-(Claude Code does not process `tools/list_changed` notifications).
+28 groups (78 tools) loaded via `discover_tools`. `node_manage`,
+`node_groups`, `autoload_manage` were promoted to the eager set early, when
+Claude Code did not yet process `tools/list_changed` notifications (current
+versions do, in both interactive and pipe mode).
 
 Source of truth: `src/groups/groups.ts` — see `GROUPS` array for full list.
 Groups persist for the session.
@@ -132,11 +142,10 @@ override the matching env var — is **contract C10** in the toolkit's
 [`docs/dev/contract.md`](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md);
 not restated here.
 
-One server-side operational var is **not** part of that contract surface:
-
-| Variable                 | Default                                                | Purpose |
-|--------------------------|--------------------------------------------------------|---------|
-| `GODOT_MCP_PROJECT_NAME` | (read from `project.godot`, else `[unnamed project]`)  | Godot project name used to locate the token file under Godot's `app_userdata/` dir. Set this when the server is launched from a CWD that is not the Godot project root (e.g. CI, smoke harness). |
+The server-side operational vars outside that cross-repo contract surface are the
+response caps (`GODOT_MCP_SCRIPT_READ_LIMIT`, `GODOT_MCP_WS_BUFFER_LIMIT`) and
+`GODOT_MCP_RATE_LIMIT` — the README's environment-variable table documents the
+full live set.
 
 ## Version-aware tool catalog (iters 37, 41l-undecies)
 

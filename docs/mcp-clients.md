@@ -58,6 +58,9 @@ The equivalent `.mcp.json` (project scope, shareable in version control):
 }
 ```
 
+Claude Code asks for approval before loading a project-scoped `.mcp.json`
+server and before an agent writes that file — approve both once.
+
 Verify the connection with `claude mcp list` (or `/mcp` inside a session) —
 the server should show as connected while the Godot editor is open with the
 plugin enabled.

@@ -28,6 +28,22 @@ For the rationale behind larger design choices, the trail is the commit history
 and the architecture document above — this repo does not keep a separate
 decision-record directory.
 
+## Documentation surfaces
+
+The full index is the [documentation map](docs/README.md); the agent-facing
+summary is [`llms.txt`](llms.txt). Frequently needed:
+
+- [`docs/tool-reference/`](docs/tool-reference/README.md) — generated from the
+  catalogue (`npm run docs:tools`); never hand-edit.
+- [`docs/mcp-clients.md`](docs/mcp-clients.md) — per-client setup, plus the
+  permissions and read-only guidance.
+- [`docs/testing-locally.md`](docs/testing-locally.md) — every test layer and
+  how to add coverage.
+- [`SECURITY.md`](SECURITY.md) — vulnerability reporting and the security-model
+  summary.
+- [Troubleshooting](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/troubleshooting.md)
+  — the canonical symptom-to-fix page for both repos, hosted in the toolkit repo.
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for environment setup, how to run

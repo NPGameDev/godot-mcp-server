@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { editorTools } from "../../src/tools/editor.js";
 import { runtimeTools } from "../../src/tools/runtime.js";
 import { ALL_TOOL_DEFS, ALL_TOOL_NAMES, META_TOOL_NAMES } from "../../src/registration/catalogue.js";
 import { countBuiltinOperations } from "../../src/registration/operations.js";
-import { GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "../../src/groups/groups.js";
+import { GROUPS, GROUP_TOOL_NAMES, RUNTIME_TOOLS, LSP_TOOLS } from "../../src/groups/groups.js";
 import { reportGroupStatusByName } from "../../src/groups/groupActivation.js";
 import { isVersionAtLeast } from "../../src/shared/version.js";
 import type { ErrorCode, ToolDef } from "../../src/shared/types.js";
@@ -170,6 +173,36 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   if (operationCount < headlineOperationsClaim)
     fail(`operation count ${operationCount} < published headline ${headlineOperationsClaim} — the claim is now a lie`);
   else pass(`operation count ${operationCount} >= headline claim ${headlineOperationsClaim}`);
+
+  // README headline drift gate — the published headline sentence must state the
+  // live catalogue numbers. The numbers are extracted from README.md and compared
+  // against the same derivations `--tools-count` prints, so a hand-edited README
+  // fails here instead of shipping a stale claim.
+  const readmePath = fileURLToPath(new URL("../../README.md", import.meta.url));
+  const readme = readFileSync(readmePath, "utf8");
+  const headlinePattern =
+    /up to \*{0,2}(\d+) tools\*{0,2}[^.\n]*?\*{0,2}(\d+) on-demand groups\*{0,2}[^.\n]*?\*{0,2}(\d+)\+ operations\*{0,2}/i;
+  const headline = headlinePattern.exec(readme);
+  if (!headline) {
+    fail("README headline: 'up to N tools … K on-demand groups … M+ operations' sentence not found");
+  } else {
+    const toolsClaim = Number(headline[1]);
+    const groupsClaim = Number(headline[2]);
+    const opsFloorClaim = Number(headline[3]);
+    if (toolsClaim !== allTools.length)
+      fail(`README headline tools: claims ${toolsClaim}, catalogue has ${allTools.length}`);
+    else pass(`README headline tools == catalogue (${toolsClaim})`);
+    if (groupsClaim !== GROUPS.length)
+      fail(`README headline groups: claims ${groupsClaim}, catalogue has ${GROUPS.length}`);
+    else pass(`README headline groups == catalogue (${groupsClaim})`);
+    if (opsFloorClaim !== headlineOperationsClaim)
+      fail(
+        `README headline operations floor: claims ${opsFloorClaim}+, the pinned floor is ${headlineOperationsClaim}`,
+      );
+    else if (opsFloorClaim > operationCount)
+      fail(`README headline operations floor ${opsFloorClaim}+ exceeds the live count ${operationCount}`);
+    else pass(`README headline operations floor (${opsFloorClaim}+) holds against live count ${operationCount}`);
+  }
 
   // Version-gate structural check — scene_close has godotMinVersion.
   // Dynamic visibility (hidden on Godot < 4.5) is validated by unit tests
