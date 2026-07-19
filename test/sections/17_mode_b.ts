@@ -388,6 +388,51 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
         assertHint(ctx, "REGRESSION execute_code load() hint", loadAttempt, "load");
       }
 
+      // REGRESSION: runtime tools stay responsive while the game tree is PAUSED.
+      // The runtime autoload runs with process_mode = PROCESS_MODE_ALWAYS, so it keeps
+      // servicing WS requests when the game loop is suspended; a regression there froze
+      // runtime.get_node_state under a pause. Pause via set_pause(true) (a method call —
+      // `get_tree().paused = true` is an assignment and throws PARSE_ERROR through
+      // execute.code, which is expression-only). The try/finally is load-bearing: a
+      // leaked pause would suspend the runtime for every later smoke section, so the
+      // unpause must run even if an assertion above throws.
+      try {
+        await bridge.callRuntime("execute.code", { code: "get_tree().set_pause(true)" }, CALL_TIMEOUT);
+        // Confirm the pause actually took effect before asserting on the paused tree —
+        // otherwise a no-op pause would make the responsiveness check vacuous.
+        const pausedState = (await bridge.callRuntime("execute.code", { code: "get_tree().paused" }, CALL_TIMEOUT)) as {
+          result?: unknown;
+          code?: string;
+        };
+        if (pausedState?.result !== true) {
+          fail(`execute.code get_tree().paused: expected true after set_pause, got ${JSON.stringify(pausedState)}`);
+        } else {
+          pass("execute.code get_tree().set_pause(true) -> paused=true");
+        }
+
+        // The regression assertion: a runtime read must still RETURN while paused (before
+        // the PROCESS_MODE_ALWAYS fix this call hung/froze under the pause).
+        const pausedNodeState = (await bridge.callRuntime(
+          "runtime.get_node_state",
+          { node_path: "/root" },
+          CALL_TIMEOUT,
+        )) as { name?: string; properties?: Record<string, unknown>; code?: string };
+        if (!pausedNodeState?.name || !pausedNodeState.properties) {
+          fail(`runtime.get_node_state /root (paused): ${JSON.stringify(pausedNodeState)}`);
+        } else {
+          pass(
+            `runtime.get_node_state /root responds while paused (props=${Object.keys(pausedNodeState.properties).length})`,
+          );
+        }
+      } finally {
+        // ALWAYS unpause — a leaked pause would poison every later section. Swallow any
+        // failure here: throwing from finally would mask a real error in flight from the
+        // try body, and if the runtime already dropped the pause died with it anyway.
+        await bridge
+          .callRuntime("execute.code", { code: "get_tree().set_pause(false)" }, CALL_TIMEOUT)
+          .catch(() => undefined);
+      }
+
       // Hint assertion: input_simulate with world_position should include coordinate hint.
       // (world_position lives in event_data — a mouse coordinate mode; ignored for action events.)
       const inputWithPos = (await bridge.callRuntime(
