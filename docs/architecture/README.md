@@ -770,7 +770,7 @@ this document:
 
 | Decision | Where it shows up |
 |----------|-------------------|
-| [ADR 0002 — extension annotation API](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/adr/0002-extension-annotation-api.md) | [§13](#13-the-extension-system) |
+| [Extension annotation API (shipped guide)](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/extending.md) | [§13](#13-the-extension-system) |
 | [ADR 0008 — LSP port discovery is registry-authoritative](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/adr/0008-lsp-port-registry-authoritative.md) | [§9](#9-the-gdscript-lsp-client) |
 | [ADR 0009 — filesystem-content trust boundary; extensions full-trust](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/adr/0009-fs-content-trust-boundary.md) | [§8](#8-security--trust-boundaries), [§13](#13-the-extension-system) |
 | [ADR 0011 — token-path authority (toolkit publishes globalized-absolute; server reads + structurally validates)](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/adr/0011-token-path-authority.md) | [§4](#4-transport-the-websocket-bridge), [§11](#11-multi-project-registry) |
