@@ -14,6 +14,7 @@ import {
   callRetryOnTimeout,
   unwrapUntrusted,
 } from "../helpers.js";
+import { discoverRuntime } from "../../src/registry.js";
 /**
  * Error codes that mean the runtime channel died — the game stopped, the WS
  * dropped, or the connect/call timed out. A self-launched `game.start current`
@@ -42,6 +43,25 @@ function isRuntimeGone(err: unknown): boolean {
   return typeof code === "string" && RUNTIME_GONE_CODES.has(code);
 }
 
+// Runtime is "up" only when the registry reports it on the EXACT port the pinned
+// bridge dials. A bare probePort(6570) can be fooled by a just-killed game's socket
+// that still answers a SYN while the new runtime has not rebound (registry
+// runtime_port still null) — the ~75% "dropped mid-section" false skip. Fresh
+// discoverRuntime read (NOT the watcher cache, which the harness doesn't run).
+// Falls back to probePort only when the project path is unknown (gate impossible).
+async function runtimeReady(ctx: TestCtx): Promise<boolean> {
+  if (ctx.projectPath) return discoverRuntime(ctx.projectPath) === RUNTIME_PORT;
+  return probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS);
+}
+
+async function waitForRuntimeReady(ctx: TestCtx, tries = 15, delayMs = 1000): Promise<boolean> {
+  for (let i = 0; i < tries; i++) {
+    if (await runtimeReady(ctx)) return true;
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return false;
+}
+
 export const TOOLS_TESTED: string[] = [
   "runtime_screenshot",
   "runtime_get_node_state",
@@ -67,7 +87,7 @@ export const TOOLS_TESTED: string[] = [
  */
 async function ensureRuntime(ctx: TestCtx): Promise<{ available: boolean; startedHere: boolean }> {
   const { bridge } = ctx;
-  if (await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS)) return { available: true, startedHere: false };
+  if (await runtimeReady(ctx)) return { available: true, startedHere: false };
 
   const started = (await callRetryOnTimeout(
     bridge,
@@ -80,10 +100,7 @@ async function ensureRuntime(ctx: TestCtx): Promise<{ available: boolean; starte
   // game.start can report success before the runtime WS is accepting
   // connections: a cold first-play (scene import + shader compile) can exceed
   // its wait_for_runtime window, so poll before declaring the runtime up.
-  for (let i = 0; i < 15; i++) {
-    if (await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS)) return { available: true, startedHere: true };
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
+  if (await waitForRuntimeReady(ctx)) return { available: true, startedHere: true };
   // Launched but never connected — stop what we started and skip.
   await bridge.call("game.stop", {}, CALL_TIMEOUT).catch(() => undefined);
   return { available: false, startedHere: false };
@@ -491,7 +508,7 @@ export async function testModeB(ctx: TestCtx): Promise<void> {
 async function testRuntimeDiskModes(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
-  const wasRunning = await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS);
+  const wasRunning = await runtimeReady(ctx);
   let startedHere = false;
   if (!wasRunning) {
     const started = (await callRetryOnTimeout(
@@ -509,15 +526,7 @@ async function testRuntimeDiskModes(ctx: TestCtx): Promise<void> {
     startedHere = true;
     // A cold first launch can outlast game.start's wait_for_runtime window —
     // poll the runtime WS before the first call (same pattern as send_text).
-    let runtimeUp = false;
-    for (let i = 0; i < 15; i++) {
-      if (await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS)) {
-        runtimeUp = true;
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-    if (!runtimeUp) {
+    if (!(await waitForRuntimeReady(ctx))) {
       pass("runtime.screenshot disk/both legs skipped (runtime never connected after launch)");
       await bridge.call("game.stop", {}, CALL_TIMEOUT).catch(() => undefined);
       return;
@@ -680,15 +689,7 @@ async function testSendText(ctx: TestCtx): Promise<void> {
   // game.start's wait_for_runtime window, so the runtime appears a few seconds
   // later. Poll RUNTIME_PORT before the first runtime call so a cold start doesn't
   // spuriously throw; if it never connects, the positive path is sweep-owned.
-  let runtimeUp = false;
-  for (let i = 0; i < 15; i++) {
-    if (await probePort(HOST, RUNTIME_PORT, PROBE_TIMEOUT_MS)) {
-      runtimeUp = true;
-      break;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  if (!runtimeUp) {
+  if (!(await waitForRuntimeReady(ctx))) {
     pass("send_text: runtime did not connect after launch — positive coverage in sweep");
     return;
   }

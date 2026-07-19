@@ -233,6 +233,9 @@ export async function runFullSuite(config: SuiteConfig): Promise<void> {
   const projectPath = discoverProjectPath();
   const bridge = createBridge(`ws://${HOST}:${PORT}`, {
     projectPath,
+    // Pin the runtime channel to a fixed port so section 17's registry readiness
+    // gate can assert the registry reports that EXACT port before dialing it —
+    // that `=== RUNTIME_PORT` check is what keeps this deliberate pin safe.
     explicitRuntimePort: String(RUNTIME_PORT),
   });
   const ctx: TestCtx = {
