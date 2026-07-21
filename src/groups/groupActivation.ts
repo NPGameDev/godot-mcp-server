@@ -64,7 +64,7 @@ function isToolVisible(bridge: Bridge, def: ToolDef, readOnly: boolean): boolean
   return isToolVersionCompatible(bridge, def);
 }
 
-/** The visible tool names of a built-in group for the connected editor + profile. */
+/** The visible tool names of a built-in group for the connected editor version + read-only state. */
 function visibleToolNames(bridge: Bridge, group: GroupDef, readOnly: boolean): string[] {
   return group.tools.filter((t) => {
     const d = allDefs.get(t);
@@ -76,7 +76,7 @@ function visibleToolNames(bridge: Bridge, group: GroupDef, readOnly: boolean): s
 
 /**
  * Register a single group's tools dynamically.
- * Removes any LOCKED stubs for those tools first (stub->real swap).
+ * Removes any existing stub for those tools first (stub->real swap).
  * Returns the list of newly registered tool names.
  */
 export function registerGroupTools(server: McpServer, bridge: Bridge, group: GroupDef, readOnly: boolean): string[] {
@@ -196,9 +196,9 @@ export function deactivateGroups(names: string[] | true, readOnly: boolean): str
  * slot. The caller dispatches built-in vs ext up front (activateGroupByName).
  */
 export function activateGroup(server: McpServer, bridge: Bridge, group: GroupDef, readOnly: boolean): GroupResult {
-  // Tools visible for this editor version + profile (mirrors the registration
-  // gate) — drives the already-loaded summary below; the fresh-activate summary
-  // is the registerGroupTools return, which applies the same gate.
+  // Tools visible for this editor version + read-only state (mirrors the
+  // registration gate) — drives the already-loaded summary below; the
+  // fresh-activate summary is the registerGroupTools return, same gate.
   const toolNames = visibleToolNames(bridge, group, readOnly);
   const tools: ToolMeta[] = toolNames.map((t) => ({ name: t }));
 
@@ -229,7 +229,7 @@ export function activateGroupByName(server: McpServer, bridge: Bridge, name: str
 export function reportGroupStatus(bridge: Bridge, groupName: string, readOnly: boolean): GroupResult {
   const group = GROUPS.find((g) => g.name === groupName);
   if (!group) return { name: groupName, status: "available", tools: [] };
-  // Tools visible for this editor version + profile (mirrors the registration gate).
+  // Tools visible for this editor version + read-only state (mirrors the registration gate).
   const tools: ToolMeta[] = visibleToolNames(bridge, group, readOnly).map((t) => ({ name: t }));
   if (loadedGroups.has(groupName)) return alreadyLoadedResult(groupName, tools, group.description);
   return availableResult(groupName, tools, group.description);

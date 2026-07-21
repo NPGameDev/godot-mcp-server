@@ -17,7 +17,7 @@ type WorkflowResult = {
   assertions: AssertionResult[];
   toolCalls: number;
   optimalCalls: number;
-  /** Groups that teardown/cleanup would need under the standard profile. */
+  /** On-demand groups that teardown/cleanup would need to discover_tools-activate first. */
   groupsNeeded?: string[];
 };
 

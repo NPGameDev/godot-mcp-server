@@ -60,7 +60,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   `isAllowedInReadOnly`, `isExcludedByReadOnly`). Defines `EAGER_TOOLS`.
 - `src/groups/groups.ts` — lazy-load group system. `registerGroupSystem` registers
   `discover_tools` meta-tool. `GROUP_TOOL_NAMES` tracks group membership.
-- `src/shared/schemaMin.ts` — `stableStringify` (sorted-key JSON for deterministic,
+- `src/shared/stableJson.ts` — `stableStringify` (sorted-key JSON for deterministic,
   cache-friendly output).
 - `src/tools/<group>.ts` — one file per logical group (`scene`, `node`, `script`,
   `editor`, `resource`, `folder`, `signals`, `diff`, `runtime`, `playtest`,

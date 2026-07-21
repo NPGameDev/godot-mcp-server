@@ -15,7 +15,7 @@ export type ScenarioResult = {
   assertions: AssertionResult[];
   toolCalls: number;
   optimalToolCalls?: number;
-  /** Groups that would need discover_tools under the standard profile. */
+  /** On-demand groups that a real client would need to discover_tools-activate first. */
   groupsNeeded?: string[];
   durationMs: number;
 };
@@ -98,15 +98,15 @@ export function printReport(report: EvalReport): void {
     );
   }
 
-  // Group-overhead note for standard-profile agents
+  // Group-overhead note: on-demand tools need discover_tools activation for a real client
   const allGroups = new Set<string>();
   for (const s of report.scenarios) {
     for (const g of s.groupsNeeded ?? []) allGroups.add(g);
   }
   if (allGroups.size > 0) {
     console.log("");
-    console.log("  Note: eval uses bridge.call() directly, bypassing the MCP profile layer.");
-    console.log("  Under the standard profile, these scenarios need discover_tools first:");
+    console.log("  Note: eval uses bridge.call() directly, bypassing the MCP group-activation layer.");
+    console.log("  A real client would need discover_tools first for these on-demand scenarios:");
     for (const s of report.scenarios) {
       if (s.groupsNeeded && s.groupsNeeded.length > 0) {
         console.log(`    ${s.name}: +1 call for ${s.groupsNeeded.join(", ")}`);

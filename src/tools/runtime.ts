@@ -7,7 +7,7 @@ import { callAndWrap } from "../registration/toolDispatch.js";
 import { coercedBoolean } from "../shared/schemaCoercion.js";
 import { toolErrorFromPayload, runtimeErrorWithCrashContext } from "../shared/errorContract.js";
 import { BridgeError } from "../shared/errors.js";
-import { stableStringify } from "../shared/schemaMin.js";
+import { stableStringify } from "../shared/stableJson.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 import { PAGE_FIELD, type PaginatedResult } from "../shared/pagination.js";
 

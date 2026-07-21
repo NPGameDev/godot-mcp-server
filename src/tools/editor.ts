@@ -5,7 +5,7 @@ import type { Bridge, ToolDef, ToolTextResult } from "../shared/types.js";
 import { registerTools } from "../registration/toolRegistry.js";
 import { jsonCoerce, coercedBoolean } from "../shared/schemaCoercion.js";
 import { toolErrorFromException, toolErrorFromPayload } from "../shared/errorContract.js";
-import { stableStringify } from "../shared/schemaMin.js";
+import { stableStringify } from "../shared/stableJson.js";
 import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 import { PAGE_FIELD, type PaginatedResult } from "../shared/pagination.js";

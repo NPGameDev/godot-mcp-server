@@ -382,12 +382,12 @@ default body — "one bridge call → JSON-stringify the result". The `name` (sn
 
 **REFLECT is the headline posture.** The server forwards the toolkit's result
 **verbatim**: `callAndWrap`'s happy path runs `stableStringify(result)` (key-sorted, in
-`shared/schemaMin.ts`) into a text content block — **no response-schema re-encode**.
+`shared/stableJson.ts`) into a text content block — **no response-schema re-encode**.
 `if_exists` / `status` idempotency, the type-tag coercion read-backs, and pagination
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/schemaMin.ts" data-verified="eb70bc1" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="eb70bc1" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}

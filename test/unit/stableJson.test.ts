@@ -1,9 +1,9 @@
 /**
- * Unit tests for schema_min.ts — stableStringify exact string comparison.
+ * Unit tests for stableJson.ts — stableStringify exact string comparison.
  * Byte-identical output is the contract (prompt caching).
  */
 import assert from "node:assert/strict";
-import { stableStringify } from "../../src/shared/schemaMin.js";
+import { stableStringify } from "../../src/shared/stableJson.js";
 
 // ── Sorted keys ──────────────────────────────────────────────────────
 
@@ -131,4 +131,4 @@ assert.equal(stableStringify(false), "false");
   assert.equal(stableStringify(complex), expected);
 }
 
-console.log("All schema_min tests passed.");
+console.log("All stableJson tests passed.");

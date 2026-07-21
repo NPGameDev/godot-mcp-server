@@ -11,13 +11,7 @@ export async function testInputMap(ctx: TestCtx): Promise<void> {
     "input_map.action",
     { action: "add", name: smokeAction, deadzone: 0.4 },
     CALL_TIMEOUT,
-  )) as { status?: string; deadzone?: number; code?: string };
-  const isGated = addActionResult?.code === "FEATURE_DISABLED";
-
-  if (isGated) {
-    pass("input_map.* -> FEATURE_DISABLED (skipping functional tests)");
-    return;
-  }
+  )) as { status?: string; deadzone?: number };
 
   // Clean stale entry, then re-create if needed.
   if (addActionResult?.status === "returned") {

@@ -70,7 +70,7 @@ set is [B7](#b7-module-taxonomy--the-composition-root).)*
 1.2 **Source files are `camelCase.ts`** — the idiomatic TypeScript file convention (the TypeScript
 compiler's own source uses it: `moduleNameResolver.ts`, `commandLineParser.ts`), matching the
 codebase's camelCase symbol naming. Single-word files stay lowercase (`bridge.ts`, `errors.ts`,
-`types.ts`); multi-word files are camelCase (`toolRegistry.ts`, `schemaMin.ts`, `configReload.ts`,
+`types.ts`); multi-word files are camelCase (`toolRegistry.ts`, `stableJson.ts`, `configReload.ts`,
 `pathGuard.ts`, `lspClient.ts`, `groupState.ts`). One module = one file.
 
 1.3 **Identifier casing:**
@@ -600,13 +600,13 @@ every cancellation/timeout guarantee.
 ## B4. Deterministic JSON & token discipline
 
 - **Serialize the cacheable surface with stable key order.** `stableStringify`
-  (`src/shared/schemaMin.ts:16`) recursively sorts object keys so the re-sent tools/schema block is
+  (`src/shared/stableJson.ts:16`) recursively sorts object keys so the re-sent tools/schema block is
   **byte-identical across turns**, matching the prompt cache. **Do not hand-roll `JSON.stringify` on
   the cacheable surface.**
 - **Per-call responses use plain `JSON.stringify`** — serialized once into history, so sorting buys no
   cache hit. Know which surface you're on.
-- **Schema minimization is token discipline** — `src/shared/schemaMin.ts` trims the schema to what the
-  model needs; additions to the tool surface weigh tokens (the catalogue is the SSOT).
+- **Schema minimization is token discipline** — the tool surface is kept to what the model needs;
+  additions to it weigh tokens (the catalogue is the SSOT).
 
 ## B5. Contract-surface fidelity & cross-version caveats
 
@@ -674,7 +674,7 @@ the `bin` entry and the multi-instance registry at the root:
 
 | Folder | Holds |
 |---|---|
-| `shared/` | cross-cutting leaf modules: `types.ts` (the no-runtime-symbol leaf), `errors.ts` (split out of `types.ts` to keep it pure-type), `version.ts`, `schemaMin.ts`, `schemaCoercion.ts`, `errorContract.ts` |
+| `shared/` | cross-cutting leaf modules: `types.ts` (the no-runtime-symbol leaf), `errors.ts` (split out of `types.ts` to keep it pure-type), `version.ts`, `stableJson.ts`, `schemaCoercion.ts`, `errorContract.ts` |
 | `transport/` | the Bridge: `bridge.ts` (orchestrator) + `channel.ts`, `authHandshake.ts`, `heartbeat.ts`, `runtimeConnection.ts`, `tokenPath.ts` |
 | `registration/` | the tool-wrapper surface: `toolRegistry.ts`, `toolDispatch.ts`, `toolMeta.ts`, `toolRefs.ts`, `catalogue.ts`, `extensionCollision.ts`, `screenshotResponse.ts` |
 | `groups/` (+ `groups/defs/`) | on-demand tool-group activation + the per-group definitions |
@@ -730,7 +730,7 @@ durable anchor**.
 - **Comments / TSDoc ([§5](#5-comments-and-documentation)).** `registerToolWrapped`
   (`src/registration/toolRegistry.ts:90`) — the exemplary doc comment: one-line summary, `@param`,
   `@remarks`, `@example`, plus the **sanctioned, justified `any` escape-hatch** at
-  `src/registration/toolRegistry.ts:127`. `stableStringify` (`src/shared/schemaMin.ts:5`) — module
+  `src/registration/toolRegistry.ts:127`. `stableStringify` (`src/shared/stableJson.ts:16`) — module
   header + intent-first function doc.
 - **Cohesion ([§6](#6-design-solid-cohesion-and-decomposition)).** `index.ts` (composition root) +
   `src/startup/` collaborators; `transport/bridge.ts` (orchestrator) + `transport/channel.ts`;

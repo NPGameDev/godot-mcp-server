@@ -7,7 +7,7 @@
  * one layer above, in the registration core's wrappedHandler). A mid-tier module:
  * below registration, above the error/serialization leaves.
  */
-import { stableStringify } from "../shared/schemaMin.js";
+import { stableStringify } from "../shared/stableJson.js";
 import { BridgeError } from "../shared/errors.js";
 import {
   toolError,
