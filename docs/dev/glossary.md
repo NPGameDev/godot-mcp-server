@@ -38,10 +38,10 @@ _Avoid_: Mode B (user-facing); "runtime server" (collides with **Bridge**); "run
 
 **Noun-light rule.** User-facing prose prefers bare adjectives ("editor tools", "the running
 game"); the "channel" noun appears only where the transport itself is the subject (the architecture
-doc, the runtime-port configuration note). Two tools carry a **channel selector** with
-inconsistent vocabularies (a known inconsistency, kept until deliberately unified):
-`signal_emit.mode: "editor" | "runtime"` (default `editor`) and
-`execute_code.context: "game" | "editor"` (default `game` — the running game).
+doc, the runtime-port configuration note). Two tools carry a **channel selector** with a unified
+vocabulary — `channel: "editor" | "runtime"` on both: `signal_emit` (default `editor`, edit-first)
+and `execute_code` (default `runtime`, the running game). Legacy `game` is accepted as a **hidden
+alias** for `runtime` on both (mapped before validation, not advertised in `tools/list`).
 
 ## Surface vocabulary
 

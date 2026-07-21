@@ -440,6 +440,51 @@ function checkSceneQueryOffset(tools: ToolDef[], pass: (msg: string) => void, fa
   pass(`scene_query offset: pagination param registered on scene_query inputSchema`);
 }
 
+// ── Check 9: channel selector advertises editor|runtime only ────────
+
+/**
+ * signal_emit and execute_code share one channel selector: they advertise
+ * `channel: "editor" | "runtime"` and accept a hidden "game" alias mapped to
+ * "runtime" before validation. tools/list must surface exactly [editor, runtime]
+ * — never the alias, never the retired param names. This pins the advertised
+ * enum so a schema regression (a re-widened enum, a reverted rename) fails CI.
+ */
+function checkChannelSelector(tools: ToolDef[], pass: (msg: string) => void, fail: (msg: string) => void): void {
+  let failures = 0;
+  for (const name of ["signal_emit", "execute_code"]) {
+    const t = tools.find((tool) => tool.name === name);
+    if (!t) {
+      fail(`channel selector: ${name} not found in catalogue`);
+      failures++;
+      continue;
+    }
+    const props = Object.keys(t.inputSchema);
+    if (!props.includes("channel")) {
+      fail(`channel selector: ${name} — missing the "channel" param`);
+      failures++;
+    }
+    for (const retired of ["mode", "context"]) {
+      if (props.includes(retired)) {
+        fail(`channel selector: ${name} — still exposes the retired "${retired}" param (should be "channel")`);
+        failures++;
+      }
+    }
+    const json = z.toJSONSchema(z.object(t.inputSchema)) as { properties?: Record<string, { enum?: unknown }> };
+    const advertised = json.properties?.channel?.enum;
+    const expected = ["editor", "runtime"];
+    if (JSON.stringify(advertised) !== JSON.stringify(expected)) {
+      fail(
+        `channel selector: ${name} — channel enum is ${JSON.stringify(advertised)}, expected ${JSON.stringify(expected)} ` +
+          `(the "game" alias must stay hidden from tools/list)`,
+      );
+      failures++;
+    }
+  }
+  if (failures === 0) {
+    pass(`channel selector: signal_emit + execute_code advertise channel enum [editor, runtime] only`);
+  }
+}
+
 // ── Entry point ─────────────────────────────────────────────────────
 
 export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (msg: string) => void }): void {
@@ -455,4 +500,5 @@ export function runStructuralChecks(ctx: { pass: (msg: string) => void; fail: (m
   checkReachability(tools, pass, fail);
   checkInputOptionality(tools, pass, fail);
   checkSceneQueryOffset(tools, pass, fail);
+  checkChannelSelector(tools, pass, fail);
 }

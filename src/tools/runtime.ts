@@ -187,13 +187,13 @@ export const runtimeTools: ToolDef[] = [
     description:
       "DANGER: evaluates a GDScript expression. Expression-only — " +
       "no var/return/if/for statements, no = assignment.\n\n" +
-      "context: 'game' (default) runs in the running game, 'editor' runs in the editor process.\n\n" +
+      "channel: 'runtime' (default) runs in the running game, 'editor' runs in the editor process.\n\n" +
       "To set properties: get_node('/root/Main/Player').set('speed', 400)\n" +
       "To call methods: get_node('/root/Main/Player').call('take_damage', 25)\n" +
       "To read values: get_node('/root/Main/Player').position\n\n" +
       "Prefer runtime_set_property for single property changes (safer, no expression syntax). " +
       "Use execute_code for complex multi-step operations or method calls with specific arguments. " +
-      "If C# project, managed methods are callable at runtime (context:'game').\n\n" +
+      "If C# project, managed methods are callable at runtime (channel:'runtime').\n\n" +
       "LIMITATION: Expression cannot access engine singletons (EditorInterface, Engine, OS, Input) " +
       "or call load()/preload(). Property chaining on method return values (get_node('X').position) " +
       "may fail due to Variant type erasure — use scope_path to bind the node as self, " +
@@ -201,11 +201,13 @@ export const runtimeTools: ToolDef[] = [
     inputSchema: {
       code: z.string(),
       scope_path: z.string().optional(),
-      context: z
-        .enum(["game", "editor"])
+      // "game" is accepted as a hidden alias for "runtime" (mapped before the
+      // enum, not advertised) — z.toJSONSchema surfaces only the inner enum.
+      channel: z
+        .preprocess((v) => (v === "game" ? "runtime" : v), z.enum(["editor", "runtime"]))
         .optional()
         .describe(
-          "'game' (default) evaluates in the running game — needs game_start first, else GAME_NOT_RUNNING; " +
+          "'runtime' (default) evaluates in the running game — needs game_start first, else GAME_NOT_RUNNING; " +
             "'editor' evaluates in the editor process, no running game needed — use it for editor-state expressions.",
         ),
     },
@@ -358,14 +360,15 @@ export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<s
     (input) => debuggerLogHandler(bridge, "debugger.get_log", input) as Promise<ToolTextResult>,
   );
   // execute_code: alias "expression" → "code" (agents send the wrong param name),
-  // route based on context param (game → runtime bridge, editor → editor bridge).
+  // route by channel (runtime → runtime bridge, editor → editor bridge). The
+  // schema maps the hidden "game" alias to "runtime" upstream.
   handlers.set("execute_code", (input) => {
     if (!input.code && input.expression) {
       input.code = input.expression;
       delete input.expression;
     }
-    const context = input.context ?? "game";
-    if (context === "editor") {
+    const channel = input.channel ?? "runtime";
+    if (channel === "editor") {
       return callAndWrap(bridge, "execute.code", input);
     }
     return callAndWrap(bridge, "execute.code", input, { runtime: true });

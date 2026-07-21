@@ -56,14 +56,14 @@ const def = (name: string, method: string): ToolDef => ({
   inputSchema: {},
 });
 
-// ── Block 1 — signal_emit dual-mode + param reshape ──────────────────
+// ── Block 1 — signal_emit channel routing + param reshape ────────────
 async function testSignalEmitDualMode() {
-  // Editor mode (default) → bridge.call; params reshaped to node_path/signal_name/args.
+  // Editor channel (default) → bridge.call; params reshaped to node_path/signal_name/args.
   const editor = makeBridge();
   const editorHandler: Handler = createGroupToolHandler(editor.bridge, def("signal_emit", "scene.emit_signal"));
-  await editorHandler({ node_path: "/root/Btn", signal_name: "pressed", args: [1, 2], mode: "editor" });
+  await editorHandler({ node_path: "/root/Btn", signal_name: "pressed", args: [1, 2], channel: "editor" });
   assert.equal(editor.calls.length, 1, "signal_emit editor → exactly one bridge dispatch");
-  assert.equal(editor.calls[0].channel, "call", "mode=editor → bridge.call (not callRuntime)");
+  assert.equal(editor.calls[0].channel, "call", "channel=editor → bridge.call (not callRuntime)");
   assert.equal(editor.calls[0].method, "scene.emit_signal", "forwards def.method");
   assert.deepEqual(
     editor.calls[0].params,
@@ -71,11 +71,14 @@ async function testSignalEmitDualMode() {
     "reshapes input to {node_path, signal_name, args}",
   );
 
-  // Runtime mode → bridge.callRuntime; omitted args default to [].
+  // Runtime channel → bridge.callRuntime; omitted args default to [].
+  // Only the exact value "runtime" routes to the runtime bridge here: the schema
+  // maps the hidden "game" alias to "runtime" upstream, so the handler never sees
+  // a raw alias (that mapping is locked in channelSelector.test.ts).
   const runtime = makeBridge();
   const runtimeHandler: Handler = createGroupToolHandler(runtime.bridge, def("signal_emit", "scene.emit_signal"));
-  await runtimeHandler({ node_path: "/root/Btn", signal_name: "pressed", mode: "runtime" });
-  assert.equal(runtime.calls[0].channel, "callRuntime", "mode=runtime → bridge.callRuntime");
+  await runtimeHandler({ node_path: "/root/Btn", signal_name: "pressed", channel: "runtime" });
+  assert.equal(runtime.calls[0].channel, "callRuntime", "channel=runtime → bridge.callRuntime");
   assert.deepEqual(
     runtime.calls[0].params,
     { node_path: "/root/Btn", signal_name: "pressed", args: [] },

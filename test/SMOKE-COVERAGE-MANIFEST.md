@@ -176,7 +176,7 @@ routinely.
 |---|---|---|---|---|---|---|
 | signal_list | 05, 07, 25 | ✓ | ✓ (07: NOT_FOUND) | — | — | In signals group |
 | signal_manage | 05, 07 | ✓ (connect/disconnect) | ✓ (07: NOT_FOUND, INVALID_PARAMS) | ✓ (idempotency: status=returned; **05: success payload echoes the source node under `node_path`** — connect-created + disconnect assert it) | — | Input param + success output key are both `node_path` (was `source_path`); §05/§07 pass `node_path` as input. **GAP:** method hint assertion |
-| signal_emit | 05 | ✓ | — | — | — | In signals group |
+| signal_emit | 05 | ✓ | — | — | — | In signals group. `channel: editor\|runtime` selector (default `editor`); `game` accepted as a hidden alias for `runtime`. Schema/alias locked by units (channelSelector.test.ts + groupToolHandlers.test.ts Block 1) + structural channel-selector check; §05 dials the toolkit directly (no `channel` param). **GAP:** `channel` param variation |
 
 ### Diff (1 tool)
 
@@ -202,7 +202,7 @@ routinely.
 | animation_player_control | 17 | ✓ | — | — | — | In runtime_advanced group |
 | runtime_get_script_vars | 17 | ✓ | — | — | — | |
 | runtime_set_property | 17 | ✓ (benign `/root.content_scale_factor` read-then-restore — cosmetic + scene-independent, can't pause/kill the runtime; asserts the mutation echo `new_value===target` && `old_value===prior`, i.e. the write landed AND changed) | ✓ (17: cross-family wrong-type → SET_FAILED, 41o C1) | — | — | 41o C1/D1: shares the editor path's `contract/property_set_check.gd` tri-state detector (dropped/ok/adjusted; adjusted → success+`warning`); scalar/non-colon paths only. Runtime ADJUSTED is unit- + sweep-covered (20.8c); §17 smoke asserts the DROPPED leg. Happy path stays off lifecycle props (`process_mode` on `/root` would suspend the loop and kill the in-game runtime mid-section). §17 wraps ALL runtime-dependent legs (happy paths + the disk-mode/send_text sub-helpers) in ONE top-level try/catch keyed on the runtime-gone `.code` (duck-typed via `isRuntimeGone`, not `instanceof` — dual BridgeError module copies break `instanceof`) so a mid-section runtime DROP (self-launched `game.start current` can drop on 4.2) anywhere becomes a single clean skip of the rest, never an uncaught throw — deterministic green |
-| execute_code | 17 | ✓ (incl. driving the paused-tree responsiveness leg: `set_pause(true)`/`get_tree().paused`/`set_pause(false)` — all expression-only method calls) | — | — | ✓ (17: load() context-aware hint) | Risk communicated via MCP annotations. §17 also uses `execute.code` to pause/read/unpause the tree for the runtime.get_node_state pause-immunity regression (see that row). **GAP:** context param |
+| execute_code | 17 | ✓ (incl. driving the paused-tree responsiveness leg: `set_pause(true)`/`get_tree().paused`/`set_pause(false)` — all expression-only method calls) | — | — | ✓ (17: load() context-aware hint) | Risk communicated via MCP annotations. §17 also uses `execute.code` to pause/read/unpause the tree for the runtime.get_node_state pause-immunity regression (see that row). `channel: editor\|runtime` selector (default `runtime`); `game` accepted as a hidden alias for `runtime`. Schema/alias locked by channelSelector.test.ts + structural channel-selector check; §17 dials the toolkit directly (no `channel` param). **GAP:** `channel` param variation |
 
 ### Input Map (2 tools)
 

@@ -398,7 +398,7 @@ _1 operation._
 <!-- tool:execute_code -->
 ### `execute_code`
 
-DANGER: evaluates a GDScript expression. Expression-only — no var/return/if/for statements, no = assignment.  context: 'game' (default) runs in the running game, 'editor' runs in the editor process.  To set properties: get_node('/root/Main/Player').set('speed', 400) To call methods: get_node('/root/Main/Player').call('take_damage', 25) To read values: get_node('/root/Main/Player').position  Prefer runtime_set_property for single property changes (safer, no expression syntax). Use execute_code for complex multi-step operations or method calls with specific arguments. If C# project, managed methods are callable at runtime (context:'game').  LIMITATION: Expression cannot access engine singletons (EditorInterface, Engine, OS, Input) or call load()/preload(). Property chaining on method return values (get_node('X').position) may fail due to Variant type erasure — use scope_path to bind the node as self, or use .get('property') instead (get_node('X').get('position') works reliably).
+DANGER: evaluates a GDScript expression. Expression-only — no var/return/if/for statements, no = assignment.  channel: 'runtime' (default) runs in the running game, 'editor' runs in the editor process.  To set properties: get_node('/root/Main/Player').set('speed', 400) To call methods: get_node('/root/Main/Player').call('take_damage', 25) To read values: get_node('/root/Main/Player').position  Prefer runtime_set_property for single property changes (safer, no expression syntax). Use execute_code for complex multi-step operations or method calls with specific arguments. If C# project, managed methods are callable at runtime (channel:'runtime').  LIMITATION: Expression cannot access engine singletons (EditorInterface, Engine, OS, Input) or call load()/preload(). Property chaining on method return values (get_node('X').position) may fail due to Variant type erasure — use scope_path to bind the node as self, or use .get('property') instead (get_node('X').get('position') works reliably).
 
 **eager** · destructive
 
@@ -406,8 +406,8 @@ _1 operation._
 
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
+| `channel` | enum | no | 'runtime' (default) evaluates in the running game — needs game_start first, else GAME_NOT_RUNNING; 'editor' evaluates in the editor process, no running game needed — use it for editor-state expressions. |
 | `code` | string | yes |  |
-| `context` | enum | no | 'game' (default) evaluates in the running game — needs game_start first, else GAME_NOT_RUNNING; 'editor' evaluates in the editor process, no running game needed — use it for editor-state expressions. |
 | `scope_path` | string | no |  |
 
 <!-- examples:start -->
@@ -707,7 +707,7 @@ _1 tool, 1 operations._
 <!-- tool:signal_emit -->
 ### `signal_emit`
 
-Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (the running game).
+Emit signal_name on node with optional args. channel='editor' (default, edited scene) or channel='runtime' (the running game).
 
 on-demand (group: `signals`)
 
@@ -716,7 +716,7 @@ _1 operation._
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
 | `args` | array | no |  |
-| `mode` | enum | no |  |
+| `channel` | enum | no |  |
 | `node_path` | string | yes |  |
 | `signal_name` | string | yes |  |
 

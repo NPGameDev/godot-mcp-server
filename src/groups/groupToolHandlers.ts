@@ -1,7 +1,7 @@
 /**
  * Per-tool callback factory — build the registerTool handler for one tool def,
- * routing each tool to the right transport: signal_emit's dual-mode (editor vs
- * runtime) bridge call, editor_screenshot's multi-content image response, the
+ * routing each tool to the right transport: signal_emit's channel-selected
+ * (editor vs runtime) bridge call, editor_screenshot's multi-content image response, the
  * LSP tools' own TCP client, and the default callAndWrap path (runtime- vs
  * editor-bridge). A leaf factory — it depends on nothing group-internal above it.
  */
@@ -16,13 +16,15 @@ import { createLspHandler } from "../tools/lsp.js";
 // Tools with non-standard response processing. Each returns a handler
 // function matching the registerTool callback signature.
 
-/** signal_emit has dual-mode routing (editor or runtime). */
+/** signal_emit routes by channel (editor or runtime). */
 function handleSignalEmit(bridge: Bridge, def: ToolDef) {
   return async (input: unknown) => {
-    const parsed = input as { node_path: string; signal_name: string; args?: unknown[]; mode?: string };
-    const mode = parsed.mode ?? "editor";
+    const parsed = input as { node_path: string; signal_name: string; args?: unknown[]; channel?: string };
+    // The schema maps the hidden "game" alias to "runtime" upstream, so only
+    // "runtime" reaches here as the runtime trigger; anything else is editor.
+    const channel = parsed.channel ?? "editor";
     const params = { node_path: parsed.node_path, signal_name: parsed.signal_name, args: parsed.args ?? [] };
-    return callAndWrap(bridge, def.method, params, { runtime: mode === "runtime" });
+    return callAndWrap(bridge, def.method, params, { runtime: channel === "runtime" });
   };
 }
 

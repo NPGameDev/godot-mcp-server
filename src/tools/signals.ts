@@ -5,8 +5,8 @@ import type { Bridge, ToolDef } from "../shared/types.js";
 import { registerTools } from "../registration/toolRegistry.js";
 import { coercedBoolean, jsonCoerce } from "../shared/schemaCoercion.js";
 
-// signal_emit is dual-mode: default routes to the editor-side Mode A
-// server (edited scene); `mode: "runtime"` routes to Mode B for
+// signal_emit selects its channel: default routes to the editor-side
+// edited scene; `channel: "runtime"` routes to the running game for
 // emitting on live nodes. list / manage are editor-only.
 
 export const signalTools: ToolDef[] = [
@@ -40,12 +40,14 @@ export const signalTools: ToolDef[] = [
     name: "signal_emit",
     method: "signal.emit",
     description:
-      "Emit signal_name on node with optional args. mode='editor' (default, edited scene) or mode='runtime' (the running game).",
+      "Emit signal_name on node with optional args. channel='editor' (default, edited scene) or channel='runtime' (the running game).",
     inputSchema: {
       node_path: z.string(),
       signal_name: z.string(),
       args: z.preprocess(jsonCoerce, z.array(z.unknown())).optional(),
-      mode: z.enum(["editor", "runtime"]).optional(),
+      // "game" is accepted as a hidden alias for "runtime" (mapped before the
+      // enum, not advertised) — z.toJSONSchema surfaces only the inner enum.
+      channel: z.preprocess((v) => (v === "game" ? "runtime" : v), z.enum(["editor", "runtime"])).optional(),
     },
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
   },
