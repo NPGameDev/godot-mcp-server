@@ -237,6 +237,7 @@ CI fails the build if any of these numbers drift: **112 tools** (34 always-on + 
 - CI exercises Godot **4.2 through 4.7**, on **Windows, macOS, and Linux**, in both **GDScript and C# (mono)** editors. The floor — build, unit tests, lint, format, and the static catalogue gate — runs on every push; the full behavioral matrix is an opt-in deep tier, and headless-incompatible sections (screenshots, display-bound input) are skipped there and validated locally.
 - An accuracy eval suite (`npm run eval`) validates tool-call correctness and workflow efficiency against a live editor — "does it work well", separate from smoke's "does it work".
 - Five small games — a clicker, a brick-breaker, chess, a platformer, and a tower defense — were each built end-to-end in a single agent session as release validation.
+- The bundled workflow skill was measured in a controlled two-wave run (same game, with and without the skill, at one version) — see [companion-skill efficiency](docs/companion-skill-efficiency.md).
 - Concurrent human + AI editing is validated for specific scenarios: creating nodes during manual scene-tree edits, undo interleaving, editing a node while its Inspector is open, and mid-drag reparenting. Complex viewport interactions may benefit from taking turns.
 
 ## Known limitations
@@ -334,6 +335,7 @@ Nothing — runs fully locally, no telemetry, no cloud services, no account.
 - [Client setup](docs/mcp-clients.md) — per-client configuration with per-OS paths and gotchas.
 - [Tool reference](docs/tool-reference/README.md) (generated) — every tool, operation, parameter, and version gate.
 - [Token efficiency](docs/token-efficiency.md) — the measured context cost of the tool surface.
+- [Companion-skill efficiency](docs/companion-skill-efficiency.md) — the measured build-time savings from the bundled workflow skill.
 - [Testing locally](docs/testing-locally.md) — every test layer and how to add coverage.
 - [Troubleshooting](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/troubleshooting.md) — 60-second checklist, connectivity probe, symptom-to-fix entries.
 - [Architecture](docs/architecture/README.md) — subsystems, transport, contract surface, with diagrams.
