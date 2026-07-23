@@ -148,6 +148,33 @@ jobs:
           echo "$out"
           echo "$out" | grep -q "Total tools:"
 
+  # Supply-chain audit — a blocking per-PR gate. Pinned npm + production-only,
+  # high/critical only, so a real production advisory reddens the PR but dev-only /
+  # moderate noise never blocks unrelated work. Pinned exactly because the 11->12 npm
+  # boundary changes install semantics. The assertion double-checks the exit code
+  # because npm has shipped --audit-level exit-code regressions.
+  npm-audit:
+    runs-on: ubuntu-latest
+    name: "Supply-chain audit (production advisories)"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - name: Audit (fail on high/critical production advisories)
+        run: |
+          npm install -g npm@11.11.0
+          set +e
+          npm audit --omit=dev --audit-level=high
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            echo "::error::npm audit found high/critical production advisories."
+            exit 1
+          fi
+
   # ── Aggregate floor gate (D8) ────────────────────────────────────────────────
   # "Server floor OK" is the SINGLE name that becomes a required check once the repo
   # is public — never an individual matrix row. A required check pinned to a matrix
@@ -157,7 +184,7 @@ jobs:
   # success here, whereas a `paths:`-skipped required check would deadlock as pending.
   floor-ok:
     name: "Server floor OK"
-    needs: [build-lint-smoke, csharp-build, pack-install]
+    needs: [build-lint-smoke, csharp-build, pack-install, npm-audit]
     if: always()
     runs-on: ubuntu-latest
     steps:

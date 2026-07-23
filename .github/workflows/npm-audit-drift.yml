@@ -1,0 +1,43 @@
+name: npm audit drift (weekly)
+
+# Non-blocking supply-chain drift watch on the LATEST npm — catches what a newer npm
+# flags (blocked install scripts / npm approve-scripts delta, full-tree advisories)
+# before the pinned per-PR gate does. Opens/updates a SINGLE tracking issue on drift;
+# never gates a merge or a release.
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit-latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - name: Full-tree audit + install-script surface (latest npm)
+        id: audit
+        run: |
+          set +e
+          npm audit > audit.txt 2>&1
+          echo "audit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          cat audit.txt
+      - name: Open or update the drift tracking issue
+        if: steps.audit.outputs.audit_code != '0'
+        uses: dblock/create-a-github-issue@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          filename: .github/npm-audit-drift-issue.md
+          update_existing: true
+          search_existing: open

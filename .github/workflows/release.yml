@@ -30,6 +30,12 @@ on:
         required: false
         default: true
 
+# A re-dispatch must never race a still-running tag run, and a release job must
+# never be killed mid-publish — so cancel-in-progress is false.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 # D7: least privilege at the top; the publish job re-grants contents: write for the GH
 # Release upload. id-token: write is reserved for the 42b OIDC-trusted-publishing flip.
 permissions:
@@ -78,7 +84,59 @@ jobs:
             echo "::error::Tag $TAG does not match package.json version $PKG_VERSION"
             exit 1
           fi
+          VER="${TAG#v}"
+          # The CHANGELOG must carry a section for the tagged version — a tag with
+          # no rolled section means the release script's roll step was skipped.
+          if ! grep -qF "## [$VER]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$VER]' section for the tagged release."
+            exit 1
+          fi
           echo "Version validated: $TAG"
+
+      # Read the pinned toolkit SHA from cross-version.yml (single-sourced there,
+      # not duplicated here) so the checkout below pins the same revision the
+      # behavioral gate tested against.
+      - name: Read the pinned toolkit SHA
+        id: pin
+        if: github.ref_type == 'tag'
+        run: |
+          PIN="$(grep 'SIBLING_PIN_TOOLKIT:' .github/workflows/cross-version.yml | sed -E 's/.*"([0-9a-f]+)".*/\1/')"
+          if [ -z "$PIN" ]; then
+            echo "::error::Could not read SIBLING_PIN_TOOLKIT from cross-version.yml."
+            exit 1
+          fi
+          echo "sha=$PIN" >> "$GITHUB_OUTPUT"
+
+      # Check out the pinned toolkit sibling to read its declared version. Mirrors
+      # the sibling-checkout idiom cross-version.yml uses (read-only PAT while
+      # private, github.token once public). Only on a real tag push.
+      - name: Check out the pinned toolkit sibling
+        if: github.ref_type == 'tag'
+        uses: actions/checkout@v7
+        with:
+          repository: NPGameDev/godot-mcp-toolkit
+          path: toolkit-pin
+          ref: ${{ steps.pin.outputs.sha }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
+
+      # The pinned toolkit sibling's DECLARED version must equal the tag — makes
+      # the bump-before-tag pin ritual machine-checked (a stale pin = green tests
+      # of the WRONG pairing, the pipeline's most likely silent failure).
+      - name: Pinned sibling declared version matches the tag
+        if: github.ref_type == 'tag'
+        run: |
+          PIN="${{ steps.pin.outputs.sha }}"
+          VER="${GITHUB_REF#refs/tags/v}"
+          TK_CFG="$(grep '^version=' toolkit-pin/addons/godot_mcp_toolkit/plugin.cfg | cut -d'"' -f2)"
+          if [ -z "$TK_CFG" ]; then
+            echo "::error::Could not read the pinned toolkit plugin.cfg version at $PIN."
+            exit 1
+          fi
+          if [ "$TK_CFG" != "$VER" ]; then
+            echo "::error::Pinned toolkit ($PIN) declares version $TK_CFG, tag is $VER — bump SIBLING_PIN_TOOLKIT before tagging."
+            exit 1
+          fi
+          echo "Pinned toolkit declared version matches: $VER"
 
       - name: Build
         run: npm run build
@@ -95,17 +153,42 @@ jobs:
       - name: Lint package shape (publint)
         run: npm run lint:pkg
 
-      - name: Generated API docs are fresh
+      # The diff scopes all of docs/, but regenerating only docs:api would leave
+      # docs/tool-reference/ diffed against a subtree it never regenerated (a
+      # tautology — a stale tool reference passes green). Regenerate both so the
+      # gate enforces the scope it claims.
+      - name: Generated docs are fresh (API + tool reference)
         run: |
           npm run docs:api
+          npm run docs:tools
           git diff --exit-code -- docs/
+
+      # Advisories drift over time with NO code change, so a release cut weeks after
+      # the last PR could ship a newly-published high/critical production advisory the
+      # per-PR gate never saw. Same pinned, production-only audit as the PR gate. Runs
+      # on dry-runs too (that is the rehearsal value). Pinned npm: the 11->12 boundary
+      # changes install semantics, so the audit npm is pinned exactly.
+      - name: Pre-publish supply-chain audit (production advisories)
+        run: |
+          npm install -g npm@11.11.0
+          npm audit --omit=dev --audit-level=high
 
       # Publish + Release only on a real tag push, and NEVER on a dry-run. Dispatching ON
       # a tag ref with dry-run: false is the deliberate manual re-run path. inputs['dry-run']
       # (bracket form — the property name has a hyphen) is null on a tag push -> != true.
+      # Skip (with a loud notice) if the version already resolves on npm, so the
+      # documented re-dispatch recovery path stays green after a run that published
+      # but then failed at the GH-Release step (softprops updates an existing release).
       - name: Publish to npm
         if: ${{ github.ref_type == 'tag' && inputs['dry-run'] != true }}
-        run: npm publish
+        run: |
+          PKG="$(node -p "require('./package.json').name")"
+          VER="$(node -p "require('./package.json').version")"
+          if npm view "$PKG@$VER" version >/dev/null 2>&1; then
+            echo "::notice::$PKG@$VER already published — skipping npm publish (idempotent re-run)."
+          else
+            npm publish
+          fi
         env:
           # TODO(42b): replace NPM_TOKEN with npm OIDC trusted publishing (--provenance,
           # id-token: write). The stored classic NPM_TOKEN is likely already dead (classic

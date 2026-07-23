@@ -142,6 +142,17 @@ in either repo proves the whole GDScript + .NET contract for that repo's change.
 is opt-in only and driven by one shared composite action, so the mirror costs
 nothing when idle and cannot drift between the two repos.
 
+## Versioning
+
+We follow semver — see [RELEASING.md](RELEASING.md) for what constitutes
+major/minor/patch. The toolkit and server are versioned **independently** (each
+its own version and cadence), so a bump lands on whichever repo actually
+changed. You do NOT need to bump versions in your PR — the maintainer handles
+that at release time. However, please flag in your PR description if your change
+is **breaking** (removes/renames a tool, changes a parameter schema) or if it
+introduces a **cross-repo dependency** (a server change that needs a newer
+toolkit, or vice versa), so it's versioned and floor-bumped correctly.
+
 ## Documentation
 
 ### Generated files — never hand-edit
