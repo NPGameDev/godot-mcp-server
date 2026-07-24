@@ -112,8 +112,8 @@ Launch your MCP client from the project root. The server discovers the plugin th
 
 Then try the first prompt below. This is the kind of result it produces:
 
-<!-- captured: pre-1.0, Godot 4.5, 2026-07-19, via editor_screenshot against an agent-built scene; image lives in the toolkit repo (docs/media/); absolute raw URL so it renders on npm. -->
-![Godot editor viewport with a 2D platformer blockout built by the agent: a player character with a sprite and collision shape standing on one of four textured platforms](https://raw.githubusercontent.com/NPGameDev/godot-mcp-toolkit/main/docs/media/outcome-scene-2d.png)
+<!-- captured: pre-1.0, Godot 4.7, 2026-07-24, human-recorded (editor + MCP dock, 1 peer connected, game running); image lives in the toolkit repo (docs/media/), absolute raw URL so it renders on npm. -->
+![The Godot 4.7 editor driving the toolkit: the brick-breaker scene open in the viewport, the game running in a debug window with a full wall of colored bricks, and the MCP dock reporting "Listening on 127.0.0.1:6550" with 1 connected peer](https://raw.githubusercontent.com/NPGameDev/godot-mcp-toolkit/main/docs/media/editor-dock-breakout.png)
 
 If a step does not produce its "you should see", head to the [troubleshooting guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/troubleshooting.md). It starts with a 60-second checklist and a connectivity probe.
 
@@ -125,6 +125,11 @@ If a step does not produce its "you should see", head to the [troubleshooting gu
 4. *"Build a small brick-breaker: paddle, ball, a wall of bricks, a score label, and a game-over screen, then playtest it."*
 
 The first three run in seconds. The last one is a real project, the same kind of small game we build end-to-end when validating a release, in a single agent session. Larger games span multiple sessions, with or without MCP.
+
+<!-- captured: pre-1.0, Godot 4.5, 2026-07-24, via runtime_screenshot of the running brick-breaker (mid-flight); image lives in the toolkit repo (docs/media/). -->
+![The agent-built brick-breaker running: a full wall of red, orange, yellow, green, and blue bricks on a dark background, the ball mid-flight, a paddle at the bottom, and a Score and Lives readout](https://raw.githubusercontent.com/NPGameDev/godot-mcp-toolkit/main/docs/media/breakout-running.png)
+
+*The brick-breaker from prompt 4 above.*
 
 ## What the tools cover
 
