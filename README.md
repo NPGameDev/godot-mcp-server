@@ -10,7 +10,7 @@ The npm bridge that connects AI coding assistants to the Godot 4.2+ editor over 
 >
 > This is an independent community project, not affiliated with or endorsed by the Godot Foundation or Anthropic.
 
-> 📐 **[Architecture →](docs/architecture/README.md)** is how the server is built: the entrypoint and startup, the WebSocket bridge, the catalogue/dispatch pipeline, `discover_tools`, the GDScript LSP client, and the registry consumer. Also rendered at [npgamedev.github.io/godot-mcp-server/architecture](https://npgamedev.github.io/godot-mcp-server/architecture/).
+> 📐 **[Architecture →](docs/architecture/README.md)** covers how the server is built: the entrypoint and startup, the WebSocket bridge, the catalogue and dispatch pipeline, `discover_tools`, the GDScript LSP client, and the registry consumer. Also rendered at [npgamedev.github.io/godot-mcp-server/architecture](https://npgamedev.github.io/godot-mcp-server/architecture/).
 
 ## Why this one?
 
@@ -45,7 +45,7 @@ You should see: the MCP dock appears, and the Output log prints
 [MCPServer] listening on 127.0.0.1:6550
 ```
 
-(the port may land anywhere in 6550 to 6560; the dock's status section names the live one).
+(the port may land anywhere from 6550 to 6560; the dock's status section names the live one).
 
 ### 3. Configure your MCP client
 
