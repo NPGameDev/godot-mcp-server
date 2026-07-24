@@ -85,6 +85,9 @@
     "ws": "8.21.0",
     "zod": "4.3.6"
   },
+  "overrides": {
+    "fast-uri": "^3.1.4"
+  },
   "allowScripts": {
     "esbuild@0.28.1": true,
     "fsevents@2.3.3": true
