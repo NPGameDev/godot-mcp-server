@@ -174,21 +174,31 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     fail(`operation count ${operationCount} < published headline ${headlineOperationsClaim} — the claim is now a lie`);
   else pass(`operation count ${operationCount} >= headline claim ${headlineOperationsClaim}`);
 
-  // README headline drift gate — the published headline sentence must state the
-  // live catalogue numbers. The numbers are extracted from README.md and compared
-  // against the same derivations `--tools-count` prints, so a hand-edited README
-  // fails here instead of shipping a stale claim.
+  // README headline drift gate — the published numbers must state the live
+  // catalogue values. Each figure (tools / on-demand groups / operations floor)
+  // is extracted from README.md independently, so the prose can be reworded or
+  // reordered freely (it leads with whichever number reads best) while the
+  // numbers themselves are still asserted against the same derivations
+  // `--tools-count` prints. A hand-edited number fails here instead of shipping
+  // a stale claim.
   const readmePath = fileURLToPath(new URL("../../README.md", import.meta.url));
   const readme = readFileSync(readmePath, "utf8");
-  const headlinePattern =
-    /up to \*{0,2}(\d+) tools\*{0,2}[^.\n]*?\*{0,2}(\d+) on-demand groups\*{0,2}[^.\n]*?\*{0,2}(\d+)\+ operations\*{0,2}/i;
-  const headline = headlinePattern.exec(readme);
-  if (!headline) {
-    fail("README headline: 'up to N tools … K on-demand groups … M+ operations' sentence not found");
+  const toolsMatch = /up to \*{0,2}(\d+)\*{0,2} tools/i.exec(readme);
+  const groupsMatch = /\*{0,2}(\d+)\*{0,2} on-demand groups/i.exec(readme);
+  const opsMatch = /\*{0,2}(\d+)\*{0,2}\+ operations/i.exec(readme);
+  if (!toolsMatch || !groupsMatch || !opsMatch) {
+    const missingFigures = [
+      toolsMatch ? null : "'up to N tools'",
+      groupsMatch ? null : "'K on-demand groups'",
+      opsMatch ? null : "'M+ operations'",
+    ]
+      .filter(Boolean)
+      .join(", ");
+    fail(`README headline figures not found: ${missingFigures}`);
   } else {
-    const toolsClaim = Number(headline[1]);
-    const groupsClaim = Number(headline[2]);
-    const opsFloorClaim = Number(headline[3]);
+    const toolsClaim = Number(toolsMatch[1]);
+    const groupsClaim = Number(groupsMatch[1]);
+    const opsFloorClaim = Number(opsMatch[1]);
     if (toolsClaim !== allTools.length)
       fail(`README headline tools: claims ${toolsClaim}, catalogue has ${allTools.length}`);
     else pass(`README headline tools == catalogue (${toolsClaim})`);
