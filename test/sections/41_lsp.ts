@@ -59,7 +59,7 @@ export async function testLsp(ctx: TestCtx): Promise<void> {
 
   // Per-project endpoint discovery must resolve (registry hit, or 6005 when free).
   try {
-    const ep = resolveLspEndpoint(projectPath);
+    const ep = await resolveLspEndpoint(projectPath);
     pass(`lsp: resolveLspEndpoint → ${ep.host}:${ep.port}`);
   } catch (err) {
     fail(`lsp: resolveLspEndpoint threw: ${(err as Error).message}`);

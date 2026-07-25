@@ -6,9 +6,9 @@
 
 # Function: resolveLspEndpoint()
 
-> **resolveLspEndpoint**(`projectPath`): [`LspEndpoint`](../type-aliases/LspEndpoint.md)
+> **resolveLspEndpoint**(`projectPath`): `Promise`\<[`LspEndpoint`](../type-aliases/LspEndpoint.md)\>
 
-Defined in: [src/lsp/lspClient.ts:109](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L109)
+Defined in: [src/lsp/lspClient.ts:118](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L118)
 
 Resolve a project's LSP endpoint at connect time. Priority:
   1. --lsp-port / GODOT_MCP_LSP_PORT (+ --lsp-host / GODOT_MCP_LSP_HOST) —
@@ -30,4 +30,4 @@ can rewrite it mid-session after the startup validation gate has passed.
 
 ## Returns
 
-[`LspEndpoint`](../type-aliases/LspEndpoint.md)
+`Promise`\<[`LspEndpoint`](../type-aliases/LspEndpoint.md)\>

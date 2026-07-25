@@ -8,7 +8,7 @@
 
 > **registryPath**(): `string`
 
-Defined in: [src/registry.ts:55](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L55)
+Defined in: [src/registry.ts:62](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L62)
 
 OS-specific registry file path — must match registry_client.gd.
 

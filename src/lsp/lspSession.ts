@@ -52,7 +52,8 @@ function getLspClient(projectPath: string): LspClient {
 /** Set by index.ts to push the VERIFIED LSP verdict (the actual connection
  *  result) to the editor dock after each connection attempt — so the dock
  *  reflects reality on actual use: it flips to active once a closed editor frees
- *  the port and this LSP rebinds (4.5+), or to unavailable on 4.2-4.4 (no retry). */
+ *  the port and this LSP rebinds (4.5 only), or to unavailable on every other
+ *  version, which has no bind retry. */
 let statusReporter: ((s: LspStatus) => void) | undefined = undefined;
 /** Inject the dock status reporter (startup wiring). @internal */
 export function setLspStatusReporter(cb: (s: LspStatus) => void): void {

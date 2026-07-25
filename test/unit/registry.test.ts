@@ -7,11 +7,13 @@
  *    (single parse attempt → graceful empty) through that public surface. darwin has no path
  *    override, so the file-writing blocks run only on win32/linux.
  *
- * LSP-discovery (liveLspClaimants / discoverLspEndpoint, plus isPidAlive's own
- * coverage) lives in discoverLsp.test.ts — that file owns the LSP feature.
+ * LSP-discovery (liveLspClaimants / discoverLspEndpoint) and the claimant-liveness
+ * policy it rests on (registryLiveness.ts) live in discoverLsp.test.ts — that file
+ * owns the LSP feature.
  */
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { snapshotEnv } from "./helpers.js";
@@ -148,6 +150,22 @@ const ALIVE = process.pid;
 // Windows. Same value/convention as discoverLsp.test.ts (dead-PID filtering).
 const DEAD = 2147483646;
 
+/** A loopback port that was bound (so it was provably free) and then released, so
+ *  connecting to it is refused. Binding first is what makes the refusal
+ *  deterministic; an arbitrary high number might be in use. */
+const REFUSED_PORT = await (async (): Promise<number> => {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  const address = server.address();
+  if (address == null || typeof address === "string") throw new Error("loopback listener reported no numeric port");
+  const { port } = address;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return port;
+})();
+
 /** Build a complete RegistryEntry, overriding only what a case cares about. */
 function makeEntry(over: Partial<RegistryEntry>): RegistryEntry {
   return {
@@ -237,14 +255,13 @@ function withRawRegistry(raw: string | null, fn: () => void): void {
   });
 }
 
-// ── 073: discoverRuntime runtime_pid liveness gate ───────────────────
+// ── discoverRuntime runtime_pid liveness gate ────────────────────────
 //
-// Symmetric with liveLspClaimants' dead-PID filter: a crashed playtest leaves
-// runtime_port set (the toolkit has no PID-based GC), so discoverRuntime must
-// skip a port whose owning process is provably dead — otherwise the bridge
-// attempts a doomed connect. A null runtime_pid (no owner) does NOT block; that
-// path is already covered above (makeEntry defaults runtime_pid to null and the
-// in-range case returns the port).
+// A crashed playtest leaves runtime_port set (the toolkit has no PID-based GC),
+// so discoverRuntime must skip a port whose owning process is provably dead —
+// otherwise the bridge attempts a doomed connect. A null runtime_pid (no owner)
+// does NOT block; that path is already covered above (makeEntry defaults
+// runtime_pid to null and the in-range case returns the port).
 {
   const key = normalizePath("/proj/run");
   // Valid port but a dead owner → gate fires → null.
@@ -254,6 +271,31 @@ function withRawRegistry(raw: string | null, fn: () => void): void {
   // Valid port + a live owner → gate must not over-block → port returned.
   withRegistry({ [key]: makeEntry({ runtime_port: 6570, runtime_pid: ALIVE }) }, () => {
     assert.equal(discoverRuntime("/proj/run"), 6570, "discoverRuntime: live runtime_pid → port returned");
+  });
+}
+
+// ── discoverRuntime stops at PID liveness, by design ─────────────────
+//
+// LSP claimants are additionally corroborated against the WS command port their
+// entry advertises, because reaching the wrong editor returns another project's
+// symbols silently. The runtime path deliberately does NOT do that: a wrong runtime
+// port announces itself through a failed connect plus the channel's own auth
+// handshake, and this runs on every runtime RPC rather than once per connection.
+//
+// The entry's advertised port is one that was bound and then released, so it
+// actively REFUSES. A symmetric implementation that corroborated entry.port the way
+// liveLspClaimants does would see the refusal and return null, failing this case —
+// which is what makes the asymmetry locked rather than merely asserted. (An
+// unprobeable port such as the -1 a runtime entry carries would not prove anything:
+// the corroboration fail-closes to "not refused" there.)
+{
+  const key = normalizePath("/proj/run");
+  withRegistry({ [key]: makeEntry({ port: REFUSED_PORT, runtime_port: 6570, runtime_pid: ALIVE }) }, () => {
+    assert.equal(
+      discoverRuntime("/proj/run"),
+      6570,
+      "discoverRuntime: a refusing entry port does not block — the runtime path checks the PID only",
+    );
   });
 }
 

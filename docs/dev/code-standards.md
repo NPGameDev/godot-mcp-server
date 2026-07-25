@@ -684,7 +684,7 @@ the `bin` entry and the multi-instance registry at the root:
 | `security/` | path guard, profiles, untrusted-input handling |
 | `startup/` | boot collaborators: `lifecycle.ts`, `startupEnv.ts`, `registrars.ts`, `configReload.ts`, `reconcile.ts`, `hooks.ts`, `serverMode.ts` |
 | `mcp/` | prompts, resources, roots registrars |
-| *root* | `index.ts` (the composition root / `bin` entry) and `registry.ts` (multi-instance store) |
+| *root* | `index.ts` (the composition root / `bin` entry), `registry.ts` (multi-instance store), and its `registryLiveness.ts` leaf (entry-owner liveness) |
 
 `index.ts` is the thin composition root of [§2.2](#2-module-structure-and-declaration-order): it
 sequences the boot (preflight gates → bridge → registration → `server.connect`) and delegates each

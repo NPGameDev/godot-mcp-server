@@ -7,6 +7,11 @@
  * asserts each threshold/claim equals the gated symbol's TRUE introduction
  * version.
  *
+ * A version boundary is not always a floor. Behavior that exists on one release
+ * and is gone from the next is modelled as a WINDOW (`GODOT_INTRO` +
+ * `GODOT_REMOVED`), and its user-facing label is rendered through `windowLabel`
+ * so a closed window can never be described as an open-ended "X+".
+ *
  * SELF-CONTAINED TO RUN. The authoritative intros are VENDORED below (the
  * `GODOT_INTRO` table), each constant stating what it anchors. The auditor
  * never reads the toolkit repo or the compat map at runtime — it is pure
@@ -32,6 +37,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ALL_TOOL_DEFS } from "../../src/registration/catalogue.js";
+import { compareGodotVer, parseGodotVer } from "../../src/shared/version.js";
 import type { ToolDef } from "../../src/shared/types.js";
 
 // ── Vendored Godot-API / behavioral intro table ──────────────────────
@@ -59,7 +65,8 @@ const GODOT_INTRO = {
 
   // ── Behavioral boundaries (engine behavior, not API presence) ──
   /** LSP auto-rebind on port contention — added 4.5; 4.2-4.4 have no bind retry
-   *  and need a manual editor restart. */
+   *  and need a manual editor restart. WINDOWED: see GODOT_REMOVED for the far
+   *  end, and never phrase this one as "4.5+". */
   lsp_bind_retry: "4.5",
   /** LSP `window/showMessage` protocol support — shipped 4.5 (PR #104401),
    *  absent 4.2-4.4. Engine-verified against gdscript_language_protocol.cpp. */
@@ -80,6 +87,25 @@ const GODOT_INTRO = {
   /** Tested maximum — GODOT_TESTED_MAX_VERSION "4.7.0"; bump on a 4.8 adoption
    *  pass. */
   tested_max: "4.7",
+} as const;
+
+// ── Vendored removal table — the far end of a WINDOWED behavior ───────
+//
+// A GODOT_INTRO row on its own reads as "and every version after", which is how a
+// behavior that existed on exactly one release came to be advertised for all its
+// successors. A name listed here names the first Godot minor on which the behavior
+// is GONE again, so intro + removal define the half-open window [intro, removal):
+// present from intro, absent from removal onward. Same rule as GODOT_INTRO — change
+// a value only alongside a re-audit.
+
+const GODOT_REMOVED = {
+  /** LSP bind retry, removed in 4.6. On 4.5 NOTIFICATION_INTERNAL_PROCESS re-runs
+   *  start() on every frame the bind has not succeeded (`if (!started && …)`), so
+   *  the LSP takes the port as soon as the other editor frees it. 4.6 moved the
+   *  guard to a `start_attempted` flag set BEFORE the call, making the bind
+   *  one-shot; 4.7 keeps the latch. Engine-verified in
+   *  modules/gdscript/language_server/gdscript_language_server.cpp on 4.5/4.6/4.7. */
+  lsp_bind_retry: "4.6",
 } as const;
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -116,6 +142,54 @@ function assertSrcHas(rel: string, fragment: string, site: string): void {
   );
 }
 
+/** Assert a source file does NOT contain a fragment.
+ *
+ *  BELT-AND-BRACES ONLY. It bans one literal spelling of a wrong claim, so a
+ *  paraphrase ("4.5 or newer rebinds automatically") sails straight past it. The
+ *  actual lock is the positive `assertSrcHas` pair whose expected text is
+ *  interpolated from the vendored model — that one cannot be satisfied by prose
+ *  the model does not license. Use this to make the specific regression that
+ *  already happened once impossible to reintroduce verbatim, never as the only
+ *  guard on a claim. */
+function assertSrcLacks(rel: string, fragment: string, site: string): void {
+  assert.ok(
+    !readSrc(rel).includes(fragment),
+    `[${site}] ${rel} must NOT contain ${JSON.stringify(fragment)} — that phrasing claims the behavior for versions the vendored model excludes`,
+  );
+}
+
+/** The Godot minor immediately below `version`: "4.6" → "4.5". */
+function minorBelow(version: string): string {
+  const [major, minor] = version.split(".").map(Number);
+  assert.ok(Number.isInteger(major) && Number.isInteger(minor) && minor > 0, `cannot step below Godot "${version}"`);
+  return `${major}.${minor - 1}`;
+}
+
+/** The last Godot minor a windowed behavior still exists on — the inclusive upper
+ *  bound the gate and the prose label must both use. */
+function windowMax(name: keyof typeof GODOT_REMOVED): string {
+  const intro: string = GODOT_INTRO[name];
+  const lastIncluded = minorBelow(GODOT_REMOVED[name]);
+  // Numeric compare via the production comparator: a lexicographic `<=` would call
+  // the window [4.9, 4.11) empty, because "4.9" > "4.10" as strings.
+  assert.ok(
+    compareGodotVer(parseGodotVer(intro), parseGodotVer(lastIncluded)) <= 0,
+    `${name}: window [${intro}, ${GODOT_REMOVED[name]}) is empty — re-audit`,
+  );
+  return lastIncluded;
+}
+
+/** The prose label for a windowed behavior: the intro alone when the window spans
+ *  one minor ("4.5"), otherwise an inclusive range ("4.5-4.6"). Never an
+ *  open-ended "X+" — that is precisely the claim a closed window cannot make, and
+ *  building every user-facing label through here is what keeps the wording and the
+ *  vendored window from drifting apart. */
+function windowLabel(name: keyof typeof GODOT_REMOVED): string {
+  const intro: string = GODOT_INTRO[name];
+  const lastIncluded = windowMax(name);
+  return intro === lastIncluded ? intro : `${intro}-${lastIncluded}`;
+}
+
 let sites = 0;
 
 // ── Block A — hardcoded godotMinVersion/godotMaxVersion catalogue gates ──
@@ -139,19 +213,23 @@ let sites = 0;
   );
   sites += 1; // editor.ts:73
 
-  // Any gate value that exists must be a vendored, audited intro (defence
-  // against a future gate landing with an unvetted version literal).
-  const knownIntros = new Set<string>(Object.values(GODOT_INTRO));
+  // Any gate value that exists must come from a vendored, audited table. The guard
+  // is against an UNVETTED version literal, not against which table a value came
+  // from: both are merged into one allowlist, so a removal value would satisfy a
+  // godotMinVersion check and vice versa. Deliberately permissive — a value cannot
+  // be here without having been audited, and every real version anchor doubles as
+  // both a floor for the behavior after it and a ceiling for the behavior before it.
+  const knownVersions = new Set<string>([...Object.values(GODOT_INTRO), ...Object.values(GODOT_REMOVED)]);
   for (const g of gated) {
     if (g.min != null)
       assert.ok(
-        knownIntros.has(g.min),
-        `${g.name}: godotMinVersion "${g.min}" is not a vendored intro — vet + vendor it`,
+        knownVersions.has(g.min),
+        `${g.name}: godotMinVersion "${g.min}" is not a vendored version anchor — vet + vendor it`,
       );
     if (g.max != null)
       assert.ok(
-        knownIntros.has(g.max),
-        `${g.name}: godotMaxVersion "${g.max}" is not a vendored intro — vet + vendor it`,
+        knownVersions.has(g.max),
+        `${g.name}: godotMaxVersion "${g.max}" is not a vendored version anchor — vet + vendor it`,
       );
   }
 
@@ -192,15 +270,44 @@ sites += 1;
 // These live in LSP code + shared type-doc comments (not ToolDefs). Assert the
 // version-bearing fragment, built from the vendored behavioral boundary.
 
-// LSP 4.5 auto-rebind family.
-assertSrcHas("lsp/lspClient.ts", `isVersionAtLeast(v, "${GODOT_INTRO.lsp_bind_retry}")`, "lspClient.ts:52");
-sites += 1;
-assertSrcHas("lsp/lspClient.ts", `Godot ${GODOT_INTRO.lsp_bind_retry}+ rebinds automatically`, "lspClient.ts:71");
-sites += 1;
-assertSrcHas("lsp/lspStatusReporter.ts", `${GODOT_INTRO.lsp_bind_retry}+ auto-rebind vs`, "lspStatusReporter.ts:15/51");
-sites += 1;
-assertSrcHas("lsp/lspSession.ts", `rebinds (${GODOT_INTRO.lsp_bind_retry}+)`, "lspSession.ts:55");
-sites += 1;
+// LSP bind-retry family — a WINDOWED behavior, so the gate is checked against BOTH
+// bounds and every description is labelled through windowLabel. The banned-phrasing
+// loop at the end is belt-and-braces over those positive checks, not a substitute.
+{
+  // A removal row without an intro row describes no window at all.
+  for (const name of Object.keys(GODOT_REMOVED)) {
+    assert.ok(name in GODOT_INTRO, `GODOT_REMOVED.${name} has no GODOT_INTRO row — a window needs both ends`);
+  }
+  const bindRetry = windowLabel("lsp_bind_retry");
+
+  // The gate carries BOTH bounds of the window in one bounded call, so drift at
+  // either end fails here. Asserting only an opening bound is what let an "at least
+  // 4.5" gate pass while the advice it selected was false on 4.6 and 4.7.
+  assertSrcHas(
+    "lsp/lspClient.ts",
+    `isVersionCompatible(v, "${GODOT_INTRO.lsp_bind_retry}", "${windowMax("lsp_bind_retry")}")`,
+    "hint gate — the closed window, both bounds",
+  );
+  sites += 1;
+
+  // User-facing + explanatory text, all labelled through windowLabel.
+  assertSrcHas("lsp/lspClient.ts", `only Godot ${bindRetry} rebinds automatically`, "version-unknown hint text");
+  sites += 1;
+  assertSrcHas("lsp/lspStatusReporter.ts", `${bindRetry} auto-rebind vs`, "status-reporter module + wiring comments");
+  sites += 1;
+  assertSrcHas("lsp/lspSession.ts", `rebinds (${bindRetry} only)`, "verified-verdict comment");
+  sites += 1;
+
+  // The open-ended form claims the retry for every later release, which the engine
+  // does not do. Banning the exact spelling that shipped once stops a verbatim
+  // relapse; a paraphrase would slip past, which is why the positive asserts above
+  // are the real lock.
+  for (const rel of ["lsp/lspClient.ts", "lsp/lspSession.ts", "lsp/lspStatusReporter.ts"]) {
+    assertSrcLacks(rel, `${GODOT_INTRO.lsp_bind_retry}+ rebind`, "no open-ended bind-retry claim");
+    assertSrcLacks(rel, `${GODOT_INTRO.lsp_bind_retry}+ auto-rebind`, "no open-ended bind-retry claim");
+  }
+  sites += 1;
+}
 
 // LSP 4.5 showMessage protocol (PR #104401).
 assertSrcHas("lsp/lspClient.ts", `Godot ${GODOT_INTRO.lsp_show_message}+ (PR #104401)`, "lspClient.ts:25");
@@ -243,5 +350,6 @@ assertSrcHas("registration/toolRegistry.ts", `godotMinVersion: "${GODOT_INTRO.cl
 sites += 1;
 
 console.log(
-  `All version-logic audit assertions passed — ${sites} server version-logic sites asserted against ${Object.keys(GODOT_INTRO).length} vendored intros.`,
+  `All version-logic audit assertions passed — ${sites} server version-logic sites asserted against ` +
+    `${Object.keys(GODOT_INTRO).length} vendored intros and ${Object.keys(GODOT_REMOVED).length} vendored removal(s).`,
 );

@@ -8,7 +8,7 @@
 
 > **unwatchRegistry**(): `void`
 
-Defined in: [src/registry.ts:320](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L320)
+Defined in: [src/registry.ts:316](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L316)
 
 Stop watching and clean up. Safe to call even if never started.
 

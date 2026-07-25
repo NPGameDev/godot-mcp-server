@@ -8,7 +8,7 @@
 
 > **DiagnosticEntry** = `object`
 
-Defined in: [src/lsp/lspClient.ts:211](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L211)
+Defined in: [src/lsp/lspClient.ts:221](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L221)
 
 One LSP diagnostic, flattened to 0-based line/character plus severity, message, and optional code.
 
@@ -18,7 +18,7 @@ One LSP diagnostic, flattened to 0-based line/character plus severity, message, 
 
 > **character**: `number`
 
-Defined in: [src/lsp/lspClient.ts:213](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L213)
+Defined in: [src/lsp/lspClient.ts:223](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L223)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [src/lsp/lspClient.ts:213](https://github.com/NPGameDev/godot-mcp-se
 
 > `optional` **code?**: `string` \| `number`
 
-Defined in: [src/lsp/lspClient.ts:216](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L216)
+Defined in: [src/lsp/lspClient.ts:226](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L226)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [src/lsp/lspClient.ts:216](https://github.com/NPGameDev/godot-mcp-se
 
 > **line**: `number`
 
-Defined in: [src/lsp/lspClient.ts:212](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L212)
+Defined in: [src/lsp/lspClient.ts:222](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L222)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [src/lsp/lspClient.ts:212](https://github.com/NPGameDev/godot-mcp-se
 
 > **message**: `string`
 
-Defined in: [src/lsp/lspClient.ts:215](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L215)
+Defined in: [src/lsp/lspClient.ts:225](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L225)
 
 ***
 
@@ -50,4 +50,4 @@ Defined in: [src/lsp/lspClient.ts:215](https://github.com/NPGameDev/godot-mcp-se
 
 > **severity**: `number`
 
-Defined in: [src/lsp/lspClient.ts:214](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L214)
+Defined in: [src/lsp/lspClient.ts:224](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L224)

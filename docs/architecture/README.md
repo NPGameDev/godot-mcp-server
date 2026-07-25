@@ -79,7 +79,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="eb70bc1" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="0ad6009" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -101,7 +101,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified eb70bc1*
+*Figure 1 — system context · verified 0ad6009*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -125,7 +125,7 @@ sections below:
 | `security/` | read-only profile filter, syntactic path guard, untrusted wrap | [§8](#8-security--trust-boundaries) |
 | `startup/` | preflight, registrars, lifecycle, the config + version reconciler | [§3](#3-the-mcp-entrypoint--startup), [§12](#12-cross-version-compatibility) |
 | `mcp/` | the MCP prompts / resources / roots capability surfaces | [§3](#3-the-mcp-entrypoint--startup) |
-| `index.ts` · `registry.ts` | the composition root, and the multi-project registry reader | [§3](#3-the-mcp-entrypoint--startup), [§11](#11-multi-project-registry) |
+| `index.ts` · `registry.ts` · `registryLiveness.ts` | the composition root, the multi-project registry reader, and its PID + WS-port liveness leaf | [§3](#3-the-mcp-entrypoint--startup), [§11](#11-multi-project-registry) |
 
 ---
 
@@ -149,12 +149,14 @@ The **pattern**: a facade/orchestrator (`bridge`, `groups`, `extensions`, the `i
 composition root) constructs, wires, and sequences; the domain logic lives in
 single-responsibility siblings. The **dependency direction is one-way** — `index.ts`
 (root) → subsystem folders → the `shared/` kernel (`types` / `errors` / `version` /
-`schema*`); no folder imports `index.ts`, and `registry.ts` is a shared leaf imported by
-`transport/`, `lsp/`, and `startup/`. Leaf modules like `groups/groupState.ts` and
+`schema*`); no folder imports `index.ts`, and `registry.ts` is a shared root-level reader
+imported by `transport/`, `lsp/`, and `startup/`, sitting over one leaf of its own —
+`registryLiveness.ts`, which takes plain numbers and names no registry symbol, so that
+dependency cannot invert. Leaf modules like `groups/groupState.ts` and
 `groups/groupCatalogue.ts` exist precisely to break what would otherwise be a
 `groups` ↔ `catalogue` cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="eb70bc1" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="0ad6009" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -171,7 +173,9 @@ flowchart TD
     extensions --> registration
     registration --> tools["tools/ — command modules"]
     transport --> registry
+    startup --> registry
     lsp["lsp/"] --> registry
+    registry --> liveness["registryLiveness.ts — PID + WS-port liveness leaf"]
     transport --> shared["shared/ — types · errors · version · schema* (kernel)"]
     registration --> shared
     groups --> shared
@@ -183,7 +187,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified eb70bc1*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 0ad6009*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -534,7 +538,7 @@ JSON-RPC-over-TCP client) and was **not carved**. 083 carved only the *tool laye
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="eb70bc1" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="0ad6009" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -543,16 +547,18 @@ flowchart TD
     lspH --> resolve["resolveLspEndpoint (lspClient.ts)"]
     resolve --> t1{"--lsp-port / GODOT_MCP_LSP_PORT set?"}
     t1 -->|"yes"| ep["endpoint"]
-    t1 -->|"no"| t2["discoverLspEndpoint (registry.ts)<br/>earliest live claimant by started_at"]
+    t1 -->|"no"| t2["discoverLspEndpoint (registry.ts)<br/>earliest CORROBORATED claimant by started_at"]
     t2 -->|"hit"| ep
     t2 -->|"conflict"| confl["throw LSP_PORT_CONFLICT"]
-    t2 -->|"miss"| t3{"6005 held by a live editor?"}
+    t2 -->|"miss"| t3{"6005 held by a corroborated<br/>live editor?"}
     t3 -->|"no"| ep
     t3 -->|"yes"| unavail["throw LSP_UNAVAILABLE — never a blind 6005"]
+    t2 -.->|"per candidate"| corrob["liveLspClaimants (registry.ts)<br/>isPidAlive AND wsPortNotRefused (registryLiveness.ts)<br/>ECONNREFUSED = dead · anything else stays counted"]
+    t3 -.->|"per candidate"| corrob
     ep --> tcp["own TCP socket → Godot GDScript LSP<br/>(BYPASSES the WS bridge + mutation queue)"]
     tcp --> verdict["status verdict → lspStatusReporter.ts<br/>→ editor.set_lsp_status (de-duped by state:host:port)"]
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified eb70bc1*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified 0ad6009*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -562,11 +568,28 @@ live editor holds it, else throw — never a blind 6005**. **The bypass**: the
 `groupToolHandlers` dispatch fork routes `LSP_TOOLS` members to `createLspHandler` → the
 own TCP client *before* the runtime/`callAndWrap` default, so LSP tools never touch the
 WS bridge or the mutation queue (correct — they are read-only and don't touch the scene).
+
+**"Live claimant" means corroborated, not just pid-alive** (ADR 0025). Both registry
+tiers share one predicate, `liveLspClaimants`: an entry counts only when its recorded PID
+is alive **and** the WS command port *that entry itself advertises* does not refuse a
+connection. The PID
+check alone cannot carry the verdict — the projection never prunes cross-project editor
+entries and they all default to the engine's 6005, so a closed editor whose PID has since
+been recycled to any unrelated process would resurrect as a rival claimant, producing a
+false `LSP_PORT_CONFLICT` for a project served by exactly one editor (and a false
+`LSP_UNAVAILABLE` on the miss path, which shares the predicate). The corroboration probe
+is a 300 ms loopback connect closed with a graceful FIN; only `ECONNREFUSED` — positive
+proof nothing is listening — removes a claimant. Every other outcome leaves it counted,
+because dropping a *genuine* rival would silently serve another project's symbols on Godot
+4.2–4.4, which have no root-mismatch backstop. Resolution is therefore `async`.
+
 **Dual port-collision detection**: pre-connect registry ownership (`LSP_PORT_CONFLICT`)
-plus a post-initialize 4.5+ `window/showMessage` root-mismatch. **Status push**: a fast
-registry verdict on connect/reconnect and a verified verdict after a real connect,
-de-duped by `state:host:port`, pushed via `lsp/lspStatusReporter.ts` →
-`editor.set_lsp_status` (the editor can't determine its own LSP bind status).
+plus a post-initialize 4.5+ `window/showMessage` root-mismatch. **Status push**: the
+registry verdict on connect/reconnect (resolution only, no LSP handshake) and a verified
+verdict after a real connect, de-duped by `state:host:port`, pushed via
+`lsp/lspStatusReporter.ts` → `editor.set_lsp_status` (the editor can't determine its own
+LSP bind status). The registry push is fire-and-forget and yields to a verified verdict
+that lands while its probes are still in flight.
 
 ---
 
@@ -594,19 +617,21 @@ crash.
 The server is a **read-only consumer** of the toolkit's `projects.json` (`registry.ts`):
 `readRegistry` reads only the aggregate file, never the per-instance `entries/` dir.
 
-<!-- data-depicts="src/registry.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="0ad6009" -->
 ```mermaid
 flowchart TD
     pj[("projects.json — the toolkit writes")] --> read["registry.readRegistry → by_path[ normalizePath(projectPath) ]<br/>(PATH key — NOT the sha256 project hash)"]
     read --> port["editor port → portConfig.resolvePortConfig / bridge"]
     read --> ver["godot_version → bridge pre-pop (available before auth)"]
-    read --> rport["runtime_port / runtime_pid → discoverRuntime (isPidAlive gate)"]
-    read --> lsp["lsp_port / lsp_host → discoverLspEndpoint"]
+    read --> rport["runtime_port / runtime_pid → discoverRuntime<br/>(isPidAlive gate only — see the asymmetry below)"]
+    read --> lsp["lsp_port / lsp_host → discoverLspEndpoint<br/>(isPidAlive AND wsPortNotRefused on entry.port)"]
     read --> watch["diffAndNotify watcher — ONLY runtime_port transitions<br/>(editor port / version / lsp_port do NOT flow through it)"]
+    lsp -.-> live["registryLiveness.ts — process.kill(pid, 0)<br/>+ 300 ms loopback probe of the peer's own WS port"]
+    rport -.-> live
     tok["token: tokenPath.ts READS entry.token_path<br/>(toolkit-published · globalized-absolute) and<br/>STRUCTURALLY VALIDATES it — assertPublishedTokenPath:<br/>absolute · no '..' · existing file · …/project_instance_&lt;12-hex&gt;/mcp_token suffix"]
     pj -. "token_path: READ + structurally validated (ADR-0011)" .-> tok
 ```
-*Figure 11 — the registry consume path · verified d1c2a70*
+*Figure 11 — the registry consume path · verified 0ad6009*
 
 **Path key, not hash.** `by_path` is keyed by the **canonical project path**; the server
 forms the same key via `normalizePath` (backslash → `/`, strip trailing `/`, lowercase on
@@ -622,8 +647,21 @@ an operator override (read directly, bypassing the suffix check). The server rea
 `godot_version`,
 `runtime_port` / `runtime_pid`, and `lsp_port` / `lsp_host`, and tolerates
 stale / runtime-only / ping-pong entries gracefully. The `diffAndNotify` watcher reacts
-**only** to `runtime_port` transitions. Liveness uses `isPidAlive` (`process.kill(pid, 0)`
-— reliable on Windows, unlike the toolkit's `OS.is_process_running`).
+**only** to `runtime_port` transitions.
+
+**Liveness is read at two strengths, and the asymmetry is deliberate.** The base check is
+`isPidAlive` (`process.kill(pid, 0)` — reliable on Windows, unlike the toolkit's
+`OS.is_process_running`), which proves only that *some* signalable process holds that
+number, not that it is still the editor that wrote the entry. `discoverRuntime` stops
+there: a runtime entry advertises `port: -1` (nothing to probe), a wrong runtime port
+announces itself through a failed connect plus the channel's own per-instance auth
+handshake, and that path runs on **every** runtime RPC. LSP claimants go further and are
+corroborated against the WS command port their own entry advertises (ADR 0025,
+[§9](#9-the-gdscript-lsp-client)), because reaching the wrong editor's language server
+returns another project's symbols with no protest — and that resolution runs **once per
+connection**, so it can afford a probe. The toolkit itself has no dead-entry GC (its
+`OS.is_process_running` false-negatives on live sibling editors), so `by_path` accumulates
+stale editor rows and the reader is the only place either check can happen.
 
 ---
 

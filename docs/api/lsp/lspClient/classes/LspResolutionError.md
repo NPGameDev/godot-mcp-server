@@ -6,7 +6,7 @@
 
 # Class: LspResolutionError
 
-Defined in: [src/lsp/lspClient.ts:81](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L81)
+Defined in: [src/lsp/lspClient.ts:90](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L90)
 
 Resolution failure carrying a specific tool error code + actionable hint.
 
@@ -20,7 +20,7 @@ Resolution failure carrying a specific tool error code + actionable hint.
 
 > **new LspResolutionError**(`code`, `message`, `hint`, `port`): `LspResolutionError`
 
-Defined in: [src/lsp/lspClient.ts:82](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L82)
+Defined in: [src/lsp/lspClient.ts:91](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L91)
 
 #### Parameters
 
@@ -66,7 +66,7 @@ Defined in: node\_modules/typescript/lib/lib.es2022.error.d.ts:24
 
 > `readonly` **code**: `"LSP_UNAVAILABLE"` \| `"LSP_PORT_CONFLICT"`
 
-Defined in: [src/lsp/lspClient.ts:83](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L83)
+Defined in: [src/lsp/lspClient.ts:92](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L92)
 
 ***
 
@@ -74,7 +74,7 @@ Defined in: [src/lsp/lspClient.ts:83](https://github.com/NPGameDev/godot-mcp-ser
 
 > `readonly` **hint**: `string`
 
-Defined in: [src/lsp/lspClient.ts:85](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L85)
+Defined in: [src/lsp/lspClient.ts:94](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L94)
 
 ***
 
@@ -106,7 +106,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1074
 
 > `readonly` **port**: `number`
 
-Defined in: [src/lsp/lspClient.ts:86](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L86)
+Defined in: [src/lsp/lspClient.ts:95](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L95)
 
 ***
 

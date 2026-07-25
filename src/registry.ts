@@ -6,6 +6,11 @@
  * editor / runtime / LSP endpoints by absolute path, and optionally watches the
  * registry file so runtime-port changes push to the bridge without per-RPC I/O.
  *
+ * Reading includes deciding whether an entry's owner is still there: the plugin
+ * has no reliable liveness signal of its own and prunes nothing, so entries
+ * accumulate. That check is delegated to `registryLiveness` — still a read, kept
+ * out of here so the socket mechanics don't blur the schema reader.
+ *
  * @module
  */
 
@@ -13,6 +18,8 @@ import { readFileSync, watch, statSync } from "node:fs";
 import type { FSWatcher } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+
+import { isPidAlive, wsPortNotRefused } from "./registryLiveness.js";
 
 // -- Types -------------------------------------------------------------------
 
@@ -87,34 +94,6 @@ function readRegistry(): Registry {
 }
 
 /**
- * Check if a process is still alive. Returns false only if provably dead.
- *
- * Signal 0 is a no-op "existence probe" — never delivered, it only tests whether
- * the process exists and is signalable. Reliable on Linux, macOS AND Windows
- * (Node/libuv maps it to OpenProcess on Windows, not the unreliable mechanism
- * behind GDScript's OS.is_process_running). Outcomes:
- *   - success            → the process exists                          → ALIVE
- *   - throw ESRCH        → no such process                             → dead
- *   - throw EPERM/EACCES → the process EXISTS but we may not signal it
- *                          (another user / elevated / protected)       → ALIVE
- *
- * Treating EPERM/EACCES as alive is the POSIX-standard robust check (`kill(pid,0)`
- * sets EPERM precisely *because* the target exists). It never triggers for our
- * same-user sibling editors, but it keeps a cross-user/elevated peer from being
- * mis-counted as dead on any platform.
- */
-function isPidAlive(pid: number): boolean {
-  if (!pid || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    return code === "EPERM" || code === "EACCES";
-  }
-}
-
-/**
  * Look up a project by its absolute path. Returns the entry or null.
  * The path is normalised before lookup (backslashes → forward slashes,
  * trailing slash stripped) so Windows CWD and GDScript registry keys match.
@@ -137,9 +116,15 @@ export function discoverRuntime(projectPath: string): number | null {
   // Skip a port whose owning playtest process is provably dead. The toolkit has
   // no PID-based GC (OS.is_process_running is unreliable on Windows), so a
   // crashed playtest leaves runtime_port set until the next register() clears
-  // it; without this gate the bridge would attempt a doomed connect. Mirrors
-  // liveLspClaimants' dead-PID filter. A null runtime_pid (no recorded owner)
-  // does not block — behavior is unchanged for entries without a pid.
+  // it; without this gate the bridge would attempt a doomed connect. A null
+  // runtime_pid (no recorded owner) does not block.
+  //
+  // A live PID is all this path asks for — deliberately weaker than the LSP
+  // claimant predicate below. A wrong runtime port announces itself (the connect
+  // fails into a visible GAME_NOT_RUNNING, and the channel has its own
+  // per-instance auth handshake), whereas a wrong LSP port silently returns
+  // another project's symbols; and this runs on every runtime RPC, not once per
+  // connection, so a socket probe here would tax the whole game_* surface.
   if (entry.runtime_pid != null && !isPidAlive(entry.runtime_pid)) return null;
   return port;
 }
@@ -152,39 +137,50 @@ export function discoverRuntime(projectPath: string): number | null {
 // read whether its own bind won). See lsp/lspClient.ts (resolveLspEndpoint).
 
 /**
- * Every LIVE editor claiming a given LSP port. Matches entry.lsp_port and
- * returns all claimants (not just the newest). Dead PIDs are filtered via
- * process.kill(pid, 0) — reliable on Windows, unlike the toolkit's
- * OS.is_process_running.
+ * Every editor still credibly claiming a given LSP port — all of them, not just
+ * the newest.
+ *
+ * A claimant counts only when it is **pid-alive AND the WS command port its own
+ * entry advertises does not refuse a connection**. The PID check comes first
+ * because it is free and settles the provably-dead entries; the port probe is what
+ * establishes *identity*, since the projection never prunes cross-project entries and
+ * they all default to the same engine LSP port — so a stale entry whose recorded
+ * PID has been recycled to any unrelated process would otherwise resurrect a
+ * closed editor as a rival claimant. An inconclusive probe leaves the claimant
+ * counted — `registryLiveness.classifyProbeOutcome` carries why that direction is
+ * the safe one. Probes run concurrently, so the added latency is one round trip,
+ * not one per candidate.
  */
-export function liveLspClaimants(port: number): Array<{ path: string; entry: RegistryEntry }> {
+export async function liveLspClaimants(port: number): Promise<Array<{ path: string; entry: RegistryEntry }>> {
   const registry = readRegistry();
-  const out: Array<{ path: string; entry: RegistryEntry }> = [];
+  const candidates: Array<{ path: string; entry: RegistryEntry }> = [];
   for (const [path, entry] of Object.entries(registry.by_path)) {
     if (entry.lsp_port !== port) continue;
     if (!isPidAlive(entry.pid)) continue;
-    out.push({ path, entry });
+    candidates.push({ path, entry });
   }
-  return out;
+  const notRefused = await Promise.all(candidates.map((c) => wsPortNotRefused(c.entry.port)));
+  return candidates.filter((_, i) => notRefused[i]);
 }
 
 /**
  * Resolve this project's published LSP endpoint, with conservative ownership.
  *   { host, port } — we own it: connect (then verify rootUri on 4.5+).
- *   { conflict, port } — a live peer started at-or-before us holds the port.
+ *   { conflict, port } — a corroborated peer started at-or-before us holds the port.
  *   null — no usable entry; the caller applies the miss rule (conditional 6005).
  *
- * Connect only if strictly the EARLIEST live claimant: the engine gives the port
- * to whoever listen()s first, and started_at is a safe proxy for starts >~1s
- * apart. A genuine same-second tie fails BOTH sides — never wrong data.
+ * Connect only if strictly the EARLIEST corroborated claimant: the engine gives
+ * the port to whoever listen()s first, and started_at is a safe proxy for starts
+ * >~1s apart. A genuine same-second tie fails BOTH sides — never wrong data.
  */
-export function discoverLspEndpoint(
+export async function discoverLspEndpoint(
   projectPath: string,
-): { host: string; port: number } | { conflict: true; port: number } | null {
+): Promise<{ host: string; port: number } | { conflict: true; port: number } | null> {
   const entry = lookupProject(projectPath);
   if (!entry || entry.lsp_port == null) return null;
   const port = entry.lsp_port;
-  const peers = liveLspClaimants(port).filter((c) => c.entry.pid !== entry.pid);
+  const claimants = await liveLspClaimants(port);
+  const peers = claimants.filter((c) => c.entry.pid !== entry.pid);
   if (peers.some((c) => c.entry.started_at <= entry.started_at)) return { conflict: true, port };
   return { host: entry.lsp_host ?? "127.0.0.1", port };
 }

@@ -6,16 +6,17 @@
 
 # Function: getLspStatus()
 
-> **getLspStatus**(`projectPath`): [`LspStatus`](../type-aliases/LspStatus.md)
+> **getLspStatus**(`projectPath`): `Promise`\<[`LspStatus`](../type-aliases/LspStatus.md)\>
 
-Defined in: [src/lsp/lspClient.ts:165](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L165)
+Defined in: [src/lsp/lspClient.ts:175](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L175)
 
-The authoritative LSP verdict for a project, computed without opening a
-connection (resolution + registry ownership only — reliable cross-platform
-liveness via process.kill). The toolkit can't determine this itself (no engine
-API for its own LSP bind status), so the server reports it to the editor dock
-via editor.set_lsp_status. "active" = this editor owns the port (per registry /
-env override); a later editor or a non-registry holder → conflict / unavailable.
+The authoritative LSP verdict for a project, computed without opening an LSP
+connection (resolution + registry ownership only — cross-platform PID liveness
+corroborated by a peer's own WS command port). The toolkit can't determine this
+itself (no engine API for its own LSP bind status), so the server reports it to
+the editor dock via editor.set_lsp_status. "active" = this editor owns the port
+(per registry / env override); a later editor or a non-registry holder →
+conflict / unavailable.
 
 ## Parameters
 
@@ -25,4 +26,4 @@ env override); a later editor or a non-registry holder → conflict / unavailabl
 
 ## Returns
 
-[`LspStatus`](../type-aliases/LspStatus.md)
+`Promise`\<[`LspStatus`](../type-aliases/LspStatus.md)\>

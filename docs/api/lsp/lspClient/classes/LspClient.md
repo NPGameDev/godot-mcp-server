@@ -6,7 +6,7 @@
 
 # Class: LspClient
 
-Defined in: [src/lsp/lspClient.ts:221](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L221)
+Defined in: [src/lsp/lspClient.ts:231](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L231)
 
 ## Constructors
 
@@ -14,7 +14,7 @@ Defined in: [src/lsp/lspClient.ts:221](https://github.com/NPGameDev/godot-mcp-se
 
 > **new LspClient**(`projectPath`, `opts?`): `LspClient`
 
-Defined in: [src/lsp/lspClient.ts:251](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L251)
+Defined in: [src/lsp/lspClient.ts:261](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L261)
 
 #### Parameters
 
@@ -38,7 +38,7 @@ Defined in: [src/lsp/lspClient.ts:251](https://github.com/NPGameDev/godot-mcp-se
 
 > **close**(): `Promise`\<`void`\>
 
-Defined in: [src/lsp/lspClient.ts:479](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L479)
+Defined in: [src/lsp/lspClient.ts:489](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L489)
 
 Graceful shutdown.
 
@@ -52,7 +52,7 @@ Graceful shutdown.
 
 > **closeDocument**(`uri`): `Promise`\<`void`\>
 
-Defined in: [src/lsp/lspClient.ts:409](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L409)
+Defined in: [src/lsp/lspClient.ts:419](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L419)
 
 Close a document in the LSP, clearing its open + diagnostics state.
 
@@ -78,7 +78,7 @@ Close a document in the LSP, clearing its open + diagnostics state.
 
 > **ensureConnected**(): `Promise`\<`void`\>
 
-Defined in: [src/lsp/lspClient.ts:265](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L265)
+Defined in: [src/lsp/lspClient.ts:275](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L275)
 
 Ensure connection is established. Lazy — connects on first call.
 
@@ -92,7 +92,7 @@ Ensure connection is established. Lazy — connects on first call.
 
 > **getEndpoint**(): `object`
 
-Defined in: [src/lsp/lspClient.ts:474](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L474)
+Defined in: [src/lsp/lspClient.ts:484](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L484)
 
 The host:port resolved for the most recent connect attempt (valid after
  doConnect set it — i.e. when a connect was attempted, success or failure).
@@ -115,7 +115,7 @@ The host:port resolved for the most recent connect attempt (valid after
 
 > **isConnected**(): `boolean`
 
-Defined in: [src/lsp/lspClient.ts:462](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L462)
+Defined in: [src/lsp/lspClient.ts:472](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L472)
 
 Check if the client is currently connected.
 
@@ -129,7 +129,7 @@ Check if the client is currently connected.
 
 > **openDocument**(`uri`, `content`): `Promise`\<`void`\>
 
-Defined in: [src/lsp/lspClient.ts:375](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L375)
+Defined in: [src/lsp/lspClient.ts:385](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L385)
 
 Open a document in the LSP (or update if already open).
 
@@ -153,7 +153,7 @@ Open a document in the LSP (or update if already open).
 
 > **sendNotification**(`method`, `params?`): `void`
 
-Defined in: [src/lsp/lspClient.ts:368](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L368)
+Defined in: [src/lsp/lspClient.ts:378](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L378)
 
 Send a JSON-RPC notification (no response expected).
 
@@ -177,7 +177,7 @@ Send a JSON-RPC notification (no response expected).
 
 > **sendRequest**(`method`, `params?`, `timeoutMs?`): `Promise`\<`unknown`\>
 
-Defined in: [src/lsp/lspClient.ts:347](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L347)
+Defined in: [src/lsp/lspClient.ts:357](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L357)
 
 Send a JSON-RPC request and await the response.
  `timeoutMs` overrides REQUEST\_TIMEOUT\_MS for this request only
@@ -207,7 +207,7 @@ Send a JSON-RPC request and await the response.
 
 > **waitForDiagnostics**(`uri`, `timeoutMs?`): `Promise`\<[`DiagnosticEntry`](../type-aliases/DiagnosticEntry.md)[] \| `undefined`\>
 
-Defined in: [src/lsp/lspClient.ts:425](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L425)
+Defined in: [src/lsp/lspClient.ts:435](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L435)
 
 Wait for a diagnostics notification for a URI (with timeout).
 

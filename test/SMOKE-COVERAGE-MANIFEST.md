@@ -333,6 +333,8 @@ routinely.
 
 > **Limitation:** LSP tools are server-side (LspClient connects to Godot's built-in LSP on port 6005). Bridge-level tests are not possible — the smoke test bridge connects directly to the Godot plugin. Group activation and guard tests validated by unit tests (undecies-quinquies).
 
+> **Endpoint resolution is unit-tested, not smoke-testable.** For the same reason, no smoke section can reach `resolveLspEndpoint` / `discoverLspEndpoint` / `getLspStatus` — the resolution verdict (`LSP_PORT_CONFLICT`, `LSP_UNAVAILABLE`, the dock `active`/`conflict`/`unavailable` state) is decided from the machine-wide registry *before* any socket opens, and the smoke bridge cannot influence that registry. §41 asserts only that resolution succeeds for the running editor. The verdict itself is covered by `test/unit/discoverLsp.test.ts` — the claimant-liveness policy (`classifyProbeOutcome` / `wsPortNotRefused`), the conflict and registry-miss paths, and the version-tailored hints, all against **real loopback listeners** so both halves of the predicate (pid-alive AND the entry's advertised WS port not refusing) are exercised for real. The end-to-end proof that the predicate *discriminates* — a dead editor's leftover entry must not contest the port, a genuinely-live rival still must — is the two-peer harness `npm run repro:lsp-conflict` (`test/integration/lsp-conflict-repro.ts`; documented in `test/integration/README.md`, deliberately not in CI).
+
 ### Debugger (4 tools — on-demand group)
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |

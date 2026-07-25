@@ -10,7 +10,7 @@
 import { createConnection, type Socket } from "node:net";
 
 import { discoverLspEndpoint, liveLspClaimants } from "../registry.js";
-import { getServerVersion, isVersionAtLeast, type GodotVer } from "../shared/version.js";
+import { getServerVersion, isVersionCompatible, type GodotVer } from "../shared/version.js";
 import { isValidPort } from "../startup/portConfig.js";
 import { normalizeUri } from "./lspUri.js";
 
@@ -27,10 +27,11 @@ const HEADER_SEPARATOR = "\r\n\r\n";
 // rootUri in initialize, so this fires only when we reached the WRONG editor.
 const ROOT_MISMATCH_SUBSTRING = "might not work correctly with other projects";
 
-// Conflict hint, tailored to the connected Godot version (set by index.ts via
-// setGodotVersionGetter). The recovery differs by version: 4.5+ auto-rebinds the
-// port when the other editor closes; 4.2-4.4 has no LSP bind retry, so it needs
-// distinct ports. Giving the LLM only the applicable path keeps the hint actionable.
+// Conflict hint, tailored to the connected Godot version (getter injected at
+// startup). The recovery differs by version, and the auto-rebind window is closed
+// at BOTH ends: only 4.5 retries the LSP bind, so only there does closing the other
+// editor recover the port. Every other supported version needs distinct ports or an
+// editor restart. Giving the LLM only the applicable path keeps the hint actionable.
 let godotVersionGetter: (() => GodotVer | undefined) | undefined = undefined;
 /** Inject the connected-version getter that tailors the conflict hint (startup wiring). @internal */
 export function setGodotVersionGetter(cb: () => GodotVer | undefined): void {
@@ -49,7 +50,12 @@ export function setLspOverride(override: { port?: string; host?: string }): void
 
 function lspConflictHint(): string {
   const v = godotVersionGetter?.();
-  if (v != null && isVersionAtLeast(v, "4.5")) {
+  // A closed window, not an open-ended floor: 4.5 re-runs start() every
+  // internal-process frame while the bind has not succeeded, so it takes the port
+  // as soon as the other editor frees it. 4.6 latched that behind a
+  // start_attempted flag set before the call, making the bind one-shot again.
+  // Bounds are inclusive and compared on major.minor, so every 4.5 patch qualifies.
+  if (v != null && isVersionCompatible(v, "4.5", "4.5")) {
     return (
       "Another editor holds this project's GDScript LSP port. Close the other editor — " +
       "this editor's LSP then rebinds the port automatically — or give each editor a " +
@@ -57,18 +63,21 @@ function lspConflictHint(): string {
     );
   }
   if (v != null) {
-    // 4.2-4.4: no LSP bind retry, so closing the other editor won't recover this one.
+    // No bind retry on this version — 4.2-4.4 never had one, and 4.6 onward latched
+    // it to a single attempt — so closing the other editor won't recover this one.
+    // The text is deliberately version-agnostic, which is why both ranges share it.
     return (
       "Another editor holds this project's GDScript LSP port. On this Godot version, give " +
       "each editor a distinct --lsp-port + GODOT_MCP_LSP_PORT (see the toolkit addon's addons/godot_mcp_toolkit/docs/multi-instance.md) — " +
       "closing the other editor won't recover this LSP without restarting this editor."
     );
   }
-  // Version unknown — cover both ranges.
+  // Version unknown — lead with the lever that works everywhere, and make the one
+  // positive version claim narrow enough to stay true.
   return (
     "Another editor holds this project's GDScript LSP port. Either give each editor a " +
     "distinct --lsp-port + GODOT_MCP_LSP_PORT (see the toolkit addon's addons/godot_mcp_toolkit/docs/multi-instance.md), or close the other " +
-    "editor (Godot 4.5+ rebinds automatically; 4.2-4.4 restart this editor after)."
+    "editor (only Godot 4.5 rebinds automatically; on every other version, restart this editor afterwards)."
   );
 }
 
@@ -106,7 +115,7 @@ export type LspEndpoint = { host: string; port: number };
  * discovery): the env var is re-read live on every connect, so a config reload
  * can rewrite it mid-session after the startup validation gate has passed.
  */
-export function resolveLspEndpoint(projectPath: string): LspEndpoint {
+export async function resolveLspEndpoint(projectPath: string): Promise<LspEndpoint> {
   const overridePort = lspCliOverride?.port ?? process.env.GODOT_MCP_LSP_PORT;
   if (overridePort) {
     if (isValidPort(overridePort)) {
@@ -118,7 +127,7 @@ export function resolveLspEndpoint(projectPath: string): LspEndpoint {
         `(expected an integer 1–65535); falling through to registry discovery\n`,
     );
   }
-  const disc = discoverLspEndpoint(projectPath);
+  const disc = await discoverLspEndpoint(projectPath);
   if (disc) {
     if ("conflict" in disc) {
       throw new LspResolutionError(
@@ -131,7 +140,7 @@ export function resolveLspEndpoint(projectPath: string): LspEndpoint {
     return disc;
   }
   // Registry miss — fall back to 6005 only when no live editor holds it.
-  if (liveLspClaimants(DEFAULT_LSP_PORT).length === 0) {
+  if ((await liveLspClaimants(DEFAULT_LSP_PORT)).length === 0) {
     return { host: "127.0.0.1", port: DEFAULT_LSP_PORT };
   }
   throw new LspResolutionError(
@@ -155,16 +164,17 @@ export type LspStatus = {
 };
 
 /**
- * The authoritative LSP verdict for a project, computed without opening a
- * connection (resolution + registry ownership only — reliable cross-platform
- * liveness via process.kill). The toolkit can't determine this itself (no engine
- * API for its own LSP bind status), so the server reports it to the editor dock
- * via editor.set_lsp_status. "active" = this editor owns the port (per registry /
- * env override); a later editor or a non-registry holder → conflict / unavailable.
+ * The authoritative LSP verdict for a project, computed without opening an LSP
+ * connection (resolution + registry ownership only — cross-platform PID liveness
+ * corroborated by a peer's own WS command port). The toolkit can't determine this
+ * itself (no engine API for its own LSP bind status), so the server reports it to
+ * the editor dock via editor.set_lsp_status. "active" = this editor owns the port
+ * (per registry / env override); a later editor or a non-registry holder →
+ * conflict / unavailable.
  */
-export function getLspStatus(projectPath: string): LspStatus {
+export async function getLspStatus(projectPath: string): Promise<LspStatus> {
   try {
-    const ep = resolveLspEndpoint(projectPath);
+    const ep = await resolveLspEndpoint(projectPath);
     return { state: "active", host: ep.host, port: ep.port, detail: "Owns the GDScript LSP port." };
   } catch (err) {
     if (err instanceof LspResolutionError) {
@@ -280,7 +290,7 @@ export class LspClient {
 
     // Resolve fresh each connect so a reconnect picks up a changed port/host.
     // Throws LspResolutionError on a conflict / ambiguous miss (no blind 6005).
-    const endpoint = resolveLspEndpoint(this.projectPath);
+    const endpoint = await resolveLspEndpoint(this.projectPath);
     this.host = endpoint.host;
     this.port = endpoint.port;
 

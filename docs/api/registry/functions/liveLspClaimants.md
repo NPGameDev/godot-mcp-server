@@ -6,14 +6,23 @@
 
 # Function: liveLspClaimants()
 
-> **liveLspClaimants**(`port`): `object`[]
+> **liveLspClaimants**(`port`): `Promise`\<`object`[]\>
 
-Defined in: [src/registry.ts:160](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L160)
+Defined in: [src/registry.ts:154](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L154)
 
-Every LIVE editor claiming a given LSP port. Matches entry.lsp_port and
-returns all claimants (not just the newest). Dead PIDs are filtered via
-process.kill(pid, 0) — reliable on Windows, unlike the toolkit's
-OS.is_process_running.
+Every editor still credibly claiming a given LSP port — all of them, not just
+the newest.
+
+A claimant counts only when it is **pid-alive AND the WS command port its own
+entry advertises does not refuse a connection**. The PID check comes first
+because it is free and settles the provably-dead entries; the port probe is what
+establishes *identity*, since the projection never prunes cross-project entries and
+they all default to the same engine LSP port — so a stale entry whose recorded
+PID has been recycled to any unrelated process would otherwise resurrect a
+closed editor as a rival claimant. An inconclusive probe leaves the claimant
+counted — `registryLiveness.classifyProbeOutcome` carries why that direction is
+the safe one. Probes run concurrently, so the added latency is one round trip,
+not one per candidate.
 
 ## Parameters
 
@@ -23,4 +32,4 @@ OS.is_process_running.
 
 ## Returns
 
-`object`[]
+`Promise`\<`object`[]\>

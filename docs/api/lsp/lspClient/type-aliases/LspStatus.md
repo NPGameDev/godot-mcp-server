@@ -8,7 +8,7 @@
 
 > **LspStatus** = `object`
 
-Defined in: [src/lsp/lspClient.ts:150](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L150)
+Defined in: [src/lsp/lspClient.ts:159](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L159)
 
 The dock-facing LSP verdict for a project: whether this editor owns the LSP
 port (`active`), a live peer holds it (`conflict`), or it is unreachable
@@ -20,7 +20,7 @@ port (`active`), a live peer holds it (`conflict`), or it is unreachable
 
 > **detail**: `string`
 
-Defined in: [src/lsp/lspClient.ts:154](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L154)
+Defined in: [src/lsp/lspClient.ts:163](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L163)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [src/lsp/lspClient.ts:154](https://github.com/NPGameDev/godot-mcp-se
 
 > **host**: `string`
 
-Defined in: [src/lsp/lspClient.ts:152](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L152)
+Defined in: [src/lsp/lspClient.ts:161](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L161)
 
 ***
 
@@ -36,7 +36,7 @@ Defined in: [src/lsp/lspClient.ts:152](https://github.com/NPGameDev/godot-mcp-se
 
 > **port**: `number`
 
-Defined in: [src/lsp/lspClient.ts:153](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L153)
+Defined in: [src/lsp/lspClient.ts:162](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L162)
 
 ***
 
@@ -44,4 +44,4 @@ Defined in: [src/lsp/lspClient.ts:153](https://github.com/NPGameDev/godot-mcp-se
 
 > **state**: `"active"` \| `"conflict"` \| `"unavailable"`
 
-Defined in: [src/lsp/lspClient.ts:151](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L151)
+Defined in: [src/lsp/lspClient.ts:160](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L160)

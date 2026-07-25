@@ -46,6 +46,7 @@
     "test:unit": "tsx test/unit/run-all.ts",
     "test:integration:dispatch": "tsx test/integration/dispatch/run.ts",
     "test:integration:portpin": "tsx test/integration/port-pin-probe.ts",
+    "repro:lsp-conflict": "tsx test/integration/lsp-conflict-repro.ts",
     "probe:screenshot": "tsx test/screenshot-window-probe.ts",
     "stress:dispatch": "tsx test/integration/dispatch-safety-stress.ts",
     "lint": "eslint src/ test/",
