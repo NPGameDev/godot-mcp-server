@@ -1,7 +1,7 @@
 {
   "name": "@npgamedev/godot-mcp-server",
   "version": "1.0.0",
-  "description": "TypeScript MCP server that bridges Claude Code to the Godot 4.x editor via the companion godot-mcp-toolkit plugin (localhost WebSocket on 127.0.0.1:6550).",
+  "description": "MCP server that connects AI coding assistants to the Godot 4.2+ editor (scenes, nodes, scripts, ClassDB, playtests) via the companion godot-mcp-toolkit plugin.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -29,7 +29,8 @@
   },
   "homepage": "https://github.com/NPGameDev/godot-mcp-server#readme",
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', { recursive: true, force: true }))\"",
+    "build": "npm run clean && tsc",
     "postbuild": "node scripts/add-shebang.mjs",
     "docs:api": "typedoc",
     "docs:tools": "tsx scripts/generate-tool-reference.ts",
@@ -62,9 +63,13 @@
     "mcp",
     "godot",
     "claude",
-    "model-context-protocol"
+    "model-context-protocol",
+    "ai",
+    "editor",
+    "plugin",
+    "gamedev"
   ],
-  "author": "NPGameDev",
+  "author": "NPGameDev <np@npgamedev.com> (https://npgamedev.com)",
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@sinonjs/fake-timers": "^15.4.0",

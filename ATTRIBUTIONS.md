@@ -2,12 +2,24 @@
 
 This repo's TypeScript source was independently written. No code from any reference
 repository has been copied verbatim or near-verbatim into `src/` or `test/`. The
-entries below cover (a) runtime library dependencies whose licenses ship with the
-installed package and (b) architectural references we studied while planning the
-stack.
+entries below cover (a) original artwork made for this project, (b) runtime
+library dependencies whose licenses ship with the installed package, and (c)
+architectural references we studied while planning the stack.
 
 If future iterations import or adapt code from any of the sources below, append a
-"Copied into: …" line with the file path(s) to keep this file accurate (per I10).
+"Copied into: …" line with the file path(s) to keep this file accurate.
+
+---
+
+## Artwork
+
+The project logo and hero banner were created by **Jessica Mariana Aisen** for the
+Godot MCP Toolkit.
+
+Commissioned for this project; the copyright is held by NPGameDev.
+
+The MIT licence covers the source code. It does not cover the project logo, banner
+or name, which are the project's brand identity and are not licensed for reuse.
 
 ---
 
@@ -119,8 +131,9 @@ loop concept (screenshot + vision analysis after code generation).
 ## Notes
 
 MIT only requires preserving notices for code that is directly copied or
-substantially reproduced. None of the above are copied into this repository —
-the entries document the architectural study we credit by courtesy. The
+substantially reproduced. No code from the repositories listed above was copied into
+this repository — those entries document the architectural study we credit by
+courtesy. The
 `@modelcontextprotocol/sdk` entry is the only one that represents a true runtime
 dependency; its license ships inside the installed npm package.
 

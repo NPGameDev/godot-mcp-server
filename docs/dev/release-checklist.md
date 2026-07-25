@@ -53,8 +53,9 @@ Verify the security model holds under deliberate probing. Full methodology:
 - [ ] **D1 — Path traversal.** `res://../../../etc/passwd` → FileGuard rejects, clear error.
 - [ ] **D2 — Absolute path.** `C:\Windows\System32\cmd.exe` → FileGuard rejects.
 - [ ] **D3 — `user://` without gate.** Rejected unless the tool is in the user-scope whitelist.
-- [ ] **D4 — Disabled feature gate.** Call a gated tool with its gate off → not in `tools/list`;
-      a direct call returns a clear error.
+- [ ] **D4 — Read-only mode.** Start the server with `GODOT_MCP_READ_ONLY=1`; a mutating tool
+      (e.g. `scene_create_node`) is absent from `tools/list`. It is never registered, so the MCP
+      layer rejects a direct call before the toolkit sees it.
 - [ ] **D5 — Invalid auth token.** Send a command with a wrong/expired token → rejected, no
       partial execution.
 - [ ] **D6 — Envelope injection.** File content containing `<untrusted-` tags → scrubbed before

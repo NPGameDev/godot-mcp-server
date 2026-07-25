@@ -1,3 +1,6 @@
+<!-- Brand banner, 1280×640, commissioned art; the image lives in the toolkit repo (docs/media/), absolute raw URL so it renders on npm. -->
+![Godot MCP Toolkit: an amber toolbox with a cream wrench and a blue gear, beside the wordmark "Godot · MCP · Toolkit" on a dark navy field](https://raw.githubusercontent.com/NPGameDev/godot-mcp-toolkit/main/docs/media/hero-banner.png)
+
 # Godot MCP Server
 
 [![CI](https://github.com/NPGameDev/godot-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/NPGameDev/godot-mcp-server/actions/workflows/ci.yml)
@@ -9,6 +12,8 @@ The npm bridge that connects AI coding assistants to the Godot 4.2+ editor over 
 > Runs fully locally. No telemetry, no cloud services, no account. Nothing leaves your machine.
 >
 > This is an independent community project, not affiliated with or endorsed by the Godot Foundation or Anthropic.
+>
+> Desktop only: Windows, macOS, and Linux. Requires Node.js 22 or newer.
 
 > 📐 **[Architecture →](docs/architecture/README.md)** covers how the server is built: the entrypoint and startup, the WebSocket bridge, the catalogue and dispatch pipeline, `discover_tools`, the GDScript LSP client, and the registry consumer. Also rendered at [npgamedev.github.io/godot-mcp-server/architecture](https://npgamedev.github.io/godot-mcp-server/architecture/).
 
@@ -364,6 +369,19 @@ latest of each and they negotiate compatibility at connect (see
 - **GitHub Releases:** download from either repo's Releases page for manual installation
 
 See [RELEASING.md](RELEASING.md) for maintainer release process and version policy.
+
+## Author
+
+**NPGameDev** · [npgamedev.com](https://npgamedev.com) · [GitHub](https://github.com/NPGameDev)
+
+For inquiries and requests: [np@npgamedev.com](mailto:np@npgamedev.com)
+
+## Trademarks
+
+Godot and the Godot logo are trademarks of the Godot Foundation. This bridge is
+an independent community project with no affiliation with or endorsement from the
+Foundation, and it is not an official Godot product. The name describes what the
+bridge connects to: the Godot Engine.
 
 ## License
 
