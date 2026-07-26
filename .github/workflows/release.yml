@@ -189,13 +189,11 @@ jobs:
           else
             npm publish
           fi
-        env:
-          # The job already grants id-token: write, so OIDC trusted publishing takes over
-          # the moment the trusted publisher is configured on npmjs.com — no workflow edit.
-          # NODE_AUTH_TOKEN stays until then: it is the only credential that authenticates
-          # a publish BEFORE the flip, and npm prefers OIDC over it once OIDC applies, so
-          # keeping both is safe. Drop this env block when the NPM_TOKEN secret is deleted.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # No NODE_AUTH_TOKEN: the registry authenticates this job through OIDC trusted
+        # publishing, minted from the id-token: write grant above. The package disallows
+        # token publishes entirely, so a long-lived secret would not work even if one
+        # existed — the trusted publisher is bound to this repository and this workflow
+        # file, which is why renaming or moving the file breaks publishing.
 
       - name: Create GitHub Release
         if: ${{ github.ref_type == 'tag' && inputs['dry-run'] != true }}
