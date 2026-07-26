@@ -140,7 +140,7 @@ default `PATH` with zero setup.
 
 ## Other clients
 
-<details>
+<details markdown="1">
 <summary><strong>Claude Desktop</strong></summary>
 
 *Status: documented, not yet verified.*
@@ -176,7 +176,7 @@ block, and make sure npm is installed globally.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><strong>Cursor</strong></summary>
 
 *Status: documented, not yet verified.*
@@ -206,7 +206,7 @@ fix; Cursor's official docs don't cover it).
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><strong>Windsurf</strong></summary>
 
 *Status: documented, not yet verified.*
@@ -232,7 +232,7 @@ groups only when the assistant asks for them.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><strong>VS Code (Copilot agent mode)</strong></summary>
 
 *Status: documented, not yet verified.*
@@ -261,7 +261,7 @@ a terminal. `env` accepts values plus `${workspaceFolder}` and prompted
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><strong>Cline</strong></summary>
 
 *Status: documented, not yet verified.*
@@ -286,7 +286,7 @@ panel, then **Configure MCP Servers**. The shape is the familiar
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><strong>Codex CLI</strong></summary>
 
 *Status: documented, not yet verified.*
@@ -315,7 +315,7 @@ can exceed it. Either install the package globally once
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><strong>Gemini CLI</strong></summary>
 
 *Status: documented, not yet verified.*
@@ -341,7 +341,7 @@ shell environment as `$VAR` or `${VAR}`.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><strong>Any other stdio client</strong></summary>
 
 *Status: documented, not yet verified.*

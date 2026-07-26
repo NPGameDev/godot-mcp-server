@@ -2,3 +2,6 @@ dist/
 node_modules/
 *.md
 docs/api/
+# Jekyll theme include fragments — Liquid-aware HTML plus a spliced object-literal
+# .js that is not standalone-parseable; prettier errors on them by design.
+docs/_includes/
