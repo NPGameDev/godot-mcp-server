@@ -42,13 +42,11 @@ permissions:
   contents: read
 
 jobs:
-  # D13: gate the release on the full cross-version behavioral matrix. secrets: inherit
-  # forwards CROSS_REPO_READ_TOKEN for the private sibling checkout (drop once public);
-  # the callee's own workflow-level SIBLING_PIN_* env resolves normally under
-  # workflow_call, and inputs.sibling-ref is empty when called -> the pin holds.
+  # D13: gate the release on the full cross-version behavioral matrix. The callee's
+  # own workflow-level SIBLING_PIN_* env resolves normally under workflow_call, and
+  # inputs.sibling-ref is empty when called -> the pin holds.
   behavioral:
     uses: ./.github/workflows/cross-version.yml
-    secrets: inherit
 
   publish:
     needs: behavioral
@@ -108,8 +106,7 @@ jobs:
           echo "sha=$PIN" >> "$GITHUB_OUTPUT"
 
       # Check out the pinned toolkit sibling to read its declared version. Mirrors
-      # the sibling-checkout idiom cross-version.yml uses (read-only PAT while
-      # private, github.token once public). Only on a real tag push.
+      # the sibling-checkout idiom cross-version.yml uses. Only on a real tag push.
       - name: Check out the pinned toolkit sibling
         if: github.ref_type == 'tag'
         uses: actions/checkout@v7
@@ -117,7 +114,7 @@ jobs:
           repository: NPGameDev/godot-mcp-toolkit
           path: toolkit-pin
           ref: ${{ steps.pin.outputs.sha }}
-          token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       # The pinned toolkit sibling's DECLARED version must equal the tag — makes
       # the bump-before-tag pin ritual machine-checked (a stale pin = green tests
