@@ -37,7 +37,7 @@ concurrency:
   cancel-in-progress: false
 
 # D7: least privilege at the top; the publish job re-grants contents: write for the GH
-# Release upload. id-token: write is reserved for the 42b OIDC-trusted-publishing flip.
+# Release upload and id-token: write for npm OIDC trusted publishing.
 permissions:
   contents: read
 
@@ -51,10 +51,13 @@ jobs:
   publish:
     needs: behavioral
     runs-on: ubuntu-latest
-    # D7: re-grant write for the GH Release. TODO(42b): add `id-token: write` here for
-    # npm OIDC trusted publishing (needs npm >= 11.5.1 -> the Node 24 setup below).
+    # D7: re-grant write for the GH Release. id-token: write is what npm OIDC trusted
+    # publishing mints its short-lived credential from (needs npm >= 11.5.1 -> the Node 24
+    # setup below); granted here so enabling the trusted publisher is a npmjs.com settings
+    # change, not a workflow edit.
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v7
 
@@ -187,10 +190,11 @@ jobs:
             npm publish
           fi
         env:
-          # TODO(42b): replace NPM_TOKEN with npm OIDC trusted publishing (--provenance,
-          # id-token: write). The stored classic NPM_TOKEN is likely already dead (classic
-          # tokens revoked 2025-12-09) — irrelevant here because dry-run skips publish;
-          # exactly why the dry-run path earns its keep.
+          # The job already grants id-token: write, so OIDC trusted publishing takes over
+          # the moment the trusted publisher is configured on npmjs.com — no workflow edit.
+          # NODE_AUTH_TOKEN stays until then: it is the only credential that authenticates
+          # a publish BEFORE the flip, and npm prefers OIDC over it once OIDC applies, so
+          # keeping both is safe. Drop this env block when the NPM_TOKEN secret is deleted.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
@@ -198,3 +202,56 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+
+  # Prove the PUBLISHED tarball runs — fetched from the registry, in a clean job with no
+  # checkout and no build, which is the only thing that catches a packaging fault the
+  # source-built gates cannot see (missing bin, absent dist/, bad shebang, files[] hole).
+  #
+  # Deliberately a SEPARATE job downstream of publish rather than more steps inside it: the
+  # gated matrix and the publish itself must never depend on npm read availability. If the
+  # registry is slow or down, this job is what goes red — after the release already landed.
+  live-package:
+    needs: publish
+    # Same gate as the publish step it verifies: real tag pushes only, never a dry-run
+    # (a dry-run publishes nothing, so there would be nothing to fetch).
+    if: ${{ github.ref_type == 'tag' && inputs['dry-run'] != true }}
+    runs-on: ubuntu-latest
+    # D7: no write scope anywhere — this job only reads the registry. contents: read (the
+    # workflow default) rather than {} because setup-node authenticates its version-manifest
+    # fetch with github.token when the requested Node is not already in the runner cache.
+    permissions:
+      contents: read
+    steps:
+      # No `cache: npm` — there is no checkout, so there is no lockfile to key a cache on.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      - name: Smoke the published package
+        run: |
+          PKG="@npgamedev/godot-mcp-server"
+          # Derived from the tag, never hardcoded — the publish job has already proven the
+          # tag equals package.json's version, so this is the version that just shipped.
+          VER="${GITHUB_REF#refs/tags/v}"
+          echo "Verifying $PKG@$VER"
+
+          # A publish is visible to the registry's read path seconds to minutes after it
+          # succeeds, so resolve with a bounded retry before calling it a failure.
+          for attempt in 1 2 3 4 5; do
+            if npm view "$PKG@$VER" version; then
+              echo "Resolved $PKG@$VER on the registry (attempt $attempt)."
+              break
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo "::error::$PKG@$VER never resolved on the registry after $attempt attempts."
+              exit 1
+            fi
+            echo "Not published to the read path yet — retrying in 30s (attempt $attempt)."
+            sleep 30
+          done
+
+          # Exercise the installed bin through the meta flags, which exit 0 without needing
+          # an editor, a project, or a stdio MCP peer.
+          npx --yes "$PKG@$VER" --tools-count
+          npx --yes "$PKG@$VER" --help

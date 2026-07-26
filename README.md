@@ -4,7 +4,7 @@
 # Godot MCP Server
 
 [![CI](https://github.com/NPGameDev/godot-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/NPGameDev/godot-mcp-server/actions/workflows/ci.yml)
-![version](https://img.shields.io/badge/version-1.0.0-blue)
+[![npm](https://img.shields.io/npm/v/@npgamedev/godot-mcp-server)](https://www.npmjs.com/package/@npgamedev/godot-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 The npm bridge that connects AI coding assistants to the Godot 4.2+ editor over the [Model Context Protocol](https://modelcontextprotocol.io). Your assistant can create scenes, edit scripts, inspect nodes, run playtests, and read the results back, directly inside the editor while you watch. It pairs with the [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) editor plugin, which hosts the WebSocket servers this bridge talks to.
