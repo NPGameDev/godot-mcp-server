@@ -27,8 +27,10 @@ real users. Full methodology: `Plan/ExecutionPlan/41o-stability-sanity-check.md`
       reconnects via backoff; no stale-token errors; tool list refreshes.
 - [ ] **B4 — Editor unfocused during connection.** Connect, minimize/unfocus the editor 30 s,
       re-focus. Connection alive, commands still work, no timeout (unfocused-throttle fix).
-- [ ] **B5 — Multiple server attempts.** Start a second server against the same editor. Second
-      gets a clear error (port-in-use or auth reject); the first connection is unaffected.
+- [ ] **B5 — Concurrent second server.** Start a second server against the same editor. Both
+      connect and round-trip — concurrent clients are designed-in (the bridge dials the editor,
+      it binds no local port, and the toolkit serializes mutations across peers). Verify the
+      first connection is unaffected while the second is active.
 - [ ] **B6 — Plugin disable while connected.** Disable the plugin with a live connection.
       Server disconnects cleanly; plugin tears down without crash; re-enable restores it.
 - [ ] **B7 — Editor close while connected.** Close the editor with a live connection. Server
