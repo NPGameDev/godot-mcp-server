@@ -270,25 +270,41 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   const fileLogBusy = consoleFileResult?.success === false && consoleFileResult.code === "LOG_BUSY";
   const fileLogUnavailable = consoleFileResult?.success === false && consoleFileResult.code === "LOG_UNAVAILABLE";
 
-  // The LOG_BUSY / LOG_UNAVAILABLE payloads carry a version-gated recovery `hint` (toolkit SSOT,
-  // MCPToolkitError.log_*_hint): the buffer-steer (`source="buffer"`) is present IFF the editor is
-  // 4.5+ — only there is the in-memory Logger API a real, file-independent fallback; on 4.2-4.4 the
-  // buffer tails the same file, so the hint omits it and says retry / enable file logging. Assert on
-  // the `hint` FIELD specifically: the `error` message and the `headless_hint` both mention "buffer"
-  // on every version, so only `hint` cleanly discriminates the version gate. Uses stable substrings
-  // ("could not be read" common to both codes; buffer-steer presence/absence) rather than the
-  // verbatim string, so wording tweaks don't make this brittle.
-  const assertLogRecoveryHint = (label: string): void => {
+  // Both LOG_BUSY and LOG_UNAVAILABLE carry a version-gated recovery `hint` (toolkit SSOT,
+  // MCPToolkitError.log_*_hint), but the two codes anchor on DIFFERENT text, so the assertion takes
+  // the code explicitly instead of inferring one rule for both:
+  //   - LOG_BUSY — a log exists, something holds it. On 4.5+ the in-memory Logger API is a genuine
+  //     file-independent escape, so the hint STEERS to it (`Use source="buffer"`). On 4.2-4.4 the
+  //     buffer tails the same locked file, so the hint names buffer only to rule it out ("won't
+  //     bypass the lock"). Buffer appears on every version here — steer vs anti-steer is the gate.
+  //   - LOG_UNAVAILABLE — no readable log at all: the hint says "could not be read" plus the
+  //     enable-file-logging fix, and offers `source="buffer"` IFF 4.5+ (on 4.2-4.4 the buffer needs
+  //     the same file, so buffer is absent entirely).
+  // Assert on the `hint` FIELD specifically: the `error` message and the `headless_hint` both mention
+  // "buffer" on every version, so only `hint` cleanly discriminates the version gate. Uses stable
+  // substrings rather than the verbatim strings, so wording tweaks don't make this brittle.
+  const assertLogRecoveryHint = (label: string, code: "LOG_BUSY" | "LOG_UNAVAILABLE"): void => {
     const hint = consoleFileResult.hint;
-    if (typeof hint !== "string" || !hint.includes("could not be read"))
-      fail(`${label}: expected a recovery hint containing "could not be read", got hint=${JSON.stringify(hint)}`);
-    else if (is45Plus && !hint.includes('source="buffer"'))
-      fail(`${label}: 4.5+ recovery hint must steer to source="buffer", got hint=${JSON.stringify(hint)}`);
-    else if (!is45Plus && hint.includes("buffer"))
-      fail(
-        `${label}: 4.2-4.4 recovery hint must NOT mention buffer (it tails the same file), got hint=${JSON.stringify(hint)}`,
-      );
-    else pass(`${label} + version-appropriate hint (buffer-steer ${is45Plus ? "present, 4.5+" : "absent, 4.2-4.4"})`);
+    if (code === "LOG_BUSY") {
+      if (typeof hint !== "string") fail(`${label}: expected a recovery hint string, got hint=${JSON.stringify(hint)}`);
+      else if (is45Plus && !hint.includes('Use source="buffer"'))
+        fail(`${label}: 4.5+ LOG_BUSY hint must steer to source="buffer", got hint=${JSON.stringify(hint)}`);
+      else if (!is45Plus && !hint.includes("won't bypass"))
+        fail(
+          `${label}: 4.2-4.4 LOG_BUSY hint must rule the buffer out ("won't bypass"), got hint=${JSON.stringify(hint)}`,
+        );
+      else pass(`${label} + version-appropriate hint (buffer ${is45Plus ? "steer, 4.5+" : "anti-steer, 4.2-4.4"})`);
+    } else {
+      if (typeof hint !== "string" || !hint.includes("could not be read"))
+        fail(`${label}: expected a recovery hint containing "could not be read", got hint=${JSON.stringify(hint)}`);
+      else if (is45Plus && !hint.includes('source="buffer"'))
+        fail(`${label}: 4.5+ recovery hint must steer to source="buffer", got hint=${JSON.stringify(hint)}`);
+      else if (!is45Plus && hint.includes("buffer"))
+        fail(
+          `${label}: 4.2-4.4 recovery hint must NOT mention buffer (it tails the same file), got hint=${JSON.stringify(hint)}`,
+        );
+      else pass(`${label} + version-appropriate hint (buffer-steer ${is45Plus ? "present, 4.5+" : "absent, 4.2-4.4"})`);
+    }
   };
 
   if (fileLogBusy && isPosix) {
@@ -310,7 +326,7 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     else if (fileLogBusy)
       // Windows only (POSIX handled above): an external read-denying holder (antivirus / file-sync /
       // backup) — environmental, not the engine. Tolerate, but assert the version-gated hint.
-      assertLogRecoveryHint(`editor.get_console source=file (--log-file) -> LOG_BUSY (external holder)`);
+      assertLogRecoveryHint(`editor.get_console source=file (--log-file) -> LOG_BUSY (external holder)`, "LOG_BUSY");
     else
       fail(
         `editor.get_console source=file with --log-file: expected entries (deny-nothing read of the present log), got ${JSON.stringify({ success: consoleFileResult?.success, code: consoleFileResult?.code, log_file: consoleFileResult?.log_file })} — LOG_UNAVAILABLE here means --log-file is misaligned with the reader's user://logs/ path`,
@@ -322,11 +338,11 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
     );
   } else if (fileLogBusy) {
     // Windows only: an external read-denying holder is present. Tolerate + assert the gated hint.
-    assertLogRecoveryHint(`editor.get_console source=file -> LOG_BUSY (external holder present)`);
+    assertLogRecoveryHint(`editor.get_console source=file -> LOG_BUSY (external holder present)`, "LOG_BUSY");
   } else if (fileLogUnavailable) {
     // No log present — the deterministic no-log response. Assert the version-gated recovery `hint`
     // (buffer-steer IFF 4.5+), plus (headless) the separate headless_hint steering to source="buffer".
-    assertLogRecoveryHint(`editor.get_console source=file -> LOG_UNAVAILABLE (no log present)`);
+    assertLogRecoveryHint(`editor.get_console source=file -> LOG_UNAVAILABLE (no log present)`, "LOG_UNAVAILABLE");
     if (headless) {
       if (
         typeof consoleFileResult.headless_hint === "string" &&
