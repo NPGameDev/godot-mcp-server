@@ -161,7 +161,9 @@ async function main(): Promise<void> {
       try {
         const n = await c.init();
         const rt = await c.editorRoundTrip();
-        log(`B1 cycle ${i}: connected (${n} tools), round-trip ${rt.ok ? "OK" : "FAIL — " + rt.detail} in ${Date.now() - t0}ms`);
+        log(
+          `B1 cycle ${i}: connected (${n} tools), round-trip ${rt.ok ? "OK" : "FAIL — " + rt.detail} in ${Date.now() - t0}ms`,
+        );
         if (!rt.ok) fails++;
       } catch (e) {
         fails++;

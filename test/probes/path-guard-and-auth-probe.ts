@@ -301,7 +301,9 @@ async function main(): Promise<void> {
   report(
     !leaked,
     "D5c no partial execution (node absent from scene tree)",
-    leaked ? `LEAKED: ${MUTATION_NODE} found in the tree` : `${MUTATION_NODE} absent; tree length=${treeText.length} chars`,
+    leaked
+      ? `LEAKED: ${MUTATION_NODE} found in the tree`
+      : `${MUTATION_NODE} absent; tree length=${treeText.length} chars`,
   );
   verify.close();
 
