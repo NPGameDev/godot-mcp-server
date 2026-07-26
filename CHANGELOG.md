@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-26
+
 Nothing has been released yet; every change below ships in the first tagged
 release.
 
@@ -109,7 +111,7 @@ These are pre-1.0 clean breaks with no aliases or deprecation shims. Update any
   management) are available immediately on connect.
 - Schemas were tightened across several tools: `wait_for_runtime` defaults to
   true, animation `track_type` is a fixed enum, and node-group inputs are stricter.
-- Raised the minimum supported Godot version ceiling to 4.7.
+- Raised the supported Godot version ceiling to 4.7.
 - Simplified the macOS setup guidance: the standard `npx` invocation works with
   modern clients, and fallbacks are documented only where they are actually needed.
 - Error hints no longer mention retired concepts (feature gates, profiles, or
