@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The server no longer outlives its MCP client while spinning a CPU core at 100%.
+  When the client exited without sending a signal, the first write to the
+  now-broken stdio pipe raised `EPIPE`, and the `uncaughtException` handler
+  reported that failure to the very stderr that had raised it, re-entering itself
+  in a loop. The loop kept the event loop permanently busy, which also meant
+  `SIGTERM` was never serviced, so the orphaned process could only be killed with
+  `SIGKILL`. Broken pipes are now recognized on `process.stdout` and
+  `process.stderr` and inside both crash handlers, and they end the process with
+  exit code 0. The server also shuts down explicitly on stdin `end` or `close`
+  instead of relying on the event loop draining by itself. A stray rejection or a
+  non-pipe exception still leaves the bridge running, unchanged.
+  ([#2](https://github.com/NPGameDev/godot-mcp-server/issues/2))
+
 ## [1.0.0] - 2026-07-26
 
 Nothing has been released yet; every change below ships in the first tagged
