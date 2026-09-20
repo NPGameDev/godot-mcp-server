@@ -6,6 +6,6 @@
 
 # Type Alias: VersionSeverity
 
-> **VersionSeverity** = `"ok"` \| `"minor"` \| `"major"` \| `"unknown"`
+> **VersionSeverity** = `"ok"` \| `"patch"` \| `"minor"` \| `"major"` \| `"unknown"`
 
 Defined in: [src/shared/version.ts:72](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L72)
