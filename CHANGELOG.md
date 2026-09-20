@@ -30,10 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that drives a built server through the client-departure scenarios, with or without an
   editor; part of the release checklist (§1 B9).
 
+### Changed
+
+- The connect-time version check no longer warns when the server and the toolkit differ
+  only by a patch version. A minor-version difference still warns; a major-version
+  difference still errors.
+
 ## [1.0.0] - 2026-07-26
 
-Nothing has been released yet; every change below ships in the first tagged
-release.
+The first public release of the Godot MCP Server.
 
 ### Breaking Changes
 

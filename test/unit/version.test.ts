@@ -24,9 +24,9 @@ assert.equal(compareVersions("1.0.0", "1.1.0"), "minor");
 assert.equal(compareVersions("1.2.0", "1.0.0"), "minor");
 assert.equal(compareVersions("2.0.0", "2.5.3"), "minor");
 
-// Patch mismatch (same major+minor, different patch)
-assert.equal(compareVersions("1.0.0", "1.0.1"), "minor");
-assert.equal(compareVersions("1.0.5", "1.0.0"), "minor");
+// Patch mismatch (same major+minor, different patch) — compatible, not a mismatch
+assert.equal(compareVersions("1.0.0", "1.0.1"), "patch");
+assert.equal(compareVersions("1.0.5", "1.0.0"), "patch");
 
 // Major mismatch
 assert.equal(compareVersions("1.0.0", "2.0.0"), "major");

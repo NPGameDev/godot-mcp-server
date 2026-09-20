@@ -185,6 +185,9 @@ export function createChannel(
       if (!skipVersionCheck) {
         const serverVer = getServerVersion();
         const severity = compareVersions(serverVer, authResp.toolkitVersion);
+        // "patch" deliberately matches no branch below. Compatibility floors are declared at
+        // major.minor (ADR 0024), so a patch difference is compatible by construction and stays
+        // silent by fall-through — the omission is the behaviour, not an oversight.
         if (severity === "major") {
           process.stderr.write(
             `[bridge] ERROR: major version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Update both to the same major version.\n`,

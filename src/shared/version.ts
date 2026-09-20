@@ -69,16 +69,21 @@ export function isVersionCompatible(connected: GodotVer, min?: string, max?: str
 
 // ── Version comparison ──────────────────────────────────────────────
 
-export type VersionSeverity = "ok" | "minor" | "major" | "unknown";
+export type VersionSeverity = "ok" | "patch" | "minor" | "major" | "unknown";
 
 /**
  * Compare two semver version strings.
  *
  * Returns:
  *   "ok"      — versions match (all components equal)
- *   "minor"   — same major, different minor or patch
+ *   "patch"   — same major+minor, different patch
+ *   "minor"   — same major, different minor
  *   "major"   — different major version
  *   "unknown" — remote is undefined/empty (pre-handshake peer)
+ *
+ * A patch difference is its own severity because compatibility floors are declared
+ * at major.minor (ADR 0024) — the patch segment carries no compatibility meaning, so
+ * a patch-level difference between the two halves is not something to warn about.
  */
 export function compareVersions(local: string, remote: string | undefined): VersionSeverity {
   if (remote == null || remote === "") return "unknown";
@@ -89,6 +94,7 @@ export function compareVersions(local: string, remote: string | undefined): Vers
     return "unknown";
   }
   if (localParts[0] !== remoteParts[0]) return "major";
-  if (localParts[1] !== remoteParts[1] || localParts[2] !== remoteParts[2]) return "minor";
+  if (localParts[1] !== remoteParts[1]) return "minor";
+  if (localParts[2] !== remoteParts[2]) return "patch";
   return "ok";
 }

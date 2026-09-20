@@ -29,6 +29,7 @@ import type { AddressInfo } from "node:net";
 import FakeTimers from "@sinonjs/fake-timers";
 import { captureStderr } from "./helpers.js";
 import { BridgeError } from "../../src/shared/errors.js";
+import { getServerVersion } from "../../src/shared/version.js";
 
 // Set up a fake token file before importing createChannel so performAuth's
 // readToken short-circuits to it (GODOT_MCP_TOKEN_PATH). The runner isolates
@@ -67,7 +68,11 @@ function makeMockServer(
     const wss = new WebSocketServer({ port: 0, host: "127.0.0.1" });
     const sockets = new Set<WS>();
     const received: ReceivedMsg[] = [];
-    const ack = authAck ?? { authed: true, godot_version: "4.5", version: "1.0.0" };
+    // The default ack echoes the server's own version, as test/helpers.ts's mock does: a
+    // hardcoded version is silent only while it happens to match, and becomes a live skew
+    // the moment package.json bumps — at which point every channel test starts emitting the
+    // compat warning on stderr.
+    const ack = authAck ?? { authed: true, godot_version: "4.5", version: getServerVersion() };
     let auths = 0;
     wss.on("listening", () => {
       resolve({
@@ -662,6 +667,59 @@ async function testExecutingTimeoutKeepsGenericShape() {
   }
 }
 
+// ── 12. a patch-level skew is silent; a minor skew still warns ────────
+
+async function testPatchSkewIsSilent() {
+  // Compatibility floors are declared at major.minor (ADR 0024), so a patch difference
+  // between the two halves carries no compatibility meaning and must not warn; a minor
+  // difference still must. Both skews are DERIVED from the server's own version — a
+  // hardcoded literal becomes the server's own version at the next bump, degrading the
+  // case into a vacuous "same version is silent".
+  const serverVer = getServerVersion();
+  const [major, minor, patch] = serverVer.split(".").map(Number);
+  const patchSkew = `${major}.${minor}.${patch + 1}`;
+  const minorSkew = `${major}.${minor + 1}.${patch}`;
+  const WARN = "version mismatch";
+
+  // 12a — a toolkit one patch ahead produces no warning at all.
+  {
+    const ack = { authed: true, godot_version: "4.5", version: patchSkew };
+    const server = await makeMockServer((sock, msg) => respond(sock, msg.id, { ok: true }), ack);
+    const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined);
+    const cap = captureStderr();
+    try {
+      await ch.call("warmup", {}, 5000);
+      assert.ok(
+        !cap.output().includes(WARN),
+        `a patch-level skew (server ${serverVer}, toolkit ${patchSkew}) is silent`,
+      );
+    } finally {
+      cap.restore();
+      await ch.close();
+      await server.close();
+    }
+  }
+
+  // 12b — a toolkit one minor ahead still warns, naming both versions.
+  {
+    const ack = { authed: true, godot_version: "4.5", version: minorSkew };
+    const server = await makeMockServer((sock, msg) => respond(sock, msg.id, { ok: true }), ack);
+    const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined);
+    const cap = captureStderr();
+    try {
+      await ch.call("warmup", {}, 5000);
+      const out = cap.output();
+      assert.ok(out.includes(WARN), `a minor-level skew (server ${serverVer}, toolkit ${minorSkew}) still warns`);
+      assert.ok(out.includes(serverVer) && out.includes(minorSkew), "the warning names both versions");
+    } finally {
+      cap.restore();
+      await ch.close();
+      await server.close();
+    }
+  }
+  console.log("  PASS: a patch-level version skew is silent; a minor skew still warns");
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -677,7 +735,8 @@ async function main() {
   await testSkipVersionCheckSuppressesWarning();
   await testQueuedTimeoutMarksSerialized();
   await testExecutingTimeoutKeepsGenericShape();
-  console.log("All 11 channel tests passed.");
+  await testPatchSkewIsSilent();
+  console.log("All 12 channel tests passed.");
 }
 
 main()
