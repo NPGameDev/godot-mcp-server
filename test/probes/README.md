@@ -30,6 +30,7 @@ exact assertions and how to invoke it.
 | `path-guard-and-auth-probe.ts` | §2 D2, D3, D5 | The filesystem guard and auth layer as the *plugin* sees them: an absolute OS path, a `user://` path on a tool that does not allow it, and an invalid session token. Talks the raw WebSocket wire so no server-side response shaping is in the way. |
 | `read-only-surface-probe.ts` | §2 D4 | Read-only mode really removes the mutating surface: spawns the built server twice, once with `GODOT_MCP_READ_ONLY=1`, diffs both `tools/list` responses, and confirms a direct call to an unregistered mutating tool is rejected before the toolkit sees it. |
 | `oversize-request-probe.ts` | §2 D5c, D7 | An oversized inbound request is handled gracefully and the editor survives it, plus the positive control that keeps the "no leaked node" assertion in `path-guard-and-auth-probe.ts` from passing vacuously. |
+| `client-departure-probe.ts` | §1 B9 | The server ends when its client does: stdin EOF, a dead stdout, SIGTERM (POSIX) each exit 0 within the shutdown bound, with an editor connected (S2) and without; a dead stderr is muted and the server keeps answering initialize/tools/list. Node-only; touches only its own child's pipes. |
 
 ## Diagnostic probes
 

@@ -9,6 +9,8 @@
 **Flow suite:** 4 deterministic cross-tool flows (`npm run flows`) — see the "Flow Suite" section at the end of this file
 **Static structural layer:** `test/structural.ts` (the editor-free half of `npm run smoke:ci`) — asserts tool-name/param-schema/group-membership integrity plus catalogue-wide invariants: tool coverage cross-ref (Check 2), reachability (every tool eager or in an on-demand group), successHint canary (Check 5), `enabled`-optionality parity (Check 7), and the scene_query `offset` pagination param (Check 8). Not tied to any single section — it guards the whole catalogue.
 
+**Process-lifecycle contract:** `test/unit/lifecycle.test.ts` (`npm run test:unit`) — guards the departure shutdown in `src/startup/lifecycle.ts`: stdin EOF, a dead stdout and SIGTERM each close the bridge once and exit 0 inside the deadline (even when `bridge.close()` hangs), a dead stderr is muted and the server keeps serving, and a stray `EPIPE`-coded throw never ends the process (the #2 regression guard). Not a tool row — it covers how the process ends, which no smoke section can observe.
+
 **Generated-doc determinism (advisory, doc-milestone — NOT in `smoke:ci`):** the tool-reference (`docs/tool-reference/README.md`) is committed generated Markdown. `npm run docs:tools:check` rebuilds it in memory (preserving the `<!-- examples:start/end -->` islands) and compares against the on-disk bytes — PASS/exit 0 if up to date, DRIFT/nonzero if stale — the prettier-`--check` pattern, no write/git side effects. Kept out of the I/O-free `smoke:ci` static gate by design (advisory posture, matching the server's `check:arch` freshness check); run it at doc milestones or before a release. Regenerate + commit with `npm run docs:tools` when it reports DRIFT.
 
 ---

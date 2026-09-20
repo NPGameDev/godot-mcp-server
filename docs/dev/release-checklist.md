@@ -13,7 +13,7 @@ self-contained. Most sections need a Godot editor running with the toolkit plugi
 
 ---
 
-## 1. Connection stability (B1–B8) — BLOCKING
+## 1. Connection stability (B1–B9) — BLOCKING
 
 Transport-layer behavior under adverse conditions — the failure modes most likely to frustrate
 real users. Full methodology: `Plan/ExecutionPlan/41o-stability-sanity-check.md` → Part B
@@ -40,6 +40,11 @@ real users. Full methodology: `Plan/ExecutionPlan/41o-stability-sanity-check.md`
       drop promptly (no indefinite hang); the client gets a clear "editor disconnected" error
       (not a raw socket error); on restart the project state is consistent (no half-created
       nodes).
+- [ ] **B9 — Client departure.** `npm run probe:departure` (with the editor running so S2 is not
+      skipped). Every scenario PASS: the server exits 0 within the shutdown bound when its stdin
+      ends or its stdout dies, keeps serving when only stderr dies, and never spins. Then end the
+      MCP client hard (Task Manager / `kill -9`) with a live session: no server process remains
+      after 5 s (regression guard for #2).
 
 ---
 
