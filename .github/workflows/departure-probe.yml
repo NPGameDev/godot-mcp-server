@@ -1,0 +1,102 @@
+name: Departure probe (packaged build)
+
+# Issue #2: the server outlived its MCP client — when the client died without a signal,
+# the server never exited and spun a core at 100%. The fix (1.0.1) makes the server exit
+# on stdin EOF, on an unwritable stdout, and on SIGTERM, while a dead stderr only mutes
+# diagnostics. `test/unit/lifecycle.test.ts` proves the handlers in isolation and the
+# floor runs it on every push; this workflow proves the same behaviour in the shape a
+# user actually receives — the PACKED TARBALL, installed like an npm dependency and run
+# as a real child process with real pipes.
+#
+# WHY A SEPARATE WORKFLOW, not a floor job: the floor gates every push and must stay
+# fast. This spawns and kills server processes across six runner images and is wanted at
+# release time and on demand, not on every commit. Kept dispatchable rather than wired
+# into release.yml — promoting it to a release gate is a deliberate decision, not a side
+# effect of adding it here.
+#
+# WHAT A GREEN RUN DOES *NOT* COVER — read before treating this as macOS validation:
+#   * S2 (an editor connected over the WebSocket) — no Godot on these runners, so the
+#     `darwin` branch of registry.ts (~/Library/Application Support/...) is never taken.
+#   * The GUI-launch path (Finder/Dock on macOS, per the toolkit release checklist §3).
+#     A runner launches everything from a shell with a full PATH, which is exactly the
+#     condition a GUI launch does NOT have — so this workflow would go green on the one
+#     question it cannot see. That check stays a human one, on a real desktop.
+#   * A real MCP client killed hard (Claude Code in Task Manager / `kill -9`).
+# Those three live in the release plan's per-platform validation items, not here.
+
+on:
+  workflow_dispatch:
+  # Branch-scoped self-trigger: a workflow_dispatch entry only appears once the file is
+  # on the default branch, so a CI change could not otherwise be run before it merges.
+  # Pushing to ci/** exercises it on the branch, which is how this one was validated.
+  push:
+    branches: ["ci/**"]
+
+# Least privilege, matching the floor: nothing here writes to the repo.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    strategy:
+      # Every OS reports: a failure on one platform must not hide the other two, since
+      # the whole point is the per-platform pipe and signal semantics.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Same pair as the floor: 22 (Active LTS) and 24 (Current). Pipe teardown and
+        # EOF delivery are libuv behaviour, so the Node version is a real axis here.
+        node-version: [22.x, 24.x]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    name: "Departure probe (${{ matrix.os }} · Node ${{ matrix.node-version }})"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (TypeScript)
+        run: npm run build
+
+      # Packing from the checkout root, as pack-install does. The tarball is what npm
+      # would publish, so everything below runs against published-shaped bytes rather
+      # than the working tree — the `files` filter and a stale dist/ are both in scope.
+      - name: Pack the release candidate
+        shell: bash
+        run: npm pack
+
+      - name: List the tarball contents
+        shell: bash
+        run: tar -tzf ./*.tgz | sort
+
+      # Installed into a prefix, the way a user's dependency tree resolves it, rather
+      # than run out of dist/ in place.
+      - name: Install the packed tarball
+        shell: bash
+        run: npm install --prefix ./probe-pkg ./*.tgz
+
+      # Sanity that the installed entrypoint is whole before the probe leans on it, and
+      # it prints the startup-surface figure the probe's tools/list count is read against.
+      - name: Run the installed entrypoint (--tools-count)
+        shell: bash
+        run: node ./probe-pkg/node_modules/@npgamedev/godot-mcp-server/dist/index.js --tools-count
+
+      # The probe spawns the installed server as its own child and tears down that
+      # child's pipes; it touches no other process. Exit 1 = a scenario FAILed, exit 3 =
+      # the harness itself broke, so the step's exit code is the gate.
+      #   S1 full departure · S3 dead stderr keeps serving · S4 dead stdout
+      #   S5 SIGTERM — a real scenario on ubuntu/macos, skipped on windows (no POSIX signals)
+      #   S2 skipped here: it needs a live Godot editor (see the header).
+      - name: Departure scenarios against the packed build
+        shell: bash
+        run: npm run probe:departure -- --server ./probe-pkg/node_modules/@npgamedev/godot-mcp-server/dist/index.js --no-editor
