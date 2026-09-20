@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-21
+
 ### Fixed
 
 - The server no longer outlives its MCP client, and no longer spins a CPU core at 100%
