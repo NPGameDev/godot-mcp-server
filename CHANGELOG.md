@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The connect-time version check no longer warns when the server and the toolkit differ
   only by a patch version. A minor-version difference still warns; a major-version
   difference still errors.
+- Refreshed five transitive dependencies of `@modelcontextprotocol/sdk` —
+  `brace-expansion`, `fast-uri`, `hono`, `ip-address` and `qs` — to versions without open
+  npm advisories. None of the advisories were reachable from this server: they concern the
+  SDK's HTTP-server surface, which a stdio-only bridge never instantiates. Nothing about
+  the server's behaviour changes; this is dependency hygiene, not a security fix.
 
 ## [1.0.0] - 2026-07-26
 
