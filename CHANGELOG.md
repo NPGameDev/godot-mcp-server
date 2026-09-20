@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The server no longer outlives its MCP client, and no longer spins a CPU core at 100%
+  when the client exits without a signal (a crash, a closed terminal, a hard kill).
+  Before, the first stderr write after the client's pipes closed raised `EPIPE`, the
+  crash handler reported that failure to the same dead stderr, and the process
+  re-entered that handler forever; with an editor connected the orphan idled until the
+  editor closed, then spun. The server now shuts down when its stdin ends or its stdout
+  becomes unwritable (closing the editor connection politely, bounded to 2 s), treats a
+  dead stderr as a lost log sink rather than a reason to exit, and never exits from its
+  crash handlers. Reported and first fixed by @nickkurkan
+  ([#2](https://github.com/NPGameDev/godot-mcp-server/issues/2),
+  [#3](https://github.com/NPGameDev/godot-mcp-server/pull/3)).
+  **If you ran 1.0.0:** orphans from earlier sessions may still be running. macOS/Linux:
+  `pgrep -fl godot-mcp-server`, then `kill -9 <pid>`; Windows: end the `node` processes
+  running `godot-mcp-server` in Task Manager. From 1.0.1 on the server exits on its own.
+
+### Added
+
+- `npm run probe:departure` — a hand-run probe (`test/probes/client-departure-probe.ts`)
+  that drives a built server through the client-departure scenarios, with or without an
+  editor; part of the release checklist (§1 B9).
+
 ## [1.0.0] - 2026-07-26
 
 Nothing has been released yet; every change below ships in the first tagged

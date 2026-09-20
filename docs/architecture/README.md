@@ -213,7 +213,7 @@ flowchart TD
     eager["await extensions.discoverEagerly() — deadline-wrapped"]
     notif["bridge.onNotification(…) + createLspStatusReporter"]
     recon["reconciler.armStartupReconcile<br/>(complete the surface once the version is known)"]
-    conn["installProcessHandlers → server.connect(StdioServerTransport) — LAST"]
+    conn["installProcessHandlers → server.connect(StdioServerTransport) — LAST<br/>departure shutdown: stdin EOF · dead stdout · SIGINT/SIGTERM → bounded bridge.close() → exit 0<br/>stderr loss muted · crash handlers log and keep alive"]
     pre --> bridge --> srv --> hooks --> subsys --> reg --> mcpcap --> eager --> notif --> recon --> conn
     part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 34)<br/>+ 2 meta = 36-tool startup surface; group tools absent (no stubs).<br/>112 total / 34 eager / 78 on-demand / 28 groups"]
     reg -.-> part
@@ -243,8 +243,11 @@ flowchart TD
   version-gated and extension tools exactly once, fired immediately if the version is
   already known, else via `bridge.onGodotVersionKnown`
   ([§12](#12-cross-version-compatibility)).
-- **Lifecycle** (`startup/lifecycle.ts`): SIGINT/SIGTERM close the bridge then exit 0;
-  `unhandledRejection` / `uncaughtException` log to stderr but deliberately keep the
+- **Lifecycle** (`startup/lifecycle.ts`): one **departure shutdown** — stdin EOF (the
+  client closed its end), any stdout error (transport dead), or SIGINT/SIGTERM → a
+  `bridge.close()` bounded by a 2 s deadline → exit 0. A **stderr** error is muted: only
+  the log sink is gone, so the server keeps serving. `unhandledRejection` /
+  `uncaughtException` log through a never-throwing writer and deliberately keep the
   bridge alive.
 
 ---
