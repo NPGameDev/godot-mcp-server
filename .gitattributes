@@ -1,3 +1,9 @@
+# Materialise every text file with LF regardless of core.autocrlf, so the worktree
+# matches what .prettierrc and .editorconfig already declare (endOfLine / end_of_line
+# = lf). Without this, any file arriving via a checkout or merge comes back CRLF on
+# Windows and fails `npm run format` while CI, which sees the LF blobs, stays green.
+* text=auto eol=lf
+
 # Force LF on shell scripts so they stay executable under Git Bash on the
 # Windows CI runners (windows-latest has core.autocrlf=true, which would
 # otherwise CRLF-convert them on checkout -> `\r: command not found`). This repo
