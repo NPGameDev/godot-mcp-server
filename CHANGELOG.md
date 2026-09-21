@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This version carries no functional change. Nothing in the published package differs from
+1.0.1 except the version string.
+
+It exists to stay in lockstep with toolkit 1.0.2, which stops the plugin persisting a
+machine-specific status diagnostic into `project.godot`. That fix is described in the
+[toolkit's changelog](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/CHANGELOG.md).
+The two halves release together because each one's release gate checks that the other
+declares the same version, so the toolkit cannot ship a patch on its own.
+
 ## [1.0.1] - 2026-09-21
 
 ### Fixed
