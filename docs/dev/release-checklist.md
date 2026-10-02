@@ -40,11 +40,13 @@ real users. Full methodology: `Plan/ExecutionPlan/41o-stability-sanity-check.md`
       drop promptly (no indefinite hang); the client gets a clear "editor disconnected" error
       (not a raw socket error); on restart the project state is consistent (no half-created
       nodes).
-- [ ] **B9 — Client departure.** `npm run probe:departure` (with the editor running so S2 is not
-      skipped). Every scenario PASS: the server exits 0 within the shutdown bound when its stdin
-      ends or its stdout dies, keeps serving when only stderr dies, and never spins. Then end the
-      MCP client hard (Task Manager / `kill -9`) with a live session: no server process remains
-      after 5 s (regression guard for #2).
+- [ ] **B9 — Client departure.** With the editor running, run
+      `npm run probe:departure -- --project <path to the Godot project the editor has open>`
+      (or export `GODOT_MCP_PROJECT_PATH` and run it bare) so S2 is not skipped. With neither,
+      S2 is skipped, not run against the server repo. Every scenario PASS: the server exits 0
+      within the shutdown bound when its stdin ends or its stdout dies, keeps serving when only
+      stderr dies, and never spins. Then end the MCP client hard (Task Manager / `kill -9`) with
+      a live session: no server process remains after 5 s (regression guard for #2).
 
 ---
 

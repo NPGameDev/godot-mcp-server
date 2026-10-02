@@ -22,14 +22,22 @@
  * prints SKIP when nothing is listening. After an S2 PASS, confirm by eye that the editor
  * console logged the peer disconnect.
  *
+ * S2 has to be told which Godot project that editor has open: the server finds the
+ * editor's session token through the project's registry entry (absent the
+ * GODOT_MCP_TOKEN_PATH override), and a path with none fails authentication. The working
+ * directory is no stand-in, because under `npm run` it is the server package. The
+ * project is `--project`, else GODOT_MCP_PROJECT_PATH; with neither, S2 is skipped
+ * instead of guessing.
+ *
  * Node-only and self-contained: it spawns its own child with pipes and kills only that
  * child. It never enumerates processes and never kills by PID.
  *
  * Run from the server repo root (never a bare `npx`):
- *   npm run probe:departure                      # all scenarios, editor expected for S2
- *   npm run probe:departure -- --no-editor       # skip S2
- *   npm run probe:departure -- --project <path>  # the project whose editor serves S2
- *   npm run probe:departure -- --server <path>   # a different built entrypoint
+ *   npm run probe:departure                                # S2 skips unless GODOT_MCP_PROJECT_PATH is set
+ *   npm run probe:departure -- --no-editor                 # skip S2
+ *   npm run probe:departure -- --project <path>            # the project whose editor serves S2
+ *   GODOT_MCP_PROJECT_PATH=<path> npm run probe:departure  # the same, from the environment
+ *   npm run probe:departure -- --server <path>             # a different built entrypoint
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { connect } from "node:net";
@@ -44,8 +52,16 @@ function argValue(flag: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
+/** The Godot project whose editor serves S2: `--project`, else GODOT_MCP_PROJECT_PATH, else
+ *  none. An empty value counts as unset, because `resolve("")` is the working directory —
+ *  the server package under `npm run`, which has no registry entry. */
+function resolveProject(): string | undefined {
+  const raw = argValue("--project") || process.env.GODOT_MCP_PROJECT_PATH;
+  return raw ? resolve(raw) : undefined;
+}
+
 const SERVER_ENTRY = resolve(argValue("--server") ?? join(REPO_ROOT, "dist/index.js"));
-const PROJECT_PATH = resolve(argValue("--project") ?? process.cwd());
+const PROJECT_PATH = resolveProject();
 const NO_EDITOR = process.argv.includes("--no-editor");
 
 /** No editor can be listening here, so the no-editor scenarios never depend on what
@@ -218,15 +234,21 @@ function editorListening(port: number, timeoutMs = 1_000): Promise<boolean> {
   });
 }
 
-/** Start a server that can never reach an editor, so the scenario is self-contained. */
+/** Start a server that can never reach an editor, so the scenario is self-contained.
+ *  The dead port makes the project path inert, so the working directory stands in when
+ *  none was named. */
 async function startPinned(): Promise<Server | undefined> {
-  const server = new Server({ GODOT_MCP_EDITOR_PORT: DEAD_PORT, GODOT_MCP_PROJECT_PATH: PROJECT_PATH });
+  const server = new Server({
+    GODOT_MCP_EDITOR_PORT: DEAD_PORT,
+    GODOT_MCP_PROJECT_PATH: PROJECT_PATH ?? process.cwd(),
+  });
   if (await server.ready()) return server;
   server.kill();
   return undefined;
 }
 
 const NO_BANNER = "server never printed its startup banner";
+const NO_PROJECT = "S2 needs --project <Godot project> or GODOT_MCP_PROJECT_PATH";
 
 async function scenario1(): Promise<void> {
   const server = await startPinned();
@@ -247,6 +269,7 @@ async function scenario1(): Promise<void> {
 
 async function scenario2(): Promise<void> {
   if (NO_EDITOR) return record("S2 departure with editor", "SKIP", null, null, "--no-editor");
+  if (PROJECT_PATH === undefined) return record("S2 departure with editor", "SKIP", null, null, NO_PROJECT);
   if (!(await editorListening(EDITOR_PORT))) {
     return record("S2 departure with editor", "SKIP", null, null, `nothing listening on 127.0.0.1:${EDITOR_PORT}`);
   }
@@ -383,7 +406,8 @@ function printTable(): void {
 }
 
 async function main(): Promise<void> {
-  process.stdout.write(`[departure] server=${SERVER_ENTRY}\n[departure] project=${PROJECT_PATH}\n`);
+  const project = PROJECT_PATH ?? "(none — S2 will skip)";
+  process.stdout.write(`[departure] server=${SERVER_ENTRY}\n[departure] project=${project}\n`);
   await scenario1();
   await scenario2();
   await scenario3();
