@@ -427,8 +427,8 @@ smoke structurally cannot express** — smoke tests each tool in isolation
 the per-step report, exit codes, and `--only/--from/--to` come for free. It is
 editor-required and **local-only** (no CI mode — see
 SMOKE-MAINTENANCE-PROTOCOL.md). Run: `npm run flows` /
-`npm run flows:single -- --only N`. See `CONTEXT.md` "Validation vocabulary"
-(plan repo) for the Smoke / Flow suite / Sweep glossary.
+`npm run flows:single -- --only N`. See the toolkit's `docs/dev/glossary.md`
+"Validation vocabulary" for the Smoke / Flow suite / Sweep glossary.
 
 **Validated (41m-bis, 2026-06-10):** 23/23 GREEN on **both Godot 4.5.0 and
 4.2.0** — including the version-gated Flow 01 update-existing branch (4.5 live /

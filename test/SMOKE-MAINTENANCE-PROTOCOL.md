@@ -1,8 +1,8 @@
 # Smoke Test Maintenance Protocol
 
 > **Standing rule (41m-bis): new tools/params → update sweep + smoke + flows.**
-> Three validation layers now share maintenance (see `CONTEXT.md` "Validation
-> vocabulary", plan repo):
+> Three validation layers now share maintenance (see the toolkit's
+> `docs/dev/glossary.md` "Validation vocabulary"):
 > - **Smoke** (`test/sections/`) — every tool in **isolation** (this file).
 > - **Flow suite** (`test/flows/`) — **cross-tool, stateful** flows smoke can't
 >   express (see "Flow suite maintenance" below + the Flow Suite section of
