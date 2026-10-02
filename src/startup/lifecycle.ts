@@ -75,9 +75,13 @@ export function installProcessHandlers(bridge: Bridge): void {
     departureShutdown(`stdout unwritable (${err?.code ?? err?.message ?? "unknown"})`);
   });
 
-  // Diagnostics gone: swallow. The listener's presence is the fix — an 'error' with
-  // no listener is thrown, lands in uncaughtException, gets logged to the same dead
-  // stderr, and so on forever. Nothing can be logged about a dead log sink.
+  // Diagnostics gone: swallow, since nothing can be logged about a dead log sink. Once
+  // installed, this listener keeps every direct process.stderr.write in the server safe
+  // after the pipe dies, not only logSafely's, so it must not be dropped in favour of
+  // logSafely. A try/catch cannot replace it: the failure arrives as an asynchronous
+  // 'error' event after write() has already returned. With no listener that event is
+  // thrown into uncaughtException, whose handler writes to the same dead stderr and
+  // re-enters itself, pinning a core at 100% CPU.
   process.stderr.on("error", () => {
     /* muted */
   });
