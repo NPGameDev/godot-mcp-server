@@ -200,7 +200,7 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="e0ae3af" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="ec07e24" -->
 ```mermaid
 flowchart TD
     pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>portConfig (cli → env → registry → 6550) · response caps · config-version warn"]
