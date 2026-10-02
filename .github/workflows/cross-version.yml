@@ -35,7 +35,7 @@
 #
 # Cross-platform legs (41n-quater-sexies) — additive, each behind its OWN token so a
 # release is validated on 3 OS × 6 versions × 2 languages = 36 combos:
-#   • [run-macos-ci]         -> macOS behavioral (gdscript+dotnet, 4.2-4.7) + install-smoke
+#   • [run-macos-ci]         -> macOS behavioral (gdscript+dotnet, 4.2-4.7) + install-smoke + unit
 #   • [run-windows-ci]       -> Windows behavioral (gdscript+dotnet, 4.2-4.7) + install-smoke + unit
 #   • [run-all-platforms-ci] -> the full 36: Linux (above) + macOS + Windows
 #   • a pull_request run     -> the same full 36, keyed off the EVENT (a PR carries no
@@ -436,10 +436,12 @@ jobs:
         shell: pwsh
         run: godot-mcp-server --tools-count
 
-  # Windows unit tests (D7b) — the ONE unit surface that differs on Windows: the
-  # normalizePath case-fold branch is process.platform-gated (win32/darwin ->
-  # toLowerCase), which a Linux run cannot exercise even with backslash inputs. Cheap
-  # editor-free insurance on windows-latest only (macOS is POSIX-identical to Linux).
+  # Unit tests on Windows and macOS — cheap, editor-free, on the same platform opt-in as
+  # the legs above; the ci.yml floor runs the suite on Linux only. A Linux pass does not
+  # stand in for either OS: the normalizePath case-fold branch is process.platform-gated
+  # (win32/darwin -> toLowerCase), which a Linux run cannot exercise even with backslash
+  # inputs, and timing-sensitive tests (sockets, file reads, timers) can pass on Linux's
+  # file and loopback latency yet fail on another OS's.
   windows-unit:
     needs: platform-setup
     if: ${{ contains(needs.platform-setup.outputs.platforms, 'windows') }}
@@ -457,12 +459,29 @@ jobs:
           npm ci
           npm run test:unit
 
+  macos-unit:
+    needs: platform-setup
+    if: ${{ contains(needs.platform-setup.outputs.platforms, 'macos') }}
+    runs-on: macos-latest
+    name: "Unit tests (macOS)"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: npm
+      - name: Unit tests
+        shell: bash
+        run: |
+          npm ci
+          npm run test:unit
+
   # ── Aggregate platform gate (41n-quater-sexies D7b/7c) ───────────────────────
   # "Platform matrix OK" is the SINGLE stable name the required check binds to (the
   # SECOND required-check tier, scoped to pull requests) — never an individual matrix
   # row (a required check pinned to a matrix leg breaks when the matrix retunes). It
   # wraps ALL platform combos: the static Linux behavioral legs + the macOS/Windows
-  # behavioral matrix + the editor-free install-smoke + Windows unit jobs. On a
+  # behavioral matrix + the editor-free install-smoke + unit jobs. On a
   # pull_request (or merge_group) run every one of them is live, so the check is
   # substantive, not vacuous. if: always() + the explicit failure/cancelled test makes
   # a partial run (one platform token) or a bare push (everything skipped) report
@@ -478,6 +497,7 @@ jobs:
         install-smoke-macos,
         install-smoke-windows,
         windows-unit,
+        macos-unit,
       ]
     if: always()
     runs-on: ubuntu-latest
