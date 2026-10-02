@@ -41,6 +41,14 @@ process.env.GODOT_MCP_TOKEN_PATH = tokenPath;
 
 const { createChannel } = await import("../../src/transport/channel.js");
 
+// Captured before any test can install fake timers: a readiness wait's wall-clock bound has to
+// fire even while setTimeout/clearTimeout are faked.
+const realSetTimeout = globalThis.setTimeout;
+const realClearTimeout = globalThis.clearTimeout;
+
+/** Wall-clock bound on a readiness wait. Generous on purpose: only a genuine failure waits it out. */
+const WAIT_TIMEOUT_MS = 8000;
+
 // ── Mock toolkit server (answers auth, dispatches RPCs by id) ─────────
 
 interface ReceivedMsg {
@@ -55,6 +63,13 @@ interface MockServer {
   authCount: () => number;
   /** Every non-auth frame the server received (RPCs + notifications like _cancel). */
   received: () => ReceivedMsg[];
+  /**
+   * Resolve once a received frame carries `method` — at once if one already has. The mock's own
+   * message handler wakes the wait after the test's handler (id-bearing frames only) has run, so
+   * any state it captures is already set. If no such frame arrives within `timeoutMs` of
+   * wall-clock time (default `WAIT_TIMEOUT_MS`), reject naming `label`.
+   */
+  waitForReceived: (method: string, label: string, timeoutMs?: number) => Promise<void>;
   /** Forcibly terminate every connected client → drives a hot reconnect. */
   dropClients: () => void;
   close: () => Promise<void>;
@@ -68,6 +83,8 @@ function makeMockServer(
     const wss = new WebSocketServer({ port: 0, host: "127.0.0.1" });
     const sockets = new Set<WS>();
     const received: ReceivedMsg[] = [];
+    // One per pending waitForReceived, woken with every frame the mock records.
+    const receiptWaiters = new Set<(msg: ReceivedMsg) => void>();
     // The default ack echoes the server's own version, as test/helpers.ts's mock does: a
     // hardcoded version is silent only while it happens to match, and becomes a live skew
     // the moment package.json bumps — at which point every channel test starts emitting the
@@ -79,6 +96,22 @@ function makeMockServer(
         port: (wss.address() as AddressInfo).port,
         authCount: () => auths,
         received: () => received,
+        waitForReceived: (method, label, timeoutMs) => {
+          let waiter: ((msg: ReceivedMsg) => void) | undefined;
+          const arrived = new Promise<void>((resolveArrived) => {
+            if (received.some((m) => m.method === method)) {
+              resolveArrived();
+              return;
+            }
+            waiter = (msg) => {
+              if (msg.method === method) resolveArrived();
+            };
+            receiptWaiters.add(waiter);
+          });
+          return withinWallClock(arrived, label, timeoutMs).finally(() => {
+            if (waiter) receiptWaiters.delete(waiter);
+          });
+        },
         dropClients: () => {
           for (const s of sockets) s.terminate();
         },
@@ -106,6 +139,7 @@ function makeMockServer(
         }
         received.push(msg);
         if (msg.id != null && handler) handler(sock, msg);
+        for (const wake of receiptWaiters) wake(msg);
       });
     });
   });
@@ -123,22 +157,31 @@ function notify(sock: WS, method: string, requestId: unknown): void {
   sock.send(JSON.stringify({ jsonrpc: "2.0", method, params: { request_id: requestId } }));
 }
 
-/** Wait for real I/O (microtasks + next event-loop tick). */
+/**
+ * Yield until the event loop's next check phase (this file never fakes setImmediate). It does not
+ * wait for I/O: anything the loop has not yet picked up may still be pending — wait on a readiness
+ * signal for that.
+ */
 function ioFlush(): Promise<void> {
   return new Promise((r) => setImmediate(r));
 }
 
-/** Drain real I/O until pred() holds (setImmediate is NOT faked). */
-async function flushUntil(pred: () => boolean, label: string, maxFlushes = 2000): Promise<void> {
-  for (let i = 0; i < maxFlushes; i++) {
-    if (pred()) return;
-    await ioFlush();
-  }
-  throw new Error(`flushUntil exhausted: ${label}`);
+/**
+ * Settle as `pending` settles, or reject naming `label` once `timeoutMs` of wall-clock time has
+ * passed. The deadline runs on the real timer, so it still fires while a test fakes setTimeout.
+ */
+function withinWallClock<T>(pending: Promise<T>, label: string, timeoutMs = WAIT_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const deadline = realSetTimeout(
+      () => reject(new Error(`readiness wait timed out after ${timeoutMs}ms: ${label}`)),
+      timeoutMs,
+    );
+    void pending.then(resolve, reject).finally(() => realClearTimeout(deadline));
+  });
 }
 
 /** Poll a condition under REAL timers (the unref'd reconnect timer stays live). */
-async function waitFor(cond: () => boolean, label: string, timeoutMs = 8000): Promise<void> {
+async function waitFor(cond: () => boolean, label: string, timeoutMs = WAIT_TIMEOUT_MS): Promise<void> {
   const start = Date.now();
   while (!cond()) {
     if (Date.now() - start > timeoutMs) throw new Error(`waitFor timed out: ${label}`);
@@ -387,7 +430,7 @@ async function testCooperativeCancel() {
     const p = ch.call("hang", {}, 30000, controller.signal).catch((e: unknown) => {
       rejected = e;
     });
-    await flushUntil(() => capturedId != null, "server received the RPC");
+    await server.waitForReceived("hang", "server received the RPC");
 
     controller.abort(); // → cancelPending: reject CANCELLED + send the _cancel notification
     await p;
@@ -396,7 +439,7 @@ async function testCooperativeCancel() {
       `expected CANCELLED, got ${String(rejected)}`,
     );
 
-    await flushUntil(() => server.received().some((m) => m.method === "_cancel"), "_cancel notification delivered");
+    await server.waitForReceived("_cancel", "_cancel notification delivered");
     const cancelMsg = server.received().find((m) => m.method === "_cancel");
     assert.ok(cancelMsg, "_cancel notification received");
     assert.equal(
@@ -425,7 +468,7 @@ async function testCloseRejectsPendingAndWaiters() {
       const pendingCall = ch.call("hang", {}, 30000).catch((e: unknown) => {
         pendingRej = e;
       });
-      await flushUntil(() => server.received().some((m) => m.method === "hang"), "RPC in flight (pending populated)");
+      await server.waitForReceived("hang", "RPC in flight (pending populated)");
       await ch.close();
       await pendingCall;
       assert.ok(
@@ -433,6 +476,7 @@ async function testCloseRejectsPendingAndWaiters() {
         `pending → CLOSED, got ${String(pendingRej)}`,
       );
     } finally {
+      await ch.close();
       await server.close();
     }
   }
@@ -476,16 +520,24 @@ async function testNoReconnectRejectsFastWithoutBackoff() {
   // editor channel's reconnect backoff. This pins scheduleReconnect's
   // reconnect-suppression branch, whose sole production caller is the runtime
   // channel; the reconnecting cases above (which never pass noReconnect) skip it.
-  const server = await makeMockServer((sock, msg) => respond(sock, msg.id, { ok: true }));
+  const server = await makeMockServer((sock, msg) => {
+    if (msg.method !== "hold") respond(sock, msg.id, { ok: true });
+  });
   const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined, { noReconnect: true });
   await ch.call("warmup", {}, 5000); // connect + auth → hot (hasConnectedOnce)
   const cap = captureStderr();
   try {
-    // Kill the peer outright (port freed), then let the client observe the drop
-    // so the next call takes the await-open path rather than a doomed send on
-    // the dying socket.
+    // Kill the peer outright (port freed), then wait until the client has observed the drop
+    // so the next call takes the await-open path rather than a doomed send on the dying
+    // socket. The client's own signal is a call held unanswered across the kill: the channel
+    // rejects every in-flight call as soon as it sees its socket close, and the call's 30 s
+    // timeout outlasts the wait's `WAIT_TIMEOUT_MS` bound, so only the drop can settle it.
+    const dropObserved = ch.call("hold", {}, 30000).catch(() => {
+      // Rejected by the drop: settling is the signal awaited below, not a failure.
+    });
+    await server.waitForReceived("hold", "held call reached the server");
     await server.close();
-    await new Promise((r) => setTimeout(r, 50));
+    await withinWallClock(dropObserved, "client observed the drop");
 
     // The call parks as an open-waiter; awaitOpenSocket kicks a fresh connect
     // that is refused (dead port) → the noReconnect branch rejects the waiter.
@@ -505,6 +557,9 @@ async function testNoReconnectRejectsFastWithoutBackoff() {
   } finally {
     cap.restore();
     await ch.close();
+    // Already closed on the passing path, where this is a no-op; a failure before the kill
+    // would otherwise leave the mock listening and keep the process alive.
+    await server.close();
   }
 }
 
@@ -583,7 +638,7 @@ async function testQueuedTimeoutMarksSerialized() {
     const p = ch.call("mutate", {}, 800).catch((e: unknown) => {
       rejected = e;
     });
-    await ioFlush();
+    await server.waitForReceived("mutate", "server received the RPC");
     assert.ok(capturedSock && capturedId, "server received the RPC");
 
     notify(capturedSock!, "_queued", capturedId); // re-arms the pending timer
@@ -639,7 +694,7 @@ async function testExecutingTimeoutKeepsGenericShape() {
     const p = ch.call("mutate", {}, 800).catch((e: unknown) => {
       rejected = e;
     });
-    await ioFlush();
+    await server.waitForReceived("mutate", "server received the RPC");
     assert.ok(capturedSock && capturedId, "server received the RPC");
 
     notify(capturedSock!, "_executing", capturedId); // re-arms the pending timer
