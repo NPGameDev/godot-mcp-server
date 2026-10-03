@@ -778,5 +778,3 @@ durable anchor**.
 - **Justified `any` escape-hatches** (SDK overload shapes / third-party-schema internals), each
   inline-disabled with a one-line reason ([§4.1](#4-static-typing); exemplar at
   `src/registration/toolRegistry.ts:127`). Permitted; do not add more without the same justification.
-</content>
-</invoke>
