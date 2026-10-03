@@ -17,7 +17,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { createBridge } from "./transport/bridge.js";
+import { capKb, createBridge } from "./transport/bridge.js";
 import { isReadOnly } from "./security/profiles.js";
 import { toolRefCount } from "./registration/toolRefs.js";
 import { createHookPipeline } from "./startup/hooks.js";
@@ -88,10 +88,16 @@ const extensions = createExtensionManager({ server, bridge, getReadOnly: isReadO
 // `this`) so reconcile.ts imports no other composition module (acyclic graph).
 const reconciler = createReconciler({ server, bridge, projectPath, discover: extensions.discoverExtensions });
 
+// A cap the env sets is shown as the KB value the bridge pushes; an unset one as
+// "project", because the editor's own setting governs it.
+function capLabel(bytes: number | undefined): string {
+  return bytes === undefined ? "project" : `${capKb(bytes)}KB`;
+}
+
 function logStartup(extTimedOut = false): void {
   const suffix = extTimedOut ? " (ext discovery timed out — extensions_refresh available)" : "";
   process.stderr.write(
-    `[godot-mcp] readOnly=${isReadOnly()} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${caps.scriptReadLimitBytes / 1024}KB/${caps.wsBufferLimitBytes / 1024}KB${suffix}\n`,
+    `[godot-mcp] readOnly=${isReadOnly()} tools=${toolRefCount()} hooks=${hookPipeline.length} caps=${capLabel(caps.scriptReadLimitBytes)}/${capLabel(caps.wsBufferLimitBytes)}${suffix}\n`,
   );
 }
 
