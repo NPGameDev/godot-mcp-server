@@ -1,10 +1,9 @@
 /**
  * Automated screenshot + window-state validation probe.
  *
- * Re-validates the editor/runtime screenshot remediation contract that the
- * 41o-duodecies interactive session had to drive by hand (E1/E4/E5/E6 on the
- * editor viewport; R1–R4 on the running-game window). Where that session needed
- * a human to minimize/unfocus windows on cue, this probe drives window state
+ * Re-validates the editor/runtime screenshot remediation contract (E1/E4/E5/E6
+ * on the editor viewport; R1–R4 on the running-game window) without a person
+ * minimizing or unfocusing windows on cue: the probe drives window state
  * **programmatically** through a PowerShell/user32.dll helper
  * ({@link ./window-control.ps1}) and asserts the structured tool responses
  * empirically.
@@ -473,8 +472,9 @@ async function runRuntimeLegs(bridge: Bridge, projectPath: string | undefined, e
     // (the pipeline serves a current frame each call, not a one-shot buffer).
     // A pixel-level mutation would need either a blocked engine singleton
     // (RenderingServer, via execute_code) or scene-specific knowledge, so this
-    // asserts repeatable usability rather than a forced byte delta — the deep
-    // stale-vs-fresh proof lives in the 41o-duodecies interactive record.
+    // asserts repeatable usability rather than a forced byte delta. Proving
+    // stale versus fresh at the pixel level needs an interactive session, where a
+    // person can change what the game draws between captures.
     {
       const first = (await bridge.callRuntime("runtime.screenshot", {}, SCREENSHOT_TIMEOUT)) as ShotResult;
       await new Promise((r) => setTimeout(r, 400));
