@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The server no longer resets the editor's response limits (the script read cap and the
+  WebSocket buffer) to their defaults every time it connects. Limits set in the dock or in
+  Project Settings now stay in force while a client is connected, and are no longer dropped
+  from `project.godot` the next time project settings are saved.
+  `GODOT_MCP_SCRIPT_READ_LIMIT` and `GODOT_MCP_WS_BUFFER_LIMIT` still override them when
+  set. An invalid value in either is now ignored, with a warning, instead of falling back
+  to the default.
+
 ## [1.0.2] - 2026-09-21
 
 This version carries no functional change. Nothing in the published package differs from

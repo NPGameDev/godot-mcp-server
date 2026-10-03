@@ -43,10 +43,31 @@ export interface BridgeOptions {
    *  Skips registry re-discovery on editor connection loss and, on a pinned
    *  connect or auth-handshake failure, runs the fail-fast desync cross-check. */
   explicitEditorPort?: boolean;
-  /** Max bytes for script content responses (sent to plugin via meta.set_limits). */
+  /** Max bytes for script content responses. When set, it is pushed to the plugin
+   *  (`meta.set_limits`) each time the bridge's editor connection authenticates,
+   *  reconnects included; after an editor-port re-discovery the new connection does
+   *  not push it. The push sets the editor's in-memory
+   *  `mcp_toolkit/limits/script_read_cap_kb`, which stays in force until the editor
+   *  restarts or the setting is changed, and the next project-settings save from any
+   *  source persists it to `project.godot`. When unset, nothing is pushed and the
+   *  project's setting applies. */
   scriptReadLimitBytes?: number;
-  /** Max WebSocket buffer size in bytes (sent to plugin via meta.set_limits). */
+  /** Max WebSocket buffer size in bytes. When set, it is pushed the same way and sets
+   *  `mcp_toolkit/limits/ws_buffer_kb` with the same lifetime and persistence. The
+   *  plugin sizes a connection's buffers when it accepts the connection, so the
+   *  pushed value applies only to connections accepted after the push, not to the
+   *  one that pushed it. When unset, the project's setting applies. */
   wsBufferLimitBytes?: number;
+}
+
+/**
+ * Convert a cap in bytes to the whole kilobytes `meta.set_limits` takes: the value
+ * the bridge pushes for it.
+ *
+ * @internal
+ */
+export function capKb(bytes: number): number {
+  return Math.round(bytes / 1024);
 }
 
 /**
@@ -58,7 +79,7 @@ export interface BridgeOptions {
  *   is re-discovered from the registry on disconnect unless `explicitEditorPort` is
  *   set or the project path is unknown
  * @param opts - see {@link BridgeOptions}: project path for registry discovery,
- *   static-port overrides, and the response/buffer caps pushed to the plugin after auth
+ *   static-port overrides, and the optional response/buffer caps pushed to the plugin
  * @returns the {@link Bridge}, augmented with `onNotification` (unsolicited plugin
  *   pushes) and `onGodotVersionKnown` (fires once on the unknown → known version
  *   transition, so the composition root can complete a tool surface registered
@@ -106,18 +127,22 @@ export function createBridge(
     }
   }
 
-  // After auth, push server-side response caps to the plugin so it can
-  // enforce them (server env var > dock UI ProjectSettings > defaults).
+  // The project's mcp_toolkit/limits/* settings apply unless an env var sets a
+  // cap. Then only that cap is pushed, from the initial editor channel's auth
+  // callback below; the channel rediscoverEditor opens does not push. The plugin
+  // sets it in memory, where it stays in force until the editor restarts or the
+  // setting is changed, and the next settings save from any source persists it
+  // to project.godot. With none set nothing is sent, so a cap set in the dock or
+  // in Project Settings stays in force and stays in project.godot.
   function sendLimitsIfConfigured(channel: Channel): void {
-    const scriptKb = opts?.scriptReadLimitBytes ? Math.round(opts.scriptReadLimitBytes / 1024) : 0;
-    const wsKb = opts?.wsBufferLimitBytes ? Math.round(opts.wsBufferLimitBytes / 1024) : 0;
-    if (scriptKb > 0 || wsKb > 0) {
-      const params: Record<string, number> = {};
-      if (scriptKb > 0) params.script_read_cap_kb = scriptKb;
-      if (wsKb > 0) params.ws_buffer_kb = wsKb;
-      // Fire-and-forget — failure here is non-fatal.
-      void channel.call("meta.set_limits", params, 5000).catch(() => {});
-    }
+    const scriptKb = opts?.scriptReadLimitBytes ? capKb(opts.scriptReadLimitBytes) : 0;
+    const wsKb = opts?.wsBufferLimitBytes ? capKb(opts.wsBufferLimitBytes) : 0;
+    const params: Record<string, number> = {};
+    if (scriptKb > 0) params.script_read_cap_kb = scriptKb;
+    if (wsKb > 0) params.ws_buffer_kb = wsKb;
+    if (Object.keys(params).length === 0) return;
+    // Fire-and-forget: a failed push leaves the project's own setting in force.
+    void channel.call("meta.set_limits", params, 5000).catch(() => {});
   }
 
   const getNotificationHandler = () => notificationHandler;

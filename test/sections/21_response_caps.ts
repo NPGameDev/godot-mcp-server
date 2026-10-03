@@ -5,6 +5,19 @@ export const TOOLS_TESTED: string[] = ["script_write", "script_read", "script_de
 export async function testResponseCaps(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
+  // The editor's caps come from the project's settings, or from a push by another
+  // client connected to the same editor; this harness pushes none. Put the caps
+  // this section asserts against in force explicitly.
+  const setup = (await bridge.call(
+    "meta.set_limits",
+    { script_read_cap_kb: 256, ws_buffer_kb: 1024 },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; script_read_cap_kb?: number };
+  if (!setup?.success || setup.script_read_cap_kb !== 256) {
+    fail(`response cap: setup did not put the 256KB script cap in force: ${JSON.stringify(setup)}`);
+    return;
+  }
+
   // ── 256 KB response cap (Phase 8, item 5) ─────────────────────────────
   // Generate a ~300 KB script file to exceed the 256 KB cap.
   const largeLine = "# " + "x".repeat(997) + "\n"; // ~1000 bytes per line

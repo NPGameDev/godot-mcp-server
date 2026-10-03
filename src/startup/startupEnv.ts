@@ -116,23 +116,32 @@ export function applyCliMetaGates(cli: CliArgs): void {
 
 // ── Response caps ────────────────────────────────────────────────────
 
-export type ResponseCaps = { scriptReadLimitBytes: number; wsBufferLimitBytes: number };
+/** The response caps the environment sets, in bytes. An undefined cap is not
+ *  configured: the editor's own `mcp_toolkit/limits/*` project setting governs it. */
+export interface ResponseCaps {
+  /** From `GODOT_MCP_SCRIPT_READ_LIMIT`: the cap on script-read responses. */
+  scriptReadLimitBytes?: number;
+  /** From `GODOT_MCP_WS_BUFFER_LIMIT`: the editor's per-connection WebSocket buffer size. */
+  wsBufferLimitBytes?: number;
+}
 
-// Defaults match the plugin-side ProjectSettings defaults.
-const SCRIPT_READ_LIMIT_DEFAULT = 262144; // 256 KB
-const WS_BUFFER_LIMIT_DEFAULT = 1048576; // 1 MB
+// Floors match the minimums the plugin clamps meta.set_limits values to.
 const SCRIPT_READ_LIMIT_FLOOR = 65536; // 64 KB
 const WS_BUFFER_LIMIT_FLOOR = 262144; // 256 KB
 
-function parseCapEnv(envName: string, defaultVal: number, floor: number): number {
+/** Read one cap from the environment. Unset or empty yields undefined. An invalid
+ *  value is ignored with a warning instead of becoming a default, since a pushed
+ *  default would override the project's own setting. A value below the floor is
+ *  still a configured cap, so it is clamped up to the floor. */
+function parseCapEnv(envName: string, floor: number): number | undefined {
   const raw = process.env[envName];
-  if (!raw) return defaultVal;
+  if (!raw) return undefined;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     process.stderr.write(
-      `[godot-mcp] WARNING: ${envName}=${raw} is not a valid positive number; using default ${defaultVal}\n`,
+      `[godot-mcp] WARNING: ${envName}=${raw} is not a valid positive number; ignoring it, so the project's own setting applies\n`,
     );
-    return defaultVal;
+    return undefined;
   }
   if (parsed < floor) {
     process.stderr.write(`[godot-mcp] WARNING: ${envName}=${parsed} is below minimum ${floor}; clamping to ${floor}\n`);
@@ -141,15 +150,16 @@ function parseCapEnv(envName: string, defaultVal: number, floor: number): number
   return parsed;
 }
 
-/** Parse + clamp GODOT_MCP_SCRIPT_READ_LIMIT / _WS_BUFFER_LIMIT against their floors/defaults. */
+/**
+ * Resolve the response caps from `GODOT_MCP_SCRIPT_READ_LIMIT` and
+ * `GODOT_MCP_WS_BUFFER_LIMIT`, both in bytes. A variable that is unset, empty or
+ * invalid leaves its cap undefined; a value below the floor is clamped to it.
+ */
 export function resolveResponseCaps(): ResponseCaps {
-  const scriptReadLimitBytes = parseCapEnv(
-    "GODOT_MCP_SCRIPT_READ_LIMIT",
-    SCRIPT_READ_LIMIT_DEFAULT,
-    SCRIPT_READ_LIMIT_FLOOR,
-  );
-  const wsBufferLimitBytes = parseCapEnv("GODOT_MCP_WS_BUFFER_LIMIT", WS_BUFFER_LIMIT_DEFAULT, WS_BUFFER_LIMIT_FLOOR);
-  return { scriptReadLimitBytes, wsBufferLimitBytes };
+  return {
+    scriptReadLimitBytes: parseCapEnv("GODOT_MCP_SCRIPT_READ_LIMIT", SCRIPT_READ_LIMIT_FLOOR),
+    wsBufferLimitBytes: parseCapEnv("GODOT_MCP_WS_BUFFER_LIMIT", WS_BUFFER_LIMIT_FLOOR),
+  };
 }
 
 // ── Config version check ─────────────────────────────────────────────

@@ -49,9 +49,16 @@ Absolute path to the Godot project. Used for registry-based port
 
 > `optional` **scriptReadLimitBytes?**: `number`
 
-Defined in: [src/transport/bridge.ts:47](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L47)
+Defined in: [src/transport/bridge.ts:54](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L54)
 
-Max bytes for script content responses (sent to plugin via meta.set_limits).
+Max bytes for script content responses. When set, it is pushed to the plugin
+ (`meta.set_limits`) each time the bridge's editor connection authenticates,
+ reconnects included; after an editor-port re-discovery the new connection does
+ not push it. The push sets the editor's in-memory
+ `mcp_toolkit/limits/script_read_cap_kb`, which stays in force until the editor
+ restarts or the setting is changed, and the next project-settings save from any
+ source persists it to `project.godot`. When unset, nothing is pushed and the
+ project's setting applies.
 
 ***
 
@@ -59,6 +66,10 @@ Max bytes for script content responses (sent to plugin via meta.set_limits).
 
 > `optional` **wsBufferLimitBytes?**: `number`
 
-Defined in: [src/transport/bridge.ts:49](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L49)
+Defined in: [src/transport/bridge.ts:60](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L60)
 
-Max WebSocket buffer size in bytes (sent to plugin via meta.set_limits).
+Max WebSocket buffer size in bytes. When set, it is pushed the same way and sets
+ `mcp_toolkit/limits/ws_buffer_kb` with the same lifetime and persistence. The
+ plugin sizes a connection's buffers when it accepts the connection, so the
+ pushed value applies only to connections accepted after the push, not to the
+ one that pushed it. When unset, the project's setting applies.
