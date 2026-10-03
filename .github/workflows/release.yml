@@ -204,52 +204,20 @@ jobs:
   # Prove the PUBLISHED tarball runs — fetched from the registry, in a clean job with no
   # checkout and no build, which is the only thing that catches a packaging fault the
   # source-built gates cannot see (missing bin, absent dist/, bad shebang, files[] hole).
+  # The check lives in live-package.yml so it can also be dispatched by hand against any
+  # published version.
   #
   # Deliberately a SEPARATE job downstream of publish rather than more steps inside it: the
   # gated matrix and the publish itself must never depend on npm read availability. If the
-  # registry is slow or down, this job is what goes red — after the release already landed.
+  # registry stays down past the check's budget, this job is what goes red — after the
+  # release already landed.
   live-package:
     needs: publish
     # Same gate as the publish step it verifies: real tag pushes only, never a dry-run
     # (a dry-run publishes nothing, so there would be nothing to fetch).
     if: ${{ github.ref_type == 'tag' && inputs['dry-run'] != true }}
-    runs-on: ubuntu-latest
-    # D7: no write scope anywhere — this job only reads the registry. contents: read (the
-    # workflow default) rather than {} because setup-node authenticates its version-manifest
-    # fetch with github.token when the requested Node is not already in the runner cache.
-    permissions:
-      contents: read
-    steps:
-      # No `cache: npm` — there is no checkout, so there is no lockfile to key a cache on.
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24.x
-
-      - name: Smoke the published package
-        run: |
-          PKG="@npgamedev/godot-mcp-server"
-          # Derived from the tag, never hardcoded — the publish job has already proven the
-          # tag equals package.json's version, so this is the version that just shipped.
-          VER="${GITHUB_REF#refs/tags/v}"
-          echo "Verifying $PKG@$VER"
-
-          # A publish is visible to the registry's read path seconds to minutes after it
-          # succeeds, so resolve with a bounded retry before calling it a failure.
-          for attempt in 1 2 3 4 5; do
-            if npm view "$PKG@$VER" version; then
-              echo "Resolved $PKG@$VER on the registry (attempt $attempt)."
-              break
-            fi
-            if [ "$attempt" = 5 ]; then
-              echo "::error::$PKG@$VER never resolved on the registry after $attempt attempts."
-              exit 1
-            fi
-            echo "Not published to the read path yet — retrying in 30s (attempt $attempt)."
-            sleep 30
-          done
-
-          # Exercise the installed bin through the meta flags, which exit 0 without needing
-          # an editor, a project, or a stdio MCP peer.
-          npx --yes "$PKG@$VER" --tools-count
-          npx --yes "$PKG@$VER" --help
+    uses: ./.github/workflows/live-package.yml
+    with:
+      # Derived from the tag, never hardcoded — the publish job has already proven the
+      # tag equals package.json's version, so this is the version that just shipped.
+      version: ${{ github.ref_name }}

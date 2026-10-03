@@ -1,0 +1,200 @@
+name: Live package
+
+# Verifies that a PUBLISHED release of the server installs from the npm registry and runs.
+# Two entry points:
+#   • workflow_call     → release.yml, after its publish job, with the release tag.
+#   • workflow_dispatch → by hand, to re-check any published version without cutting a
+#                         release.
+# Read-only: it reads the registry and runs the package's meta flags, nothing more.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Published version to verify, e.g. 1.0.2 — a leading v is accepted, so a tag name works too"
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published version to verify, e.g. 1.0.2 — a leading v is accepted"
+        type: string
+        required: true
+
+# Least privilege by default: nothing in this workflow writes.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify the published package (${{ inputs.version }})
+    runs-on: ubuntu-latest
+    # A backstop over the whole job: the registry budget below, the tail of its last poll,
+    # and the install-and-run all fit well inside it, so only a hang can reach it.
+    timeout-minutes: 25
+    # No write scope: this job only reads the registry. contents: read rather than {}
+    # because setup-node authenticates its version-manifest fetch with github.token when
+    # the requested Node is not already in the runner cache.
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      PKG: "@npgamedev/godot-mcp-server"
+    steps:
+      # No `cache: npm` — there is no checkout, so there is no lockfile to key a cache on.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      - name: Resolve the version to verify
+        id: version
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # A tag name (v1.0.2) and a bare version (1.0.2) name the same release.
+          VER="${VERSION_INPUT#v}"
+          # Only an exact version may reach npm: a range or a dist-tag would check some other
+          # release, and a URL- or path-style spec would have npx fetch and run code from
+          # outside the registry. The pattern is semver.org's grammar without build metadata:
+          # npm resolves 1.0.2+build.5 to 1.0.2, so such an input could never match the
+          # version the registry reports.
+          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$'
+          if [[ ! "$VER" =~ $semver ]]; then
+            printf 'Received version input: %q\n' "$VERSION_INPUT"
+            echo "::error::The version input must be an exact version, such as 1.0.2, v1.0.2 or 1.1.0-rc.1."
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Verifying $PKG@$VER"
+
+      # A publish can take minutes to reach npm's read path: a version has been seen missing more
+      # than two minutes after its publish succeeded, and the registry's CDN caches each
+      # answer for up to five minutes. So poll with backoff under a 15-minute budget rather
+      # than failing a healthy release on the first miss.
+      - name: Wait for the version on the registry
+        env:
+          VER: ${{ steps.version.outputs.version }}
+          # The poll loop is the retry policy, so npm's own retries are off: a refused
+          # connection then fails a call in about a second instead of about seventy, which
+          # keeps every poll short and the budget honest.
+          npm_config_fetch_retries: "0"
+        run: |
+          set -euo pipefail
+          # Poll at once, then after 15 s, 30 s, and every 60 s after that, never starting a
+          # sleep that would end past the budget. Each registry call is capped on its own,
+          # so the step ends within the budget plus one poll.
+          BUDGET_SECONDS=900
+          FIRST_DELAY_SECONDS=15
+          MAX_DELAY_SECONDS=60
+          CALL_TIMEOUT_SECONDS=30
+
+          stderr_file="$(mktemp)"
+          trap 'rm -f "$stderr_file"' EXIT
+
+          # One registry call under a hard wall-clock cap: stdout is the answer, and stderr
+          # is kept to classify a failure.
+          registry_call() {
+            timeout --kill-after=5 "$CALL_TIMEOUT_SECONDS" "$@" 2>"$stderr_file"
+          }
+
+          # Why the last registry call failed, in a few words for the log.
+          describe_failure() {
+            local rc="$1" code
+            if (( rc == 124 || rc == 137 )); then
+              echo "no answer within ${CALL_TIMEOUT_SECONDS}s"
+            elif code="$(grep -m 1 -oE 'code E[A-Z0-9_]+' "$stderr_file")"; then
+              echo "$code"
+            else
+              echo "exit status $rc"
+            fi
+          }
+
+          # Sets state to "resolved", "not visible yet" or "registry unreachable", and
+          # detail to the evidence. npm exits non-zero both for a version it does not have
+          # and for a registry it cannot reach, so the package is probed first: only a
+          # registry that serves the package but not the version is "not visible yet".
+          poll_once() {
+            local rc latest answer
+            rc=0
+            latest="$(registry_call npm view "$PKG" version)" || rc=$?
+            if (( rc != 0 )); then
+              state="registry unreachable"
+              detail="npm view $PKG failed ($(describe_failure "$rc"))"
+              return
+            fi
+            rc=0
+            answer="$(registry_call npm view "$PKG@$VER" version)" || rc=$?
+            if (( rc != 0 )) && ! grep -q 'code E404' "$stderr_file"; then
+              state="registry unreachable"
+              detail="npm view $PKG@$VER failed ($(describe_failure "$rc"))"
+              return
+            fi
+            if [[ "$answer" != "$VER" ]]; then
+              state="not visible yet"
+              detail="the registry serves $PKG (latest $latest) but not $VER"
+              return
+            fi
+            # npm view reads the registry's full document, but npx resolves against the
+            # abbreviated install document, which the registry's CDN caches separately for
+            # up to five minutes. So the version must also resolve the way an installer
+            # resolves it — npm pack --dry-run does that and installs nothing — before the
+            # run step relies on it.
+            rc=0
+            registry_call npm pack --dry-run "$PKG@$VER" >/dev/null || rc=$?
+            if (( rc == 0 )); then
+              state="resolved"
+              detail="npm view and the install metadata both serve $VER"
+            elif grep -qE 'code (E404|ETARGET)' "$stderr_file"; then
+              state="not visible yet"
+              detail="npm view serves $VER, but the install metadata npx reads does not yet"
+            else
+              state="registry unreachable"
+              detail="npm pack --dry-run $PKG@$VER failed ($(describe_failure "$rc"))"
+            fi
+          }
+
+          start="$(date +%s)"
+          delay="$FIRST_DELAY_SECONDS"
+          polls=0
+          while true; do
+            polls=$(( polls + 1 ))
+            poll_once
+            elapsed=$(( $(date +%s) - start ))
+            if [[ "$state" == "resolved" ]]; then
+              echo "Resolved $PKG@$VER on poll $polls (+${elapsed}s): $detail."
+              break
+            fi
+            if (( elapsed + delay > BUDGET_SECONDS )); then
+              if [[ -s "$stderr_file" ]]; then
+                echo "::group::npm error output from the last poll"
+                cat "$stderr_file"
+                echo "::endgroup::"
+              fi
+              echo "::error::$PKG@$VER did not resolve within the ${BUDGET_SECONDS}s registry budget; gave up on poll $polls (+${elapsed}s). Last state: $state — $detail."
+              exit 1
+            fi
+            echo "Poll $polls (+${elapsed}s): $state — $detail. Next poll in ${delay}s."
+            sleep "$delay"
+            delay=$(( delay * 2 < MAX_DELAY_SECONDS ? delay * 2 : MAX_DELAY_SECONDS ))
+          done
+
+      # The meta flags exit 0 without needing an editor, a project, or a stdio MCP peer, so
+      # they prove the installed bin starts. A failure here almost always means a
+      # published-but-broken release, so it is not retried and stays loud. The known
+      # exceptions are registry faults during the install: an install document still stale
+      # on the CDN node npx reaches, or a dependency download failing with a 5xx. npm's own
+      # output above the annotation shows when the install, not the package, failed.
+      - name: Run the published package
+        env:
+          VER: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          for flag in --tools-count --help; do
+            if ! npx --yes "$PKG@$VER" "$flag"; then
+              echo "::error::$PKG@$VER resolved on the registry, but npx exited non-zero for $flag."
+              exit 1
+            fi
+          done
