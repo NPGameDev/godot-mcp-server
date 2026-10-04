@@ -40,6 +40,11 @@ Examples:
   ./scripts/release.sh 1.1.0 --dry-run              # validate + report; write nothing
   ./scripts/release.sh 1.1.0 --with-sibling 1.2.0   # spanning change: two independent versions
   ./scripts/release.sh --verify 1.1.0               # after pushing: assert convergence
+
+--verify exit codes:
+  0  converged: the tag is on both origins and npm serves the version
+  1  a tag is missing, or the toolkit repo was not found to check (act)
+  2  both tags exist but npm does not serve the version yet (poll again)
 EOF
 }
 
@@ -161,17 +166,23 @@ if [[ ${VERIFY} -eq 1 ]]; then
   echo "  npm ${PKG_NAME}@${VERSION}: ${npm_pub}"
   echo "──────────────────────────────────────────────────────────────────────"
 
-  # MISSING = a tag is absent on an origin (partial push). PENDING = tag present
-  # but npm not yet resolving (registry propagation lag — poll again). PASS = tag
-  # on both origins + npm resolves.
+  # The exit code is the verdict, so a caller can gate on it without parsing the
+  # text: 0 converged, 1 act (a tag is MISSING, or the toolkit repo is UNKNOWN and
+  # its tag cannot be checked), 2 poll again (only npm is PENDING; the registry
+  # can lag a publish by minutes).
   if [[ "${server_tag}" == "PASS" && "${toolkit_tag}" == "PASS" && "${npm_pub}" == "PASS" ]]; then
     echo "✓ Converged: tag on both origins and the package resolves on npm."
+    exit 0
   elif [[ "${server_tag}" == "MISSING" || "${toolkit_tag}" == "MISSING" ]]; then
     echo "⚠ A tag is MISSING on an origin — a partial push. Push the missing side."
+    exit 1
+  elif [[ "${toolkit_tag}" != "PASS" ]]; then
+    echo "⚠ The toolkit tag could not be checked. Set GODOT_MCP_TOOLKIT_REPO and re-run."
+    exit 1
   else
     echo "… npm PENDING — the registry can lag a publish by seconds to minutes; poll again."
+    exit 2
   fi
-  exit 0
 fi
 
 # ── Failure-path undo print ─────────────────────────────────────────────────
@@ -185,9 +196,14 @@ if [[ -n "${SIBLING_VERSION}" && -d "${TOOLKIT_REPO}/.git" ]]; then
 fi
 COMMIT_MADE=0
 TAG_MADE=0
+# The tag-message temp file; set once the mutation path creates it.
+SECTION_FILE=""
 
 on_exit() {
   local code=$?
+  if [[ -n "${SECTION_FILE}" ]]; then
+    rm -f "${SECTION_FILE}"
+  fi
   [[ ${code} -eq 0 ]] && return
 
   # Did the toolkit half (delegated under --with-sibling) already mutate? Detect
@@ -365,13 +381,17 @@ fi
 check_ci_green() {
   local repo_slug="$1" sha="$2"
   local json conclusion
-  json="$(gh api "repos/${repo_slug}/commits/${sha}/check-runs" 2>/dev/null || echo '')"
+  # Read every page: a commit can carry more check runs than one page holds, and
+  # a red run on a later page must still fail the gate. --slurp wraps the pages
+  # in one JSON array so a single parse sees them all.
+  json="$(gh api --paginate --slurp "repos/${repo_slug}/commits/${sha}/check-runs?per_page=100" 2>/dev/null || echo '')"
   [[ -z "${json}" ]] && return 2
   # Any non-success (or a still-running) conclusion => not green.
   conclusion="$(echo "${json}" | node -e '
     let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
       try{
-        const runs=(JSON.parse(s).check_runs)||[];
+        const pages=JSON.parse(s);
+        const runs=(Array.isArray(pages)?pages:[pages]).flatMap(p=>(p&&p.check_runs)||[]);
         if(runs.length===0){process.stdout.write("empty");return;}
         for(const r of runs){
           if(r.status!=="completed"){process.stdout.write("pending");return;}
@@ -492,8 +512,7 @@ if ! grep -qF "## [Unreleased]" "${CHANGELOG}"; then
 fi
 
 RELEASE_DATE="$(date +%F)"
-SECTION_FILE="${TMPDIR:-C:/Users/nicol/OneDrive/Desktop/Personal/AIWithGodot/_TempForClaude}/release-changelog-${VERSION}.$$.md"
-mkdir -p "$(dirname "${SECTION_FILE}")"
+SECTION_FILE="$(mktemp "${TMPDIR:-/tmp}/release-changelog.XXXXXX")"
 
 TMP_CL="${CHANGELOG}.tmp.$$"
 awk -v ver="${VERSION}" -v date="${RELEASE_DATE}" '
