@@ -71,7 +71,7 @@ Options:
 Examples:
   ./scripts/release.sh 1.1.0                        # release the server
   ./scripts/release.sh 1.1.0 --dry-run              # validate + report; write nothing
-  ./scripts/release.sh 1.1.0 --with-sibling 1.2.0   # spanning change: release both repos
+  ./scripts/release.sh 1.1.0 --with-sibling 1.1.0   # versions match while releases are lockstep
   ./scripts/release.sh --verify 1.1.0               # after pushing: assert convergence
 
   # Agent-driven: write the gate dispositions first, dry-run, then release.
@@ -224,7 +224,8 @@ if [[ ${NON_INTERACTIVE} -eq 1 ]]; then
     fail "gate dispositions file '${GATE_DISPOSITIONS}' is empty."
   dispositions_name_version "${GATE_DISPOSITIONS}" || \
     fail "gate dispositions file '${GATE_DISPOSITIONS}' does not name version ${VERSION} as a whole token."
-  DISPOSITIONS_SHA256="$(dispositions_sha256 "${GATE_DISPOSITIONS}")"
+  DISPOSITIONS_SHA256="$(dispositions_sha256 "${GATE_DISPOSITIONS}")" || \
+    fail "could not hash gate dispositions file '${GATE_DISPOSITIONS}' (is node on PATH?)."
   [[ "${DISPOSITIONS_SHA256}" =~ ^[0-9a-f]{64}$ ]] || \
     fail "could not hash gate dispositions file '${GATE_DISPOSITIONS}'."
 
@@ -321,7 +322,7 @@ if [[ ${VERIFY} -eq 1 ]]; then
     echo "✓ Converged: tag on both origins and the package resolves on npm."
     exit 0
   elif [[ "${server_tag}" == "MISSING" || "${toolkit_tag}" == "MISSING" ]]; then
-    echo "⚠ A tag is MISSING on an origin — a partial push. Push the missing side."
+    echo "⚠ ${TAG} is MISSING on at least one origin (not pushed yet, or pushed to only one). Push it to every origin marked MISSING."
     exit 1
   elif [[ "${toolkit_tag}" != "PASS" ]]; then
     echo "⚠ The toolkit tag could not be checked. Set GODOT_MCP_TOOLKIT_REPO and re-run."
@@ -413,8 +414,9 @@ delegate_toolkit_release() {
     bash "${TOOLKIT_RELEASE_SH}" "${SIBLING_VERSION}"
   fi
   echo ""
-  echo "  ↑ Toolkit block above is an INDEPENDENT version (its own tag + Asset"
-  echo "    submission values). Now releasing the server (v${VERSION}) below."
+  echo "  ↑ Toolkit block above is the toolkit's own release (its tag + Asset"
+  echo "    submission values). Now releasing the server (v${VERSION}) below; while"
+  echo "    releases are lockstep, both carry the same version."
   echo "══════════════════════════════════════════════════════════════════════"
   echo ""
 }
@@ -530,15 +532,19 @@ check_ci_green() {
   local json conclusion
   # Read every page: a commit can carry more check runs than one page holds, and
   # a red run on a later page must still fail the gate. --slurp wraps the pages
-  # in one JSON array so a single parse sees them all.
-  json="$(gh api --paginate --slurp "repos/${repo_slug}/commits/${sha}/check-runs?per_page=100" 2>/dev/null || echo '')"
+  # in one JSON array so a single parse sees them all. A failed request still
+  # prints an error body, so gh's exit status decides, and any page without a
+  # check_runs array is an error rather than a page to skip.
+  json="$(gh api --paginate --slurp "repos/${repo_slug}/commits/${sha}/check-runs?per_page=100" 2>/dev/null)" || return 2
   [[ -z "${json}" ]] && return 2
   # Any non-success (or a still-running) conclusion => not green.
   conclusion="$(echo "${json}" | node -e '
     let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
       try{
-        const pages=JSON.parse(s);
-        const runs=(Array.isArray(pages)?pages:[pages]).flatMap(p=>(p&&p.check_runs)||[]);
+        const parsed=JSON.parse(s);
+        const pages=Array.isArray(parsed)?parsed:[parsed];
+        if(!pages.every(p=>p&&Array.isArray(p.check_runs))){process.stdout.write("error");return;}
+        const runs=pages.flatMap(p=>p.check_runs);
         if(runs.length===0){process.stdout.write("empty");return;}
         for(const r of runs){
           if(r.status!=="completed"){process.stdout.write("pending");return;}
@@ -819,9 +825,10 @@ EOF
 if [[ -n "${SIBLING_VERSION}" ]]; then
   cat <<EOF
 
-Note: this was a --with-sibling run — two INDEPENDENT versioned releases. Push
-the toolkit too (its summary block above prints its own push command + the Asset
-submission values). The two tags carry the SAME string but are independent
-releases of two independent artifacts.
+Note: this was a --with-sibling run — a release of each repo. Push the toolkit
+too (its summary block above prints its own push command + the Asset submission
+values). The toolkit is tagged v${SIBLING_VERSION} and the server ${TAG}; while
+the tag gates force a lockstep release, the two versions must match, or each
+tag run fails at its gate.
 EOF
 fi
