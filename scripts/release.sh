@@ -7,12 +7,18 @@
 # commits and creates an ANNOTATED tag. It does NOT push. See RELEASING.md for
 # the full release process.
 #
-# The server and the toolkit version INDEPENDENTLY (each its own tags + cadence),
-# so this script releases only the server — releasing the server alone is
-# correct, not an edge case. For a change that genuinely spans both repos, pass
-# --with-sibling <toolkit-version>: it delegates the toolkit half to the
-# toolkit's own release.sh and then releases the server, printing two
-# INDEPENDENT versioned release summaries.
+# The model is independent versioning: the server and the toolkit each carry
+# their own semver, tags and cadence (the toolkit's docs/adr/0024), and this
+# script releases only the server. For now, though, the tag-fired release
+# workflow requires the pinned toolkit to declare the version being tagged, so
+# both repos release together at the same version (a lockstep release) until
+# that gate checks the declared compatibility floor instead. For a change that
+# genuinely spans both repos, pass --with-sibling <toolkit-version>: it delegates
+# the toolkit half to the toolkit's own release.sh and then releases the server,
+# printing a release summary for each.
+#
+# With --non-interactive the script never reads stdin: every prompt is answered
+# by a named flag, or the run stops with an error naming the flag it needed.
 #
 # Runs under Git Bash / POSIX sh on Windows: quote every path (working trees live
 # under OneDrive paths with spaces) and CR-strip any capture from a Windows shim
@@ -20,6 +26,9 @@
 set -euo pipefail
 
 # ── Location ────────────────────────────────────────────────────────────────
+# Remember the caller's directory: a relative --gate-dispositions path is
+# relative to it, not to the repo root this script moves into.
+INVOKED_FROM="$(pwd)"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
@@ -33,13 +42,46 @@ PKG_NAME="@npgamedev/godot-mcp-server"
 usage() {
   cat <<'EOF'
 Usage: ./scripts/release.sh <server-version> [--dry-run] [--with-sibling <toolkit-version>]
+       ./scripts/release.sh <server-version> [--dry-run] --non-interactive
+                            --gate-dispositions <file> [--changelog-curated]
        ./scripts/release.sh --verify <server-version>    # read-only post-push convergence check
+
+Options:
+  --dry-run                   Validate and report; write nothing.
+  --with-sibling <version>    Release the toolkit half first, through the
+                              toolkit's own release.sh. Not allowed with
+                              --non-interactive: the toolkit run would prompt.
+  --non-interactive           Never read stdin. Every prompt must be answered by
+                              one of the flags below; a prompt with no answer
+                              stops the run with an error naming the flag. A
+                              missing gh is an error, not a question.
+  --gate-dispositions <file>  Answers the manual pre-release gate. The file must
+                              exist, be non-empty and name <server-version>.
+                              Its sha256 (CR bytes removed) is recorded in the
+                              release commit as a Manual-Gate-Dispositions
+                              trailer. Requires --non-interactive.
+  --changelog-curated         Answers the CHANGELOG curation pause: you curated
+                              [Unreleased] before the run, and it must not be
+                              empty. Requires --non-interactive; not needed with
+                              --dry-run, which never reaches the pause.
+  --verify <version>          Read-only convergence check after pushing. Never
+                              prompts; --non-interactive is accepted and ignored.
+  -h, --help                  Show this help.
 
 Examples:
   ./scripts/release.sh 1.1.0                        # release the server
   ./scripts/release.sh 1.1.0 --dry-run              # validate + report; write nothing
-  ./scripts/release.sh 1.1.0 --with-sibling 1.2.0   # spanning change: two independent versions
+  ./scripts/release.sh 1.1.0 --with-sibling 1.1.0   # versions match while releases are lockstep
   ./scripts/release.sh --verify 1.1.0               # after pushing: assert convergence
+
+  # Agent-driven: write the gate dispositions first, dry-run, then release.
+  ./scripts/release.sh 1.1.0 --dry-run --non-interactive --gate-dispositions gate.md
+  ./scripts/release.sh 1.1.0 --non-interactive --gate-dispositions gate.md --changelog-curated
+
+--verify exit codes:
+  0  converged: the tag is on both origins and npm serves the version
+  1  a tag is missing, or the toolkit repo was not found to check (act)
+  2  both tags exist but npm does not serve the version yet (poll again)
 EOF
 }
 
@@ -47,12 +89,23 @@ VERSION=""
 DRY_RUN=0
 VERIFY=0
 SIBLING_VERSION=""
+NON_INTERACTIVE=0
+GATE_DISPOSITIONS=""
+CHANGELOG_CURATED=0
 # Parse: --verify takes the version as its own value and branches to a read-only
 # path; the first bare positional is the server version otherwise. --with-sibling
-# consumes the next argument as the toolkit version.
+# consumes the next argument as the toolkit version, --gate-dispositions as its
+# file path.
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
+    --non-interactive) NON_INTERACTIVE=1 ;;
+    --gate-dispositions)
+      shift
+      [[ $# -gt 0 ]] || { echo "error: --gate-dispositions requires a file path." >&2; usage; exit 1; }
+      GATE_DISPOSITIONS="$1"
+      ;;
+    --changelog-curated) CHANGELOG_CURATED=1 ;;
     --verify)
       VERIFY=1
       shift
@@ -82,6 +135,40 @@ if [[ -z "${VERSION}" ]]; then
   exit 1
 fi
 
+# ── Non-interactive argument rules (before any fetch or network call) ───────
+# The answer flags exist only for non-interactive runs, so an interactive run
+# behaves exactly as it always has.
+if [[ ${NON_INTERACTIVE} -eq 0 ]]; then
+  if [[ -n "${GATE_DISPOSITIONS}" || ${CHANGELOG_CURATED} -eq 1 ]]; then
+    echo "error: --gate-dispositions and --changelog-curated require --non-interactive." >&2
+    usage
+    exit 1
+  fi
+elif [[ ${VERIFY} -eq 1 ]]; then
+  # --verify is read-only and never prompts, so there is nothing to answer.
+  NON_INTERACTIVE=0
+else
+  if [[ -n "${SIBLING_VERSION}" ]]; then
+    echo "error: --with-sibling cannot be combined with --non-interactive: the delegated toolkit release.sh would prompt. Run each repo's release.sh on its own instead." >&2
+    usage
+    exit 1
+  fi
+  if [[ -z "${GATE_DISPOSITIONS}" ]]; then
+    echo "error: --non-interactive requires --gate-dispositions <file>: the manual pre-release gate is asked on every run, dry or not." >&2
+    usage
+    exit 1
+  fi
+  if [[ ${CHANGELOG_CURATED} -eq 0 && ${DRY_RUN} -eq 0 ]]; then
+    echo "error: --non-interactive requires --changelog-curated: a real run pauses for CHANGELOG curation (only --dry-run skips it)." >&2
+    usage
+    exit 1
+  fi
+  case "${GATE_DISPOSITIONS}" in
+    /*|[A-Za-z]:[\\/]*) ;;
+    *) GATE_DISPOSITIONS="${INVOKED_FROM}/${GATE_DISPOSITIONS}" ;;
+  esac
+fi
+
 TAG="v${VERSION}"
 
 fail() { echo "::error::$*" >&2; echo "error: $*" >&2; exit 1; }
@@ -99,6 +186,72 @@ validate_semver() {
 }
 validate_semver "${VERSION}" "version"
 [[ -n "${SIBLING_VERSION}" ]] && validate_semver "${SIBLING_VERSION}" "toolkit version"
+
+# ── Non-interactive helpers ─────────────────────────────────────────────────
+# Does the file name VERSION as a whole token? "1.0.3" matches "v1.0.3" and a
+# sentence-final "1.0.3.", but not "11.0.3" or "1.0.30".
+dispositions_name_version() {
+  local file="$1" ver_re="${VERSION//./[.]}"
+  grep -qE "(^|[^0-9.])${ver_re}([^0-9.]|[.]([^0-9]|$)|$)" "${file}"
+}
+
+# sha256 of the file with every CR byte removed, so CRLF and LF checkouts of the
+# same record hash alike. node rather than sha256sum: stock macOS lacks
+# sha256sum, and the CI check already needs node.
+dispositions_sha256() {
+  node -e '
+    const data=require("fs").readFileSync(process.argv[1]).filter(b=>b!==13);
+    process.stdout.write(require("crypto").createHash("sha256").update(data).digest("hex"));
+  ' "$1"
+}
+
+# The non-blank lines of the [Unreleased] section. A non-interactive run cannot
+# curate, so it refuses to roll an empty section.
+unreleased_body() {
+  awk '
+    index($0, "## [Unreleased]") == 1 { grab=1; next }
+    grab && index($0, "## ") == 1 { exit }
+    grab { print }
+  ' "${CHANGELOG}" | grep -v '^[[:space:]]*$' || true
+}
+
+# ── Non-interactive — the gate dispositions record and the prompt plan ──────
+DISPOSITIONS_SHA256=""
+if [[ ${NON_INTERACTIVE} -eq 1 ]]; then
+  [[ -f "${GATE_DISPOSITIONS}" ]] || \
+    fail "gate dispositions file '${GATE_DISPOSITIONS}' does not exist."
+  [[ -s "${GATE_DISPOSITIONS}" ]] || \
+    fail "gate dispositions file '${GATE_DISPOSITIONS}' is empty."
+  dispositions_name_version "${GATE_DISPOSITIONS}" || \
+    fail "gate dispositions file '${GATE_DISPOSITIONS}' does not name version ${VERSION} as a whole token."
+  DISPOSITIONS_SHA256="$(dispositions_sha256 "${GATE_DISPOSITIONS}")" || \
+    fail "could not hash gate dispositions file '${GATE_DISPOSITIONS}' (is node on PATH?)."
+  [[ "${DISPOSITIONS_SHA256}" =~ ^[0-9a-f]{64}$ ]] || \
+    fail "could not hash gate dispositions file '${GATE_DISPOSITIONS}'."
+
+  if command -v gh >/dev/null 2>&1; then
+    CI_PLAN="not asked (gh found; checked automatically)"
+  else
+    CI_PLAN="cannot be answered (gh not found); the CI pre-flight stops the run"
+  fi
+  if [[ ${DRY_RUN} -eq 1 ]]; then
+    CURATION_PLAN="not reached (--dry-run)"
+  else
+    CURATION_PLAN="answered by --changelog-curated"
+  fi
+  cat <<EOF
+
+── Non-interactive prompt plan ───────────────────────────────────────────────
+  CI-green confirmation    — ${CI_PLAN}
+  Manual pre-release gate  — answered by --gate-dispositions ${GATE_DISPOSITIONS}
+                             (sha256 ${DISPOSITIONS_SHA256})
+  Alignment-line prompt    — not asked (it needs --with-sibling, which
+                             --non-interactive does not allow)
+  CHANGELOG curation pause — ${CURATION_PLAN}
+──────────────────────────────────────────────────────────────────────────────
+
+EOF
+fi
 
 # Is PKG_NAME@VERSION already on npm? Distinguishes a genuine 404 (version absent →
 # available) from a registry/auth/transport error (which must NOT be read as
@@ -161,17 +314,23 @@ if [[ ${VERIFY} -eq 1 ]]; then
   echo "  npm ${PKG_NAME}@${VERSION}: ${npm_pub}"
   echo "──────────────────────────────────────────────────────────────────────"
 
-  # MISSING = a tag is absent on an origin (partial push). PENDING = tag present
-  # but npm not yet resolving (registry propagation lag — poll again). PASS = tag
-  # on both origins + npm resolves.
+  # The exit code is the verdict, so a caller can gate on it without parsing the
+  # text: 0 converged, 1 act (a tag is MISSING, or the toolkit repo is UNKNOWN and
+  # its tag cannot be checked), 2 poll again (only npm is PENDING; the registry
+  # can lag a publish by minutes).
   if [[ "${server_tag}" == "PASS" && "${toolkit_tag}" == "PASS" && "${npm_pub}" == "PASS" ]]; then
     echo "✓ Converged: tag on both origins and the package resolves on npm."
+    exit 0
   elif [[ "${server_tag}" == "MISSING" || "${toolkit_tag}" == "MISSING" ]]; then
-    echo "⚠ A tag is MISSING on an origin — a partial push. Push the missing side."
+    echo "⚠ ${TAG} is MISSING on at least one origin (not pushed yet, or pushed to only one). Push it to every origin marked MISSING."
+    exit 1
+  elif [[ "${toolkit_tag}" != "PASS" ]]; then
+    echo "⚠ The toolkit tag could not be checked. Set GODOT_MCP_TOOLKIT_REPO and re-run."
+    exit 1
   else
     echo "… npm PENDING — the registry can lag a publish by seconds to minutes; poll again."
+    exit 2
   fi
-  exit 0
 fi
 
 # ── Failure-path undo print ─────────────────────────────────────────────────
@@ -185,9 +344,14 @@ if [[ -n "${SIBLING_VERSION}" && -d "${TOOLKIT_REPO}/.git" ]]; then
 fi
 COMMIT_MADE=0
 TAG_MADE=0
+# The tag-message temp file; set once the mutation path creates it.
+SECTION_FILE=""
 
 on_exit() {
   local code=$?
+  if [[ -n "${SECTION_FILE}" ]]; then
+    rm -f "${SECTION_FILE}"
+  fi
   [[ ${code} -eq 0 ]] && return
 
   # Did the toolkit half (delegated under --with-sibling) already mutate? Detect
@@ -250,8 +414,9 @@ delegate_toolkit_release() {
     bash "${TOOLKIT_RELEASE_SH}" "${SIBLING_VERSION}"
   fi
   echo ""
-  echo "  ↑ Toolkit block above is an INDEPENDENT version (its own tag + Asset"
-  echo "    submission values). Now releasing the server (v${VERSION}) below."
+  echo "  ↑ Toolkit block above is the toolkit's own release (its tag + Asset"
+  echo "    submission values). Now releasing the server (v${VERSION}) below; while"
+  echo "    releases are lockstep, both carry the same version."
   echo "══════════════════════════════════════════════════════════════════════"
   echo ""
 }
@@ -365,13 +530,21 @@ fi
 check_ci_green() {
   local repo_slug="$1" sha="$2"
   local json conclusion
-  json="$(gh api "repos/${repo_slug}/commits/${sha}/check-runs" 2>/dev/null || echo '')"
+  # Read every page: a commit can carry more check runs than one page holds, and
+  # a red run on a later page must still fail the gate. --slurp wraps the pages
+  # in one JSON array so a single parse sees them all. A failed request still
+  # prints an error body, so gh's exit status decides, and any page without a
+  # check_runs array is an error rather than a page to skip.
+  json="$(gh api --paginate --slurp "repos/${repo_slug}/commits/${sha}/check-runs?per_page=100" 2>/dev/null)" || return 2
   [[ -z "${json}" ]] && return 2
   # Any non-success (or a still-running) conclusion => not green.
   conclusion="$(echo "${json}" | node -e '
     let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
       try{
-        const runs=(JSON.parse(s).check_runs)||[];
+        const parsed=JSON.parse(s);
+        const pages=Array.isArray(parsed)?parsed:[parsed];
+        if(!pages.every(p=>p&&Array.isArray(p.check_runs))){process.stdout.write("error");return;}
+        const runs=pages.flatMap(p=>p.check_runs);
         if(runs.length===0){process.stdout.write("empty");return;}
         for(const r of runs){
           if(r.status!=="completed"){process.stdout.write("pending");return;}
@@ -396,6 +569,9 @@ if command -v gh >/dev/null 2>&1; then
   fi
   echo "  CI green on both HEADs."
 else
+  if [[ ${NON_INTERACTIVE} -eq 1 ]]; then
+    fail "gh CLI not available, so CI cannot be checked, and --non-interactive cannot ask instead. Install gh or run interactively."
+  fi
   echo "⚠ gh CLI not available — cannot verify CI is green on both HEADs."
   read -r -p "Confirm CI is green on server ${LOCAL_HEAD} and toolkit ${TOOLKIT_HEAD}? [y/N] " reply
   [[ "${reply}" == "y" || "${reply}" == "Y" ]] || fail "CI-green confirmation declined."
@@ -419,8 +595,18 @@ Before tagging, the interactive checks CI cannot reach must be green:
 See docs/dev/release-checklist.md and work through it.
 ──────────────────────────────────────────────────────────────────────────────
 EOF
-read -r -p "Has the manual pre-release gate passed? [y/N] " reply
-[[ "${reply}" == "y" || "${reply}" == "Y" ]] || fail "manual pre-release gate not confirmed."
+if [[ ${NON_INTERACTIVE} -eq 1 ]]; then
+  echo "Manual pre-release gate — answered by --gate-dispositions ${GATE_DISPOSITIONS} (sha256 ${DISPOSITIONS_SHA256})"
+else
+  read -r -p "Has the manual pre-release gate passed? [y/N] " reply
+  [[ "${reply}" == "y" || "${reply}" == "Y" ]] || fail "manual pre-release gate not confirmed."
+fi
+
+# ── Pre-flight — [Unreleased] has content (non-interactive only) ────────────
+# Checked here so a dry run fails on an empty section just as the real run would.
+if [[ ${NON_INTERACTIVE} -eq 1 && -z "$(unreleased_body)" ]]; then
+  fail "the '## [Unreleased]' section of ${CHANGELOG} is empty, and a --non-interactive run cannot curate it. Add the entries, then re-run."
+fi
 
 # ── --dry-run short-circuit ─────────────────────────────────────────────────
 if [[ ${DRY_RUN} -eq 1 ]]; then
@@ -433,6 +619,11 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
 Would bump ${PACKAGE_JSON} (+ ${PACKAGE_LOCK}): ${CURRENT_VERSION} → ${VERSION}
 Would roll ${CHANGELOG}: '## [Unreleased]' → '## [${VERSION}] - $(date +%F)'
 Would commit (chore(release): ${TAG}) staging only ${PACKAGE_JSON} + ${PACKAGE_LOCK} + ${CHANGELOG} + any regenerated docs/
+EOF
+  if [[ ${NON_INTERACTIVE} -eq 1 ]]; then
+    echo "  with the trailer  Manual-Gate-Dispositions: sha256:${DISPOSITIONS_SHA256}"
+  fi
+  cat <<EOF
 Would create ANNOTATED tag ${TAG} carrying the rolled CHANGELOG section
 Push (does NOT push): git push origin main ${TAG}
 ──────────────────────────────────────────────────────────────────────────────
@@ -492,8 +683,7 @@ if ! grep -qF "## [Unreleased]" "${CHANGELOG}"; then
 fi
 
 RELEASE_DATE="$(date +%F)"
-SECTION_FILE="${TMPDIR:-C:/Users/nicol/OneDrive/Desktop/Personal/AIWithGodot/_TempForClaude}/release-changelog-${VERSION}.$$.md"
-mkdir -p "$(dirname "${SECTION_FILE}")"
+SECTION_FILE="$(mktemp "${TMPDIR:-/tmp}/release-changelog.XXXXXX")"
 
 TMP_CL="${CHANGELOG}.tmp.$$"
 awk -v ver="${VERSION}" -v date="${RELEASE_DATE}" '
@@ -553,8 +743,12 @@ echo "── npm pack --dry-run (the exact tarball that would ship) ────
 npm pack --dry-run 2>&1 || true
 echo "──────────────────────────────────────────────────────────────────────"
 echo ""
-read -r -p "Review/curate the rolled CHANGELOG section now. Continue? [y/N] " reply
-[[ "${reply}" == "y" || "${reply}" == "Y" ]] || fail "release paused — curation not confirmed."
+if [[ ${NON_INTERACTIVE} -eq 1 ]]; then
+  echo "CHANGELOG curation pause — answered by --changelog-curated"
+else
+  read -r -p "Review/curate the rolled CHANGELOG section now. Continue? [y/N] " reply
+  [[ "${reply}" == "y" || "${reply}" == "Y" ]] || fail "release paused — curation not confirmed."
+fi
 
 # On resume, re-verify only the expected files changed (the pause breaks the
 # clean-tree assumption). Expected: package.json, package-lock.json, CHANGELOG,
@@ -574,10 +768,19 @@ if [[ -n "${CHANGED_DOCS}" ]]; then
   # shellcheck disable=SC2086
   git add ${CHANGED_DOCS}
 fi
-git commit -m "chore(release): ${TAG}"
+# A non-interactive release ties the commit to the gate record it was given. Only
+# the hash goes in: the record itself may live somewhere private.
+if [[ ${NON_INTERACTIVE} -eq 1 ]]; then
+  git commit -m "chore(release): ${TAG}" -m "Manual-Gate-Dispositions: sha256:${DISPOSITIONS_SHA256}"
+else
+  git commit -m "chore(release): ${TAG}"
+fi
 COMMIT_MADE=1
 TAGGED_COMMIT="$(git rev-parse HEAD)"
 echo "✓ Commit created: ${TAGGED_COMMIT}"
+if [[ ${NON_INTERACTIVE} -eq 1 ]]; then
+  echo "  with the trailer  Manual-Gate-Dispositions: sha256:${DISPOSITIONS_SHA256}"
+fi
 
 # ── 5. Annotated tag (carrying the rolled section) — never amend after ──────
 #    Lightweight tags carry no message and are invisible to tooling that derives
@@ -607,7 +810,8 @@ rm -f "${SECTION_FILE}"
 cat <<EOF
 
 ✓ server bumped to ${TAG} (CHANGELOG curated and committed)
-✓ Commit created, annotated tag applied  (toolkit untouched — independent versioning)
+✓ Commit created, annotated tag applied  (toolkit untouched; the tag gate
+  expects the pinned toolkit to declare ${VERSION} too — a lockstep release)
 
 Next steps:
   1. Push server: cd "${REPO_ROOT}" && git push origin main ${TAG}
@@ -621,9 +825,10 @@ EOF
 if [[ -n "${SIBLING_VERSION}" ]]; then
   cat <<EOF
 
-Note: this was a --with-sibling run — two INDEPENDENT versioned releases. Push
-the toolkit too (its summary block above prints its own push command + the Asset
-submission values). The two tags carry the SAME string but are independent
-releases of two independent artifacts.
+Note: this was a --with-sibling run — a release of each repo. Push the toolkit
+too (its summary block above prints its own push command + the Asset submission
+values). The toolkit is tagged v${SIBLING_VERSION} and the server ${TAG}; while
+the tag gates force a lockstep release, the two versions must match, or each
+tag run fails at its gate.
 EOF
 fi
