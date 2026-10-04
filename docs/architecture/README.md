@@ -60,9 +60,12 @@ The rules that keep it honest:
    its `data-verified`, and update the **document-level stamp** at the top (the SHA + one-
    line definition of the last major architectural change).
 4. **Find what to re-check** by grepping `data-depicts` for a file you changed; an
-   advisory, non-blocking freshness check (`npm run check:arch`) lists diagrams whose
+   advisory freshness check (`npm run check:arch`) lists diagrams whose
    depicted files moved since their `data-verified` SHA. It over-flags by design — a false
-   re-check costs a glance; a missed drift ships a lying diagram.
+   re-check costs a glance; a missed drift ships a lying diagram. The check never fails a
+   build, but whoever moves a depicted file must follow that change with a commit that
+   re-attests the affected diagram; the release rule is in Phase 2 of the
+   [release runbook](../dev/release-runbook.md#architecture-and-contract-freshness).
 
 Each diagram's own `data-verified` comment is authoritative for when it was last
 re-checked against the code — the SHAs vary per diagram.
@@ -263,7 +266,7 @@ per-OS token-file resolver), `heartbeat.ts` (the generic liveness primitive), an
 
 A tool call reaches the editor like this:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="f1e2af7" -->
 ```mermaid
 sequenceDiagram
     participant SDK as MCP SDK (tool call)
@@ -278,28 +281,37 @@ sequenceDiagram
     Note over Ch: lazy — the first call opens the WS
     Ch->>A: authenticate(socket, readToken())
     A->>TK: { auth: token, version }
-    TK-->>A: { authed: true, godot_version, version }
+    TK-->>A: { authed: true, godot_version, version, headless }
     Note over A,TK: no {authed:true} within AUTH_TIMEOUT_MS (5 s) → reject + socket.close
+    Ch->>B: onAuthResolved({ version, headless })
+    opt an env var sets a response cap (initial editor channel only)
+        Ch-)TK: meta.set_limits { only the caps set } — fire-and-forget
+    end
+    Note over Ch: version-mismatch check → stderr only, a patch-only difference is silent
     Ch->>TK: JSON-RPC { id, method, params }
     TK-->>Ch: { id, result } — correlated by id
     Ch-->>D: result
     D-->>SDK: stableStringify(result) — verbatim
 ```
-*Figure 4 — connect → auth handshake → dispatch · verified d1c2a70*
+*Figure 4 — connect → auth handshake → dispatch · verified f1e2af7*
 
 The handshake (`authHandshake.ts`) sends `{ auth: token, version }` and resolves on
 `{ authed: true }`; the **editor** ack additionally carries `godot_version` + the plugin
-`version` (the version-gate input), while a **runtime** ack carries `{ authed: true }`
-only. The token is **re-read from disk on every connect** (`tokenPath.ts`, which reads the
-toolkit-published `token_path` from the registry and structurally validates it rather than
-re-deriving the path — [ADR 0011](#16-key-decisions)), so a rotated token after a plugin
-restart is picked up. A version-mismatch check after auth is human-only (stderr), never
-on the MCP wire.
+`version` (the version-gate input) and `headless` (the editor's display mode), while a
+**runtime** ack carries `{ authed: true }` only. The token is **re-read from disk on every
+connect** (`tokenPath.ts`, which reads the toolkit-published `token_path` from the
+registry and structurally validates it rather than re-deriving the path —
+[ADR 0011](#16-key-decisions)), so a rotated token after a plugin restart is picked up. A
+version-mismatch check after auth is human-only (stderr), never on the MCP wire, and a
+patch-only difference is silent. When `GODOT_MCP_SCRIPT_READ_LIMIT`
+or `GODOT_MCP_WS_BUFFER_LIMIT` sets a valid cap, the bridge pushes only that cap with
+`meta.set_limits` each time the initial editor channel authenticates; with neither set it
+sends nothing, and the project's `mcp_toolkit/limits/*` settings apply.
 
 The bridge composes a **persistent editor channel** and a **discovered runtime channel**,
 each with their own resilience policy:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="eb70bc1" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="f1e2af7" -->
 ```mermaid
 flowchart TD
     bridge["bridge.ts — editor-side facade + composition"]
@@ -320,7 +332,7 @@ flowchart TD
     note3["fs.watch on projects.json (diffAndNotify on runtime_port)<br/>→ connect / teardown; token re-read each connect → auth self-heals"]
     rc -.-> note3
 ```
-*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified eb70bc1*
+*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified f1e2af7*
 
 - **Editor channel** — persistent and reconnecting with exponential backoff
   (`1·2·4·8·16·32·60·60…` s; **reset on a successful round-trip, not on open**, so a
@@ -330,7 +342,9 @@ flowchart TD
   (`GODOT_MCP_EDITOR_PORT` / `--editor-port`), in which case a pinned connect **or
   auth-handshake** failure (a foreign server on the pinned port passes the WS upgrade,
   then fails auth) runs the **fail-fast desync cross-check** (one registry read → a
-  precise error naming the mismatch, instead of a silent dead-socket hang).
+  precise error naming the mismatch, instead of a silent dead-socket hang). A channel
+  opened by re-discovery does not push the env caps (`meta.set_limits`); only the initial
+  editor channel does.
 - **Runtime channel** — discovered, `noReconnect` (a dead game shouldn't be retried),
   with an injected `heartbeat`: ping every **15 s** (10 s ping timeout), **4** consecutive
   fails (~60 s) → proactive teardown. The `isAlive` self-stop guard is load-bearing —
@@ -355,7 +369,7 @@ counted in one place and missed in another. The human-readable
 (`npm run docs:tools`) — the canonical list of every tool and operation, never
 hand-edited.
 
-<!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="f1e2af7" -->
 ```mermaid
 flowchart TD
     defs["tools/*.ts — ToolDef arrays"] --> cat["catalogue.ALL_TOOL_DEFS<br/>dedup SSOT (01_catalogue CI gate)"]
@@ -371,7 +385,7 @@ flowchart TD
     pg --> hook["hook pipeline (global or explicit)"]
     hook --> handler["handler → callAndWrap<br/>one bridge call → stableStringify(result)"]
 ```
-*Figure 6 — catalogue → registration → per-call dispatch · verified d1c2a70*
+*Figure 6 — catalogue → registration → per-call dispatch · verified f1e2af7*
 
 **The choke point.** Every built-in and extension tool registers through
 `registerToolWrapped` (`registration/toolRegistry.ts`) — never `server.registerTool`
@@ -394,7 +408,7 @@ default body — "one bridge call → JSON-stringify the result". The `name` (sn
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="eb70bc1" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="f1e2af7" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}
@@ -403,11 +417,11 @@ flowchart TD
     payload -->|"yes"| pe["toolErrorFromPayload<br/>preserve code + message + toolkit hint"]
     payload -->|"no"| hint["inject successHint — ONLY if the toolkit set none"]
     hint --> reflect["stableStringify(result) → text block<br/>VERBATIM — no response re-encode (REFLECT)"]
-    note["ErrorCode union (shared/types.ts): the server's OWN UPPER_SNAKE_CASE set,<br/>header 'keep in sync with MCPToolkitError.CODES'. A SUPERSET by design — it carries<br/>bridge-origin codes (AUTH_FAILED / CLOSED / RPC_ERROR / SEND_FAILED) the plugin<br/>never sends. toolError(code: ErrorCode | string) forwards any unknown plugin code verbatim."]
+    note["ErrorCode union (shared/types.ts): the server's OWN UPPER_SNAKE_CASE set,<br/>header 'must stay in sync with MCPToolkitError.CODES'. It adds bridge-origin codes<br/>(AUTH_FAILED / CLOSED / RPC_ERROR / SEND_FAILED / CANCELLED / LSP_UNAVAILABLE) the plugin never sends, and does NOT<br/>list every plugin code. toolError(code: ErrorCode | string) forwards any code outside it verbatim."]
     exc -.-> note
     pe -.-> note
 ```
-*Figure 7 — the response & error contract (REFLECT) · verified eb70bc1*
+*Figure 7 — the response & error contract (REFLECT) · verified f1e2af7*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
 result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`
@@ -417,13 +431,14 @@ is **never overwritten** — the server's `successHint` injects only when the to
 none.
 
 **The own-enum, string-tolerant wire.** The server keeps its **own**
-`UPPER_SNAKE_CASE` `ErrorCode` union (`shared/types.ts`, with a "keep in sync with
+`UPPER_SNAKE_CASE` `ErrorCode` union (`shared/types.ts`, with a "must stay in sync with
 `MCPToolkitError.CODES`" header — the toolkit SSOT at
 `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`), but `toolError(code: ErrorCode |
-string, …)` **forwards any unknown plugin code verbatim**. The union is a **superset by
-design** — its header explicitly notes the transport-level codes (`AUTH_FAILED`, `CLOSED`,
-`RPC_ERROR`, `SEND_FAILED`) originate in the bridge and never travel through the plugin.
-This is documented contract, not drift.
+string, …)` **forwards any unknown plugin code verbatim**. The union adds codes the plugin
+never sends: its header notes that the transport-level codes (`AUTH_FAILED`, `CLOSED`,
+`RPC_ERROR`, `SEND_FAILED`, `CANCELLED`, `LSP_UNAVAILABLE`) originate in the bridge and
+never travel through the plugin. Some plugin codes, `NODE_NOT_FOUND` and `BUSY` among them,
+are not in the union; they still reach the client unchanged through the `string` arm.
 
 ---
 
@@ -438,7 +453,7 @@ data modules in `groups/defs/`, plus the derived `GROUP_TOOL_NAMES` / `RUNTIME_T
 and the leaves `groupState.ts` / `groupResult.ts` / `groupTypes.ts`. `groups.ts` itself is
 the thin `discover_tools` orchestrator over them.
 
-<!-- data-depicts="src/groups/groups.ts src/groups/groupMatch.ts src/groups/groupActivation.ts src/groups/groupCatalogue.ts src/registration/toolRegistry.ts" data-verified="bdcd2a3" -->
+<!-- data-depicts="src/groups/groups.ts src/groups/groupMatch.ts src/groups/groupActivation.ts src/groups/groupCatalogue.ts src/registration/toolRegistry.ts" data-verified="f1e2af7" -->
 ```mermaid
 flowchart TD
     req["discover_tools({ request, activate, reset, include_schemas })"] --> batch["batchToolRegistration — suppress per-op notifications"]
@@ -454,7 +469,7 @@ flowchart TD
     enrich --> resp["response: groups[] (+ >5-groups warning, fuzzy / reset hints)"]
     body --> one["exactly ONE tools/list_changed — fired in finally"]
 ```
-*Figure 8 — the `discover_tools` activation flow · verified bdcd2a3*
+*Figure 8 — the `discover_tools` activation flow · verified f1e2af7*
 
 **The load-bearing invariant**: one `discover_tools` call — however many groups it
 activates and deactivates — emits **exactly one** `tools/list_changed`. All mutation
@@ -490,7 +505,7 @@ guards.
 tool is **never registered** (absent from `tools/list`, with **no per-call forward-time
 reject**):
 
-<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="eb70bc1" -->
+<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="f1e2af7" -->
 ```mermaid
 flowchart TD
     env["GODOT_MCP_READ_ONLY=1"] --> pred["profiles.isExcludedByReadOnly(readOnly, annotations)"]
@@ -504,7 +519,7 @@ flowchart TD
     sites["Applied at EVERY registration site:<br/>modules (registerTools) · groups (registerGroupTools)<br/>· extensions (registerExtensionTool)"]
     sites -.-> pred
 ```
-*Figure 9 — read-only enforcement points · verified eb70bc1*
+*Figure 9 — read-only enforcement points · verified f1e2af7*
 
 STRICT means a tool is exposed iff `readOnlyHint: true ∧ ¬destructiveHint`; **an
 unannotated tool defaults to excluded (safe)**, and the `readOnlyHint ∧ destructiveHint`
@@ -677,7 +692,7 @@ engine is newer than tested. **Version acquisition**: the editor ack carries
 `godot_version` (the dogfood path); otherwise the bridge pre-populates it from the registry
 entry before auth.
 
-<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="f1e2af7" -->
 ```mermaid
 flowchart TD
     subgraph regn["Registration gate (registerToolWrapped) — fails CLOSED"]
@@ -693,13 +708,13 @@ flowchart TD
     subgraph runt["Runtime gate (wrappedHandler) — fails OPEN"]
       u1{"connected version?"}
       u1 -->|"null"| upass["allow (fail OPEN)"]
-      u1 -->|"known + incompatible"| ublock["UNSUPPORTED 'requires Godot ≥ X (connected: Y)'"]
+      u1 -->|"known + incompatible"| ublock["UNSUPPORTED 'not supported on this Godot version (connected: X.Y)'<br/>+ a supported-range hint"]
       u1 -->|"known + compatible"| upass
     end
     note["isVersionCompatible (version.ts). The null asymmetry is intentional + recoverable:<br/>registration refuses the unverifiable; runtime tolerates it. The server filters<br/>version-gated tools from tools/list, so it never surfaces the toolkit's -32601 on the happy path."]
     rkeep -.-> note
 ```
-*Figure 12 — the version dual-gate · verified d1c2a70*
+*Figure 12 — the version dual-gate · verified f1e2af7*
 
 The dual gate (concern 071, fixed via "option e") has a deliberate **null asymmetry**: the
 **registration gate** fails **CLOSED** on an unknown version (drop the tool — recoverable
@@ -820,7 +835,7 @@ Server-side decisions worth recording:
 
 | Decision | Rationale |
 |----------|-----------|
-| The own, string-tolerant `ErrorCode` union | Forward any plugin code verbatim while keeping a typed superset that also names bridge-origin codes ([§6](#6-the-response--error-contract)) |
+| The own, string-tolerant `ErrorCode` union | Forward any plugin code verbatim through the `string` arm, while the typed union names the bridge-origin codes and most plugin codes, not all of them ([§6](#6-the-response--error-contract)) |
 | The REFLECT posture | Forward the toolkit's result verbatim — no response re-encode ([§6](#6-the-response--error-contract)) |
 | `discover_tools` over profiles + tool-packs | One LLM-driven on-demand surface instead of static profiles ([§7](#7-tool-surface-management-discover_tools)) |
 | Registry-driven, never-blind discovery | Resolve every endpoint by path from `projects.json`; never scan blindly ([§1](#1-the-big-picture), [§9](#9-the-gdscript-lsp-client), [§11](#11-multi-project-registry)) |
