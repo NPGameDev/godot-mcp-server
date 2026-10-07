@@ -42,10 +42,11 @@ real users. Full methodology: `Plan/ExecutionPlan/41o-stability-sanity-check.md`
       nodes).
 - [ ] **B9 — Client departure.** With the editor running, run
       `npm run probe:departure -- --project <path to the Godot project the editor has open>`
-      (or export `GODOT_MCP_PROJECT_PATH` and run it bare) so S2 is not skipped. With neither,
-      S2 is skipped, not run against the server repo. Every scenario PASS: the server exits 0
-      within the shutdown bound when its stdin ends or its stdout dies, keeps serving when only
-      stderr dies, and never spins. Then end the MCP client hard (Task Manager / `kill -9`) with
+      (or export `GODOT_MCP_PROJECT_PATH` and run it bare) so S2 and S6's editor half are not
+      skipped. With neither, they are skipped, not run against the server repo. Every scenario
+      PASS: the server exits 0 within the shutdown bound when its stdin ends or its stdout dies,
+      keeps serving when only stderr dies, answers an 11 MiB message and still exits on
+      departure (S6), and never spins. Then end the MCP client hard (Task Manager / `kill -9`) with
       a live session: no server process remains after 5 s (regression guard for #2).
 
 ---
