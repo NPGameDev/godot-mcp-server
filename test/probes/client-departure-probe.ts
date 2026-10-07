@@ -22,23 +22,23 @@
  *
  * The scenarios that need no editor pin a dead editor port so they stay deterministic
  * even when an editor is listening. S2 and S6's editor half run unpinned against a live
- * editor on 6550; they print SKIP when nothing is listening. After an S2 PASS, confirm by eye that the editor
- * console logged the peer disconnect.
+ * editor on 6550; they print SKIP when nothing is listening. After an S2 PASS, confirm by
+ * eye that the editor console logged the peer disconnect.
  *
- * S2 has to be told which Godot project that editor has open: the server finds the
+ * Both have to be told which Godot project that editor has open: the server finds the
  * editor's session token through the project's registry entry (absent the
  * GODOT_MCP_TOKEN_PATH override), and a path with none fails authentication. The working
  * directory is no stand-in, because under `npm run` it is the server package. The
- * project is `--project`, else GODOT_MCP_PROJECT_PATH; with neither, S2 is skipped
+ * project is `--project`, else GODOT_MCP_PROJECT_PATH; with neither, both are skipped
  * instead of guessing.
  *
  * Node-only and self-contained: it spawns its own child with pipes and kills only that
  * child. It never enumerates processes and never kills by PID.
  *
  * Run from the server repo root (never a bare `npx`):
- *   npm run probe:departure                                # S2 skips unless GODOT_MCP_PROJECT_PATH is set
- *   npm run probe:departure -- --no-editor                 # skip S2
- *   npm run probe:departure -- --project <path>            # the project whose editor serves S2
+ *   npm run probe:departure                                # the editor runs skip unless GODOT_MCP_PROJECT_PATH is set
+ *   npm run probe:departure -- --no-editor                 # skip the editor runs
+ *   npm run probe:departure -- --project <path>            # the project whose editor serves them
  *   GODOT_MCP_PROJECT_PATH=<path> npm run probe:departure  # the same, from the environment
  *   npm run probe:departure -- --server <path>             # a different built entrypoint
  */
@@ -251,7 +251,7 @@ async function startPinned(): Promise<Server | undefined> {
 }
 
 const NO_BANNER = "server never printed its startup banner";
-const NO_PROJECT = "S2 needs --project <Godot project> or GODOT_MCP_PROJECT_PATH";
+const NO_PROJECT = "needs --project <Godot project> or GODOT_MCP_PROJECT_PATH";
 
 async function scenario1(): Promise<void> {
   const server = await startPinned();
@@ -391,13 +391,14 @@ async function scenario5(): Promise<void> {
   );
 }
 
-/** One inbound message past the SDK's default 10 MiB read cap. Past that cap the SDK's
- *  transport closes itself and pauses stdin, and a paused stdin never reports EOF, so the
- *  server must still answer that message and the next one, and still exit on departure. */
+/** Just past the SDK's default 10 MiB read cap. */
 const OVERSIZE_BYTES = 11 * 1024 * 1024;
 
+/** Send one inbound message past the SDK's default read cap, then depart. Past that cap
+ *  the SDK's transport closes itself and pauses stdin, and a paused stdin never reports
+ *  EOF, so the server must still answer that message and the next one, and still exit. */
 async function oversizeThenDepart(name: string, server: Server): Promise<void> {
-  await server.request(
+  const init = await server.request(
     "initialize",
     {
       protocolVersion: "2024-11-05",
@@ -406,6 +407,10 @@ async function oversizeThenDepart(name: string, server: Server): Promise<void> {
     },
     EXIT_WINDOW_MS,
   );
+  if (init === undefined) {
+    server.kill();
+    return record(name, "FAIL", null, null, "initialize unanswered");
+  }
   server.notify("notifications/initialized", {});
   // An unknown tool keeps the editor out of it: the server answers the oversize call itself.
   const oversize = server.request(

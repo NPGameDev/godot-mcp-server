@@ -16,8 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- When a tool call has an invalid parameter, the error now lists one problem per line and names
-  the parameter, instead of a JSON dump of the validation issues.
+- When a tool call has an invalid parameter, the error now lists one problem per line, as
+  `<message> at <parameter>`, instead of a JSON array of the validation issues.
 
 ## [1.0.3] - 2026-10-05
 

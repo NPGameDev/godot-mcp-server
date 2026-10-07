@@ -565,7 +565,8 @@ every cancellation/timeout guarantee.
   hook-pipeline wrapping, string-coercion, and tool-ref tracking; bypassing it silently drops those
   guarantees. Prompts / resources / roots go through their own registrars (`src/mcp/`).
 - **SDK construction.** `McpServer` with `{ capabilities: { tools: { listChanged: true } } }`;
-  `StdioServerTransport` connected **last** (`await server.connect(transport)`, `src/index.ts:169`).
+  `StdioServerTransport` built by `createStdioTransport` (`src/startup/lifecycle.ts`) and connected
+  **last** (`await server.connect(transport)`, at the end of `src/index.ts`).
   Zod is the schema lib; raw JSON Schema from extensions is converted to a Zod shape by
   `jsonSchemaToZodShape` (`src/shared/schemaCoercion.ts:139`, invoked from
   `src/registration/toolRegistry.ts:139`).
