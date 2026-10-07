@@ -5,6 +5,8 @@
  * test end in process.exit) against a stub bridge that records its close() calls in a
  * log file. The child echoes stdin → stdout, so "still serving" is observable, and
  * writes a stderr tick every 100 ms — the diagnostic writes that once fed the storm.
+ * The last case runs in-process: the stdio transport createStdioTransport builds must
+ * take an inbound message past the SDK's default read cap without closing.
  *
  * Regression guard for #2: the crash handler logged EPIPE to the stderr that had just
  * raised it, re-entered itself, and spun the event loop at 100% forever.
@@ -14,9 +16,10 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { PassThrough } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { SHUTDOWN_DEADLINE_MS } from "../../src/startup/lifecycle.js";
+import { createStdioTransport, SHUTDOWN_DEADLINE_MS } from "../../src/startup/lifecycle.js";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 // A file:// URL: Windows reads a bare absolute path as an unsupported "c:" protocol.
@@ -152,5 +155,26 @@ if (process.platform !== "win32") {
   assert.equal(t.closes(), 1);
 }
 
+// ── 8. One inbound message past the SDK's default 10 MiB read cap ─────────
+// With the default cap the transport would close and pause stdin, hiding the
+// client's departure; the one createStdioTransport builds delivers it and stays open.
+{
+  const stdin = new PassThrough();
+  const transport = createStdioTransport(stdin, new PassThrough());
+  const received: unknown[] = [];
+  let closed = false;
+  transport.onmessage = (message) => received.push(message);
+  transport.onclose = () => {
+    closed = true;
+  };
+  await transport.start();
+  const pad = "a".repeat(11 * 1024 * 1024);
+  stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/oversize", params: { pad } }) + "\n");
+  for (let waited = 0; received.length === 0 && !closed && waited < 5_000; waited += 20) await sleep(20);
+  assert.equal(closed, false, "an oversize message must not close the transport");
+  assert.equal(received.length, 1, "the oversize message is delivered");
+  await transport.close();
+}
+
 rmSync(workDir, { recursive: true, force: true });
-console.log(`All ${process.platform === "win32" ? 6 : 7} lifecycle tests passed.`);
+console.log(`All ${process.platform === "win32" ? 7 : 8} lifecycle tests passed.`);

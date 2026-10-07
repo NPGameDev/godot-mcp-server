@@ -20,7 +20,14 @@
  * before 1.0.1 the crash handler logged EPIPE to the very stderr that had raised
  * it, re-entered itself on every tick, and pinned a core at 100% for as long as
  * the orphan lived (#2).
+ *
+ * The stdio transport is built here too (createStdioTransport), because its read
+ * limit decides whether stdin stays readable to the departure shutdown.
  */
+import type { Readable, Writable } from "node:stream";
+
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
 import type { Bridge } from "../shared/types.js";
 
 /** Upper bound on the graceful close. A frozen editor makes the WebSocket close
@@ -94,4 +101,16 @@ export function installProcessHandlers(bridge: Bridge): void {
   process.on("uncaughtException", (err) => {
     logSafely(`[godot-mcp] uncaughtException: ${err?.stack ?? err}\n`);
   });
+}
+
+/** Build the stdio transport the MCP server connects to, with no cap on the size of one
+ *  inbound message. Past its default cap the SDK's transport closes itself and pauses
+ *  stdin, and a paused stdin never emits 'end', the event the departure shutdown relies
+ *  on: after one oversize message the bridge would stop answering and could no longer
+ *  tell that its client had gone. */
+export function createStdioTransport(
+  stdin: Readable = process.stdin,
+  stdout: Writable = process.stdout,
+): StdioServerTransport {
+  return new StdioServerTransport(stdin, stdout, { maxBufferSize: Infinity });
 }

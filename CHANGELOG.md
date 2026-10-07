@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The MCP TypeScript SDK moves from 1.29.0 to 1.32.1, past
+  [GHSA-6qxp-vccf-f47h](https://github.com/advisories/GHSA-6qxp-vccf-f47h). The flaw is in the
+  SDK's OAuth client, which the server never runs, but 1.0.3 pinned the affected version, so
+  every install carried it.
+
+### Changed
+
+- When a tool call has an invalid parameter, the error now lists one problem per line and names
+  the parameter, instead of a JSON dump of the validation issues.
+
 ## [1.0.3] - 2026-10-05
 
 ### Fixed
