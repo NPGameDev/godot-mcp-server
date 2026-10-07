@@ -12,30 +12,33 @@
  *                                                                 clean stdin EOF exits 0
  *   S4  dead stdout, then a request                             → exit 0 within 3 s
  *   S5  SIGTERM (POSIX only — Windows has no signals)           → exit 0 within 3 s
+ *   S6  one 11 MiB message, pinned and then with the editor     → both it and a later
+ *                                                                 tools/list answer, then
+ *                                                                 departure exits 0
  *
  * S3 is the regression guard for #2: before 1.0.1 the first stderr write after the pipe
  * closed raised EPIPE, the crash handler reported it to that same dead stderr, and the
  * process re-entered the handler forever at 100% CPU.
  *
  * The scenarios that need no editor pin a dead editor port so they stay deterministic
- * even when an editor is listening. S2 runs unpinned against a live editor on 6550; it
- * prints SKIP when nothing is listening. After an S2 PASS, confirm by eye that the editor
- * console logged the peer disconnect.
+ * even when an editor is listening. S2 and S6's editor half run unpinned against a live
+ * editor on 6550; they print SKIP when nothing is listening. After an S2 PASS, confirm by
+ * eye that the editor console logged the peer disconnect.
  *
- * S2 has to be told which Godot project that editor has open: the server finds the
+ * Both have to be told which Godot project that editor has open: the server finds the
  * editor's session token through the project's registry entry (absent the
  * GODOT_MCP_TOKEN_PATH override), and a path with none fails authentication. The working
  * directory is no stand-in, because under `npm run` it is the server package. The
- * project is `--project`, else GODOT_MCP_PROJECT_PATH; with neither, S2 is skipped
+ * project is `--project`, else GODOT_MCP_PROJECT_PATH; with neither, both are skipped
  * instead of guessing.
  *
  * Node-only and self-contained: it spawns its own child with pipes and kills only that
  * child. It never enumerates processes and never kills by PID.
  *
  * Run from the server repo root (never a bare `npx`):
- *   npm run probe:departure                                # S2 skips unless GODOT_MCP_PROJECT_PATH is set
- *   npm run probe:departure -- --no-editor                 # skip S2
- *   npm run probe:departure -- --project <path>            # the project whose editor serves S2
+ *   npm run probe:departure                                # the editor runs skip unless GODOT_MCP_PROJECT_PATH is set
+ *   npm run probe:departure -- --no-editor                 # skip the editor runs
+ *   npm run probe:departure -- --project <path>            # the project whose editor serves them
  *   GODOT_MCP_PROJECT_PATH=<path> npm run probe:departure  # the same, from the environment
  *   npm run probe:departure -- --server <path>             # a different built entrypoint
  */
@@ -248,7 +251,7 @@ async function startPinned(): Promise<Server | undefined> {
 }
 
 const NO_BANNER = "server never printed its startup banner";
-const NO_PROJECT = "S2 needs --project <Godot project> or GODOT_MCP_PROJECT_PATH";
+const NO_PROJECT = "needs --project <Godot project> or GODOT_MCP_PROJECT_PATH";
 
 async function scenario1(): Promise<void> {
   const server = await startPinned();
@@ -388,6 +391,87 @@ async function scenario5(): Promise<void> {
   );
 }
 
+/** Just past the SDK's default 10 MiB read cap. */
+const OVERSIZE_BYTES = 11 * 1024 * 1024;
+
+/** Send one inbound message past the SDK's default read cap, then depart. Past that cap
+ *  the SDK's transport closes itself and pauses stdin, and a paused stdin never reports
+ *  EOF, so the server must still answer that message and the next one, and still exit. */
+async function oversizeThenDepart(name: string, server: Server): Promise<void> {
+  const init = await server.request(
+    "initialize",
+    {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "client-departure-probe", version: "1.0.0" },
+    },
+    EXIT_WINDOW_MS,
+  );
+  if (init === undefined) {
+    server.kill();
+    return record(name, "FAIL", null, null, "initialize unanswered");
+  }
+  server.notify("notifications/initialized", {});
+  // An unknown tool keeps the editor out of it: the server answers the oversize call itself.
+  const oversize = server.request(
+    "tools/call",
+    { name: "client_departure_probe_no_such_tool", arguments: { pad: "a".repeat(OVERSIZE_BYTES) } },
+    10_000,
+  );
+  const listed = server.request("tools/list", {}, 10_000);
+  const [bigAnswer, listAnswer] = await Promise.all([oversize, listed]);
+  if (bigAnswer === undefined || listAnswer === undefined) {
+    server.kill();
+    return record(
+      name,
+      "FAIL",
+      null,
+      null,
+      `oversize answered=${bigAnswer !== undefined}, tools/list answered=${listAnswer !== undefined}`,
+    );
+  }
+  const started = Date.now();
+  server.depart();
+  const code = await server.exitWithin(EXIT_WINDOW_MS);
+  const elapsed = Date.now() - started;
+  server.kill();
+  record(
+    name,
+    code === 0 ? "PASS" : "FAIL",
+    code,
+    elapsed,
+    code === 0
+      ? "11 MiB call and tools/list answered, then departure exited 0"
+      : "answered, but departure did not exit 0",
+  );
+}
+
+async function scenario6(): Promise<void> {
+  const server = await startPinned();
+  if (!server) return record("S6 oversize message", "FAIL", null, null, NO_BANNER);
+  await oversizeThenDepart("S6 oversize message", server);
+}
+
+async function scenario6WithEditor(): Promise<void> {
+  const name = "S6 oversize message, editor";
+  if (NO_EDITOR) return record(name, "SKIP", null, null, "--no-editor");
+  if (PROJECT_PATH === undefined) return record(name, "SKIP", null, null, NO_PROJECT);
+  if (!(await editorListening(EDITOR_PORT))) {
+    return record(name, "SKIP", null, null, `nothing listening on 127.0.0.1:${EDITOR_PORT}`);
+  }
+  // As in S2: the editor socket keeps the event loop alive, so only stdin can end the process.
+  const server = new Server({ GODOT_MCP_EDITOR_PORT: undefined, GODOT_MCP_PROJECT_PATH: PROJECT_PATH });
+  if (!(await server.ready())) {
+    server.kill();
+    return record(name, "FAIL", null, null, NO_BANNER);
+  }
+  if (!(await server.waitForStderr("authenticated", 15_000))) {
+    server.kill();
+    return record(name, "FAIL", null, null, "editor never authenticated within 15 s");
+  }
+  await oversizeThenDepart(name, server);
+}
+
 function printTable(): void {
   const headings: Row = { scenario: "scenario", result: "result", exit: "exit", elapsed: "elapsed ms", note: "note" };
   const all = [headings, ...rows];
@@ -413,6 +497,8 @@ async function main(): Promise<void> {
   await scenario3();
   await scenario4();
   await scenario5();
+  await scenario6();
+  await scenario6WithEditor();
   printTable();
   const tally = (result: Result): number => rows.filter((row) => row.result === result).length;
   process.stdout.write(`\n[departure] ${tally("PASS")} passed, ${tally("FAIL")} failed, ${tally("SKIP")} skipped\n`);

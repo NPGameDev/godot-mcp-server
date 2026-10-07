@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="b89ea46" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="21c0446" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified 0ad6009*
+*Figure 1 — system context · verified 21c0446*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -159,7 +159,7 @@ dependency cannot invert. Leaf modules like `groups/groupState.ts` and
 `groups/groupCatalogue.ts` exist precisely to break what would otherwise be a
 `groups` ↔ `catalogue` cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="b89ea46" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="21c0446" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -190,7 +190,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified 0ad6009*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 21c0446*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -203,7 +203,7 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="b89ea46" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="21c0446" -->
 ```mermaid
 flowchart TD
     pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>portConfig (cli → env → registry → 6550) · response caps · config-version warn"]
@@ -221,7 +221,7 @@ flowchart TD
     part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 34)<br/>+ 2 meta = 36-tool startup surface; group tools absent (no stubs).<br/>112 total / 34 eager / 78 on-demand / 28 groups"]
     reg -.-> part
 ```
-*Figure 3 — composition-root boot order · verified e0ae3af*
+*Figure 3 — composition-root boot order · verified 21c0446*
 
 - **Preflight** (`startup/startupEnv.ts` + `startup/cliArgs.ts` + `startup/portConfig.ts`) runs
   before anything stateful: a hard Node ≥ 22 gate, the `--help` / `--tools-count` /
@@ -251,7 +251,9 @@ flowchart TD
   `bridge.close()` bounded by a 2 s deadline → exit 0. A **stderr** error is muted: only
   the log sink is gone, so the server keeps serving. `unhandledRejection` /
   `uncaughtException` log through a never-throwing writer and deliberately keep the
-  bridge alive.
+  bridge alive. The stdio transport is built here too, with no cap on one inbound
+  message: past the SDK's default cap the transport closes and pauses stdin, and a
+  paused stdin never reports EOF to the departure shutdown.
 
 ---
 

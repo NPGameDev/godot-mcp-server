@@ -15,7 +15,6 @@
  * @module
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { capKb, createBridge } from "./transport/bridge.js";
 import { isReadOnly } from "./security/profiles.js";
@@ -35,7 +34,7 @@ import * as registrars from "./startup/registrars.js";
 import { createExtensionManager } from "./extensions/extensions.js";
 import { createReconciler } from "./startup/reconcile.js";
 import { createLspStatusReporter } from "./lsp/lspStatusReporter.js";
-import { installProcessHandlers } from "./startup/lifecycle.js";
+import { createStdioTransport, installProcessHandlers } from "./startup/lifecycle.js";
 
 // ── Preflight (may exit) ─────────────────────────────────────────────
 startupEnv.enforceNodeVersion();
@@ -177,5 +176,5 @@ reconciler.armStartupReconcile({ versionNullAtEagerRegistration, extDiscoveryTim
 
 installProcessHandlers(bridge);
 
-const transport = new StdioServerTransport();
+const transport = createStdioTransport();
 await server.connect(transport);
