@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="3969cbb" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="f05f4e3" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified 3969cbb*
+*Figure 1 — system context · verified f05f4e3*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -157,9 +157,12 @@ imported by `transport/`, `lsp/`, and `startup/`, sitting over one leaf of its o
 `registryLiveness.ts`, which takes plain numbers and names no registry symbol, so that
 dependency cannot invert. Leaf modules like `groups/groupState.ts` and
 `groups/groupCatalogue.ts` exist precisely to break what would otherwise be a
-`groups` ↔ `catalogue` cycle.
+`groups` ↔ `catalogue` cycle. Two `startup/` modules are imported from outside the root
+the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
+`startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
+or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="3969cbb" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="4926459" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -190,7 +193,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified 3969cbb*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 4926459*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -203,10 +206,10 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="60b685a" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/projectPath.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="a233038" -->
 ```mermaid
 flowchart TD
-    pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>portConfig (cli → env → registry → 6550) · response caps · config-version warn"]
+    pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>projectPath (GODOT_MCP_PROJECT_PATH, empty = unset → cwd)<br/>portConfig (cli → env → registry → 6550) · response caps · config-version warn"]
     bridge["createBridge(ws://127.0.0.1:&lt;port&gt;)"]
     srv["new McpServer<br/>capabilities.tools.listChanged = true"]
     hooks["createHookPipeline + setGlobalHookPipeline"]
@@ -221,11 +224,14 @@ flowchart TD
     part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 34)<br/>+ 2 meta = 36-tool startup surface; group tools absent (no stubs).<br/>112 total / 34 eager / 78 on-demand / 28 groups"]
     reg -.-> part
 ```
-*Figure 3 — composition-root boot order · verified 60b685a*
+*Figure 3 — composition-root boot order · verified a233038*
 
-- **Preflight** (`startup/startupEnv.ts` + `startup/cliArgs.ts` + `startup/portConfig.ts`) runs
+- **Preflight** (`startup/startupEnv.ts` + `startup/cliArgs.ts` + `startup/projectPath.ts` +
+  `startup/portConfig.ts`) runs
   before anything stateful: a hard Node ≥ 22 gate, the `--help` / `--tools-count` /
-  `--list-eager` / parse-error early `process.exit` (editor-independent), port resolution
+  `--list-eager` / parse-error early `process.exit` (editor-independent), the project path
+  (`GODOT_MCP_PROJECT_PATH`, an empty value counting as unset, else the working directory;
+  the LSP tools resolve it through the same function), port resolution
   (`--editor-port` / `GODOT_MCP_EDITOR_PORT` → `lookupProject` registry hit → `6550` fallback,
   in `portConfig.ts` with precedence CLI > env > discovery > default; pinned values
   validated as integers 1–65535, invalid → exit 1), response cap parse/clamp, and a
@@ -412,7 +418,7 @@ default body — "one bridge call → JSON-stringify the result". The `name` (sn
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="f1e2af7" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="4926459" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}
@@ -421,11 +427,11 @@ flowchart TD
     payload -->|"yes"| pe["toolErrorFromPayload<br/>preserve code + message + toolkit hint"]
     payload -->|"no"| hint["inject successHint — ONLY if the toolkit set none"]
     hint --> reflect["stableStringify(result) → text block<br/>VERBATIM — no response re-encode (REFLECT)"]
-    note["ErrorCode union (shared/types.ts): the server's OWN UPPER_SNAKE_CASE set,<br/>header 'must stay in sync with MCPToolkitError.CODES'. It adds bridge-origin codes<br/>(AUTH_FAILED / CLOSED / RPC_ERROR / SEND_FAILED / CANCELLED / LSP_UNAVAILABLE) the plugin never sends, and does NOT<br/>list every plugin code. toolError(code: ErrorCode | string) forwards any code outside it verbatim."]
+    note["ErrorCode union (shared/types.ts): the server's OWN UPPER_SNAKE_CASE set,<br/>header 'must stay in sync with MCPToolkitError.CODES'. Every toolkit code plus six<br/>server-origin codes the plugin never sends (AUTH_FAILED / CANCELLED / CLOSED /<br/>LSP_UNAVAILABLE / RPC_ERROR / SEND_FAILED). toolError(code: ErrorCode | string) forwards any code outside it verbatim."]
     exc -.-> note
     pe -.-> note
 ```
-*Figure 7 — the response & error contract (REFLECT) · verified f1e2af7*
+*Figure 7 — the response & error contract (REFLECT) · verified 4926459*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
 result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`
@@ -438,11 +444,12 @@ none.
 `UPPER_SNAKE_CASE` `ErrorCode` union (`shared/types.ts`, with a "must stay in sync with
 `MCPToolkitError.CODES`" header — the toolkit SSOT at
 `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`), but `toolError(code: ErrorCode |
-string, …)` **forwards any unknown plugin code verbatim**. The union adds codes the plugin
-never sends: its header notes that the transport-level codes (`AUTH_FAILED`, `CLOSED`,
-`RPC_ERROR`, `SEND_FAILED`, `CANCELLED`, `LSP_UNAVAILABLE`) originate in the bridge and
-never travel through the plugin. Some plugin codes, `NODE_NOT_FOUND` and `BUSY` among them,
-are not in the union; they still reach the client unchanged through the `string` arm.
+string, …)` **forwards any unknown plugin code verbatim**. The union lists every code in
+`MCPToolkitError.CODES` plus six the plugin never sends: its header names them
+(`AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`) and
+says they originate in the server and never travel through the plugin. A code a newer
+toolkit adds before the union catches up still reaches the client unchanged through the
+`string` arm.
 
 ---
 
@@ -560,7 +567,7 @@ JSON-RPC-over-TCP client) and was **not carved**. 083 carved only the *tool laye
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="3969cbb" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="f05f4e3" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -580,7 +587,7 @@ flowchart TD
     ep --> tcp["own TCP socket → Godot GDScript LSP<br/>(BYPASSES the WS bridge + mutation queue)"]
     tcp --> verdict["status verdict → lspStatusReporter.ts<br/>→ editor.set_lsp_status (de-duped by state:host:port)"]
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified 3969cbb*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified f05f4e3*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -840,7 +847,7 @@ Server-side decisions worth recording:
 
 | Decision | Rationale |
 |----------|-----------|
-| The own, string-tolerant `ErrorCode` union | Forward any plugin code verbatim through the `string` arm, while the typed union names the bridge-origin codes and most plugin codes, not all of them ([§6](#6-the-response--error-contract)) |
+| The own, string-tolerant `ErrorCode` union | Forward any plugin code verbatim through the `string` arm, while the typed union names every toolkit code and the six server-origin codes ([§6](#6-the-response--error-contract)) |
 | The REFLECT posture | Forward the toolkit's result verbatim — no response re-encode ([§6](#6-the-response--error-contract)) |
 | `discover_tools` over profiles + tool-packs | One LLM-driven on-demand surface instead of static profiles ([§7](#7-tool-surface-management-discover_tools)) |
 | Registry-driven, never-blind discovery | Resolve every endpoint by path from `projects.json`; never scan blindly ([§1](#1-the-big-picture), [§9](#9-the-gdscript-lsp-client), [§11](#11-multi-project-registry)) |
