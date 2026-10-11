@@ -57,7 +57,7 @@ matter, not a workflow one.
 ```bash
 npm run format       # Prettier check — CI enforces this
 npm run format:fix   # fix violations
-npm run lint         # ESLint
+npm run lint         # ESLint, then the probes' type-check
 ```
 
 Always use the `npm run` scripts, never a bare `npx` invocation — the scripts

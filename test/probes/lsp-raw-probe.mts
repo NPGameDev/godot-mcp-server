@@ -54,7 +54,7 @@ function nonAsciiCount(bytes: Buffer): number {
   return n;
 }
 
-function send(obj: object & { method?: string; id?: number }): void {
+function send(obj: { method?: string; id?: number; [key: string]: unknown }): void {
   const s = JSON.stringify(obj);
   sock.write("Content-Length: " + Buffer.byteLength(s) + "\r\n\r\n" + s);
   console.log(ts(), "[send]", obj.method ?? "resp#" + obj.id);

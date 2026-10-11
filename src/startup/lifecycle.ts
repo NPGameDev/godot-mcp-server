@@ -16,10 +16,9 @@
  * socket, not our client.
  *
  * stdin is the primary detector, not a backup: an open editor WebSocket is a ref'd
- * handle, so EOF never drains the loop on its own. The stderr rule exists because
- * before 1.0.1 the crash handler logged EPIPE to the very stderr that had raised
- * it, re-entered itself on every tick, and pinned a core at 100% for as long as
- * the orphan lived (#2).
+ * handle, so EOF never drains the loop on its own. The stderr rule exists because a
+ * crash handler that logs to the stderr that raised the error would re-enter itself
+ * on every tick; the muted stderr listener in installProcessHandlers explains how.
  *
  * The stdio transport is built here too (createStdioTransport), because its read
  * limit decides whether stdin stays readable to the departure shutdown.

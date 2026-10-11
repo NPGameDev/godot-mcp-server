@@ -67,7 +67,7 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
-      - name: Lint (ESLint)
+      - name: Lint (ESLint + probe type-check)
         run: npm run lint
 
       - name: Format check (Prettier)

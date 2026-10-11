@@ -64,11 +64,13 @@ needs, and how to add a test when you add a tool or an extension — see
 ### Linting
 
 ```bash
-npm run lint         # ESLint (src/ and test/)
+npm run lint         # ESLint (src/ and test/), then the probes' type-check
 ```
 
 ESLint uses flat config (`eslint.config.js`) with typescript-eslint recommended
-rules and eslint-config-prettier.
+rules and eslint-config-prettier. The probes under `test/probes/` run through `tsx`,
+which strips types without checking them, so `npm run lint` also type-checks them
+with `tsconfig.probes.json`.
 
 ### Formatting
 
