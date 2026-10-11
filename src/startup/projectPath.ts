@@ -1,6 +1,6 @@
 /**
- * The one rule for which Godot project this server serves. The composition root
- * and the LSP tools both call it, so the two cannot disagree about the project.
+ * The one rule for which Godot project this server serves. Every module that needs
+ * the served project resolves it here, so they cannot disagree about it.
  * A leaf with no imports: modules outside `startup/` may depend on it without
  * pulling in the startup preflight.
  *

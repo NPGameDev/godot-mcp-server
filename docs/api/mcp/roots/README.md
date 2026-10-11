@@ -13,10 +13,8 @@ client declares its workspace roots and the server can
 request them. This module exposes the Godot project root as a
 resource so it's discoverable.
 
-The project path is resolved at startup from:
-  1. GODOT_MCP_PROJECT_PATH env var (highest precedence)
-  2. Registry lookup matching the editor port
-  3. process.cwd() (fallback)
+The project path is resolved at startup by `resolveProjectPath`
+(`startup/projectPath.ts`) and handed in through init().
 
 ## Functions
 
