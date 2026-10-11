@@ -236,7 +236,7 @@ flowchart TD
   in `portConfig.ts` with precedence CLI > env > discovery > default; pinned values
   validated as integers 1–65535, invalid → exit 1), and response cap parse/clamp.
   `startup/bridgeOptions.ts` then hands the resolved project path, ports and caps to
-  `createBridge` in one object (the bridge connects lazily, so building it opens nothing),
+  `createBridge` in one object (the bridge connects lazily, so building it opens no connection),
   and a config-version warning follows.
 - **The SDK surface** advertises `capabilities.tools.listChanged: true`. A single
   `batchToolRegistration` collapses a burst of registrations into **one**
@@ -686,7 +686,8 @@ stale / runtime-only / ping-pong entries gracefully. The `diffAndNotify` watcher
 number, not that it is still the editor that wrote the entry. The runtime-port lookups
 stop there, the file read (`discoverRuntime`) and the watcher's cache
 (`getCachedRuntimePort`) alike, through one shared check: a runtime entry advertises
-`port: -1` (nothing to probe), a wrong runtime port announces itself through a failed connect plus the channel's own per-instance auth
+`port: -1` (nothing to probe), a wrong runtime port announces itself through a failed
+connect plus the channel's own per-instance auth
 handshake, and that path runs on **every** runtime RPC. LSP claimants go further and are
 corroborated against the WS command port their own entry advertises (ADR 0025,
 [§9](#9-the-gdscript-lsp-client)), because reaching the wrong editor's language server
