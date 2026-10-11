@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   editor held, with toolkit 1.0.4 or later.
 - A playtest call whose runtime port another program took after the game crashed now
   reports that the game is not running, instead of an authentication failure.
+- An empty `GODOT_MCP_PROJECT_PATH` is now treated as unset, so the server uses its working
+  directory instead of naming a project that can never connect.
 
 ## [1.0.3] - 2026-10-05
 

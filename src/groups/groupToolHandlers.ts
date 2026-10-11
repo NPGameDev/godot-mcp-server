@@ -11,6 +11,7 @@ import { toolErrorFromPayload, toolErrorFromException } from "../shared/errorCon
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 import { RUNTIME_TOOLS, LSP_TOOLS } from "./groupCatalogue.js";
 import { createLspHandler } from "../tools/lsp.js";
+import { resolveProjectPath } from "../startup/projectPath.js";
 
 // ── Special-case handlers ────────────────────────────────────────────
 // Tools with non-standard response processing. Each returns a handler
@@ -103,7 +104,7 @@ export function createGroupToolHandler(bridge: Bridge, def: ToolDef) {
       return handleEditorScreenshot(bridge, def);
     default: {
       if (LSP_TOOLS.has(def.name)) {
-        const projectPath = process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
+        const projectPath = resolveProjectPath(process.env, process.cwd());
         const handler = createLspHandler(def.name, projectPath);
         // LSP handlers own their TCP transport and never flow through callAndWrap,
         // so their declared successHint must be injected here, matching the

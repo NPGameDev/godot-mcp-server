@@ -27,6 +27,7 @@ import { init as initRoots, registerRoots } from "./mcp/roots.js";
 import { setGlobalHookPipeline } from "./registration/toolRegistry.js";
 import * as startupEnv from "./startup/startupEnv.js";
 import { parseCliArgs } from "./startup/cliArgs.js";
+import { resolveProjectPath } from "./startup/projectPath.js";
 import { resolvePortConfigOrExit, logResolvedPortConfig } from "./startup/portConfig.js";
 import { setLspOverride } from "./lsp/lspClient.js";
 import { MODULE_ALLOWED } from "./startup/serverMode.js";
@@ -43,7 +44,7 @@ startupEnv.applyCliMetaGates(cli); // --help / parse error / --tools-count / --l
 
 // ── Bridge setup ─────────────────────────────────────────────────────
 
-const projectPath = process.env.GODOT_MCP_PROJECT_PATH ?? process.cwd();
+const projectPath = resolveProjectPath(process.env, process.cwd());
 const ports = resolvePortConfigOrExit(cli, projectPath); // invalid pin → exit 1
 logResolvedPortConfig(ports);
 const caps = startupEnv.resolveResponseCaps();
