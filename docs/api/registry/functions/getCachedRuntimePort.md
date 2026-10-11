@@ -8,10 +8,11 @@
 
 > **getCachedRuntimePort**(`projectPath`): `number` \| `null`
 
-Defined in: [src/registry.ts:335](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L335)
+Defined in: [src/registry.ts:345](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L345)
 
-Read runtime_port from the in-memory cache (zero I/O).
-Returns null if no runtime is registered or the watcher hasn't seen one.
+Read runtime_port from the in-memory cache, with no file read.
+Returns null if no runtime is registered or the watcher hasn't seen one, and,
+as [discoverRuntime](discoverRuntime.md) does, for an out-of-range port or a dead owning process.
 
 ## Parameters
 
