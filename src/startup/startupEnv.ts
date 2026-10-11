@@ -13,6 +13,8 @@ import { GROUP_TOOL_NAMES, GROUPS } from "../groups/groups.js";
 import { MODULE_ALLOWED } from "./serverMode.js";
 import type { CliArgs } from "./cliArgs.js";
 import { formatHelp } from "./cliArgs.js";
+import type { ResolvedPortConfig } from "./portConfig.js";
+import type { BridgeOptions } from "../transport/bridge.js";
 
 /** Hard-exit (code 1) if the Node runtime is below the engines.node floor (>=22). */
 export function enforceNodeVersion(): void {
@@ -159,6 +161,26 @@ export function resolveResponseCaps(): ResponseCaps {
   return {
     scriptReadLimitBytes: parseCapEnv("GODOT_MCP_SCRIPT_READ_LIMIT", SCRIPT_READ_LIMIT_FLOOR),
     wsBufferLimitBytes: parseCapEnv("GODOT_MCP_WS_BUFFER_LIMIT", WS_BUFFER_LIMIT_FLOOR),
+  };
+}
+
+/**
+ * Build the bridge options from the resolved startup configuration: the project
+ * path, the dial ports, and the response caps the environment sets.
+ *
+ * @param projectPath - the Godot project the bridge discovers ports for
+ * @param ports - the resolved dial configuration (pins and their sources)
+ * @param caps - the env-set response caps, from {@link resolveResponseCaps}; each
+ *   defined cap becomes an env override the bridge pushes after every editor auth
+ * @returns the options the composition root hands to `createBridge`
+ */
+export function buildBridgeOptions(projectPath: string, ports: ResolvedPortConfig, caps: ResponseCaps): BridgeOptions {
+  return {
+    projectPath,
+    explicitRuntimePort: ports.runtimePort,
+    explicitEditorPort: ports.editorPinned,
+    scriptReadLimitBytes: caps.scriptReadLimitBytes,
+    wsBufferLimitBytes: caps.wsBufferLimitBytes,
   };
 }
 

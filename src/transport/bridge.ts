@@ -43,20 +43,22 @@ export interface BridgeOptions {
    *  Skips registry re-discovery on editor connection loss and, on a pinned
    *  connect or auth-handshake failure, runs the fail-fast desync cross-check. */
   explicitEditorPort?: boolean;
-  /** Max bytes for script content responses. When set, it is pushed to the plugin
-   *  (`meta.set_limits`) each time the bridge's editor connection authenticates,
-   *  reconnects included; after an editor-port re-discovery the new connection does
-   *  not push it. The push sets the editor's in-memory
-   *  `mcp_toolkit/limits/script_read_cap_kb`, which stays in force until the editor
-   *  restarts or the setting is changed, and the next project-settings save from any
-   *  source persists it to `project.godot`. When unset, nothing is pushed and the
-   *  project's setting applies. */
+  /** Max bytes for script content responses: the env override for
+   *  `mcp_toolkit/limits/script_read_cap_kb`. After every editor auth, reconnects and
+   *  editor-port re-discoveries included, the bridge pushes its whole set of env
+   *  overrides with `meta.set_limits`, as `{}` when neither cap is set. A 1.0.4 or
+   *  later toolkit replaces its env overrides with each push, so `{}` clears them,
+   *  and keeps them out of `project.godot`; the effective value is the env override
+   *  while one is active, otherwise the project value. Older toolkits apply each
+   *  pushed value in memory, where the next project-settings save from any source
+   *  persists it, and ignore `{}`. When unset, the push carries no override for this
+   *  limit. */
   scriptReadLimitBytes?: number;
-  /** Max WebSocket buffer size in bytes. When set, it is pushed the same way and sets
-   *  `mcp_toolkit/limits/ws_buffer_kb` with the same lifetime and persistence. The
+  /** Max WebSocket buffer size in bytes: the env override for
+   *  `mcp_toolkit/limits/ws_buffer_kb`, pushed in the same set as the script cap. The
    *  plugin sizes a connection's buffers when it accepts the connection, so the
    *  pushed value applies only to connections accepted after the push, not to the
-   *  one that pushed it. When unset, the project's setting applies. */
+   *  one that pushed it. When unset, the push carries no override for this limit. */
   wsBufferLimitBytes?: number;
 }
 
@@ -127,35 +129,32 @@ export function createBridge(
     }
   }
 
-  // The project's mcp_toolkit/limits/* settings apply unless an env var sets a
-  // cap. Then only that cap is pushed, from the initial editor channel's auth
-  // callback below; the channel rediscoverEditor opens does not push. The plugin
-  // sets it in memory, where it stays in force until the editor restarts or the
-  // setting is changed, and the next settings save from any source persists it
-  // to project.godot. With none set nothing is sent, so a cap set in the dock or
-  // in Project Settings stays in force and stays in project.godot.
-  function sendLimitsIfConfigured(channel: Channel): void {
+  // Push the server's whole set of env overrides: the caps the env sets, or {}
+  // when it sets none. The push is the full set, never a delta, so a toolkit that
+  // replaces its env overrides on each push (1.0.4 and later) ends up holding
+  // exactly this server's set; see BridgeOptions for how older toolkits differ.
+  function pushLimitOverrides(channel: Channel): void {
     const scriptKb = opts?.scriptReadLimitBytes ? capKb(opts.scriptReadLimitBytes) : 0;
     const wsKb = opts?.wsBufferLimitBytes ? capKb(opts.wsBufferLimitBytes) : 0;
     const params: Record<string, number> = {};
     if (scriptKb > 0) params.script_read_cap_kb = scriptKb;
     if (wsKb > 0) params.ws_buffer_kb = wsKb;
-    if (Object.keys(params).length === 0) return;
-    // Fire-and-forget: a failed push leaves the project's own setting in force.
+    // Fire-and-forget: a failed push is safe, because the editor keeps the set it
+    // already holds, and the next auth pushes again.
     void channel.call("meta.set_limits", params, 5000).catch(() => {});
   }
 
+  // The one auth callback every editor channel gets, the one rediscoverEditor
+  // opens included, so each editor auth records the version and display mode and
+  // pushes the env overrides the same way.
+  function onEditorAuth({ version, headless: h }: { version: string; headless: boolean | undefined }): void {
+    setGodotVersion(version);
+    headless = h;
+    pushLimitOverrides(editor);
+  }
+
   const getNotificationHandler = () => notificationHandler;
-  let editor = createChannel(
-    editorUrl,
-    projectPath,
-    ({ version, headless: h }) => {
-      setGodotVersion(version);
-      headless = h;
-      sendLimitsIfConfigured(editor);
-    },
-    getNotificationHandler,
-  );
+  let editor = createChannel(editorUrl, projectPath, onEditorAuth, getNotificationHandler);
   let cachedEditorPort = Number(new URL(editorUrl).port);
 
   // ── Editor-port re-discovery ─────────────────────────────────────
@@ -181,15 +180,7 @@ export function createBridge(
     const oldPort = cachedEditorPort;
     cachedEditorPort = entry.port;
     await editor.close();
-    editor = createChannel(
-      `ws://127.0.0.1:${cachedEditorPort}`,
-      projectPath,
-      ({ version, headless: h }) => {
-        setGodotVersion(version);
-        headless = h;
-      },
-      getNotificationHandler,
-    );
+    editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`, projectPath, onEditorAuth, getNotificationHandler);
     process.stderr.write(`[bridge] editor port changed ${oldPort} → ${cachedEditorPort}\n`);
     return true;
   }

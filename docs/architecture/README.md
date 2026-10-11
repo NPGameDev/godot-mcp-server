@@ -305,10 +305,13 @@ connect** (`tokenPath.ts`, which reads the toolkit-published `token_path` from t
 registry and structurally validates it rather than re-deriving the path —
 [ADR 0011](#16-key-decisions)), so a rotated token after a plugin restart is picked up. A
 version-mismatch check after auth is human-only (stderr), never on the MCP wire, and a
-patch-only difference is silent. When `GODOT_MCP_SCRIPT_READ_LIMIT`
-or `GODOT_MCP_WS_BUFFER_LIMIT` sets a valid cap, the bridge pushes only that cap with
-`meta.set_limits` each time the initial editor channel authenticates; with neither set it
-sends nothing, and the project's `mcp_toolkit/limits/*` settings apply.
+patch-only difference is silent. After every editor auth, reconnects and editor-port
+re-discoveries included, the bridge pushes its whole set of env overrides with
+`meta.set_limits`: the caps `GODOT_MCP_SCRIPT_READ_LIMIT` and `GODOT_MCP_WS_BUFFER_LIMIT`
+set, or `{}` when neither is set. A 1.0.4 or later toolkit replaces its env overrides with
+each push, so `{}` clears them, and keeps them out of `project.godot`. Older toolkits apply
+each pushed value in memory, where the next settings save persists it, and ignore `{}`. A
+pushed WebSocket buffer size reaches only connections accepted after the push.
 
 The bridge composes a **persistent editor channel** and a **discovered runtime channel**,
 each with their own resilience policy:
@@ -345,8 +348,8 @@ flowchart TD
   auth-handshake** failure (a foreign server on the pinned port passes the WS upgrade,
   then fails auth) runs the **fail-fast desync cross-check** (one registry read → a
   precise error naming the mismatch, instead of a silent dead-socket hang). A channel
-  opened by re-discovery does not push the env caps (`meta.set_limits`); only the initial
-  editor channel does.
+  opened by re-discovery gets the same auth callback as the first, so it pushes the env
+  overrides (`meta.set_limits`) too.
 - **Runtime channel** — discovered, `noReconnect` (a dead game shouldn't be retried),
   with an injected `heartbeat`: ping every **15 s** (10 s ping timeout), **4** consecutive
   fails (~60 s) → proactive teardown. The `isAlive` self-stop guard is load-bearing —

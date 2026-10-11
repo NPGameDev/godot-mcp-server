@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When a tool call has an invalid parameter, the error now lists one problem per line, as
   `<message> at <parameter>`, instead of a JSON array of the validation issues.
 
+### Fixed
+
+- An editor that comes back on a different port now receives the limits set by
+  `GODOT_MCP_SCRIPT_READ_LIMIT` and `GODOT_MCP_WS_BUFFER_LIMIT`.
+- Restarting the MCP client without a limit variable now clears the env override the
+  editor held, with toolkit 1.0.4 or later.
+
 ## [1.0.3] - 2026-10-05
 
 ### Fixed

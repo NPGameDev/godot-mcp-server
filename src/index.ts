@@ -52,13 +52,10 @@ const caps = startupEnv.resolveResponseCaps();
 // over env there; env stays live so a config reload can still change it).
 setLspOverride({ port: cli.lspPort, host: cli.lspHost });
 
-const bridge = createBridge(`ws://127.0.0.1:${ports.editorPort}`, {
-  projectPath,
-  explicitRuntimePort: ports.runtimePort,
-  explicitEditorPort: ports.editorPinned,
-  scriptReadLimitBytes: caps.scriptReadLimitBytes,
-  wsBufferLimitBytes: caps.wsBufferLimitBytes,
-});
+const bridge = createBridge(
+  `ws://127.0.0.1:${ports.editorPort}`,
+  startupEnv.buildBridgeOptions(projectPath, ports, caps),
+);
 
 startupEnv.warnConfigVersion();
 
