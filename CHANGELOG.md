@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GODOT_MCP_SCRIPT_READ_LIMIT` and `GODOT_MCP_WS_BUFFER_LIMIT`.
 - Restarting the MCP client without a limit variable now clears the env override the
   editor held, with toolkit 1.0.4 or later.
+- A playtest call whose runtime port another program took after the game crashed now
+  reports that the game is not running, instead of an authentication failure.
 
 ## [1.0.3] - 2026-10-05
 
