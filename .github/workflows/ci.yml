@@ -44,6 +44,10 @@ jobs:
         # runs on 24 (npm >= 11.5.1 — the 42b OIDC trusted-publishing prerequisite).
         node-version: [22.x, 24.x]
     name: "Server floor (Node ${{ matrix.node-version }}): build+unit+lint+format+smoke:ci"
+    # Fuse: the unit runner has no per-file timeout; the whole leg (checkout, install,
+    # build, suite, lint, smoke) takes about a minute, so a run past 15 minutes is a hung
+    # test file.
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v7

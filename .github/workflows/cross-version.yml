@@ -446,7 +446,11 @@ jobs:
     needs: platform-setup
     if: ${{ contains(needs.platform-setup.outputs.platforms, 'windows') }}
     runs-on: windows-latest
-    name: "Unit tests (Windows · normalizePath path layer)"
+    name: "Unit tests (Windows)"
+    # Fuse: the unit runner has no per-file timeout; the whole job (checkout, install,
+    # suite) takes about a minute on Windows and under a minute on macOS, so a run past
+    # 15 minutes is a hung test file.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -464,6 +468,7 @@ jobs:
     if: ${{ contains(needs.platform-setup.outputs.platforms, 'macos') }}
     runs-on: macos-latest
     name: "Unit tests (macOS)"
+    timeout-minutes: 15 # fuse, as windows-unit
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
