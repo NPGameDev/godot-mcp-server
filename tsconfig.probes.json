@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "moduleDetection": "force"
+  },
+  "include": ["test/probes/**/*.ts", "test/probes/**/*.mts"]
+}

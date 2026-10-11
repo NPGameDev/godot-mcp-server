@@ -1,7 +1,8 @@
 /**
  * Unit tests for registry.ts — core registry I/O.
  *  - normalizePath: slash/trailing/case transforms (platform-aware).
- *  - The public read surface (lookupProject, discoverRuntime) exercised against
+ *  - The public read surface (lookupProject, discoverRuntime, and the watcher's
+ *    getCachedRuntimePort) exercised against
  *    a hermetic temp projects.json via the APPDATA / XDG_DATA_HOME env redirect
  *    registryPath() honors. These cases also cover the private readRegistry
  *    (single parse attempt → graceful empty) through that public surface. darwin has no path
@@ -17,7 +18,16 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { snapshotEnv } from "./helpers.js";
-import { normalizePath, registryPath, lookupProject, discoverRuntime, type RegistryEntry } from "../../src/registry.js";
+import {
+  normalizePath,
+  registryPath,
+  lookupProject,
+  discoverRuntime,
+  watchRegistry,
+  unwatchRegistry,
+  getCachedRuntimePort,
+  type RegistryEntry,
+} from "../../src/registry.js";
 
 // ── normalizePath tests ──────────────────────────────────────────────
 
@@ -296,6 +306,37 @@ function withRawRegistry(raw: string | null, fn: () => void): void {
       6570,
       "discoverRuntime: a refusing entry port does not block — the runtime path checks the PID only",
     );
+  });
+}
+
+// ── getCachedRuntimePort: the same checks as discoverRuntime ─────────
+//
+// While the registry watcher runs, callRuntime reads the port from its cache. A
+// crashed playtest's port must not pass there either: another program may own it
+// by now, and connecting would fail as AUTH_FAILED instead of GAME_NOT_RUNNING.
+
+/** Write the registry, start the watcher so it caches it, run fn, then stop the watcher. */
+function withWatchedRegistry(byPath: Record<string, RegistryEntry>, fn: () => void): void {
+  withRegistry(byPath, () => {
+    watchRegistry({ onDiscovered: () => {}, onRemoved: () => {} });
+    try {
+      fn();
+    } finally {
+      unwatchRegistry();
+    }
+  });
+}
+
+{
+  const key = normalizePath("/proj/run");
+  withWatchedRegistry({ [key]: makeEntry({ runtime_port: 6570, runtime_pid: DEAD }) }, () => {
+    assert.equal(getCachedRuntimePort("/proj/run"), null, "getCachedRuntimePort: dead runtime_pid → null");
+  });
+  withWatchedRegistry({ [key]: makeEntry({ runtime_port: 6570, runtime_pid: ALIVE }) }, () => {
+    assert.equal(getCachedRuntimePort("/proj/run"), 6570, "getCachedRuntimePort: live runtime_pid → port returned");
+  });
+  withWatchedRegistry({ [key]: makeEntry({ runtime_port: 70000, runtime_pid: ALIVE }) }, () => {
+    assert.equal(getCachedRuntimePort("/proj/run"), null, "getCachedRuntimePort: out-of-range port → null");
   });
 }
 

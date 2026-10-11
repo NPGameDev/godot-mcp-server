@@ -51,7 +51,7 @@
     "probe:screenshot": "tsx test/screenshot-window-probe.ts",
     "probe:departure": "tsx test/probes/client-departure-probe.ts",
     "stress:dispatch": "tsx test/integration/dispatch-safety-stress.ts",
-    "lint": "eslint src/ test/",
+    "lint": "eslint src/ test/ && tsc -p tsconfig.probes.json",
     "lint:fix": "eslint src/ test/ --fix",
     "lint:pkg": "publint",
     "format": "prettier --check .",

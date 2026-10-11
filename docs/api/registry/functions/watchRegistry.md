@@ -8,7 +8,7 @@
 
 > **watchRegistry**(`callbacks`): `void`
 
-Defined in: [src/registry.ts:303](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L303)
+Defined in: [src/registry.ts:312](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L312)
 
 Start watching projects.json for runtime port changes.
 

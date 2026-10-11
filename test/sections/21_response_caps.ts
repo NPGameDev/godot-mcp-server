@@ -127,4 +127,9 @@ export async function testResponseCaps(ctx: TestCtx): Promise<void> {
 
   // Reset to defaults so later tests are unaffected.
   await bridge.call("meta.set_limits", { script_read_cap_kb: 256, ws_buffer_kb: 1024 }, CALL_TIMEOUT);
+  // Then push the empty set, as the bridge does when no limit variable is set, so
+  // the run leaves no env override active on any toolkit: one that replaces its
+  // overrides with each push clears them on {}, and an older one ignores it and
+  // keeps the defaults the reset just applied.
+  await bridge.call("meta.set_limits", {}, CALL_TIMEOUT);
 }

@@ -8,7 +8,7 @@
 
 > **discoverLspEndpoint**(`projectPath`): `Promise`\<\{ `host`: `string`; `port`: `number`; \} \| \{ `conflict`: `true`; `port`: `number`; \} \| `null`\>
 
-Defined in: [src/registry.ts:176](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L176)
+Defined in: [src/registry.ts:185](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L185)
 
 Resolve this project's published LSP endpoint, with conservative ownership.
   { host, port } — we own it: connect (then verify rootUri on 4.5+).

@@ -49,16 +49,18 @@ Absolute path to the Godot project. Used for registry-based port
 
 > `optional` **scriptReadLimitBytes?**: `number`
 
-Defined in: [src/transport/bridge.ts:54](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L54)
+Defined in: [src/transport/bridge.ts:56](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L56)
 
-Max bytes for script content responses. When set, it is pushed to the plugin
- (`meta.set_limits`) each time the bridge's editor connection authenticates,
- reconnects included; after an editor-port re-discovery the new connection does
- not push it. The push sets the editor's in-memory
- `mcp_toolkit/limits/script_read_cap_kb`, which stays in force until the editor
- restarts or the setting is changed, and the next project-settings save from any
- source persists it to `project.godot`. When unset, nothing is pushed and the
- project's setting applies.
+Max bytes for script content responses: the env override for
+ `mcp_toolkit/limits/script_read_cap_kb`. After every editor auth, reconnects and
+ editor-port re-discoveries included, the bridge pushes its whole set of env
+ overrides with `meta.set_limits`, as `{}` when neither cap is set. A 1.0.4 or
+ later toolkit replaces its env overrides with each push, so `{}` clears them,
+ and keeps them out of `project.godot`; the effective value is the env override
+ while one is active, otherwise the project value. Older toolkits apply each
+ pushed value in memory, where the next project-settings save from any source
+ persists it, and ignore `{}`. When unset, the push carries no override for this
+ limit.
 
 ***
 
@@ -66,10 +68,10 @@ Max bytes for script content responses. When set, it is pushed to the plugin
 
 > `optional` **wsBufferLimitBytes?**: `number`
 
-Defined in: [src/transport/bridge.ts:60](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L60)
+Defined in: [src/transport/bridge.ts:62](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L62)
 
-Max WebSocket buffer size in bytes. When set, it is pushed the same way and sets
- `mcp_toolkit/limits/ws_buffer_kb` with the same lifetime and persistence. The
+Max WebSocket buffer size in bytes: the env override for
+ `mcp_toolkit/limits/ws_buffer_kb`, pushed in the same set as the script cap. The
  plugin sizes a connection's buffers when it accepts the connection, so the
  pushed value applies only to connections accepted after the push, not to the
- one that pushed it. When unset, the project's setting applies.
+ one that pushed it. When unset, the push carries no override for this limit.

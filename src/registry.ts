@@ -105,19 +105,19 @@ export function lookupProject(projectPath: string): RegistryEntry | null {
 }
 
 /**
- * Return the runtime_port for a project, or null if no playtest is active.
- * Re-reads the file on every call so newly-started playtests are picked up.
+ * The runtime port an entry advertises, or null when the port is out of range or
+ * its owning playtest process is provably dead. Both runtime-port lookups, the fresh
+ * file read and the watcher's cache, go through this one check, so they agree.
  */
-export function discoverRuntime(projectPath: string): number | null {
-  const entry = lookupProject(projectPath);
-  if (!entry) return null;
+function usableRuntimePort(entry: RegistryEntry): number | null {
   const port = entry.runtime_port;
   if (port == null || !Number.isInteger(port) || port < 1024 || port > 65535) return null;
   // Skip a port whose owning playtest process is provably dead. The toolkit has
   // no PID-based GC (OS.is_process_running is unreliable on Windows), so a
   // crashed playtest leaves runtime_port set until the next register() clears
-  // it; without this gate the bridge would attempt a doomed connect. A null
-  // runtime_pid (no recorded owner) does not block.
+  // it; without this gate the bridge would attempt a doomed connect, or reach
+  // whatever program has taken the port since. A null runtime_pid (no recorded
+  // owner) does not block.
   //
   // A live PID is all this path asks for — deliberately weaker than the LSP
   // claimant predicate below. A wrong runtime port announces itself (the connect
@@ -127,6 +127,15 @@ export function discoverRuntime(projectPath: string): number | null {
   // connection, so a socket probe here would tax the whole game_* surface.
   if (entry.runtime_pid != null && !isPidAlive(entry.runtime_pid)) return null;
   return port;
+}
+
+/**
+ * Return the runtime_port for a project, or null if no playtest is active.
+ * Re-reads the file on every call so newly-started playtests are picked up.
+ */
+export function discoverRuntime(projectPath: string): number | null {
+  const entry = lookupProject(projectPath);
+  return entry ? usableRuntimePort(entry) : null;
 }
 
 // -- LSP endpoint discovery --------------------------------------------------
@@ -329,10 +338,11 @@ export function isWatcherActive(): boolean {
 }
 
 /**
- * Read runtime_port from the in-memory cache (zero I/O).
- * Returns null if no runtime is registered or the watcher hasn't seen one.
+ * Read runtime_port from the in-memory cache, with no file read.
+ * Returns null if no runtime is registered or the watcher hasn't seen one, and,
+ * as {@link discoverRuntime} does, for an out-of-range port or a dead owning process.
  */
 export function getCachedRuntimePort(projectPath: string): number | null {
-  const key = normalizePath(projectPath);
-  return cachedRegistry.by_path[key]?.runtime_port ?? null;
+  const entry = cachedRegistry.by_path[normalizePath(projectPath)];
+  return entry ? usableRuntimePort(entry) : null;
 }

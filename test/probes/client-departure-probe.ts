@@ -473,16 +473,18 @@ async function scenario6WithEditor(): Promise<void> {
 }
 
 function printTable(): void {
-  const headings: Row = { scenario: "scenario", result: "result", exit: "exit", elapsed: "elapsed ms", note: "note" };
-  const all = [headings, ...rows];
-  const width = (pick: (row: Row) => string): number => Math.max(...all.map((row) => pick(row).length));
+  // The heading line holds column titles, not a result, so it is typed as plain text cells.
+  type Cells = Record<keyof Row, string>;
+  const headings: Cells = { scenario: "scenario", result: "result", exit: "exit", elapsed: "elapsed ms", note: "note" };
+  const all: Cells[] = [headings, ...rows];
+  const width = (pick: (row: Cells) => string): number => Math.max(...all.map((row) => pick(row).length));
   const w = {
     scenario: width((row) => row.scenario),
     result: width((row) => row.result),
     exit: width((row) => row.exit),
     elapsed: width((row) => row.elapsed),
   };
-  const line = (row: Row): string =>
+  const line = (row: Cells): string =>
     `${row.scenario.padEnd(w.scenario)} | ${row.result.padEnd(w.result)} | ${row.exit.padEnd(w.exit)} | ${row.elapsed.padEnd(w.elapsed)} | ${row.note}`;
   const rule = `${"-".repeat(w.scenario)}-+-${"-".repeat(w.result)}-+-${"-".repeat(w.exit)}-+-${"-".repeat(w.elapsed)}-+-----`;
   process.stdout.write(`\n${line(headings)}\n${rule}\n`);
