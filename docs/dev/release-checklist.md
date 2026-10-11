@@ -104,7 +104,8 @@ from `user://addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token`; port d
 - [ ] **Full-tree drift check on the latest npm.** Run a full `npm audit` (dev + prod) on the
       newest npm available. Watch the **allow-scripts WARNING surface**, not just advisory
       counts — a newer npm can flag install-script permissions the pinned npm didn't. This
-      mirrors the scheduled *latest-npm* drift job in the release pipeline.
+      mirrors the standalone daily *latest-npm* drift workflow (`npm-audit-drift.yml`), which
+      opens or updates a tracking issue and never gates a merge or a release.
   ```bash
   npm -v          # record the npm version used
   npm audit       # full tree; note advisories AND any allow-scripts warnings

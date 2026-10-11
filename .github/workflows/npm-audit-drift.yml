@@ -1,4 +1,4 @@
-name: npm audit drift (weekly)
+name: npm audit drift (daily)
 
 # Non-blocking supply-chain drift watch on the LATEST npm — catches what a newer npm
 # flags (blocked install scripts / npm approve-scripts delta, full-tree advisories)
@@ -6,7 +6,7 @@ name: npm audit drift (weekly)
 # never gates a merge or a release.
 on:
   schedule:
-    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+    - cron: "0 9 * * *" # every day, 09:00 UTC
   workflow_dispatch:
 
 permissions:
