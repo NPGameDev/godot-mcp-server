@@ -9,7 +9,8 @@
  */
 import assert from "node:assert/strict";
 import { snapshotEnv } from "./helpers.js";
-import { buildBridgeOptions, resolveResponseCaps } from "../../src/startup/startupEnv.js";
+import { buildBridgeOptions } from "../../src/startup/bridgeOptions.js";
+import { resolveResponseCaps } from "../../src/startup/startupEnv.js";
 import type { ResolvedPortConfig } from "../../src/startup/portConfig.js";
 
 const PORTS: ResolvedPortConfig = {

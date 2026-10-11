@@ -28,6 +28,7 @@ import { setGlobalHookPipeline } from "./registration/toolRegistry.js";
 import * as startupEnv from "./startup/startupEnv.js";
 import { parseCliArgs } from "./startup/cliArgs.js";
 import { resolveProjectPath } from "./startup/projectPath.js";
+import { buildBridgeOptions } from "./startup/bridgeOptions.js";
 import { resolvePortConfigOrExit, logResolvedPortConfig } from "./startup/portConfig.js";
 import { setLspOverride } from "./lsp/lspClient.js";
 import { MODULE_ALLOWED } from "./startup/serverMode.js";
@@ -53,10 +54,7 @@ const caps = startupEnv.resolveResponseCaps();
 // over env there; env stays live so a config reload can still change it).
 setLspOverride({ port: cli.lspPort, host: cli.lspHost });
 
-const bridge = createBridge(
-  `ws://127.0.0.1:${ports.editorPort}`,
-  startupEnv.buildBridgeOptions(projectPath, ports, caps),
-);
+const bridge = createBridge(`ws://127.0.0.1:${ports.editorPort}`, buildBridgeOptions(projectPath, ports, caps));
 
 startupEnv.warnConfigVersion();
 
