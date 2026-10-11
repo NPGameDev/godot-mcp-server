@@ -284,15 +284,19 @@ deliberately **not** duplicated in the contract doc, whose **C4** describes the
 error-code *wire framing* + stability tier and points to source for the full
 enumeration. C4 is the contract; this table is the lookup — keep them consistent.
 
-Canonical `ErrorCode` union lives in `src/shared/types.ts` (single source of truth on
-this side; mirrored as `MCP_ERROR_CODES` in the toolkit-repo `mcp_server.gd` +
-`mcp_runtime_server.gd`). Adding a new code requires updating BOTH sides AND
-this table. Codes are UPPER_SNAKE_CASE.
+Canonical `ErrorCode` union lives in `src/shared/types.ts:62` (single source of truth on
+this side; mirrored as `MCPToolkitError.CODES` in the toolkit-repo
+`addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`). Six codes originate in the server
+and are absent from the toolkit's list: `AUTH_FAILED`, `CANCELLED`, `CLOSED`,
+`LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`. Adding a new code requires updating BOTH
+sides AND this table. Codes are UPPER_SNAKE_CASE.
 
 | Code               | Origin           | When                                                                          |
 |--------------------|------------------|-------------------------------------------------------------------------------|
 | `ALREADY_EXISTS`   | plugin           | `scene_create` / `resource_create` with `if_exists: "fail"` on collision. **Error payload only** post-iter-15 — idempotent collisions return success with `status: "returned"`. |
 | `ALREADY_PLAYING`  | plugin (iter 15c)| `game_start` while `EditorInterface.is_playing_scene()` is true — call `game_stop` first. |
+| `BUSY`             | plugin           | A scene save is already in progress, so a second save cannot start; retry once it completes. |
+| `CLASS_MISMATCH`   | plugin           | `scene_create_node` found a node with the requested name under the parent, but of another class; rename or remove it first. |
 | `CLOSED`           | bridge           | Bridge call after `bridge.close()`.                                           |
 | `CONNECT_FAILED`   | bridge           | WebSocket open failure (cold path; first attempt).                            |
 | `CREATE_DIR_FAILED`| plugin (iter 15b)| `DirAccess.make_dir_recursive_absolute` returned non-OK on `folder_create`.   |
@@ -300,19 +304,25 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `DIR_NOT_EMPTY`    | plugin (iter 15b)| `folder_delete` with `recursive: false` on a non-empty directory.             |
 | `DISCONNECTED`     | bridge           | Socket closed mid-call or no reconnect within `CALL_AWAIT_RECONNECT_MS`.      |
 | `EDITED_SCENE`     | plugin (iter 15) | `scene_delete` / `file_delete` against the active scene on 4.2-4.4 (no tab-close API). On 4.5+ the tab is auto-closed first. |
+| `EMPTY_CONTENT`    | plugin           | `editor_screenshot` with `node_path`: the node produced no visible image (no texture, no mesh); capture the full viewport instead. |
 | `EXECUTE_FAILED`   | plugin (Mode B)  | `game.eval` Expression.execute returned an error.                             |
+| `FAILED`           | plugin           | Generic failure, the cause in the message: `tileset_add_alternative` could not create the alternative tile. Also the code an extension command returns when its call is cancelled. |
 | `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |
 | `FILESYSTEM_NOT_READY` | plugin (iter 15e) | `EditorFileSystem.is_scanning()` true when `asset_list` or `asset_get_dependencies` called. Agent should retry in 500-2000ms. |
 | `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
 | `GAME_NOT_RUNNING` | bridge           | Mode B call when runtime port isn't listening.                                |
+| `HEADLESS_UNSUPPORTED` | plugin       | The command needs a display server and the editor runs headless (`editor_screenshot`, `game_start`). |
 | `INTERNAL`         | both             | Catch-all for unexpected failure (viewport unavailable, save_png empty, …).   |
 | `INVALID_CLASS`    | plugin           | Class resolution failure — unknown in both ClassDB + global class list / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`) / packed file is not a `PackedScene` (`scene_instantiate`) / script load failure for global class (`scene_create_node` iter 15h). |
 | `INVALID_METHOD`   | plugin (iter 15c)| `node_call_method` target node exists but `has_method(method)` is false.     |
 | `INVALID_PARAMS`   | plugin           | JSON-RPC params shape error (missing required field, wrong type).             |
 | `INVALID_PATH`     | plugin           | Semantic refusal — edited-root on `scene_delete_node`, wrong prefix/extension on `scene_*` / `script_*` / `resource_*` / `folder_*`. Script tools now require `.gd`/`.cs`/`.gdshader`/`.gdshaderinc`. |
+| `INVALID_STATE`    | plugin           | The target cannot be acted on as it stands: an AnimationTree with no `tree_root`, or one that is not a state machine; `tilemap_set_cells` on a node with no tileset assigned. |
+| `INVALID_VALUE`    | plugin           | `node_set_property`: the value cannot be coerced to the property's type, or a Resource-typed property got a bare `res://` string (pass `{"type": "Resource", "path": …}`). |
 | `LOAD_FAILED`      | plugin           | `ResourceLoader.load` returned null.                                          |
 | `LOG_UNAVAILABLE`  | plugin (iter 15e)| `editor_get_console` couldn't find a readable log under `user://logs/`. Check `application/config/use_file_logging`. |
 | `NO_SCENE`         | plugin           | `EditorInterface.get_edited_scene_root()` returned null.                      |
+| `NODE_NOT_FOUND`   | plugin           | `path2d_edit_curve`: no node at `node_path` in the edited scene. Most tools report a missing node as `NOT_FOUND`. |
 | `NOT_A_RESOURCE`   | plugin (iter 15b)| `resource_save` / `resource_delete` target loaded but isn't a Resource subclass. |
 | `NOT_FOUND`        | plugin           | Node / scene file / resource / animation / connection / folder not found.     |
 | `PACK_FAILED`      | plugin (iter 15) | `PackedScene.pack(root)` returned non-OK — only `scene_create` emits this.    |
@@ -320,13 +330,16 @@ this table. Codes are UPPER_SNAKE_CASE.
 | `PARSE_ERROR`      | plugin (Mode B)  | `game.eval` Expression.parse failed.                                          |
 | `PATH_DENIED`      | plugin           | Path didn't pass the `res://` prefix check (full FileGuard in iter 18).       |
 | `PATH_IN_USE`      | plugin (iter 15b)| `folder_delete` target contains the currently-edited scene or an open script tab. |
+| `PROPERTY_NOT_FOUND` | plugin         | `node_set_property`: the property is not in the node's property list.        |
 | `READ_FAILED`      | plugin           | `FileAccess` read error.                                                      |
+| `RESPONSE_TOO_LARGE` | plugin         | The response exceeded the WebSocket transport buffer and could not be delivered; narrow or paginate the query, or raise `mcp_toolkit/limits/ws_buffer_kb` and reconnect. |
 | `RPC_ERROR`        | bridge           | Plugin returned a JSON-RPC envelope `error` field (transport-level).          |
 | `SAVE_DELETE_FAILED` | plugin (iter 19c) | `DirAccess.remove_absolute` failed on a `user://` file via `save_delete`.   |
 | `SAVE_FAILED`      | plugin           | `EditorInterface.save_scene` / `save_scene_as` / `ResourceSaver.save` failure. |
 | `SAVE_READ_FAILED`  | plugin (iter 19c) | `FileAccess.open(READ)` failed on a whitelisted `user://` file.              |
 | `SAVE_WRITE_FAILED` | plugin (iter 19c) | `FileAccess.open(WRITE)` failed on a whitelisted `user://` file.             |
 | `SEND_FAILED`      | bridge           | WebSocket send callback errored.                                              |
+| `SET_FAILED`       | plugin           | `node_set_property` / `runtime_set_property`: the engine dropped the write (wrong type); the prior value is restored, so nothing changed. |
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
 | `UNSUPPORTED`      | both (iter 37)   | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
 | `UNKNOWN_CLASS`    | plugin (iter 26)   | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |

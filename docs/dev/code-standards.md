@@ -585,18 +585,19 @@ every cancellation/timeout guarantee.
 
 - **Classify every error to its specific code; never swallow or relabel across the bridge — hard-line.**
   `BridgeError(code, message)` (`src/shared/errors.ts:6`) carries a `code` from the canonical
-  `ErrorCode` union (`src/shared/types.ts:53`). `toolErrorFromException`
+  `ErrorCode` union (`src/shared/types.ts:62`). `toolErrorFromException`
   (`src/shared/errorContract.ts:73`) **preserves** `err.code` when `err instanceof BridgeError`, else
   `INTERNAL` — the transport code (`TIMEOUT` / `CANCELLED` / `CONNECT_FAILED` / …) is **never**
   flattened to a generic message, so the client can decide retry-vs-give-up. A plugin-returned
   `{ success: false, code }` is translated to an MCP `isError` response **without relabeling**
   (`toolErrorFromPayload`, `src/shared/errorContract.ts:35`).
 - **The `ErrorCode` union is a cross-repo contract.** It must stay in sync with the toolkit's
-  `MCP_ERROR_CODES` (in `mcp_server.gd` + `mcp_runtime_server.gd`); the sync obligation is documented
-  at the union's definition (`src/shared/types.ts:46`). A new plugin-emitted code touches **both**
-  repos — it is a contract change ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a
-  unilateral add. Transport-level codes (`CLOSED`, `RPC_ERROR`, `SEND_FAILED`) originate in the bridge
-  and never travel through the plugin.
+  `MCPToolkitError.CODES` (in `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`); the sync
+  obligation is documented at the union's definition (`src/shared/types.ts:62`). A new plugin-emitted
+  code touches **both** repos — it is a contract change
+  ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a unilateral add. Six codes
+  originate in the server and never travel through the plugin, so the toolkit does not list them:
+  `AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`.
 
 ## B4. Deterministic JSON & token discipline
 
@@ -725,9 +726,9 @@ The in-tree examples a reviewer or contributor jumps to. Line numbers drift; the
 durable anchor**.
 
 - **Naming / typing.** `RECONNECT_BASE_MS` (`src/transport/channel.ts:33`) UPPER_SNAKE tunable; the
-  `ErrorCode` union (`src/shared/types.ts:53`) UPPER_SNAKE members; `interface Bridge`
+  `ErrorCode` union (`src/shared/types.ts:62`) UPPER_SNAKE members; `interface Bridge`
   (`src/shared/types.ts:21`); `readonly` array field `pathParams?: readonly PathGuard[]`
-  (`src/shared/types.ts:146`).
+  (`src/shared/types.ts:173`).
 - **Comments / TSDoc ([§5](#5-comments-and-documentation)).** `registerToolWrapped`
   (`src/registration/toolRegistry.ts:90`) — the exemplary doc comment: one-line summary, `@param`,
   `@remarks`, `@example`, plus the **sanctioned, justified `any` escape-hatch** at
