@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="60b685a" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="3969cbb" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified 60b685a*
+*Figure 1 — system context · verified 3969cbb*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -159,7 +159,7 @@ dependency cannot invert. Leaf modules like `groups/groupState.ts` and
 `groups/groupCatalogue.ts` exist precisely to break what would otherwise be a
 `groups` ↔ `catalogue` cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="60b685a" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="3969cbb" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -190,7 +190,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified 60b685a*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 3969cbb*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -560,7 +560,7 @@ JSON-RPC-over-TCP client) and was **not carved**. 083 carved only the *tool laye
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="45917f8" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="3969cbb" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -580,7 +580,7 @@ flowchart TD
     ep --> tcp["own TCP socket → Godot GDScript LSP<br/>(BYPASSES the WS bridge + mutation queue)"]
     tcp --> verdict["status verdict → lspStatusReporter.ts<br/>→ editor.set_lsp_status (de-duped by state:host:port)"]
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified 0ad6009*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified 3969cbb*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -639,13 +639,13 @@ crash.
 The server is a **read-only consumer** of the toolkit's `projects.json` (`registry.ts`):
 `readRegistry` reads only the aggregate file, never the per-instance `entries/` dir.
 
-<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="60b685a" -->
+<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="3969cbb" -->
 ```mermaid
 flowchart TD
     pj[("projects.json — the toolkit writes")] --> read["registry.readRegistry → by_path[ normalizePath(projectPath) ]<br/>(PATH key — NOT the sha256 project hash)"]
     read --> port["editor port → portConfig.resolvePortConfig / bridge"]
     read --> ver["godot_version → bridge pre-pop (available before auth)"]
-    read --> rport["runtime_port / runtime_pid → discoverRuntime<br/>(isPidAlive gate only — see the asymmetry below)"]
+    read --> rport["runtime_port / runtime_pid → discoverRuntime · getCachedRuntimePort<br/>(one shared check: port range + isPidAlive gate only — see the asymmetry below)"]
     read --> lsp["lsp_port / lsp_host → discoverLspEndpoint<br/>(isPidAlive AND wsPortNotRefused on entry.port)"]
     read --> watch["diffAndNotify watcher — ONLY runtime_port transitions<br/>(editor port / version / lsp_port do NOT flow through it)"]
     lsp -.-> live["registryLiveness.ts — process.kill(pid, 0)<br/>+ 300 ms loopback probe of the peer's own WS port"]
@@ -653,7 +653,7 @@ flowchart TD
     tok["token: tokenPath.ts READS entry.token_path<br/>(toolkit-published · globalized-absolute) and<br/>STRUCTURALLY VALIDATES it — assertPublishedTokenPath:<br/>absolute · no '..' · existing file · …/project_instance_&lt;12-hex&gt;/mcp_token suffix"]
     pj -. "token_path: READ + structurally validated (ADR-0011)" .-> tok
 ```
-*Figure 11 — the registry consume path · verified 60b685a*
+*Figure 11 — the registry consume path · verified 3969cbb*
 
 **Path key, not hash.** `by_path` is keyed by the **canonical project path**; the server
 forms the same key via `normalizePath` (backslash → `/`, strip trailing `/`, lowercase on
@@ -674,8 +674,9 @@ stale / runtime-only / ping-pong entries gracefully. The `diffAndNotify` watcher
 **Liveness is read at two strengths, and the asymmetry is deliberate.** The base check is
 `isPidAlive` (`process.kill(pid, 0)` — reliable on Windows, unlike the toolkit's
 `OS.is_process_running`), which proves only that *some* signalable process holds that
-number, not that it is still the editor that wrote the entry. `discoverRuntime` stops
-there: a runtime entry advertises `port: -1` (nothing to probe), a wrong runtime port
+number, not that it is still the editor that wrote the entry. The runtime-port lookups
+stop there, the file read (`discoverRuntime`) and the watcher's cache
+(`getCachedRuntimePort`) alike, through one shared check: a runtime entry advertises `port: -1` (nothing to probe), a wrong runtime port
 announces itself through a failed connect plus the channel's own per-instance auth
 handshake, and that path runs on **every** runtime RPC. LSP claimants go further and are
 corroborated against the WS command port their own entry advertises (ADR 0025,
