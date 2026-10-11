@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="f05f4e3" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="c7b1a31" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified f05f4e3*
+*Figure 1 — system context · verified c7b1a31*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -162,7 +162,7 @@ the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
 `startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
 or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="4926459" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="c7b1a31" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -193,7 +193,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified 4926459*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified c7b1a31*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -206,11 +206,11 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/projectPath.ts src/startup/portConfig.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="a233038" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/projectPath.ts src/startup/portConfig.ts src/startup/bridgeOptions.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="712b4af" -->
 ```mermaid
 flowchart TD
-    pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>projectPath (GODOT_MCP_PROJECT_PATH, empty = unset → cwd)<br/>portConfig (cli → env → registry → 6550) · response caps · config-version warn"]
-    bridge["createBridge(ws://127.0.0.1:&lt;port&gt;)"]
+    pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>projectPath (GODOT_MCP_PROJECT_PATH, empty = unset → cwd)<br/>portConfig (cli → env → registry → 6550) · response caps"]
+    bridge["createBridge(ws://127.0.0.1:&lt;port&gt;, buildBridgeOptions(projectPath, ports, caps))<br/>then the config-version warning"]
     srv["new McpServer<br/>capabilities.tools.listChanged = true"]
     hooks["createHookPipeline + setGlobalHookPipeline"]
     subsys["createExtensionManager + createReconciler"]
@@ -224,7 +224,7 @@ flowchart TD
     part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 34)<br/>+ 2 meta = 36-tool startup surface; group tools absent (no stubs).<br/>112 total / 34 eager / 78 on-demand / 28 groups"]
     reg -.-> part
 ```
-*Figure 3 — composition-root boot order · verified a233038*
+*Figure 3 — composition-root boot order · verified 712b4af*
 
 - **Preflight** (`startup/startupEnv.ts` + `startup/cliArgs.ts` + `startup/projectPath.ts` +
   `startup/portConfig.ts`) runs
@@ -234,8 +234,10 @@ flowchart TD
   the LSP tools resolve it through the same function), port resolution
   (`--editor-port` / `GODOT_MCP_EDITOR_PORT` → `lookupProject` registry hit → `6550` fallback,
   in `portConfig.ts` with precedence CLI > env > discovery > default; pinned values
-  validated as integers 1–65535, invalid → exit 1), response cap parse/clamp, and a
-  config-version warning.
+  validated as integers 1–65535, invalid → exit 1), and response cap parse/clamp.
+  `startup/bridgeOptions.ts` then hands the resolved project path, ports and caps to
+  `createBridge` in one object (the bridge connects lazily, so building it opens nothing),
+  and a config-version warning follows.
 - **The SDK surface** advertises `capabilities.tools.listChanged: true`. A single
   `batchToolRegistration` collapses a burst of registrations into **one**
   `tools/list_changed` (the primitive lives in `registration/toolRegistry.ts`).
@@ -683,8 +685,8 @@ stale / runtime-only / ping-pong entries gracefully. The `diffAndNotify` watcher
 `OS.is_process_running`), which proves only that *some* signalable process holds that
 number, not that it is still the editor that wrote the entry. The runtime-port lookups
 stop there, the file read (`discoverRuntime`) and the watcher's cache
-(`getCachedRuntimePort`) alike, through one shared check: a runtime entry advertises `port: -1` (nothing to probe), a wrong runtime port
-announces itself through a failed connect plus the channel's own per-instance auth
+(`getCachedRuntimePort`) alike, through one shared check: a runtime entry advertises
+`port: -1` (nothing to probe), a wrong runtime port announces itself through a failed connect plus the channel's own per-instance auth
 handshake, and that path runs on **every** runtime RPC. LSP claimants go further and are
 corroborated against the WS command port their own entry advertises (ADR 0025,
 [§9](#9-the-gdscript-lsp-client)), because reaching the wrong editor's language server
