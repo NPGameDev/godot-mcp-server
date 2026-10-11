@@ -449,7 +449,7 @@ jobs:
     name: "Unit tests (Windows)"
     # Fuse: the unit runner has no per-file timeout; the whole job (checkout, install,
     # suite) takes about a minute on Windows and under a minute on macOS, so a run past
-    # 15 minutes is a hung test file.
+    # 15 minutes has hung, most likely in a test file.
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7

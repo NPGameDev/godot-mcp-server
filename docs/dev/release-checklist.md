@@ -105,7 +105,8 @@ from `user://addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token`; port d
       newest npm available. Watch the **allow-scripts WARNING surface**, not just advisory
       counts — a newer npm can flag install-script permissions the pinned npm didn't. This
       mirrors the standalone daily *latest-npm* drift workflow (`npm-audit-drift.yml`), which
-      opens or updates a tracking issue and never gates a merge or a release.
+      opens or updates a tracking issue when it finds drift and never gates a merge or a
+      release.
   ```bash
   npm -v          # record the npm version used
   npm audit       # full tree; note advisories AND any allow-scripts warnings
