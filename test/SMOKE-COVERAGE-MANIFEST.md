@@ -210,7 +210,7 @@ routinely.
 
 | Tool Name | Smoke Section | Happy Path | Guard Tests | Param Variations | Hint Assertions | Notes |
 |---|---|---|---|---|---|---|
-| input_map_action | 12 | ✓ | ✓ (INVALID_PARAMS: empty name, built-in UI action) | ✓ (add/remove, idempotency, deadzone) | — | In input_map group |
+| input_map_action | 12 | ✓ | ✓ (INVALID_PARAMS: empty name, built-in UI action; ALREADY_EXISTS: rename onto existing) | ✓ (add/remove/rename, idempotency, deadzone) | — | In input_map group |
 | input_map_event | 12 | ✓ | ✓ (NOT_FOUND, INVALID_PARAMS: bogus type/keycode) | ✓ (bind/unbind, key/joypad_button, idempotency) | — | In input_map group |
 
 ### Animation (4 tools)

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `input_map_action` accepts `action: "rename"` with a `new_name`, which moves a saved
+  input action to a new name with its events and deadzone. Needs the toolkit release that
+  adds the `rename` handler; an older toolkit answers `INVALID_PARAMS`.
+
 ### Security
 
 - The MCP TypeScript SDK moves from 1.29.0 to 1.32.1, past
