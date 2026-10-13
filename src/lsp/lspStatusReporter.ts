@@ -17,25 +17,15 @@
  */
 import { getLspStatus, setGodotVersionGetter, type LspStatus } from "./lspClient.js";
 import { setLspStatusReporter } from "../tools/lsp.js";
-import type { Bridge } from "../shared/types.js";
-import type { EditorAuthHook } from "../transport/bridge.js";
-
-export interface LspStatusReporter {
-  /** Push the registry-derived verdict. The factory already runs it after every
-   *  editor auth. Opens no LSP connection, but does probe peer WS ports (bounded at
-   *  300 ms each, run concurrently), so it resolves asynchronously and yields to any
-   *  verified verdict that lands first. */
-  reportRegistryVerdict(): void;
-}
+import type { Bridge, EditorAuthHook } from "../shared/types.js";
 
 /** Wires the verified-verdict reporter (setLspStatusReporter, de-duped via
  *  lastLspKey), the version-tailored conflict-hint getter (setGodotVersionGetter)
- *  and the registry-verdict push after every editor auth (onEditorAuthenticated)
- *  at construction, then returns the registry-verdict pusher. */
-export function createLspStatusReporter(deps: {
-  bridge: Bridge & EditorAuthHook;
-  projectPath: string;
-}): LspStatusReporter {
+ *  and the registry-verdict push after every editor auth (onEditorAuthenticated).
+ *  The registry push opens no LSP connection, but does probe peer WS ports
+ *  (bounded at 300 ms each, run concurrently), so it resolves asynchronously and
+ *  yields to any verified verdict that lands first. */
+export function createLspStatusReporter(deps: { bridge: Bridge & EditorAuthHook; projectPath: string }): void {
   const { bridge, projectPath } = deps;
 
   // Push the GDScript LSP verdict to the editor dock (editor.set_lsp_status) —
@@ -91,6 +81,4 @@ export function createLspStatusReporter(deps: {
   // tells the dock about a conflict until the first LSP tool call, and a reconnect
   // may reach a restarted editor that no longer holds the last verdict.
   bridge.onEditorAuthenticated(reportRegistryVerdict);
-
-  return { reportRegistryVerdict };
 }

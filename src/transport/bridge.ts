@@ -14,7 +14,7 @@
  *
  * @module
  */
-import { Bridge, NotificationHandler } from "../shared/types.js";
+import { Bridge, EditorAuthHook, NotificationHandler } from "../shared/types.js";
 import { BridgeError } from "../shared/errors.js";
 import { createChannel, type Channel } from "./channel.js";
 import { createRuntimeConnection } from "./runtimeConnection.js";
@@ -60,15 +60,6 @@ export interface BridgeOptions {
    *  pushed value applies only to connections accepted after the push, not to the
    *  one that pushed it. When unset, the push carries no override for this limit. */
   wsBufferLimitBytes?: number;
-}
-
-/** The bridge's editor-auth hook, for a consumer that only needs to react to auth. */
-export interface EditorAuthHook {
-  /** Register a hook fired after every successful editor auth: the first connect,
-   *  each reconnect, and each editor-port re-discovery. The runtime channel never
-   *  fires it. It runs synchronously inside the auth, so a handler that does I/O
-   *  must not await it there. */
-  onEditorAuthenticated(handler: () => void): void;
 }
 
 /**
