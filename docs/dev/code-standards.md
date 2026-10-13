@@ -595,9 +595,10 @@ every cancellation/timeout guarantee.
   `MCPToolkitError.CODES` (in `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`); the sync
   obligation is documented at the union's definition (`src/shared/types.ts:62`). A new plugin-emitted
   code touches **both** repos — it is a contract change
-  ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a unilateral add. Six codes
+  ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a unilateral add. Seven codes
   originate in the server and never travel through the plugin, so the toolkit does not list them:
-  `AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`.
+  `AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_PORT_CONFLICT`, `LSP_UNAVAILABLE`, `RPC_ERROR`,
+  `SEND_FAILED`.
 
 ## B4. Deterministic JSON & token discipline
 

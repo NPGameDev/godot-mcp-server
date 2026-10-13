@@ -286,9 +286,9 @@ enumeration. C4 is the contract; this table is the lookup — keep them consiste
 
 Canonical `ErrorCode` union lives in `src/shared/types.ts:62` (single source of truth on
 this side; mirrored as `MCPToolkitError.CODES` in the toolkit-repo
-`addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`). Six codes originate in the server
+`addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`). Seven codes originate in the server
 and are absent from the toolkit's list: `AUTH_FAILED`, `CANCELLED`, `CLOSED`,
-`LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`. Adding a new code requires updating BOTH
+`LSP_PORT_CONFLICT`, `LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`. Adding a new code requires updating BOTH
 sides AND this table. Codes are UPPER_SNAKE_CASE.
 
 | Code               | Origin           | When                                                                          |
@@ -327,6 +327,7 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 | `LOAD_FAILED`      | plugin           | `ResourceLoader.load` returned null.                                          |
 | `LOG_BUSY`         | plugin           | `editor_get_console` / `debugger_get_log`: the log file exists but could not be opened for reading. On Windows a running game holds it open; with no game running, a backup, antivirus or sync tool may. The hint depends on the Godot version (`source="buffer"` avoids the file on 4.5+). |
 | `LOG_UNAVAILABLE`  | plugin (iter 15e)| `editor_get_console` couldn't find a readable log under `user://logs/`. Check `application/config/use_file_logging`. |
+| `LSP_PORT_CONFLICT` | LSP client      | An `lsp_*` tool refuses to answer from another editor's LSP: the registry shows another live editor, started no later than this project's, holding its LSP port, or the LSP reached is open on a different project (root mismatch). Close the other editor, or give each editor its own `--lsp-port` and `GODOT_MCP_LSP_PORT`. |
 | `LSP_UNAVAILABLE`  | LSP client       | An `lsp_*` tool cannot reach the GDScript LSP: the connect failed, or the registry has no LSP endpoint for the project and another editor holds port 6005. Also `lsp_project_diagnostics` when no file in a batch returned diagnostics in time (the editor is busy or wedged). |
 | `NO_SCENE`         | plugin           | `EditorInterface.get_edited_scene_root()` returned null.                      |
 | `NODE_NOT_FOUND`   | plugin           | `path2d_edit_curve`: no node at `node_path` in the edited scene. Most tools report a missing node as `NOT_FOUND`. |
