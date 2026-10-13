@@ -180,7 +180,7 @@ Send a JSON-RPC notification (no response expected).
 Defined in: [src/lsp/lspClient.ts:357](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L357)
 
 Send a JSON-RPC request and await the response.
- `timeoutMs` overrides REQUEST\_TIMEOUT\_MS for this request only
+ `timeoutMs` overrides the default request timeout for this request only
  (used for the patient first `initialize`); omitted = default.
 
 #### Parameters

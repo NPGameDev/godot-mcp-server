@@ -352,7 +352,7 @@ export class LspClient {
   }
 
   /** Send a JSON-RPC request and await the response.
-   *  `timeoutMs` overrides {@link REQUEST_TIMEOUT_MS} for this request only
+   *  `timeoutMs` overrides the default request timeout for this request only
    *  (used for the patient first `initialize`); omitted = default. */
   async sendRequest(method: string, params?: unknown, timeoutMs?: number): Promise<unknown> {
     if (!this.socket || this.socket.destroyed) {
