@@ -69,8 +69,10 @@ plugin enabled.
 ## Windows: the `cmd /c` wrapper
 
 On native Windows, `npx` is a `.cmd` shim. Current Claude Code starts the
-plain `npx` form unchanged, and so do Claude Desktop, VS Code, Codex CLI and
-Gemini CLI. If Claude Code on Windows shows the server failed with `spawn npx ENOENT` or `EINVAL`, update Claude Code or wrap the command in `cmd /c`.
+plain `npx` form unchanged; in our own Windows runs, `claude mcp list` shows it
+connected. Claude Desktop, VS Code and Codex CLI start it too, and Gemini CLI
+probably does, but that comes from their documentation and source code, not
+from runs of our own. If Claude Code on Windows shows the server failed with `spawn npx ENOENT` or `EINVAL`, update Claude Code or wrap the command in `cmd /c`.
 
 The wrapper is a fallback for a client whose process spawning cannot start
 the shim directly: it fails with `spawn npx ENOENT`. Whether Cursor, Cline

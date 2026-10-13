@@ -284,7 +284,7 @@ deliberately **not** duplicated in the contract doc, whose **C4** describes the
 error-code *wire framing* + stability tier and points to source for the full
 enumeration. C4 is the contract; this table is the lookup — keep them consistent.
 
-Canonical `ErrorCode` union lives in `src/shared/types.ts:62` (single source of truth on
+Canonical `ErrorCode` union lives in `src/shared/types.ts:73` (single source of truth on
 this side; mirrored as `MCPToolkitError.CODES` in the toolkit-repo
 `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`). Seven codes originate in the server
 and are absent from the toolkit's list: `AUTH_FAILED`, `CANCELLED`, `CLOSED`,

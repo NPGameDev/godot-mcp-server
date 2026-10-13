@@ -537,7 +537,7 @@ The Bridge is the stdio↔WebSocket reference implementation of [§7](#7-async-p
 it owns the editor channel plus the lazy playtest-runtime channel, the reconnect state machine, and
 every cancellation/timeout guarantee.
 
-- **Construction.** `createBridge(...)` (`src/transport/bridge.ts:65`) returns the single `Bridge`
+- **Construction.** `createBridge(...)` (`src/transport/bridge.ts:91`) returns the single `Bridge`
   (`src/shared/types.ts:21`) the tool layer calls. The low-level socket, reconnect, and pending-request
   bookkeeping live in `src/transport/channel.ts`; the reconnect backoff tunable is
   `RECONNECT_BASE_MS` (`src/transport/channel.ts:33`).
@@ -550,7 +550,7 @@ every cancellation/timeout guarantee.
   progress notifications **reset** the timer so queued mutations don't false-timeout
   (`src/transport/channel.ts:275`).
 - **Process survival ([§7.6](#7-async-promises-and-the-event-loop)).** `installProcessHandlers`
-  (`src/startup/lifecycle.ts:14`) installs the `unhandledRejection` / `uncaughtException` stderr
+  (`src/startup/lifecycle.ts:50`) installs the `unhandledRejection` / `uncaughtException` stderr
   loggers that keep the bridge alive.
 - **Fire-and-forget exemplar ([§7.3](#7-async-promises-and-the-event-loop)).** `void
   bridge.call(...).catch(() => {})` at `src/lsp/lspStatusReporter.ts:35` — a status push whose failure
@@ -585,15 +585,15 @@ every cancellation/timeout guarantee.
 
 - **Classify every error to its specific code; never swallow or relabel across the bridge — hard-line.**
   `BridgeError(code, message)` (`src/shared/errors.ts:6`) carries a `code` from the canonical
-  `ErrorCode` union (`src/shared/types.ts:62`). `toolErrorFromException`
-  (`src/shared/errorContract.ts:73`) **preserves** `err.code` when `err instanceof BridgeError`, else
+  `ErrorCode` union (`src/shared/types.ts:73`). `toolErrorFromException`
+  (`src/shared/errorContract.ts:95`) **preserves** `err.code` when `err instanceof BridgeError`, else
   `INTERNAL` — the transport code (`TIMEOUT` / `CANCELLED` / `CONNECT_FAILED` / …) is **never**
   flattened to a generic message, so the client can decide retry-vs-give-up. A plugin-returned
   `{ success: false, code }` is translated to an MCP `isError` response **without relabeling**
-  (`toolErrorFromPayload`, `src/shared/errorContract.ts:35`).
+  (`toolErrorFromPayload`, `src/shared/errorContract.ts:36`).
 - **The `ErrorCode` union is a cross-repo contract.** It must stay in sync with the toolkit's
   `MCPToolkitError.CODES` (in `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`); the sync
-  obligation is documented at the union's definition (`src/shared/types.ts:62`). A new plugin-emitted
+  obligation is documented at the union's definition (`src/shared/types.ts:73`). A new plugin-emitted
   code touches **both** repos — it is a contract change
   ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a unilateral add. Seven codes
   originate in the server and never travel through the plugin, so the toolkit does not list them:
@@ -620,7 +620,7 @@ the cross-repo SSOT**, which this repo cross-links rather than restating.
 - **Token-path, project-key, WS-framing, and port ranges are contract.** The server validates the
   published token-path **shape** (`…/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token`,
   re-read every connect) at `src/transport/tokenPath.ts:48`; the project key is canonicalized and
-  lowercased on win32/darwin by `normalizePath` (`src/registry.ts:45`). *The project-hash is computed
+  lowercased on win32/darwin by `normalizePath` (`src/registry.ts:52`). *The project-hash is computed
   **toolkit-side** — the server consumes the published path and only checks its shape, so there is no
   hash routine here to keep in sync, only the path recipe.* Ports bind on `127.0.0.1` via env /
   registry. Changing any recipe is a **contract change**, not a free refactor.
@@ -727,9 +727,9 @@ The in-tree examples a reviewer or contributor jumps to. Line numbers drift; the
 durable anchor**.
 
 - **Naming / typing.** `RECONNECT_BASE_MS` (`src/transport/channel.ts:33`) UPPER_SNAKE tunable; the
-  `ErrorCode` union (`src/shared/types.ts:62`) UPPER_SNAKE members; `interface Bridge`
+  `ErrorCode` union (`src/shared/types.ts:73`) UPPER_SNAKE members; `interface Bridge`
   (`src/shared/types.ts:21`); `readonly` array field `pathParams?: readonly PathGuard[]`
-  (`src/shared/types.ts:173`).
+  (`src/shared/types.ts:185`).
 - **Comments / TSDoc ([§5](#5-comments-and-documentation)).** `registerToolWrapped`
   (`src/registration/toolRegistry.ts:90`) — the exemplary doc comment: one-line summary, `@param`,
   `@remarks`, `@example`, plus the **sanctioned, justified `any` escape-hatch** at
@@ -742,7 +742,7 @@ durable anchor**.
   (`src/registration/toolDispatch.ts:44`).
 - **Async ([§7](#7-async-promises-and-the-event-loop)).** Cancellation + timeout in
   `src/transport/channel.ts` (`:344`, `:351`, `:275`); process survival in
-  `src/startup/lifecycle.ts:14`; commented fire-and-forget `void … .catch(() => {})` at
+  `src/startup/lifecycle.ts:50`; commented fire-and-forget `void … .catch(() => {})` at
   `src/lsp/lspStatusReporter.ts:35`.
 
 ---
