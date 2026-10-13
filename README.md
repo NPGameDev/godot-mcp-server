@@ -90,7 +90,7 @@ Current Claude Code on Windows starts this form unchanged. If Claude Code on Win
 <details>
 <summary>Prefer to let the agent set it up?</summary>
 
-Paste this into Claude Code from your project directory. It was tested end-to-end with Claude Code; other clients adapt via the [client setup guide](docs/mcp-clients.md). The agent drives the command-line steps; you open the editor and reconnect the client when it asks.
+Paste this into Claude Code from your project directory. It was tested end-to-end with Claude Code, apart from the Windows step. Other clients adapt via the [client setup guide](docs/mcp-clients.md). The agent drives the command-line steps; you open the editor and reconnect the client when it asks.
 
 ```text
 Set up the Godot MCP Toolkit for this project:
