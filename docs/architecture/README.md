@@ -178,6 +178,7 @@ flowchart TD
     startup --> groups["groups/"]
     groups --> registration
     extensions --> registration
+    extensions --> groups
     registration --> tools["tools/ — command modules"]
     transport --> registry
     startup --> registry
@@ -631,7 +632,7 @@ control tools (`debug_state` / `debug_list_breakpoints` / `debug_set_breakpoint`
 `debug_continue`, in `tools/debug.ts`) are **group-only** and editor-bridge
 `callAndWrap`-dispatched to the toolkit's `EditorDebuggerPlugin` — zero new
 transport / discovery / status machinery, and no status reporter (the editor natively
-hosts the debugger, a justified asymmetry vs the LSP). This is a concern-ZERO part.
+hosts the debugger, a justified asymmetry vs the LSP).
 
 `debugger_get_log` is the exception — it is **eager** (in `EAGER_TOOLS`) with a
 **dual-channel, three-tier** crash-log flow: Tier 1 is the runtime channel with a short
@@ -702,12 +703,12 @@ stale editor rows and the reader is the only place either check can happen.
 
 `shared/version.ts` holds pure helpers (the server's own version, Godot version gating,
 and a semver severity compare for the handshake). The supported floor is **Godot 4.2**
-through the tested maximum (4.7); a forward-compat warning fires when the
+through the tested maximum (4.7); the toolkit, not this server, warns when the
 engine is newer than tested. **Version acquisition**: the editor ack carries
 `godot_version` (the dogfood path); otherwise the bridge pre-populates it from the registry
 entry before auth.
 
-<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="60b685a" -->
+<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="c819f4c" -->
 ```mermaid
 flowchart TD
     subgraph regn["Registration gate (registerToolWrapped) — fails CLOSED"]
@@ -729,7 +730,7 @@ flowchart TD
     note["isVersionCompatible (version.ts). The null asymmetry is intentional + recoverable:<br/>registration refuses the unverifiable; runtime tolerates it. The server filters<br/>version-gated tools from tools/list, so it never surfaces the toolkit's -32601 on the happy path."]
     rkeep -.-> note
 ```
-*Figure 12 — the version dual-gate · verified 60b685a*
+*Figure 12 — the version dual-gate · verified c819f4c*
 
 The dual gate has a deliberate **null asymmetry**, so a server that starts before the
 editor still ends with the full tool surface: the

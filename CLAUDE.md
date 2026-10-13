@@ -295,7 +295,7 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 |--------------------|------------------|-------------------------------------------------------------------------------|
 | `ALREADY_EXISTS`   | plugin           | `scene_create` / `resource_create` with `if_exists: "fail"` on collision. **Error payload only** post-iter-15 — idempotent collisions return success with `status: "returned"`. |
 | `ALREADY_PLAYING`  | plugin (iter 15c)| `game_start` while `EditorInterface.is_playing_scene()` is true — call `game_stop` first. |
-| `AUTH_FAILED`      | bridge           | The auth handshake failed: the registry has no entry or no token path for the project, the token file is missing or unreadable, its path is not absolute or has the wrong shape, or the editor closed or timed out the handshake. Relaunch or reconnect the editor. |
+| `AUTH_FAILED`      | bridge           | The auth handshake failed: the registry has no entry or no token path for the project, the token file is missing or unreadable, its path is not absolute, contains `..` or has the wrong shape, or the editor closed the handshake or did not answer it in time. Relaunch or reconnect the editor. |
 | `BUSY`             | plugin           | A scene save is already in progress, so a second save cannot start; retry once it completes. |
 | `CANCELLED`        | bridge           | The client cancelled the call (its abort signal fired) before the reply arrived, or before it was sent. |
 | `CLASS_MISMATCH`   | plugin           | `scene_create_node` found a node with the requested name under the parent, but of another class; rename or remove it first. |
@@ -352,7 +352,7 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 | `SET_FAILED`       | plugin           | `node_set_property` / `runtime_set_property`: the engine dropped the write (wrong type); the prior value is restored, so nothing changed. |
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
 | `UNKNOWN_CLASS`    | plugin (iter 26)   | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |
-| `UNSUPPORTED`      | both (iter 37)   | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
+| `UNSUPPORTED`      | both             | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
 | `UNSUPPORTED_FILE_TYPE` | both        | The file type is outside the tool's scope: `debug_set_breakpoint` on a file other than `.gd` (plugin), or a single-file `lsp_*` tool on a file other than `.gd` / `.gdshader` / `.gdshaderinc` (server). C# is served by the IDE's .NET tooling. |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |
 
