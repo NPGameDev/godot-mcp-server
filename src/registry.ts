@@ -113,8 +113,9 @@ function usableRuntimePort(entry: RegistryEntry): number | null {
   const port = entry.runtime_port;
   if (port == null || !Number.isInteger(port) || port < 1024 || port > 65535) return null;
   // Skip a port whose owning playtest process is provably dead. The toolkit has
-  // no PID-based GC (OS.is_process_running only knows the calling process's own
-  // children, on every platform), so a crashed playtest leaves runtime_port set
+  // no PID-based GC (OS.is_process_running is documented for this process's own
+  // children only; Windows and Linux report every other editor as not running, and
+  // only macOS 4.3+ answers for GUI apps), so a crashed playtest leaves runtime_port set
   // until the next register() clears it; without this gate the bridge would
   // attempt a doomed connect, or reach whatever program has taken the port
   // since. A null runtime_pid (no recorded owner) does not block.

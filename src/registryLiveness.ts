@@ -32,8 +32,9 @@ const PROBE_TIMEOUT_MS = 300;
  * Signal 0 is a no-op "existence probe" — never delivered, it only tests whether
  * the process exists and is signalable. It answers for any process on Linux,
  * macOS and Windows (Node/libuv maps it to OpenProcess on Windows), unlike
- * GDScript's OS.is_process_running, which only knows the calling process's own
- * children, on every platform. Outcomes:
+ * GDScript's OS.is_process_running, which is documented for the calling
+ * process's own children only (Windows and Linux report every other process as
+ * not running; only macOS 4.3+ answers for GUI apps). Outcomes:
  *   - success            → the process exists                          → ALIVE
  *   - throw ESRCH        → no such process                             → dead
  *   - throw EPERM/EACCES → the process EXISTS but we may not signal it
