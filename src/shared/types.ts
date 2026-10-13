@@ -45,7 +45,8 @@ export interface Bridge {
 
 /** The bridge's editor-auth hook, for a consumer that only needs to react to auth. */
 export interface EditorAuthHook {
-  /** Register a hook fired after every successful editor auth: the first connect,
+  /** Register a hook fired after every successful editor auth that reports a Godot
+   *  version (every current plugin does): the first connect,
    *  each reconnect, and each editor-port re-discovery. The runtime channel never
    *  fires it. It runs synchronously inside the auth, so a handler that does I/O
    *  must not await it there. A handler that throws fails the auth, so it must not
