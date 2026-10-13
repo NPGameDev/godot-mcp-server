@@ -315,7 +315,7 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 | `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |
 | `FILESYSTEM_NOT_READY` | plugin (iter 15e) | `EditorFileSystem.is_scanning()` true when `asset_list` or `asset_get_dependencies` called. Agent should retry in 500-2000ms. |
 | `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
-| `GAME_NOT_RUNNING` | bridge           | Mode B call when runtime port isn't listening.                                |
+| `GAME_NOT_RUNNING` | bridge           | Mode B call with no live game to reach: no runtime port registered, its owning game process has exited, or nothing answers on it. |
 | `HEADLESS_UNSUPPORTED` | plugin       | The command needs a display server and the editor runs headless (`editor_screenshot`, `game_start`). |
 | `INTERNAL`         | both             | Catch-all for unexpected failure (viewport unavailable, save_png empty, …).   |
 | `INVALID_CLASS`    | plugin           | Class resolution failure — unknown in both ClassDB + global class list / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`) / packed file is not a `PackedScene` (`scene_instantiate`) / script load failure for global class (`scene_create_node` iter 15h). |

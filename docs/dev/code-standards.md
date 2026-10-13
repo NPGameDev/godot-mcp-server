@@ -542,13 +542,13 @@ every cancellation/timeout guarantee.
   bookkeeping live in `src/transport/channel.ts`; the reconnect backoff tunable is
   `RECONNECT_BASE_MS` (`src/transport/channel.ts:33`).
 - **Cancellation ([§7.4](#7-async-promises-and-the-event-loop)).** A pre-aborted signal throws
-  `CANCELLED` immediately (`src/transport/channel.ts:344`); an abort mid-flight clears the timer,
+  `CANCELLED` immediately (`src/transport/channel.ts:369`); an abort mid-flight clears the timer,
   rejects `CANCELLED`, and sends the toolkit a cooperative `_cancel` notification
-  (`src/transport/channel.ts:109`).
+  (`src/transport/channel.ts:110`).
 - **Timeout ([§7.5](#7-async-promises-and-the-event-loop)).** Every call arms a timer that rejects
-  `TIMEOUT` and deletes the pending entry (`src/transport/channel.ts:351`); `_queued` / `_executing`
+  `TIMEOUT` and deletes the pending entry (`src/transport/channel.ts:374`); `_queued` / `_executing`
   progress notifications **reset** the timer so queued mutations don't false-timeout
-  (`src/transport/channel.ts:275`).
+  (`src/transport/channel.ts:285`).
 - **Process survival ([§7.6](#7-async-promises-and-the-event-loop)).** `installProcessHandlers`
   (`src/startup/lifecycle.ts:50`) installs the `unhandledRejection` / `uncaughtException` stderr
   loggers that keep the bridge alive.
@@ -559,9 +559,9 @@ every cancellation/timeout guarantee.
 ## B2. MCP / SDK surface discipline
 
 - **Register tools through the project wrapper, never the SDK directly — hard-line.** Use
-  `registerToolWrapped` / `registerTools` (`src/registration/toolRegistry.ts:123`, `:241`) — **never**
+  `registerToolWrapped` / `registerTools` (`src/registration/toolRegistry.ts:123`, `:242`) — **never**
   the SDK's raw `server.registerTool` (called in exactly one place, the wrapper's body,
-  `src/registration/toolRegistry.ts:221`). The wrapper adds version-gating, path-guard pre-filtering,
+  `src/registration/toolRegistry.ts:222`). The wrapper adds version-gating, path-guard pre-filtering,
   hook-pipeline wrapping, string-coercion, and tool-ref tracking; bypassing it silently drops those
   guarantees. Prompts / resources / roots go through their own registrars (`src/mcp/`).
 - **SDK construction.** `McpServer` with `{ capabilities: { tools: { listChanged: true } } }`;
@@ -572,7 +572,7 @@ every cancellation/timeout guarantee.
   `src/registration/toolRegistry.ts:139`).
 - **stdout is the stdio transport — never `console.log` to stdout — hard-line.** **All** human
   diagnostics go to `process.stderr.write`. The only stdout writes are protocol frames and the
-  pre-transport `--tools-count` summary that exits *before* `connect` (`src/startup/startupEnv.ts:35`).
+  pre-transport `--tools-count` summary that exits *before* `connect` (`src/startup/startupEnv.ts:72`).
   A stray stdout write corrupts the JSON-RPC stream.
 - **Coalesce a multi-tool registration change into a single `tools/list_changed`.** The SDK auto-emits
   `tools/list_changed` on every `registerTool` / `removeTool`, so a remove-then-rebuild (startup,
@@ -627,7 +627,7 @@ the cross-repo SSOT**, which this repo cross-links rather than restating.
 - **Version-gate at the wrapper.** Version-incompatible tools are filtered/blocked through
   `registerToolWrapped` + `src/shared/version.ts`; the out-of-range error must be informative
   (`UNSUPPORTED`). The wrapper skips registration when the version is **not yet known** and the startup
-  reconcile re-runs once it resolves (`src/registration/toolRegistry.ts:104`).
+  reconcile re-runs once it resolves (`src/registration/toolRegistry.ts:158`).
 
 ### B5.x Paginating tools — shared fragment, REFLECT-only
 
@@ -655,7 +655,7 @@ Paginating tools share one fragment module (request-param zod fragments +
   "LICENSE", "ATTRIBUTIONS.md"]` — **only `dist/` ships**; `src/`, `test/`, and `docs/` do **not**
   (there is no `.npmignore`). The package is scoped (`@npgamedev/godot-mcp-server`) with `bin:
   godot-mcp-server → dist/index.js`.
-- **`engines.node >= 22`**, runtime-enforced — `src/startup/startupEnv.ts:16` hard-exits below 22.
+- **`engines.node >= 22`**, runtime-enforced — `src/startup/startupEnv.ts:18` hard-exits below 22.
 - **The build is the gate** (`noEmitOnError`): a green `dist/` means the typecheck passed; `postbuild`
   injects the bin shebang.
 - **Route every tool through an `npm run` script; never a bare `npx`.** `build` / `lint` / `format` /
@@ -741,7 +741,7 @@ durable anchor**.
   (`src/shared/errors.ts:6`); the DRY single-call wrapper `callAndWrap`
   (`src/registration/toolDispatch.ts:44`).
 - **Async ([§7](#7-async-promises-and-the-event-loop)).** Cancellation + timeout in
-  `src/transport/channel.ts` (`:344`, `:351`, `:275`); process survival in
+  `src/transport/channel.ts` (`:369`, `:374`, `:285`); process survival in
   `src/startup/lifecycle.ts:50`; commented fire-and-forget `void … .catch(() => {})` at
   `src/lsp/lspStatusReporter.ts:35`.
 
