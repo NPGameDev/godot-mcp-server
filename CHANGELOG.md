@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports that the game is not running, instead of an authentication failure.
 - An empty `GODOT_MCP_PROJECT_PATH` is now treated as unset, so the server uses its working
   directory instead of naming a project that can never connect.
+- The dock's LSP line now shows the server's verdict (active, conflict or unavailable) as soon
+  as the server connects to the editor. Before, it waited for the first LSP tool call or a
+  reconnect, so after a fresh start a conflict over the LSP port went unflagged.
 
 ## [1.0.3] - 2026-10-05
 
