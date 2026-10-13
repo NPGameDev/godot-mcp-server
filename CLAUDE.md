@@ -295,17 +295,22 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 |--------------------|------------------|-------------------------------------------------------------------------------|
 | `ALREADY_EXISTS`   | plugin           | `scene_create` / `resource_create` with `if_exists: "fail"` on collision. **Error payload only** post-iter-15 — idempotent collisions return success with `status: "returned"`. |
 | `ALREADY_PLAYING`  | plugin (iter 15c)| `game_start` while `EditorInterface.is_playing_scene()` is true — call `game_stop` first. |
+| `AUTH_FAILED`      | bridge           | The auth handshake failed: the registry has no entry or no token path for the project, the token file is missing or unreadable, its path is not absolute or has the wrong shape, or the editor closed or timed out the handshake. Relaunch or reconnect the editor. |
 | `BUSY`             | plugin           | A scene save is already in progress, so a second save cannot start; retry once it completes. |
+| `CANCELLED`        | bridge           | The client cancelled the call (its abort signal fired) before the reply arrived, or before it was sent. |
 | `CLASS_MISMATCH`   | plugin           | `scene_create_node` found a node with the requested name under the parent, but of another class; rename or remove it first. |
 | `CLOSED`           | bridge           | Bridge call after `bridge.close()`.                                           |
+| `COMPILATION_FAILED` | plugin         | `game_start` with `runtime_poll: true` finds no game running and errors in the log: the game failed to start on a startup or parse error. Fix the errors shown, then call `game_start` again. |
 | `CONNECT_FAILED`   | bridge           | WebSocket open failure (cold path; first attempt).                            |
 | `CREATE_DIR_FAILED`| plugin (iter 15b)| `DirAccess.make_dir_recursive_absolute` returned non-OK on `folder_create`.   |
 | `DELETE_FAILED`    | plugin (iter 15 / 15b) | `DirAccess.remove` non-OK from `scene_delete` / `script_delete` / `resource_delete` / `folder_delete`. |
 | `DIR_NOT_EMPTY`    | plugin (iter 15b)| `folder_delete` with `recursive: false` on a non-empty directory.             |
 | `DISCONNECTED`     | bridge           | Socket closed mid-call or no reconnect within `CALL_AWAIT_RECONNECT_MS`.      |
 | `EDITED_SCENE`     | plugin (iter 15) | `scene_delete` / `file_delete` against the active scene on 4.2-4.4 (no tab-close API). On 4.5+ the tab is auto-closed first. |
+| `EDITOR_VIEWPORT_UNAVAILABLE` | plugin | `editor_screenshot`: the editor window is minimized (and `force_foreground_editor` is not set), or no 2D/3D viewport composited a usable frame. |
 | `EMPTY_CONTENT`    | plugin           | `editor_screenshot` with `node_path`: the node produced no visible image (no texture, no mesh); capture the full viewport instead. |
 | `EXECUTE_FAILED`   | plugin (Mode B)  | `game.eval` Expression.execute returned an error.                             |
+| `EXTERNAL_EDITOR_ACTIVE` | plugin     | `debug_set_breakpoint` while Editor Settings → Text Editor → External → *Use External Editor* is on; breakpoints need the built-in script editor. Ask the user to turn the setting off, then retry. |
 | `FAILED`           | plugin           | Generic failure, the cause in the message: `tileset_add_alternative` could not create the alternative tile. Also the code an extension command returns when its call is cancelled. |
 | `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |
 | `FILESYSTEM_NOT_READY` | plugin (iter 15e) | `EditorFileSystem.is_scanning()` true when `asset_list` or `asset_get_dependencies` called. Agent should retry in 500-2000ms. |
@@ -320,11 +325,15 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 | `INVALID_STATE`    | plugin           | The target cannot be acted on as it stands: an AnimationTree with no `tree_root`, or one that is not a state machine; `tilemap_set_cells` on a node with no tileset assigned. |
 | `INVALID_VALUE`    | plugin           | `node_set_property`: the value cannot be coerced to the property's type, or a Resource-typed property got a bare `res://` string (pass `{"type": "Resource", "path": …}`). |
 | `LOAD_FAILED`      | plugin           | `ResourceLoader.load` returned null.                                          |
+| `LOG_BUSY`         | plugin           | `editor_get_console` / `debugger_get_log`: the log file exists but could not be opened for reading. On Windows a running game holds it open; with no game running, a backup, antivirus or sync tool may. The hint depends on the Godot version (`source="buffer"` avoids the file on 4.5+). |
 | `LOG_UNAVAILABLE`  | plugin (iter 15e)| `editor_get_console` couldn't find a readable log under `user://logs/`. Check `application/config/use_file_logging`. |
+| `LSP_UNAVAILABLE`  | LSP client       | An `lsp_*` tool cannot reach the GDScript LSP: the connect failed, or the registry has no LSP endpoint for the project and another editor holds port 6005. Also `lsp_project_diagnostics` when no file in a batch returned diagnostics in time (the editor is busy or wedged). |
 | `NO_SCENE`         | plugin           | `EditorInterface.get_edited_scene_root()` returned null.                      |
 | `NODE_NOT_FOUND`   | plugin           | `path2d_edit_curve`: no node at `node_path` in the edited scene. Most tools report a missing node as `NOT_FOUND`. |
 | `NOT_A_RESOURCE`   | plugin (iter 15b)| `resource_save` / `resource_delete` target loaded but isn't a Resource subclass. |
+| `NOT_BREAKED`      | plugin           | `debug_continue` while a debug session is active but not paused at a breakpoint. |
 | `NOT_FOUND`        | plugin           | Node / scene file / resource / animation / connection / folder not found.     |
+| `NOT_UNIQUE`       | plugin           | `script_edit`: `old_string` matches more than once and `replace_all` is not set. Add context so it matches once, or set `replace_all: true`. |
 | `PACK_FAILED`      | plugin (iter 15) | `PackedScene.pack(root)` returned non-OK — only `scene_create` emits this.    |
 | `PARENT_NOT_FOUND` | plugin (iter 15 / 15b) | `scene_create` / `resource_create` target's parent dir does not exist — use `folder_create` first (pre-FileGuard guard). |
 | `PARSE_ERROR`      | plugin (Mode B)  | `game.eval` Expression.parse failed.                                          |
@@ -334,6 +343,7 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 | `READ_FAILED`      | plugin           | `FileAccess` read error.                                                      |
 | `RESPONSE_TOO_LARGE` | plugin         | The response exceeded the WebSocket transport buffer and could not be delivered; narrow or paginate the query, or raise `mcp_toolkit/limits/ws_buffer_kb` and reconnect. |
 | `RPC_ERROR`        | bridge           | Plugin returned a JSON-RPC envelope `error` field (transport-level).          |
+| `RUNTIME_WINDOW_MINIMIZED` | plugin   | `runtime_screenshot`: the running game's window cannot render (minimized or fully occluded), so no frame arrives. Retry with `force_foreground_game: true`, or restore the window. |
 | `SAVE_DELETE_FAILED` | plugin (iter 19c) | `DirAccess.remove_absolute` failed on a `user://` file via `save_delete`.   |
 | `SAVE_FAILED`      | plugin           | `EditorInterface.save_scene` / `save_scene_as` / `ResourceSaver.save` failure. |
 | `SAVE_READ_FAILED`  | plugin (iter 19c) | `FileAccess.open(READ)` failed on a whitelisted `user://` file.              |
@@ -341,8 +351,9 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 | `SEND_FAILED`      | bridge           | WebSocket send callback errored.                                              |
 | `SET_FAILED`       | plugin           | `node_set_property` / `runtime_set_property`: the engine dropped the write (wrong type); the prior value is restored, so nothing changed. |
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
-| `UNSUPPORTED`      | both (iter 37)   | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
 | `UNKNOWN_CLASS`    | plugin (iter 26)   | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |
+| `UNSUPPORTED`      | both (iter 37)   | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
+| `UNSUPPORTED_FILE_TYPE` | both        | The file type is outside the tool's scope: `debug_set_breakpoint` on a file other than `.gd` (plugin), or a single-file `lsp_*` tool on a file other than `.gd` / `.gdshader` / `.gdshaderinc` (server). C# is served by the IDE's .NET tooling. |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |
 
 ## Version sync policy
