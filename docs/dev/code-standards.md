@@ -684,7 +684,7 @@ the `bin` entry and the multi-instance registry at the root:
 | `extensions/` | per-project extension discovery + registration |
 | `lsp/` | the LSP client + session |
 | `security/` | path guard, profiles, untrusted-input handling |
-| `startup/` | boot collaborators: `lifecycle.ts`, `startupEnv.ts`, `registrars.ts`, `configReload.ts`, `reconcile.ts`, `hooks.ts`, `serverMode.ts` |
+| `startup/` | boot collaborators: `lifecycle.ts`, `startupEnv.ts`, `cliArgs.ts`, `portConfig.ts`, `projectPath.ts`, `bridgeOptions.ts`, `registrars.ts`, `configReload.ts`, `reconcile.ts`, `hooks.ts`, `serverMode.ts` |
 | `mcp/` | prompts, resources, roots registrars |
 | *root* | `index.ts` (the composition root / `bin` entry), `registry.ts` (multi-instance store), and its `registryLiveness.ts` leaf (entry-owner liveness) |
 

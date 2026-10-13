@@ -6,15 +6,15 @@ nav_order: 2
 
 # Godot MCP Server — Architecture
 
-> **Architecture as of `d1c2a70`** — 41n-series finalization: the full post-`af9c5b4`
-> delta reconciled into this doc. Deterministic startup port-config (`startup/cliArgs` +
+> **Architecture as of `d1c2a70`** — the full post-`af9c5b4` delta reconciled into this
+> doc. Deterministic startup port-config (`startup/cliArgs` +
 > `portConfig` + `startupEnv` + `reconcile`; precedence CLI > env > discovery > default,
 > plus a fail-fast registry desync cross-check on a pinned-port mismatch), the `ErrorCode`
 > union alignment (`AUTH_FAILED` added, dead `NO_RUNTIME_URL` dropped, sync target
 > repointed to the toolkit `MCPToolkitError.CODES`), the honest path-guard scope (lexical
 > canonicalization on both sides; OS-symlink resolution out of scope), and version-gated
 > `discover_tools` summaries (advertise-matches-register). Structural baseline unchanged
-> from the 41n-bis cohesion refactor (thin orchestrators over single-responsibility
+> from the cohesion refactor (thin orchestrators over single-responsibility
 > modules; bounded-context `camelCase` folders `shared/ transport/ registration/ groups/
 > tools/ extensions/ lsp/ security/ startup/ mcp/`).
 
@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="c7b1a31" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="c819f4c" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified c7b1a31*
+*Figure 1 — system context · verified c819f4c*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -134,19 +134,19 @@ sections below:
 
 ## 2. Module topology & the decomposition pattern
 
-The defining structural story of this repo is the **41n-bis cohesion refactor**: six
+The defining structural story of this repo is the **cohesion refactor**: six
 god-files were decomposed into **thin orchestrators over single-responsibility
 children**, and then `src/` was reorganised into bounded-context folders with
 `camelCase` filenames. The six:
 
-| Was | Became | Iter |
-|-----|--------|------|
-| `index.ts` (786 LOC) | a ~170-LOC composition root | 062 |
-| `bridge.ts` (907) | `bridge` + `channel` + `authHandshake` + `tokenPath` + `heartbeat` + `runtimeConnection` | 068 |
-| `tool_helpers.ts` (688) | `registration/{toolRegistry,toolDispatch,toolMeta}` + `shared/{errorContract,schemaCoercion}` | 074 |
-| `groups.ts` (1270) | `groups` + 8 siblings + 28 per-group data modules under `groups/defs/` | 077 / 094 |
-| `tools/lsp.ts` (730) | a thin tool surface + `lsp/{lspUri,lspLabels,lspSession}` | 083 |
-| `extensions.ts` (408) | a ~70-LOC facade + `extension{Command,Registrar,Discovery,Changes}` | 091 |
+| Was | Became |
+|-----|--------|
+| `index.ts` (786 LOC) | a ~170-LOC composition root |
+| `bridge.ts` (907) | `bridge` + `channel` + `authHandshake` + `tokenPath` + `heartbeat` + `runtimeConnection` |
+| `tool_helpers.ts` (688) | `registration/{toolRegistry,toolDispatch,toolMeta}` + `shared/{errorContract,schemaCoercion}` |
+| `groups.ts` (1270) | `groups` + 8 siblings + 28 per-group data modules under `groups/defs/` |
+| `tools/lsp.ts` (730) | a thin tool surface + `lsp/{lspUri,lspLabels,lspSession}` |
+| `extensions.ts` (408) | a ~70-LOC facade + `extension{Command,Registrar,Discovery,Changes}` |
 
 The **pattern**: a facade/orchestrator (`bridge`, `groups`, `extensions`, the `index`
 composition root) constructs, wires, and sequences; the domain logic lives in
@@ -162,7 +162,7 @@ the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
 `startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
 or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="c7b1a31" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="c819f4c" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -170,17 +170,19 @@ flowchart TD
     index --> startup["startup/"]
     index --> transport["transport/"]
     index --> registration["registration/"]
-    index --> groups["groups/"]
+    index --> lsp["lsp/"]
     index --> extensions["extensions/"]
     index --> mcp["mcp/"]
     index --> security["security/"]
     startup --> registration
+    startup --> groups["groups/"]
     groups --> registration
     extensions --> registration
+    extensions --> groups
     registration --> tools["tools/ — command modules"]
     transport --> registry
     startup --> registry
-    lsp["lsp/"] --> registry
+    lsp --> registry
     registry --> liveness["registryLiveness.ts — PID + WS-port liveness leaf"]
     transport --> shared["shared/ — types · errors · version · schema* (kernel)"]
     registration --> shared
@@ -193,7 +195,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified c7b1a31*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified c819f4c*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -221,7 +223,7 @@ flowchart TD
     recon["reconciler.armStartupReconcile<br/>(complete the surface once the version is known)"]
     conn["installProcessHandlers → server.connect(StdioServerTransport) — LAST<br/>departure shutdown: stdin EOF · dead stdout · SIGINT/SIGTERM → bounded bridge.close() → exit 0<br/>stderr loss muted · crash handlers log and keep alive"]
     pre --> bridge --> srv --> hooks --> subsys --> reg --> mcpcap --> eager --> notif --> recon --> conn
-    part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED, 34)<br/>+ 2 meta = 36-tool startup surface; group tools absent (no stubs).<br/>112 total / 34 eager / 78 on-demand / 28 groups"]
+    part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED)<br/>+ 2 meta tools; group tools absent (no stubs).<br/>current counts: godot-mcp-server --tools-count"]
     reg -.-> part
 ```
 *Figure 3 — composition-root boot order · verified 712b4af*
@@ -246,10 +248,9 @@ flowchart TD
   GROUP_TOOL_NAMES` (computed once as `MODULE_ALLOWED` in `serverMode.ts`) **plus 2 meta
   tools** (`discover_tools`, `extensions_refresh`, registered directly). On-demand
   **group tools are absent (no stubs)** until `discover_tools` activates them
-  ([§7](#7-tool-surface-management-discover_tools)). The counts (also printed by
-  `--tools-count`): **112 total / 34 eager / 78 on-demand / 28 groups**; startup surface
-  = 36.
-- **The cold-start completion** (`startup/reconcile.ts`, concern 071): when the editor
+  ([§7](#7-tool-surface-management-discover_tools)). `godot-mcp-server --tools-count`
+  prints the current counts: total, eager, on-demand, meta, groups and the startup surface.
+- **The cold-start completion** (`startup/reconcile.ts`): when the editor
   reports its version *after* eager registration, the startup reconcile re-registers the
   version-gated and extension tools exactly once, fired immediately if the version is
   already known, else via `bridge.onGodotVersionKnown`
@@ -561,15 +562,15 @@ toolkit's wrapper.
 
 The GDScript LSP client (`lsp/lspClient.ts`) is a lazily-connected JSON-RPC-over-TCP
 client to Godot's built-in language server — the **headline non-finding** of the refactor.
-At **~630 LOC it is the largest module in the repository and the one file deliberately kept
+At **~640 LOC it is the largest module in the repository and the one file deliberately kept
 above the ~500-LOC cohesion guideline**, because it is genuinely cohesive (a single
-JSON-RPC-over-TCP client) and was **not carved**. 083 carved only the *tool layer*:
+JSON-RPC-over-TCP client) and was **not carved**. The refactor carved only the *tool layer*:
 `lsp/lspUri.ts` (`res://` ↔ `file://`), `lsp/lspLabels.ts` (enum → label maps),
 `lsp/lspSession.ts` (the connect/session integrator — `ensureLsp`, the singleton client,
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="f05f4e3" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="c819f4c" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -589,7 +590,7 @@ flowchart TD
     ep --> tcp["own TCP socket → Godot GDScript LSP<br/>(BYPASSES the WS bridge + mutation queue)"]
     tcp --> verdict["status verdict → lspStatusReporter.ts<br/>→ editor.set_lsp_status (de-duped by state:host:port)"]
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified f05f4e3*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified c819f4c*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -631,7 +632,7 @@ control tools (`debug_state` / `debug_list_breakpoints` / `debug_set_breakpoint`
 `debug_continue`, in `tools/debug.ts`) are **group-only** and editor-bridge
 `callAndWrap`-dispatched to the toolkit's `EditorDebuggerPlugin` — zero new
 transport / discovery / status machinery, and no status reporter (the editor natively
-hosts the debugger, a justified asymmetry vs the LSP). This is a concern-ZERO part.
+hosts the debugger, a justified asymmetry vs the LSP).
 
 `debugger_get_log` is the exception — it is **eager** (in `EAGER_TOOLS`) with a
 **dual-channel, three-tier** crash-log flow: Tier 1 is the runtime channel with a short
@@ -702,12 +703,12 @@ stale editor rows and the reader is the only place either check can happen.
 
 `shared/version.ts` holds pure helpers (the server's own version, Godot version gating,
 and a semver severity compare for the handshake). The supported floor is **Godot 4.2**
-through the tested maximum (4.7 since 41n-octies); a forward-compat warning fires when the
+through the tested maximum (4.7); the toolkit, not this server, warns when the
 engine is newer than tested. **Version acquisition**: the editor ack carries
 `godot_version` (the dogfood path); otherwise the bridge pre-populates it from the registry
 entry before auth.
 
-<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="60b685a" -->
+<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="c819f4c" -->
 ```mermaid
 flowchart TD
     subgraph regn["Registration gate (registerToolWrapped) — fails CLOSED"]
@@ -716,7 +717,7 @@ flowchart TD
       r1 -->|"known + incompatible"| rdrop
       r1 -->|"known + compatible"| rkeep["register"]
     end
-    subgraph recov["Recovery (concern 071)"]
+    subgraph recov["Recovery (version known after a cold start)"]
       rdrop --> hook["bridge.onGodotVersionKnown (unknown → known)"]
       hook --> rec["startup reconcile (one-shot) → re-register"]
     end
@@ -729,9 +730,10 @@ flowchart TD
     note["isVersionCompatible (version.ts). The null asymmetry is intentional + recoverable:<br/>registration refuses the unverifiable; runtime tolerates it. The server filters<br/>version-gated tools from tools/list, so it never surfaces the toolkit's -32601 on the happy path."]
     rkeep -.-> note
 ```
-*Figure 12 — the version dual-gate · verified 60b685a*
+*Figure 12 — the version dual-gate · verified c819f4c*
 
-The dual gate (concern 071, fixed via "option e") has a deliberate **null asymmetry**: the
+The dual gate has a deliberate **null asymmetry**, so a server that starts before the
+editor still ends with the full tool surface: the
 **registration gate** fails **CLOSED** on an unknown version (drop the tool — recoverable
 once the version resolves via `bridge.onGodotVersionKnown` + the one-shot startup
 `reconcile`), while the **runtime gate** fails **OPEN** on null (returns `UNSUPPORTED` only
@@ -805,9 +807,9 @@ don't need.
 
 The **contract surface** is the published language the two repos share — the part the
 server depends on and is not free to change unilaterally. It is catalogued in full (with
-field types, example payloads, and stability tiers) in the 41n contract-surface document;
-the as-built cross-repo reconciliation lands in 41n-ter, after which this doc cross-links
-the toolkit's `docs/dev/contract.md`. The consumer-side headline rows:
+field types, example payloads, and stability tiers) in the toolkit's
+[`docs/dev/contract.md`](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/docs/dev/contract.md).
+The consumer-side headline rows:
 
 | # | Contract | Tier |
 |---|----------|------|
