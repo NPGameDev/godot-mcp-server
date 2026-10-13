@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="c819f4c" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="446b412" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified c819f4c*
+*Figure 1 — system context · verified 446b412*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -160,9 +160,12 @@ dependency cannot invert. Leaf modules like `groups/groupState.ts` and
 `groups` ↔ `catalogue` cycle. Two `startup/` modules are imported from outside the root
 the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
 `startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
-or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
+or `lsp/`, so the LSP tools share the composition root's rules without a cycle. In the
+same way `lsp/lspStatusReporter.ts` takes one type from `transport/bridge.ts`
+(`EditorAuthHook`, the editor-auth hook it subscribes to), and `transport/` imports
+nothing from `lsp/`.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="c819f4c" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="d3a90cd" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -195,7 +198,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified c819f4c*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified d3a90cd*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -208,7 +211,7 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/projectPath.ts src/startup/portConfig.ts src/startup/bridgeOptions.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="712b4af" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/projectPath.ts src/startup/portConfig.ts src/startup/bridgeOptions.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="0608703" -->
 ```mermaid
 flowchart TD
     pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>projectPath (GODOT_MCP_PROJECT_PATH, empty = unset → cwd)<br/>portConfig (cli → env → registry → 6550) · response caps"]
@@ -226,7 +229,7 @@ flowchart TD
     part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED)<br/>+ 2 meta tools; group tools absent (no stubs).<br/>current counts: godot-mcp-server --tools-count"]
     reg -.-> part
 ```
-*Figure 3 — composition-root boot order · verified 712b4af*
+*Figure 3 — composition-root boot order · verified 0608703*
 
 - **Preflight** (`startup/startupEnv.ts` + `startup/cliArgs.ts` + `startup/projectPath.ts` +
   `startup/portConfig.ts`) runs
@@ -277,7 +280,7 @@ per-OS token-file resolver), `heartbeat.ts` (the generic liveness primitive), an
 
 A tool call reaches the editor like this:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="60b685a" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="0608703" -->
 ```mermaid
 sequenceDiagram
     participant SDK as MCP SDK (tool call)
@@ -297,13 +300,15 @@ sequenceDiagram
     Ch->>B: onAuthResolved({ version, headless })
     Note over B,Ch: every editor auth, reconnects and re-discoveries included
     Ch-)TK: meta.set_limits { the whole env-override set, or {} } — fire-and-forget
+    Note over B: onEditorAuthenticated hook → the LSP status reporter (§9)
+    Ch-)TK: editor.set_lsp_status { registry verdict } — fire-and-forget, after the peer probes
     Note over Ch: version-mismatch check → stderr only, a patch-only difference is silent
     Ch->>TK: JSON-RPC { id, method, params }
     TK-->>Ch: { id, result } — correlated by id
     Ch-->>D: result
     D-->>SDK: stableStringify(result) — verbatim
 ```
-*Figure 4 — connect → auth handshake → dispatch · verified 60b685a*
+*Figure 4 — connect → auth handshake → dispatch · verified 0608703*
 
 The handshake (`authHandshake.ts`) sends `{ auth: token, version }` and resolves on
 `{ authed: true }`; the **editor** ack additionally carries `godot_version` + the plugin
@@ -319,12 +324,14 @@ re-discoveries included, the bridge pushes its whole set of env overrides with
 set, or `{}` when neither is set. A 1.0.4 or later toolkit replaces its env overrides with
 each push, so `{}` clears them, and keeps them out of `project.godot`. Older toolkits apply
 each pushed value in memory, where the next settings save persists it, and ignore `{}`. A
-pushed WebSocket buffer size reaches only connections accepted after the push.
+pushed WebSocket buffer size reaches only connections accepted after the push. The same
+auth callback then runs the bridge's `onEditorAuthenticated` hook, where the LSP status
+reporter pushes the registry LSP verdict to the editor dock ([§9](#9-the-gdscript-lsp-client)).
 
 The bridge composes a **persistent editor channel** and a **discovered runtime channel**,
 each with their own resilience policy:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="60b685a" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="0608703" -->
 ```mermaid
 flowchart TD
     bridge["bridge.ts — editor-side facade + composition"]
@@ -345,7 +352,7 @@ flowchart TD
     note3["fs.watch on projects.json (diffAndNotify on runtime_port)<br/>→ connect / teardown; token re-read each connect → auth self-heals"]
     rc -.-> note3
 ```
-*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified 60b685a*
+*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified 0608703*
 
 - **Editor channel** — persistent and reconnecting with exponential backoff
   (`1·2·4·8·16·32·60·60…` s; **reset on a successful round-trip, not on open**, so a
@@ -357,7 +364,7 @@ flowchart TD
   then fails auth) runs the **fail-fast desync cross-check** (one registry read → a
   precise error naming the mismatch, instead of a silent dead-socket hang). A channel
   opened by re-discovery gets the same auth callback as the first, so it pushes the env
-  overrides (`meta.set_limits`) too.
+  overrides (`meta.set_limits`) and runs the `onEditorAuthenticated` hook too.
 - **Runtime channel** — discovered, `noReconnect` (a dead game shouldn't be retried),
   with an injected `heartbeat`: ping every **15 s** (10 s ping timeout), **4** consecutive
   fails (~60 s) → proactive teardown. The `isAlive` self-stop guard is load-bearing —
@@ -421,7 +428,7 @@ default body — "one bridge call → JSON-stringify the result". The `name` (sn
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="4926459" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="d3a90cd" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}
@@ -430,11 +437,11 @@ flowchart TD
     payload -->|"yes"| pe["toolErrorFromPayload<br/>preserve code + message + toolkit hint"]
     payload -->|"no"| hint["inject successHint — ONLY if the toolkit set none"]
     hint --> reflect["stableStringify(result) → text block<br/>VERBATIM — no response re-encode (REFLECT)"]
-    note["ErrorCode union (shared/types.ts): the server's OWN UPPER_SNAKE_CASE set,<br/>header 'must stay in sync with MCPToolkitError.CODES'. Every toolkit code plus six<br/>server-origin codes the plugin never sends (AUTH_FAILED / CANCELLED / CLOSED /<br/>LSP_UNAVAILABLE / RPC_ERROR / SEND_FAILED). toolError(code: ErrorCode | string) forwards any code outside it verbatim."]
+    note["ErrorCode union (shared/types.ts): the server's OWN UPPER_SNAKE_CASE set,<br/>header 'must stay in sync with MCPToolkitError.CODES'. Every toolkit code plus seven<br/>server-origin codes the plugin never sends (AUTH_FAILED / CANCELLED / CLOSED /<br/>LSP_PORT_CONFLICT / LSP_UNAVAILABLE / RPC_ERROR / SEND_FAILED). toolError(code: ErrorCode | string) forwards any code outside it verbatim."]
     exc -.-> note
     pe -.-> note
 ```
-*Figure 7 — the response & error contract (REFLECT) · verified 4926459*
+*Figure 7 — the response & error contract (REFLECT) · verified d3a90cd*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
 result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`
@@ -448,8 +455,9 @@ none.
 `MCPToolkitError.CODES`" header — the toolkit SSOT at
 `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`), but `toolError(code: ErrorCode |
 string, …)` **forwards any unknown plugin code verbatim**. The union lists every code in
-`MCPToolkitError.CODES` plus six the plugin never sends: its header names them
-(`AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`) and
+`MCPToolkitError.CODES` plus seven the plugin never sends: its header names them
+(`AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_PORT_CONFLICT`, `LSP_UNAVAILABLE`, `RPC_ERROR`,
+`SEND_FAILED`) and
 says they originate in the server and never travel through the plugin. A code a newer
 toolkit adds before the union catches up still reaches the client unchanged through the
 `string` arm.
@@ -570,7 +578,7 @@ JSON-RPC-over-TCP client) and was **not carved**. The refactor carved only the *
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="c819f4c" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="446b412" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -589,8 +597,10 @@ flowchart TD
     t3 -.->|"per candidate"| corrob
     ep --> tcp["own TCP socket → Godot GDScript LSP<br/>(BYPASSES the WS bridge + mutation queue)"]
     tcp --> verdict["status verdict → lspStatusReporter.ts<br/>→ editor.set_lsp_status (de-duped by state:host:port)"]
+    auth["every editor auth (bridge.onEditorAuthenticated)"] --> regv["reportRegistryVerdict — resolution only, fire-and-forget<br/>dropped if a verified verdict lands first"]
+    regv --> verdict
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified c819f4c*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified 446b412*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -617,8 +627,9 @@ because dropping a *genuine* rival would silently serve another project's symbol
 
 **Dual port-collision detection**: pre-connect registry ownership (`LSP_PORT_CONFLICT`)
 plus a post-initialize 4.5+ `window/showMessage` root-mismatch. **Status push**: the
-registry verdict on connect/reconnect (resolution only, no LSP handshake) and a verified
-verdict after a real connect, de-duped by `state:host:port`, pushed via
+registry verdict after every editor auth, the first connect and each reconnect alike
+(resolution only, no LSP handshake; the reporter subscribes to the bridge's
+`onEditorAuthenticated` hook), and a verified verdict after a real connect, de-duped by `state:host:port`, pushed via
 `lsp/lspStatusReporter.ts` → `editor.set_lsp_status` (the editor can't determine its own
 LSP bind status). The registry push is fire-and-forget and yields to a verified verdict
 that lands while its probes are still in flight.
@@ -649,7 +660,7 @@ crash.
 The server is a **read-only consumer** of the toolkit's `projects.json` (`registry.ts`):
 `readRegistry` reads only the aggregate file, never the per-instance `entries/` dir.
 
-<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="3969cbb" -->
+<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="446b412" -->
 ```mermaid
 flowchart TD
     pj[("projects.json — the toolkit writes")] --> read["registry.readRegistry → by_path[ normalizePath(projectPath) ]<br/>(PATH key — NOT the sha256 project hash)"]
@@ -663,7 +674,7 @@ flowchart TD
     tok["token: tokenPath.ts READS entry.token_path<br/>(toolkit-published · globalized-absolute) and<br/>STRUCTURALLY VALIDATES it — assertPublishedTokenPath:<br/>absolute · no '..' · existing file · …/project_instance_&lt;12-hex&gt;/mcp_token suffix"]
     pj -. "token_path: READ + structurally validated (ADR-0011)" .-> tok
 ```
-*Figure 11 — the registry consume path · verified 3969cbb*
+*Figure 11 — the registry consume path · verified 446b412*
 
 **Path key, not hash.** `by_path` is keyed by the **canonical project path**; the server
 forms the same key via `normalizePath` (backslash → `/`, strip trailing `/`, lowercase on
@@ -682,8 +693,8 @@ stale / runtime-only / ping-pong entries gracefully. The `diffAndNotify` watcher
 **only** to `runtime_port` transitions.
 
 **Liveness is read at two strengths, and the asymmetry is deliberate.** The base check is
-`isPidAlive` (`process.kill(pid, 0)` — reliable on Windows, unlike the toolkit's
-`OS.is_process_running`), which proves only that *some* signalable process holds that
+`isPidAlive` (`process.kill(pid, 0)`, which answers for any process, unlike the toolkit's
+`OS.is_process_running`, which only knows its own children), which proves only that *some* signalable process holds that
 number, not that it is still the editor that wrote the entry. The runtime-port lookups
 stop there, the file read (`discoverRuntime`) and the watcher's cache
 (`getCachedRuntimePort`) alike, through one shared check: a runtime entry advertises
@@ -694,7 +705,7 @@ corroborated against the WS command port their own entry advertises (ADR 0025,
 [§9](#9-the-gdscript-lsp-client)), because reaching the wrong editor's language server
 returns another project's symbols with no protest — and that resolution runs **once per
 connection**, so it can afford a probe. The toolkit itself has no dead-entry GC (its
-`OS.is_process_running` false-negatives on live sibling editors), so `by_path` accumulates
+`OS.is_process_running` only knows the calling process's own children, on every platform), so `by_path` accumulates
 stale editor rows and the reader is the only place either check can happen.
 
 ---
@@ -708,7 +719,7 @@ engine is newer than tested. **Version acquisition**: the editor ack carries
 `godot_version` (the dogfood path); otherwise the bridge pre-populates it from the registry
 entry before auth.
 
-<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="c819f4c" -->
+<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="0608703" -->
 ```mermaid
 flowchart TD
     subgraph regn["Registration gate (registerToolWrapped) — fails CLOSED"]
@@ -730,7 +741,7 @@ flowchart TD
     note["isVersionCompatible (version.ts). The null asymmetry is intentional + recoverable:<br/>registration refuses the unverifiable; runtime tolerates it. The server filters<br/>version-gated tools from tools/list, so it never surfaces the toolkit's -32601 on the happy path."]
     rkeep -.-> note
 ```
-*Figure 12 — the version dual-gate · verified c819f4c*
+*Figure 12 — the version dual-gate · verified 0608703*
 
 The dual gate has a deliberate **null asymmetry**, so a server that starts before the
 editor still ends with the full tool surface: the
@@ -750,7 +761,7 @@ ADR 0009). `extensions.ts` is a pure-composition facade over one shared registra
 single known-extension ledger), the discovery service, and the change-application service
 — so the ledger stays one consistency boundary.
 
-<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="d1c2a70" -->
+<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="446b412" -->
 ```mermaid
 flowchart TD
     mgr["createExtensionManager — facade<br/>(one shared registrar = one ledger)"]
@@ -767,7 +778,7 @@ flowchart TD
     note["Full-trust (ADR 0009). tools/list_changed is unreliable in all Claude Code modes →<br/>extensions_refresh + eager promotion of dynamic-sensitive tools are the compensations."]
     mgr -.-> note
 ```
-*Figure 13 — the extension lifecycle (consumer projection) · verified d1c2a70*
+*Figure 13 — the extension lifecycle (consumer projection) · verified 446b412*
 
 `extensionDiscovery` reads the toolkit's `extensions.refresh` (falling back to
 `extensions.list`), builds `{ readOnlyHint / destructiveHint / idempotentHint ?? false }`
@@ -852,7 +863,7 @@ Server-side decisions worth recording:
 
 | Decision | Rationale |
 |----------|-----------|
-| The own, string-tolerant `ErrorCode` union | Forward any plugin code verbatim through the `string` arm, while the typed union names every toolkit code and the six server-origin codes ([§6](#6-the-response--error-contract)) |
+| The own, string-tolerant `ErrorCode` union | Forward any plugin code verbatim through the `string` arm, while the typed union names every toolkit code and the seven server-origin codes ([§6](#6-the-response--error-contract)) |
 | The REFLECT posture | Forward the toolkit's result verbatim — no response re-encode ([§6](#6-the-response--error-contract)) |
 | `discover_tools` over profiles + tool-packs | One LLM-driven on-demand surface instead of static profiles ([§7](#7-tool-surface-management-discover_tools)) |
 | Registry-driven, never-blind discovery | Resolve every endpoint by path from `projects.json`; never scan blindly ([§1](#1-the-big-picture), [§9](#9-the-gdscript-lsp-client), [§11](#11-multi-project-registry)) |
