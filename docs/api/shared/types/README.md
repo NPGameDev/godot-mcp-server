@@ -15,6 +15,7 @@ registration, dispatch, and transport modules.
 ## Interfaces
 
 - [Bridge](interfaces/Bridge.md)
+- [EditorAuthHook](interfaces/EditorAuthHook.md)
 
 ## Type Aliases
 

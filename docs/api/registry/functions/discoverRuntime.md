@@ -8,7 +8,7 @@
 
 > **discoverRuntime**(`projectPath`): `number` \| `null`
 
-Defined in: [src/registry.ts:136](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L136)
+Defined in: [src/registry.ts:137](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L137)
 
 Return the runtime_port for a project, or null if no playtest is active.
 Re-reads the file on every call so newly-started playtests are picked up.
