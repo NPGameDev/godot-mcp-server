@@ -3,12 +3,16 @@
  * editor dock (`editor.set_lsp_status`), driven through the real composition:
  * `createBridge` + `createLspStatusReporter` against a fake editor.
  *
- * Pins two behaviours:
+ * Pins four behaviours:
  *   1. one registry-verdict push per successful editor auth, the first connect
  *      included (not only on a reconnect), so a conflict shows on a fresh start;
  *   2. a verified verdict (from a real LSP connection) that lands while the
  *      registry verdict's peer probes are in flight still wins: the registry
- *      verdict that resolves after it is dropped.
+ *      verdict that resolves after it is dropped;
+ *   3. in the composition root's order, eager extension discovery's bridge call
+ *      makes the first auth, and the reporter built before it still pushes once;
+ *   4. the composition root builds the reporter after the bridge and before eager
+ *      extension discovery.
  *
  * Hermetic: the auth token comes from GODOT_MCP_TOKEN_PATH, and the registry
  * file is redirected into a temp dir through the variable registryPath() reads
@@ -20,11 +24,12 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { createServer, type Server, type Socket, type AddressInfo } from "node:net";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { WebSocketServer, WebSocket as WS } from "ws";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 const tmpDir = mkdtempSync(join(tmpdir(), "mcp-lspreporter-"));
 const tokenPath = join(tmpDir, "mcp_token");
@@ -41,6 +46,8 @@ const { createBridge } = await import("../../src/transport/bridge.js");
 const { createLspStatusReporter } = await import("../../src/lsp/lspStatusReporter.js");
 const { ensureLsp } = await import("../../src/lsp/lspSession.js");
 const { normalizePath, registryPath } = await import("../../src/registry.js");
+const { createExtensionManager } = await import("../../src/extensions/extensions.js");
+const { hasToolRef } = await import("../../src/registration/toolRefs.js");
 
 type LspStatusPush = { state: string; host: string; port: number; detail: string };
 
@@ -60,8 +67,9 @@ interface FakeEditor {
   close: () => Promise<void>;
 }
 
-/** Answers auth with a Godot version, records `editor.set_lsp_status`, and acks every RPC. */
-function makeFakeEditor(): Promise<FakeEditor> {
+/** Answers auth with a Godot version, records `editor.set_lsp_status`, and acks every
+ *  RPC. `extensions.refresh` returns `refreshCommands` when they are given. */
+function makeFakeEditor(refreshCommands?: Array<Record<string, unknown>>): Promise<FakeEditor> {
   return new Promise((resolve) => {
     const wss = new WebSocketServer({ port: 0, host: "127.0.0.1" });
     const sockets = new Set<WS>();
@@ -98,6 +106,11 @@ function makeFakeEditor(): Promise<FakeEditor> {
           return;
         }
         if (msg.method === "editor.set_lsp_status") pushes.push(msg.params as LspStatusPush);
+        if (msg.method === "extensions.refresh" && refreshCommands && msg.id != null) {
+          const result = { success: true, commands: refreshCommands };
+          sock.send(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }));
+          return;
+        }
         if (msg.id != null) sock.send(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { ok: true } }));
       });
     });
@@ -166,14 +179,18 @@ const SETTLE_MS = 600;
 
 const editorA = await makeFakeEditor();
 const editorB = await makeFakeEditor();
+const EXTENSION_METHOD = "ext_probe.ping";
+const editorC = await makeFakeEditor([{ method: EXTENSION_METHOD, annotations: { readOnlyHint: true } }]);
 const fakeLsp = await makeFakeLsp();
 
 // Project A: a peer editor (the parent process, started earlier) claims the same
 // LSP port, so A's registry verdict is `conflict`. Project B owns its port alone,
 // and that port is the fake LSP, so B's verdict is `active` and a real LSP
-// connection to it yields a verified verdict.
+// connection to it yields a verified verdict. Project C owns a port of its own
+// and only needs some registry verdict to push.
 const PROJECT_A = join(tmpDir, "project-a");
 const PROJECT_B = join(tmpDir, "project-b");
+const PROJECT_C = join(tmpDir, "project-c");
 const PEER = join(tmpDir, "peer");
 const CONFLICT_LSP_PORT = 16005;
 
@@ -206,6 +223,12 @@ writeFileSync(
         pid: process.pid,
         started_at: 1000,
         lsp_port: fakeLsp.port,
+      }),
+      [normalizePath(PROJECT_C)]: entry({
+        port: editorC.port,
+        pid: process.pid,
+        started_at: 1000,
+        lsp_port: 16007,
       }),
     },
   }),
@@ -271,12 +294,59 @@ async function testVerifiedOutranksRegistry(): Promise<void> {
   }
 }
 
+// ── Test 3: eager discovery's first auth reaches a reporter built before it ──
+
+// Registers each tool through the real tool_refs bookkeeping; nothing is served.
+function makeFakeServer(): McpServer {
+  return {
+    registerTool: () => ({ remove: () => {}, update: () => {} }),
+    sendToolListChanged: () => {},
+  } as unknown as McpServer;
+}
+
+async function testDiscoveryAuthReachesReporter(): Promise<void> {
+  // The composition root's order: bridge, reporter, extension manager, then the
+  // eager discovery whose extensions.refresh is the first bridge call.
+  const bridge = createBridge(`ws://127.0.0.1:${editorC.port}`, { projectPath: PROJECT_C, explicitEditorPort: true });
+  createLspStatusReporter({ bridge, projectPath: PROJECT_C });
+  const extensions = createExtensionManager({ server: makeFakeServer(), bridge, getReadOnly: () => false });
+  try {
+    // The fake editor answers at once; the short deadline only keeps the run fast.
+    const { timedOut } = await extensions.discoverEagerly(2000);
+    assert.equal(timedOut, false, "eager discovery finishes inside its deadline");
+    assert.equal(hasToolRef("ext_probe_ping"), true, "the discovered extension tool is registered");
+    await waitFor(() => editorC.statusPushes().length >= 1, "a registry verdict after discovery's first auth");
+    await sleep(SETTLE_MS);
+    assert.equal(editorC.authCount(), 1, "discovery made the only auth");
+    assert.equal(editorC.statusPushes().length, 1, "exactly one registry-verdict push for that auth");
+    console.log("  PASS: eager discovery's first auth pushes one registry verdict");
+  } finally {
+    await bridge.close();
+  }
+}
+
+// ── Test 4: the composition root builds the reporter before eager discovery ──
+
+function testCompositionRootOrder(): void {
+  // Test 3 cannot run index.ts itself, so this pins the order test 3 copies.
+  const source = readFileSync(new URL("../../src/index.ts", import.meta.url), "utf-8");
+  const bridgeAt = source.search(/^const bridge = createBridge\(/m);
+  const reporterAt = source.search(/^createLspStatusReporter\(/m);
+  const discoveryAt = source.search(/await extensions\.discoverEagerly\(/);
+  assert.ok(bridgeAt >= 0 && reporterAt >= 0 && discoveryAt >= 0, "all three statements are in index.ts");
+  assert.ok(bridgeAt < reporterAt, "the reporter is built after the bridge");
+  assert.ok(reporterAt < discoveryAt, "the reporter is built before eager discovery's first bridge call");
+  console.log("  PASS: index.ts builds the reporter after the bridge and before eager discovery");
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   console.log("LSP status reporter tests:");
   await testPushPerAuth();
   await testVerifiedOutranksRegistry();
+  await testDiscoveryAuthReachesReporter();
+  testCompositionRootOrder();
   console.log("All LSP status reporter tests passed.");
 }
 
@@ -286,7 +356,7 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    await Promise.all([editorA.close(), editorB.close(), fakeLsp.close()]);
+    await Promise.all([editorA.close(), editorB.close(), editorC.close(), fakeLsp.close()]);
     try {
       rmSync(tmpDir, { recursive: true });
     } catch {
