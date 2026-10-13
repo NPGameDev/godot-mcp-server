@@ -40,9 +40,10 @@ registers the server for you in this project only (`--scope local`); use
 `--env KEY=value` (before the `--`) to set environment variables.
 
 If your project has the toolkit plugin installed, there is an even shorter
-path: the editor writes the project's `.mcp.json` for you (the dock offers it,
-and it is kept in sync automatically). With that file present, Claude Code
-picks the server up on next launch — no `claude mcp add` needed.
+path: the editor writes the project's `.mcp.json` for you when you ask it to
+(the dock offers it). Nothing keeps the file in sync afterwards: it changes
+only when you write it again from the editor. With that file present, Claude
+Code picks the server up on next launch — no `claude mcp add` needed.
 
 The equivalent `.mcp.json` (project scope, shareable in version control):
 
@@ -67,8 +68,13 @@ plugin enabled.
 
 ## Windows: the `cmd /c` wrapper
 
-On native Windows, `npx` is a `.cmd` shim, and some clients' process spawning
-cannot execute it directly. The reliable form wraps the call:
+On native Windows, `npx` is a `.cmd` shim. Current Claude Code starts the
+plain `npx` form unchanged, and so do Claude Desktop, VS Code, Codex CLI and
+Gemini CLI. If Claude Code on Windows shows the server failed with `spawn npx ENOENT` or `EINVAL`, update Claude Code or wrap the command in `cmd /c`.
+
+The wrapper is a fallback for a client whose process spawning cannot start
+the shim directly: it fails with `spawn npx ENOENT`. Whether Cursor, Cline
+and Windsurf need it is unconfirmed. The wrapped form:
 
 ```json
 {
@@ -81,11 +87,10 @@ cannot execute it directly. The reliable form wraps the call:
 }
 ```
 
-This is the form the toolkit's auto-generated `.mcp.json` uses on Windows. No
-client's official documentation requires it, and several state that the plain
-form works — but the wrapper is the widely community-verified fix when a
-client on Windows fails to start the server with the plain `npx` command, and
-it costs nothing when the plain form would have worked. If you run your
+This is the form the editor writes into `.mcp.json` on Windows. No client's
+official documentation requires it, and several state that the plain form
+works; the wrapper is the community-verified fix when a client on Windows
+fails to start the server with the plain `npx` command. If you run your
 client under WSL, note that WSL and native Windows are separate worlds: the
 client, Node, and the Godot editor must all be reachable from the same side,
 and a WSL-side server cannot reach an editor's `127.0.0.1` listener on the
@@ -201,8 +206,9 @@ block, and make sure npm is installed globally.
 Cursor's docs list `type` as required even though their own examples omit
 it — including it is the safe form. `env` supports `${env:NAME}`
 interpolation, and stdio servers also accept an `envFile`. On Windows, if the
-server fails to start, use the `cmd /c` wrapper above (a community-verified
-fix; Cursor's official docs don't cover it).
+server fails to start with `spawn npx ENOENT`, fall back to the `cmd /c`
+wrapper above (a community-verified fix; Cursor's official docs don't cover
+it, and whether Cursor needs it is unconfirmed).
 
 </details>
 
