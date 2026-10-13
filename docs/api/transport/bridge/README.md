@@ -24,6 +24,7 @@ free refactor.
 
 - [AuthResponse](interfaces/AuthResponse.md)
 - [BridgeOptions](interfaces/BridgeOptions.md)
+- [EditorAuthHook](interfaces/EditorAuthHook.md)
 
 ## Functions
 

@@ -8,7 +8,7 @@
 
 > **ExtensionCmdWire** = `object`
 
-Defined in: [src/shared/types.ts:198](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L198)
+Defined in: [src/shared/types.ts:199](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L199)
 
 One extension command as it arrives over the wire from the toolkit plugin —
 the payload of extensions.refresh/list results (ExtResult.commands[]) and the
@@ -21,7 +21,7 @@ registry; the server maps them to camelCase MCP tool config at registration.
 
 > `optional` **annotations?**: `Record`\<`string`, `boolean`\>
 
-Defined in: [src/shared/types.ts:202](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L202)
+Defined in: [src/shared/types.ts:203](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L203)
 
 ***
 
@@ -29,7 +29,7 @@ Defined in: [src/shared/types.ts:202](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **description?**: `string`
 
-Defined in: [src/shared/types.ts:200](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L200)
+Defined in: [src/shared/types.ts:201](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L201)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [src/shared/types.ts:200](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **group?**: `object`
 
-Defined in: [src/shared/types.ts:203](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L203)
+Defined in: [src/shared/types.ts:204](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L204)
 
 #### description?
 
@@ -57,7 +57,7 @@ Defined in: [src/shared/types.ts:203](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **input\_schema?**: `Record`\<`string`, `unknown`\>
 
-Defined in: [src/shared/types.ts:201](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L201)
+Defined in: [src/shared/types.ts:202](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L202)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [src/shared/types.ts:201](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **max\_godot\_version?**: `string`
 
-Defined in: [src/shared/types.ts:206](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L206)
+Defined in: [src/shared/types.ts:207](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L207)
 
 ***
 
@@ -73,7 +73,7 @@ Defined in: [src/shared/types.ts:206](https://github.com/NPGameDev/godot-mcp-ser
 
 > **method**: `string`
 
-Defined in: [src/shared/types.ts:199](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L199)
+Defined in: [src/shared/types.ts:200](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L200)
 
 ***
 
@@ -81,7 +81,7 @@ Defined in: [src/shared/types.ts:199](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **min\_godot\_version?**: `string`
 
-Defined in: [src/shared/types.ts:205](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L205)
+Defined in: [src/shared/types.ts:206](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L206)
 
 ***
 
@@ -89,4 +89,4 @@ Defined in: [src/shared/types.ts:205](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **timeout\_ms?**: `number`
 
-Defined in: [src/shared/types.ts:204](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L204)
+Defined in: [src/shared/types.ts:205](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L205)

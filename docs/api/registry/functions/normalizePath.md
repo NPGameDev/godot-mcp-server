@@ -10,7 +10,7 @@
 
 Defined in: [src/registry.ts:52](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L52)
 
-Canonical path form: forward slashes, no trailing slash, lowercase on Windows.
+Canonical path form: forward slashes, no trailing slash, lowercase on Windows and macOS.
 
 ## Parameters
 

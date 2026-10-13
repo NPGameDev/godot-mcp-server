@@ -26,7 +26,7 @@ Defined in: [src/lsp/lspClient.ts:91](https://github.com/NPGameDev/godot-mcp-ser
 
 ##### code
 
-`"LSP_UNAVAILABLE"` \| `"LSP_PORT_CONFLICT"`
+`"LSP_PORT_CONFLICT"` \| `"LSP_UNAVAILABLE"`
 
 ##### message
 
@@ -64,7 +64,7 @@ Defined in: node\_modules/typescript/lib/lib.es2022.error.d.ts:24
 
 ### code
 
-> `readonly` **code**: `"LSP_UNAVAILABLE"` \| `"LSP_PORT_CONFLICT"`
+> `readonly` **code**: `"LSP_PORT_CONFLICT"` \| `"LSP_UNAVAILABLE"`
 
 Defined in: [src/lsp/lspClient.ts:92](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/lsp/lspClient.ts#L92)
 
