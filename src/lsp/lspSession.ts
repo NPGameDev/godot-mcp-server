@@ -49,7 +49,7 @@ function getLspClient(projectPath: string): LspClient {
   return lspClient;
 }
 
-/** Set by index.ts to push the VERIFIED LSP verdict (the actual connection
+/** Set by lspStatusReporter to push the VERIFIED LSP verdict (the actual connection
  *  result) to the editor dock after each connection attempt — so the dock
  *  reflects reality on actual use: it flips to active once a closed editor frees
  *  the port and this LSP rebinds (4.5 only), or to unavailable on every other

@@ -41,8 +41,9 @@ export function readMcpJsonEnv(projectPath: string): Record<string, string> | un
 }
 
 /**
- * Apply new env vars to process.env.  Only touches GODOT_MCP_* keys
- * to avoid overwriting unrelated environment.
+ * Apply new env vars to process.env. Sets every key newEnv lists, as a
+ * launch with that env would; deletes only the GODOT_MCP_* keys newEnv no
+ * longer lists, so variables the entry never set stay in place.
  */
 export function applyEnvUpdate(newEnv: Record<string, string>): void {
   const prefix = "GODOT_MCP_";
