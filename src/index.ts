@@ -56,6 +56,13 @@ setLspOverride({ port: cli.lspPort, host: cli.lspHost });
 
 const bridge = createBridge(`ws://127.0.0.1:${ports.editorPort}`, buildBridgeOptions(projectPath, ports, caps));
 
+// LSP status reporter — pushes the GDScript-LSP verdict to the editor dock,
+// de-duped (the server computes the verdict; the editor has no engine API to
+// read its own LSP bind status). Constructed before the first bridge call (eager
+// extension discovery below opens the editor channel), so its editor-auth
+// subscription sees the first auth.
+createLspStatusReporter({ bridge, projectPath });
+
 startupEnv.warnConfigVersion();
 
 // ── Server + hook pipeline ───────────────────────────────────────────
@@ -130,13 +137,6 @@ const { timedOut } = await extensions.discoverEagerly();
 logStartup(timedOut);
 
 // ── Live config reload + notification routing ────────────────────────
-
-// LSP status reporter — pushes the GDScript-LSP verdict to the editor dock,
-// de-duped (the server computes the verdict; the editor has no engine API to
-// read its own LSP bind status). Constructed here so its setLspStatusReporter +
-// setGodotVersionGetter wiring fires before transport connect; it subscribes its
-// registry-verdict push to every editor auth itself (bridge.onEditorAuthenticated).
-createLspStatusReporter({ bridge, projectPath });
 
 bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
