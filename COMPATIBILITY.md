@@ -11,8 +11,9 @@ on how the call arrives**:
   against the server's Zod schema *before* the request reaches the Godot plugin.
   A value that violates an **enum** constraint — e.g. `texture_generate shape`,
   `sound_generate waveform`, `scene_spatial_map detail`, `if_exists` — is rejected
-  by the MCP SDK as JSON-RPC **`-32602` (Invalid params)**, with the message
-  naming the offending parameter. This fails fast, with no editor round-trip.
+  by the MCP SDK and returned as a tool error (`isError: true`) whose text
+  carries **`MCP error -32602`** (Invalid params) and names the offending
+  parameter. This fails fast, with no editor round-trip.
 - **Direct plugin dispatch** (the toolkit's own `sv2_` GDScript sweep driver, or
   extension tools that declare no server-side enum): the request bypasses the
   server's Zod layer and reaches the plugin handler, whose own validation returns

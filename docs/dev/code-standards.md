@@ -537,20 +537,20 @@ The Bridge is the stdio↔WebSocket reference implementation of [§7](#7-async-p
 it owns the editor channel plus the lazy playtest-runtime channel, the reconnect state machine, and
 every cancellation/timeout guarantee.
 
-- **Construction.** `createBridge(...)` (`src/transport/bridge.ts:65`) returns the single `Bridge`
+- **Construction.** `createBridge(...)` (`src/transport/bridge.ts:91`) returns the single `Bridge`
   (`src/shared/types.ts:21`) the tool layer calls. The low-level socket, reconnect, and pending-request
   bookkeeping live in `src/transport/channel.ts`; the reconnect backoff tunable is
   `RECONNECT_BASE_MS` (`src/transport/channel.ts:33`).
 - **Cancellation ([§7.4](#7-async-promises-and-the-event-loop)).** A pre-aborted signal throws
-  `CANCELLED` immediately (`src/transport/channel.ts:344`); an abort mid-flight clears the timer,
+  `CANCELLED` immediately (`src/transport/channel.ts:369`); an abort mid-flight clears the timer,
   rejects `CANCELLED`, and sends the toolkit a cooperative `_cancel` notification
-  (`src/transport/channel.ts:109`).
+  (`src/transport/channel.ts:110`).
 - **Timeout ([§7.5](#7-async-promises-and-the-event-loop)).** Every call arms a timer that rejects
-  `TIMEOUT` and deletes the pending entry (`src/transport/channel.ts:351`); `_queued` / `_executing`
+  `TIMEOUT` and deletes the pending entry (`src/transport/channel.ts:374`); `_queued` / `_executing`
   progress notifications **reset** the timer so queued mutations don't false-timeout
-  (`src/transport/channel.ts:275`).
+  (`src/transport/channel.ts:285`).
 - **Process survival ([§7.6](#7-async-promises-and-the-event-loop)).** `installProcessHandlers`
-  (`src/startup/lifecycle.ts:14`) installs the `unhandledRejection` / `uncaughtException` stderr
+  (`src/startup/lifecycle.ts:50`) installs the `unhandledRejection` / `uncaughtException` stderr
   loggers that keep the bridge alive.
 - **Fire-and-forget exemplar ([§7.3](#7-async-promises-and-the-event-loop)).** `void
   bridge.call(...).catch(() => {})` at `src/lsp/lspStatusReporter.ts:35` — a status push whose failure
@@ -559,9 +559,9 @@ every cancellation/timeout guarantee.
 ## B2. MCP / SDK surface discipline
 
 - **Register tools through the project wrapper, never the SDK directly — hard-line.** Use
-  `registerToolWrapped` / `registerTools` (`src/registration/toolRegistry.ts:123`, `:241`) — **never**
+  `registerToolWrapped` / `registerTools` (`src/registration/toolRegistry.ts:123`, `:242`) — **never**
   the SDK's raw `server.registerTool` (called in exactly one place, the wrapper's body,
-  `src/registration/toolRegistry.ts:221`). The wrapper adds version-gating, path-guard pre-filtering,
+  `src/registration/toolRegistry.ts:222`). The wrapper adds version-gating, path-guard pre-filtering,
   hook-pipeline wrapping, string-coercion, and tool-ref tracking; bypassing it silently drops those
   guarantees. Prompts / resources / roots go through their own registrars (`src/mcp/`).
 - **SDK construction.** `McpServer` with `{ capabilities: { tools: { listChanged: true } } }`;
@@ -572,7 +572,7 @@ every cancellation/timeout guarantee.
   `src/registration/toolRegistry.ts:139`).
 - **stdout is the stdio transport — never `console.log` to stdout — hard-line.** **All** human
   diagnostics go to `process.stderr.write`. The only stdout writes are protocol frames and the
-  pre-transport `--tools-count` summary that exits *before* `connect` (`src/startup/startupEnv.ts:35`).
+  pre-transport `--tools-count` summary that exits *before* `connect` (`src/startup/startupEnv.ts:72`).
   A stray stdout write corrupts the JSON-RPC stream.
 - **Coalesce a multi-tool registration change into a single `tools/list_changed`.** The SDK auto-emits
   `tools/list_changed` on every `registerTool` / `removeTool`, so a remove-then-rebuild (startup,
@@ -585,15 +585,15 @@ every cancellation/timeout guarantee.
 
 - **Classify every error to its specific code; never swallow or relabel across the bridge — hard-line.**
   `BridgeError(code, message)` (`src/shared/errors.ts:6`) carries a `code` from the canonical
-  `ErrorCode` union (`src/shared/types.ts:62`). `toolErrorFromException`
-  (`src/shared/errorContract.ts:73`) **preserves** `err.code` when `err instanceof BridgeError`, else
+  `ErrorCode` union (`src/shared/types.ts:73`). `toolErrorFromException`
+  (`src/shared/errorContract.ts:95`) **preserves** `err.code` when `err instanceof BridgeError`, else
   `INTERNAL` — the transport code (`TIMEOUT` / `CANCELLED` / `CONNECT_FAILED` / …) is **never**
   flattened to a generic message, so the client can decide retry-vs-give-up. A plugin-returned
   `{ success: false, code }` is translated to an MCP `isError` response **without relabeling**
-  (`toolErrorFromPayload`, `src/shared/errorContract.ts:35`).
+  (`toolErrorFromPayload`, `src/shared/errorContract.ts:36`).
 - **The `ErrorCode` union is a cross-repo contract.** It must stay in sync with the toolkit's
   `MCPToolkitError.CODES` (in `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`); the sync
-  obligation is documented at the union's definition (`src/shared/types.ts:62`). A new plugin-emitted
+  obligation is documented at the union's definition (`src/shared/types.ts:73`). A new plugin-emitted
   code touches **both** repos — it is a contract change
   ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a unilateral add. Seven codes
   originate in the server and never travel through the plugin, so the toolkit does not list them:
@@ -620,14 +620,14 @@ the cross-repo SSOT**, which this repo cross-links rather than restating.
 - **Token-path, project-key, WS-framing, and port ranges are contract.** The server validates the
   published token-path **shape** (`…/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token`,
   re-read every connect) at `src/transport/tokenPath.ts:48`; the project key is canonicalized and
-  lowercased on win32/darwin by `normalizePath` (`src/registry.ts:45`). *The project-hash is computed
+  lowercased on win32/darwin by `normalizePath` (`src/registry.ts:52`). *The project-hash is computed
   **toolkit-side** — the server consumes the published path and only checks its shape, so there is no
   hash routine here to keep in sync, only the path recipe.* Ports bind on `127.0.0.1` via env /
   registry. Changing any recipe is a **contract change**, not a free refactor.
 - **Version-gate at the wrapper.** Version-incompatible tools are filtered/blocked through
   `registerToolWrapped` + `src/shared/version.ts`; the out-of-range error must be informative
   (`UNSUPPORTED`). The wrapper skips registration when the version is **not yet known** and the startup
-  reconcile re-runs once it resolves (`src/registration/toolRegistry.ts:104`).
+  reconcile re-runs once it resolves (`src/registration/toolRegistry.ts:158`).
 
 ### B5.x Paginating tools — shared fragment, REFLECT-only
 
@@ -655,7 +655,7 @@ Paginating tools share one fragment module (request-param zod fragments +
   "LICENSE", "ATTRIBUTIONS.md"]` — **only `dist/` ships**; `src/`, `test/`, and `docs/` do **not**
   (there is no `.npmignore`). The package is scoped (`@npgamedev/godot-mcp-server`) with `bin:
   godot-mcp-server → dist/index.js`.
-- **`engines.node >= 22`**, runtime-enforced — `src/startup/startupEnv.ts:16` hard-exits below 22.
+- **`engines.node >= 22`**, runtime-enforced — `src/startup/startupEnv.ts:18` hard-exits below 22.
 - **The build is the gate** (`noEmitOnError`): a green `dist/` means the typecheck passed; `postbuild`
   injects the bin shebang.
 - **Route every tool through an `npm run` script; never a bare `npx`.** `build` / `lint` / `format` /
@@ -727,9 +727,9 @@ The in-tree examples a reviewer or contributor jumps to. Line numbers drift; the
 durable anchor**.
 
 - **Naming / typing.** `RECONNECT_BASE_MS` (`src/transport/channel.ts:33`) UPPER_SNAKE tunable; the
-  `ErrorCode` union (`src/shared/types.ts:62`) UPPER_SNAKE members; `interface Bridge`
+  `ErrorCode` union (`src/shared/types.ts:73`) UPPER_SNAKE members; `interface Bridge`
   (`src/shared/types.ts:21`); `readonly` array field `pathParams?: readonly PathGuard[]`
-  (`src/shared/types.ts:173`).
+  (`src/shared/types.ts:185`).
 - **Comments / TSDoc ([§5](#5-comments-and-documentation)).** `registerToolWrapped`
   (`src/registration/toolRegistry.ts:90`) — the exemplary doc comment: one-line summary, `@param`,
   `@remarks`, `@example`, plus the **sanctioned, justified `any` escape-hatch** at
@@ -741,8 +741,8 @@ durable anchor**.
   (`src/shared/errors.ts:6`); the DRY single-call wrapper `callAndWrap`
   (`src/registration/toolDispatch.ts:44`).
 - **Async ([§7](#7-async-promises-and-the-event-loop)).** Cancellation + timeout in
-  `src/transport/channel.ts` (`:344`, `:351`, `:275`); process survival in
-  `src/startup/lifecycle.ts:14`; commented fire-and-forget `void … .catch(() => {})` at
+  `src/transport/channel.ts` (`:369`, `:374`, `:285`); process survival in
+  `src/startup/lifecycle.ts:50`; commented fire-and-forget `void … .catch(() => {})` at
   `src/lsp/lspStatusReporter.ts:35`.
 
 ---
