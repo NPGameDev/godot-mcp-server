@@ -8,7 +8,7 @@
 
 > **liveLspClaimants**(`port`): `Promise`\<`object`[]\>
 
-Defined in: [src/registry.ts:163](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L163)
+Defined in: [src/registry.ts:164](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L164)
 
 Every editor still credibly claiming a given LSP port — all of them, not just
 the newest.

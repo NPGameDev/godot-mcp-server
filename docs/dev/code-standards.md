@@ -553,7 +553,7 @@ every cancellation/timeout guarantee.
   (`src/startup/lifecycle.ts:14`) installs the `unhandledRejection` / `uncaughtException` stderr
   loggers that keep the bridge alive.
 - **Fire-and-forget exemplar ([§7.3](#7-async-promises-and-the-event-loop)).** `void
-  bridge.call(...).catch(() => {})` at `src/lsp/lspStatusReporter.ts:36` — a status push whose failure
+  bridge.call(...).catch(() => {})` at `src/lsp/lspStatusReporter.ts:35` — a status push whose failure
   is safe to drop, marked `void` and commented.
 
 ## B2. MCP / SDK surface discipline
@@ -595,9 +595,10 @@ every cancellation/timeout guarantee.
   `MCPToolkitError.CODES` (in `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`); the sync
   obligation is documented at the union's definition (`src/shared/types.ts:62`). A new plugin-emitted
   code touches **both** repos — it is a contract change
-  ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a unilateral add. Six codes
+  ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a unilateral add. Seven codes
   originate in the server and never travel through the plugin, so the toolkit does not list them:
-  `AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`.
+  `AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_PORT_CONFLICT`, `LSP_UNAVAILABLE`, `RPC_ERROR`,
+  `SEND_FAILED`.
 
 ## B4. Deterministic JSON & token discipline
 
@@ -742,7 +743,7 @@ durable anchor**.
 - **Async ([§7](#7-async-promises-and-the-event-loop)).** Cancellation + timeout in
   `src/transport/channel.ts` (`:344`, `:351`, `:275`); process survival in
   `src/startup/lifecycle.ts:14`; commented fire-and-forget `void … .catch(() => {})` at
-  `src/lsp/lspStatusReporter.ts:36`.
+  `src/lsp/lspStatusReporter.ts:35`.
 
 ---
 

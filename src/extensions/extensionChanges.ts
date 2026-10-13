@@ -113,8 +113,9 @@ export function createExtensionChangeHandler(deps: {
               });
             }
           }
-          // Grouped: addExtensionGroup replaces commands, so re-add to pick up changes.
-          // Already-loaded group tools are updated via updateToolRef if registered.
+          // Grouped: addExtensionGroup dedups by method, so this re-add only adds a
+          // command the group lacks. A registered tool picks up its changed
+          // description and annotations through updateToolRef below.
           if (cmd.group?.name) {
             const extCmd = toExtensionCommand(cmd, annotations);
             addExtensionGroup(cmd.group.name, cmd.group.description ?? "", [extCmd], cmd.group.keywords);

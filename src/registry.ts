@@ -48,7 +48,7 @@ interface Registry {
 
 // -- Path helpers ------------------------------------------------------------
 
-/** Canonical path form: forward slashes, no trailing slash, lowercase on Windows. */
+/** Canonical path form: forward slashes, no trailing slash, lowercase on Windows and macOS. */
 export function normalizePath(p: string): string {
   let n = p.replace(/\\/g, "/").replace(/\/+$/, "");
   // Windows and macOS default filesystems are case-insensitive; lowercase
@@ -113,11 +113,12 @@ function usableRuntimePort(entry: RegistryEntry): number | null {
   const port = entry.runtime_port;
   if (port == null || !Number.isInteger(port) || port < 1024 || port > 65535) return null;
   // Skip a port whose owning playtest process is provably dead. The toolkit has
-  // no PID-based GC (OS.is_process_running is unreliable on Windows), so a
-  // crashed playtest leaves runtime_port set until the next register() clears
-  // it; without this gate the bridge would attempt a doomed connect, or reach
-  // whatever program has taken the port since. A null runtime_pid (no recorded
-  // owner) does not block.
+  // no PID-based GC (OS.is_process_running is documented for this process's own
+  // children only; Windows and Linux report every other editor as not running, and
+  // only macOS 4.3+ answers for GUI apps), so a crashed playtest leaves runtime_port set
+  // until the next register() clears it; without this gate the bridge would
+  // attempt a doomed connect, or reach whatever program has taken the port
+  // since. A null runtime_pid (no recorded owner) does not block.
   //
   // A live PID is all this path asks for — deliberately weaker than the LSP
   // claimant predicate below. A wrong runtime port announces itself (the connect

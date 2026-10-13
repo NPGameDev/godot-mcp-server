@@ -14,7 +14,7 @@
  *
  * @module
  */
-import { Bridge, NotificationHandler } from "../shared/types.js";
+import { Bridge, EditorAuthHook, NotificationHandler } from "../shared/types.js";
 import { BridgeError } from "../shared/errors.js";
 import { createChannel, type Channel } from "./channel.js";
 import { createRuntimeConnection } from "./runtimeConnection.js";
@@ -83,9 +83,10 @@ export function capKb(bytes: number): number {
  * @param opts - see {@link BridgeOptions}: project path for registry discovery,
  *   static-port overrides, and the optional response/buffer caps pushed to the plugin
  * @returns the {@link Bridge}, augmented with `onNotification` (unsolicited plugin
- *   pushes) and `onGodotVersionKnown` (fires once on the unknown → known version
+ *   pushes), `onGodotVersionKnown` (fires once on the unknown → known version
  *   transition, so the composition root can complete a tool surface registered
- *   before the editor reported its version)
+ *   before the editor reported its version) and `onEditorAuthenticated` (fires
+ *   after every editor auth)
  */
 export function createBridge(
   editorUrl: string,
@@ -96,7 +97,7 @@ export function createBridge(
    *  resolves (unknown → known). The composition root uses it to complete an
    *  incomplete startup tool surface. */
   onGodotVersionKnown(handler: () => void): void;
-} {
+} & EditorAuthHook {
   const projectPath = opts?.projectPath;
   let godotVersion: string | undefined = undefined;
   // Editor display mode from the Mode-A auth ack. undefined until the editor
@@ -105,6 +106,7 @@ export function createBridge(
   let headless: boolean | undefined = undefined;
   let notificationHandler: NotificationHandler | undefined = undefined;
   let versionKnownHandler: (() => void) | undefined = undefined;
+  let editorAuthHandler: (() => void) | undefined = undefined;
 
   // Record the connected Godot version. Fires the version-resolved hook on the
   // unknown → known transition (and only then) so the composition root can
@@ -145,12 +147,13 @@ export function createBridge(
   }
 
   // The one auth callback every editor channel gets, the one rediscoverEditor
-  // opens included, so each editor auth records the version and display mode and
-  // pushes the env overrides the same way.
+  // opens included, so each editor auth records the version and display mode,
+  // pushes the env overrides and runs the editor-auth hook the same way.
   function onEditorAuth({ version, headless: h }: { version: string; headless: boolean | undefined }): void {
     setGodotVersion(version);
     headless = h;
     pushLimitOverrides(editor);
+    editorAuthHandler?.();
   }
 
   const getNotificationHandler = () => notificationHandler;
@@ -305,6 +308,9 @@ export function createBridge(
     },
     onGodotVersionKnown(handler: () => void) {
       versionKnownHandler = handler;
+    },
+    onEditorAuthenticated(handler: () => void) {
+      editorAuthHandler = handler;
     },
   };
 }

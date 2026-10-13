@@ -43,6 +43,17 @@ export interface Bridge {
   clearRuntime?(): void;
 }
 
+/** The bridge's editor-auth hook, for a consumer that only needs to react to auth. */
+export interface EditorAuthHook {
+  /** Register a hook fired after every successful editor auth that reports a Godot
+   *  version (every current plugin does): the first connect,
+   *  each reconnect, and each editor-port re-discovery. The runtime channel never
+   *  fires it. It runs synchronously inside the auth, so a handler that does I/O
+   *  must not await it there. A handler that throws fails the auth, so it must not
+   *  throw. */
+  onEditorAuthenticated(handler: () => void): void;
+}
+
 /** Handler invoked for an unsolicited plugin notification routed off a channel. */
 export type NotificationHandler = (type: string, params?: Record<string, unknown>) => void;
 
@@ -54,10 +65,10 @@ export type NotificationHandler = (type: string, params?: Record<string, unknown
  * Canonical MCP tool-error codes (UPPER_SNAKE_CASE) — the cross-repo error
  * contract. Must stay in sync with `MCPToolkitError.CODES` in the toolkit
  * (`addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`): a new
- * plugin-emitted code touches both repos. Six codes originate in the server
+ * plugin-emitted code touches both repos. Seven codes originate in the server
  * and never travel through the plugin, so the toolkit does not list them:
- * `AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_UNAVAILABLE`, `RPC_ERROR` and
- * `SEND_FAILED`.
+ * `AUTH_FAILED`, `CANCELLED`, `CLOSED`, `LSP_PORT_CONFLICT`, `LSP_UNAVAILABLE`,
+ * `RPC_ERROR` and `SEND_FAILED`.
  */
 export type ErrorCode =
   | "ALREADY_EXISTS"
@@ -94,6 +105,7 @@ export type ErrorCode =
   | "LOAD_FAILED"
   | "LOG_BUSY"
   | "LOG_UNAVAILABLE"
+  | "LSP_PORT_CONFLICT"
   | "LSP_UNAVAILABLE"
   | "NO_SCENE"
   | "NODE_NOT_FOUND"

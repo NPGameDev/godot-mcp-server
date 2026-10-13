@@ -8,28 +8,24 @@
  *   - Verified verdicts from actual LSP tool calls — wired via setLspStatusReporter
  *     at construction (the real connection result, accurate across versions).
  *   - The registry-derived verdict (reportRegistryVerdict) — no LSP handshake,
- *     just resolution; pushed on bridge connect/reconnect so a freshly-connected
- *     editor gets the current status, later refined by the verified result.
+ *     just resolution; pushed after every editor auth, the first connect and each
+ *     reconnect alike, so a freshly-connected editor gets the current status,
+ *     later refined by the verified result.
  *
  * Construction also wires the version-tailored conflict-hint getter
  * (setGodotVersionGetter: 4.5 auto-rebind vs distinct-port everywhere else).
  */
 import { getLspStatus, setGodotVersionGetter, type LspStatus } from "./lspClient.js";
 import { setLspStatusReporter } from "../tools/lsp.js";
-import type { Bridge } from "../shared/types.js";
-
-export interface LspStatusReporter {
-  /** Push the registry-derived verdict — used on bridge connect/reconnect. Opens no
-   *  LSP connection, but does probe peer WS ports (bounded at 300 ms each, run
-   *  concurrently), so it resolves asynchronously and yields to any verified verdict
-   *  that lands first. */
-  reportRegistryVerdict(): void;
-}
+import type { Bridge, EditorAuthHook } from "../shared/types.js";
 
 /** Wires the verified-verdict reporter (setLspStatusReporter, de-duped via
- *  lastLspKey) and the version-tailored conflict-hint getter (setGodotVersionGetter)
- *  at construction, then returns the registry-verdict pusher. */
-export function createLspStatusReporter(deps: { bridge: Bridge; projectPath: string }): LspStatusReporter {
+ *  lastLspKey), the version-tailored conflict-hint getter (setGodotVersionGetter)
+ *  and the registry-verdict push after every editor auth (onEditorAuthenticated).
+ *  The registry push opens no LSP connection, but does probe peer WS ports
+ *  (bounded at 300 ms each, run concurrently), so it resolves asynchronously and
+ *  yields to any verified verdict that lands first. */
+export function createLspStatusReporter(deps: { bridge: Bridge & EditorAuthHook; projectPath: string }): void {
   const { bridge, projectPath } = deps;
 
   // Push the GDScript LSP verdict to the editor dock (editor.set_lsp_status) —
@@ -61,26 +57,28 @@ export function createLspStatusReporter(deps: { bridge: Bridge; projectPath: str
   // Version-tailored LSP conflict hints (4.5 auto-rebind vs distinct-port everywhere else).
   setGodotVersionGetter(() => bridge.getGodotVersion());
 
-  return {
-    /** On bridge connect/reconnect: push the registry verdict (resolution only, no
-     *  LSP handshake) so a freshly-connected editor gets the current status; later
-     *  LSP tool calls refine it with the verified result. */
-    reportRegistryVerdict(): void {
-      // Fire-and-forget: computing the verdict probes peer WS ports, so it is
-      // async, but a dock status push must never delay or fail the bridge connect
-      // that triggered it.
-      const verdictsAtLaunch = verifiedVerdicts;
-      void getLspStatus(projectPath)
-        .then((s) => {
-          // Any verified verdict that landed while the probes were in flight came
-          // from a real connection, so it outranks this one — drop ours rather than
-          // regress the dock to a registry-derived guess. A single fail-closed
-          // indeterminate probe is enough to turn this verdict into `conflict`.
-          if (verifiedVerdicts !== verdictsAtLaunch) return;
-          lastLspKey = `${s.state}:${s.host}:${s.port}`;
-          sendLspStatus(s);
-        })
-        .catch(() => {});
-    },
-  };
+  // Push the registry verdict (resolution only, no LSP handshake) so a
+  // freshly-connected editor gets the current status; later LSP tool calls refine
+  // it with the verified result.
+  function reportRegistryVerdict(): void {
+    // Fire-and-forget: computing the verdict probes peer WS ports, so it is
+    // async, but a dock status push must never delay or fail the editor auth
+    // that triggered it.
+    const verdictsAtLaunch = verifiedVerdicts;
+    void getLspStatus(projectPath)
+      .then((s) => {
+        // Any verified verdict that landed while the probes were in flight came
+        // from a real connection, so it outranks this one — drop ours rather than
+        // regress the dock to a registry-derived guess. A single fail-closed
+        // indeterminate probe is enough to turn this verdict into `conflict`.
+        if (verifiedVerdicts !== verdictsAtLaunch) return;
+        lastLspKey = `${s.state}:${s.host}:${s.port}`;
+        sendLspStatus(s);
+      })
+      .catch(() => {});
+  }
+  // Every editor auth, the first connect included: on a fresh start nothing else
+  // tells the dock about a conflict until the first LSP tool call, and a reconnect
+  // may reach a restarted editor that no longer holds the last verdict.
+  bridge.onEditorAuthenticated(reportRegistryVerdict);
 }

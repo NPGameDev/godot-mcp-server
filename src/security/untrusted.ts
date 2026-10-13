@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 
 /**
  * Untrusted-content envelope wrapper — TypeScript mirror of
- * addons/godot_mcp_toolkit/untrusted.gd.
+ * addons/godot_mcp_toolkit/security/untrusted.gd.
  *
  * Wraps user-authored / project-authored content before it reaches the
  * LLM in a nonce-tagged envelope to prevent tag-breakout injection.

@@ -6,9 +6,9 @@
 
 # Function: createBridge()
 
-> **createBridge**(`editorUrl`, `opts?`): [`Bridge`](../../../shared/types/interfaces/Bridge.md) & `object`
+> **createBridge**(`editorUrl`, `opts?`): [`Bridge`](../../../shared/types/interfaces/Bridge.md) & `object` & [`EditorAuthHook`](../../../shared/types/interfaces/EditorAuthHook.md)
 
-Defined in: [src/transport/bridge.ts:90](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L90)
+Defined in: [src/transport/bridge.ts:91](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L91)
 
 Build the bridge for one Godot project. Connection is lazy — the first
 [Bridge.call](../../../shared/types/interfaces/Bridge.md#call) performs the WebSocket connect + auth handshake; the runtime
@@ -34,6 +34,7 @@ see [BridgeOptions](../interfaces/BridgeOptions.md): project path for registry d
 ## Returns
 
 the [Bridge](../../../shared/types/interfaces/Bridge.md), augmented with `onNotification` (unsolicited plugin
-  pushes) and `onGodotVersionKnown` (fires once on the unknown → known version
+  pushes), `onGodotVersionKnown` (fires once on the unknown → known version
   transition, so the composition root can complete a tool surface registered
-  before the editor reported its version)
+  before the editor reported its version) and `onEditorAuthenticated` (fires
+  after every editor auth)

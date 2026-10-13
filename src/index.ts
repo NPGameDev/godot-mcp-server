@@ -56,6 +56,13 @@ setLspOverride({ port: cli.lspPort, host: cli.lspHost });
 
 const bridge = createBridge(`ws://127.0.0.1:${ports.editorPort}`, buildBridgeOptions(projectPath, ports, caps));
 
+// LSP status reporter — pushes the GDScript-LSP verdict to the editor dock,
+// de-duped (the server computes the verdict; the editor has no engine API to
+// read its own LSP bind status). Constructed before the first bridge call (eager
+// extension discovery below opens the editor channel), so its editor-auth
+// subscription sees the first auth.
+createLspStatusReporter({ bridge, projectPath });
+
 startupEnv.warnConfigVersion();
 
 // ── Server + hook pipeline ───────────────────────────────────────────
@@ -120,7 +127,7 @@ registerRoots(server);
 // Discover extensions BEFORE transport connects so they're in the
 // initial tools/list. Deadline prevents blocking if editor is slow.
 // Note: the editor's FIRST connect delivers no notification (config_reloaded
-// is reconnect-only — see bridge.ts performAuth). The version becomes known
+// is reconnect-only — see performAuth in transport/channel.ts). The version becomes known
 // via bridge.onGodotVersionKnown; if discovery timed out here or the version
 // was unknown at eager registration, the startup reconcile (armStartupReconcile,
 // below) completes the tool surface once the editor is reachable.
@@ -131,19 +138,10 @@ logStartup(timedOut);
 
 // ── Live config reload + notification routing ────────────────────────
 
-// LSP status reporter — pushes the GDScript-LSP verdict to the editor dock,
-// de-duped (the server computes the verdict; the editor has no engine API to
-// read its own LSP bind status). Constructed here so its setLspStatusReporter +
-// setGodotVersionGetter wiring fires before transport connect; the notification
-// router below calls reportRegistryVerdict() on reconnect.
-const lspReporter = createLspStatusReporter({ bridge, projectPath });
-
 bridge.onNotification((type, params) => {
   if (type === "config_reloaded") {
-    // Push the authoritative LSP verdict to the editor dock.
-    lspReporter.reportRegistryVerdict();
     // config_reloaded is only ever emitted on a RECONNECT ({reconnect:true},
-    // bridge.ts performAuth) — the editor's FIRST connect sends no notification.
+    // performAuth in transport/channel.ts) — the editor's FIRST connect sends no notification.
     // An incomplete first-connect surface is completed by the startup reconcile
     // (reconciler.armStartupReconcile), not here. So this is the live reconnect
     // handler: re-read config + re-register tools, debounced (300 ms).
