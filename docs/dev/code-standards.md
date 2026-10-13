@@ -553,7 +553,7 @@ every cancellation/timeout guarantee.
   (`src/startup/lifecycle.ts:14`) installs the `unhandledRejection` / `uncaughtException` stderr
   loggers that keep the bridge alive.
 - **Fire-and-forget exemplar ([§7.3](#7-async-promises-and-the-event-loop)).** `void
-  bridge.call(...).catch(() => {})` at `src/lsp/lspStatusReporter.ts:36` — a status push whose failure
+  bridge.call(...).catch(() => {})` at `src/lsp/lspStatusReporter.ts:35` — a status push whose failure
   is safe to drop, marked `void` and commented.
 
 ## B2. MCP / SDK surface discipline
@@ -743,7 +743,7 @@ durable anchor**.
 - **Async ([§7](#7-async-promises-and-the-event-loop)).** Cancellation + timeout in
   `src/transport/channel.ts` (`:344`, `:351`, `:275`); process survival in
   `src/startup/lifecycle.ts:14`; commented fire-and-forget `void … .catch(() => {})` at
-  `src/lsp/lspStatusReporter.ts:36`.
+  `src/lsp/lspStatusReporter.ts:35`.
 
 ---
 
