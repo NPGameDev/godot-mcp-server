@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-10-14
+
 ### Security
 
 - The MCP TypeScript SDK moves from 1.29.0 to 1.32.1, past
