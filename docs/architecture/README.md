@@ -291,15 +291,15 @@ sequenceDiagram
     B->>Ch: editor.call(…)
     Note over Ch: lazy — the first call opens the WS
     Ch->>A: authenticate(socket, readToken())
-    A->>TK: { auth: token, version }
-    TK-->>A: { authed: true, godot_version, version, headless }
+    A->>TK: { auth: token, version, server_version, min_toolkit }
+    TK-->>A: { authed: true, godot_version, version, headless, min_server }
     Note over A,TK: no {authed:true} within AUTH_TIMEOUT_MS (5 s) → reject + socket.close
     Ch->>B: onAuthResolved({ version, headless })
     Note over B,Ch: every editor auth, reconnects and re-discoveries included
     Ch-)TK: meta.set_limits { the whole env-override set, or {} } — fire-and-forget
     Note over B: onEditorAuthenticated hook → the LSP status reporter (§9)
     Ch-)TK: editor.set_lsp_status { registry verdict } — fire-and-forget, after the peer probes
-    Note over Ch: version-mismatch check → stderr only, a patch-only difference is silent
+    Note over Ch: version check → stderr only — below a floor → one error, else patch silent, minor warns, major errors
     Ch->>TK: JSON-RPC { id, method, params }
     TK-->>Ch: { id, result } — correlated by id
     Ch-->>D: result
@@ -307,15 +307,19 @@ sequenceDiagram
 ```
 *Figure 4 — connect → auth handshake → dispatch · verified 2e21fdd*
 
-The handshake (`authHandshake.ts`) sends `{ auth: token, version }` and resolves on
-`{ authed: true }`; the **editor** ack additionally carries `godot_version` + the plugin
-`version` (the version-gate input) and `headless` (the editor's display mode), while a
+The handshake (`authHandshake.ts`) sends `{ auth: token, version, server_version,
+min_toolkit }` (the legacy `version` beside the server version and its declared toolkit
+floor) and resolves on `{ authed: true }`; the **editor** ack additionally carries
+`godot_version` + the plugin `version` (the version-gate input), `headless` (the editor's
+display mode) and, from a 1.1+ toolkit, `min_server` (its declared server floor), while a
 **runtime** ack carries `{ authed: true }` only. The token is **re-read from disk on every
 connect** (`tokenPath.ts`, which reads the toolkit-published `token_path` from the
 registry and structurally validates it rather than re-deriving the path —
 [ADR 0011](#16-key-decisions)), so a rotated token after a plugin restart is picked up. A
-version-mismatch check after auth is human-only (stderr), never on the MCP wire, and a
-patch-only difference is silent. After every editor auth, reconnects and editor-port
+version check after auth is human-only (stderr), never on the MCP wire, and never refuses
+the connection: a side below the other's floor gets one error naming which side to update,
+in place of the product-version line; otherwise a patch-only difference is silent, a minor
+difference warns and a major difference is an error. After every editor auth, reconnects and editor-port
 re-discoveries included, the bridge pushes its whole set of env overrides with
 `meta.set_limits`: the caps `GODOT_MCP_SCRIPT_READ_LIMIT` and `GODOT_MCP_WS_BUFFER_LIMIT`
 set, or `{}` when neither is set. A 1.0.4 or later toolkit replaces its env overrides with

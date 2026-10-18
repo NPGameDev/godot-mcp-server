@@ -10,6 +10,9 @@ import {
   isVersionCompatible,
   isVersionAtLeast,
   isVersionAtMost,
+  MIN_TOOLKIT_VERSION,
+  checkFloor,
+  parseMajorMinor,
 } from "../../src/shared/version.js";
 
 // ── compareVersions tests ───────────────────────────────────────────
@@ -124,5 +127,25 @@ assert.equal(isVersionAtMost([5, 0], "5.0"), true);
   const realVersion = (JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf-8")) as { version: string }).version;
   assert.equal(getServerVersion(), realVersion);
 }
+
+// ── checkFloor / parseMajorMinor ───────────────────────────────────
+
+assert.equal(MIN_TOOLKIT_VERSION, "1.0");
+assert.match(MIN_TOOLKIT_VERSION, /^\d+\.\d+$/);
+assert.equal(checkFloor("1.0.0", "1.0"), "ok"); // equal
+assert.equal(checkFloor("1.0", "1.0"), "ok"); // major.minor only
+assert.equal(checkFloor("1.1.0", "1.0"), "ok"); // above (minor)
+assert.equal(checkFloor("2.0.0", "1.0"), "ok"); // above (major)
+assert.equal(checkFloor("1.2.3-beta.1", "1.0"), "ok");
+assert.equal(checkFloor("0.9.0", "1.0"), "below"); // below (major)
+assert.equal(checkFloor("1.0.9", "1.1"), "below"); // below (minor, patch ignored)
+assert.equal(checkFloor(undefined, "1.0"), "unknown"); // missing
+assert.equal(checkFloor("", "1.0"), "unknown");
+assert.equal(checkFloor("abc", "1.0"), "unknown"); // malformed peer
+assert.equal(checkFloor("1", "1.0"), "unknown");
+assert.equal(checkFloor("1.0.0", "x"), "unknown"); // malformed floor
+assert.equal(checkFloor(1 as unknown as string, "1.0"), "unknown"); // non-string off the wire
+assert.deepEqual(parseMajorMinor(" 1.2.3 "), [1, 2]);
+assert.equal(parseMajorMinor("1.2.3.4"), undefined);
 
 console.log("All version tests passed.");

@@ -1,7 +1,8 @@
 /**
  * Unit tests for authHandshake.ts. Pins the auth-WIRE contract:
- * the `{ auth, version }` frame, the `{ authed, godot_version, version, headless }`
- * → `{ godotVersion, toolkitVersion, headless }` mapping (missing fields →
+ * the `{ auth, version, server_version, min_toolkit }` frame, the
+ * `{ authed, godot_version, version, headless, min_server }` →
+ * `{ godotVersion, toolkitVersion, headless, minServer }` mapping (missing fields →
  * undefined), the 5 s AUTH_TIMEOUT_MS timeout, listener cleanup() on settle, the
  * close-during-auth reject, and the non-JSON-frame ignore.
  *
@@ -17,7 +18,7 @@ import type { AddressInfo } from "node:net";
 import FakeTimers from "@sinonjs/fake-timers";
 import { authenticate } from "../../src/transport/authHandshake.js";
 import { BridgeError } from "../../src/shared/errors.js";
-import { getServerVersion } from "../../src/shared/version.js";
+import * as versionModule from "../../src/shared/version.js";
 
 // ── Connected real-socket pair ───────────────────────────────────────
 // Stand up a loopback WebSocketServer, open a real client to it, and resolve
@@ -84,13 +85,14 @@ async function testSendsFrame() {
     });
     const authPromise = authenticate(client, "tok-123");
     const frame = await framePromise;
+    const v = versionModule.getServerVersion();
     assert.deepEqual(
       frame,
-      { auth: "tok-123", version: getServerVersion() },
-      "sends exactly { auth: <token>, version: getServerVersion() }",
+      { auth: "tok-123", version: v, server_version: v, min_toolkit: versionModule.MIN_TOOLKIT_VERSION },
+      "sends exactly { auth: <token>, version, server_version: getServerVersion(), min_toolkit: MIN_TOOLKIT_VERSION }",
     );
     await authPromise; // settles cleanly
-    console.log("  PASS: sends { auth, version: getServerVersion() } as the first frame");
+    console.log("  PASS: sends { auth, version, server_version, min_toolkit } as the first frame");
   } finally {
     await closeAll();
   }
@@ -109,7 +111,7 @@ async function testResolvesMappedShape() {
       const resp = await authenticate(client, "tok");
       assert.deepEqual(
         resp,
-        { godotVersion: "4.5", toolkitVersion: "1.0.0", headless: false },
+        { godotVersion: "4.5", toolkitVersion: "1.0.0", headless: false, minServer: undefined },
         "maps godot_version/version/headless → godotVersion/toolkitVersion/headless",
       );
     } finally {
@@ -127,7 +129,7 @@ async function testResolvesMappedShape() {
       const resp = await authenticate(client, "tok");
       assert.deepEqual(
         resp,
-        { godotVersion: undefined, toolkitVersion: undefined, headless: undefined },
+        { godotVersion: undefined, toolkitVersion: undefined, headless: undefined, minServer: undefined },
         "missing fields → undefined (incl. headless)",
       );
     } finally {
@@ -145,7 +147,7 @@ async function testResolvesMappedShape() {
       const resp = await authenticate(client, "tok");
       assert.deepEqual(
         resp,
-        { godotVersion: "4.5", toolkitVersion: "1.0.0", headless: true },
+        { godotVersion: "4.5", toolkitVersion: "1.0.0", headless: true, minServer: undefined },
         "headless:true maps to headless:true",
       );
     } finally {
@@ -237,10 +239,32 @@ async function testNonJsonIgnore() {
     const resp = await authenticate(client, "tok");
     assert.deepEqual(
       resp,
-      { godotVersion: "4.6", toolkitVersion: "1.2.3", headless: undefined },
+      { godotVersion: "4.6", toolkitVersion: "1.2.3", headless: undefined, minServer: undefined },
       "garbage frame ignored; the subsequent valid reply resolves",
     );
     console.log("  PASS: non-JSON frame ignored, then the real reply resolves");
+  } finally {
+    await closeAll();
+  }
+}
+
+// ── 7. the ack's min_server maps to minServer ────────────────────────
+
+async function testMapsMinServer() {
+  const { client, server, closeAll } = await connectPair();
+  try {
+    server.once("message", () => {
+      server.send(
+        JSON.stringify({ authed: true, godot_version: "4.5", version: "1.1.0", headless: false, min_server: "1.0" }),
+      );
+    });
+    const resp = await authenticate(client, "tok");
+    assert.deepEqual(
+      resp,
+      { godotVersion: "4.5", toolkitVersion: "1.1.0", headless: false, minServer: "1.0" },
+      "maps the ack's min_server → minServer",
+    );
+    console.log("  PASS: the ack's min_server maps to minServer");
   } finally {
     await closeAll();
   }
@@ -256,7 +280,8 @@ async function main() {
   await testCleanup();
   await testCloseDuringAuth();
   await testNonJsonIgnore();
-  console.log("All 6 auth_handshake tests passed.");
+  await testMapsMinServer();
+  console.log("All 7 auth_handshake tests passed.");
 }
 
 main().catch((err) => {

@@ -2,10 +2,11 @@
  * Auth handshake over an open socket.
  *
  * One responsibility: the auth WIRE protocol — present the session token plus
- * the server version, then read the toolkit's handshake reply. Sends
- * `{ auth, version }`; resolves on `{ authed: true }`, mapping the reply's
- * `{ godot_version, version, headless }` → `{ godotVersion, toolkitVersion,
- * headless }`. Enforces a 5 s handshake timeout, removes its own listeners on
+ * the server version and its declared toolkit floor, then read the toolkit's
+ * handshake reply. Sends `{ auth, version, server_version, min_toolkit }`;
+ * resolves on `{ authed: true }`, mapping the reply's `{ godot_version, version,
+ * headless, min_server }` → `{ godotVersion, toolkitVersion, headless,
+ * minServer }`. Enforces a 5 s handshake timeout, removes its own listeners on
  * settle, and rejects if the peer closes mid-handshake or never answers. Mirrors
  * the toolkit's GDScript `auth.gd` exchange.
  *
@@ -15,7 +16,7 @@
  */
 import type { WebSocket } from "ws";
 import { BridgeError } from "../shared/errors.js";
-import { getServerVersion } from "../shared/version.js";
+import { getServerVersion, MIN_TOOLKIT_VERSION } from "../shared/version.js";
 
 const AUTH_TIMEOUT_MS = 5_000;
 
@@ -28,6 +29,9 @@ export interface AuthResponse {
    *  sends a bare `{authed:true}`, or a pre-handshake plugin) — the same missing →
    *  undefined mapping the version fields use. */
   headless: boolean | undefined;
+  /** The toolkit's declared minimum server (major.minor), from the ack's `min_server`;
+   *  undefined on a 1.0.x toolkit (it predates the floor) and on a runtime ack. */
+  minServer: string | undefined;
 }
 
 /**
@@ -54,6 +58,7 @@ export function authenticate(ws: WebSocket, token: string): Promise<AuthResponse
           godot_version?: string;
           version?: string;
           headless?: boolean;
+          min_server?: string;
         };
         if (msg.authed === true) {
           cleanup();
@@ -61,6 +66,7 @@ export function authenticate(ws: WebSocket, token: string): Promise<AuthResponse
             godotVersion: msg.godot_version,
             toolkitVersion: msg.version,
             headless: msg.headless,
+            minServer: msg.min_server,
           });
         }
       } catch {
@@ -75,6 +81,15 @@ export function authenticate(ws: WebSocket, token: string): Promise<AuthResponse
 
     ws.on("message", onMessage);
     ws.on("close", onClose);
-    ws.send(JSON.stringify({ auth: token, version: getServerVersion() }));
+    // `version` stays for 1.0.x toolkits, which read it for their own console check;
+    // `server_version` + `min_toolkit` are the floor keys a 1.1+ toolkit reads.
+    ws.send(
+      JSON.stringify({
+        auth: token,
+        version: getServerVersion(),
+        server_version: getServerVersion(),
+        min_toolkit: MIN_TOOLKIT_VERSION,
+      }),
+    );
   });
 }

@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { BridgeError } from "../shared/errors.js";
 import { readToken } from "./tokenPath.js";
 import { authenticate } from "./authHandshake.js";
-import { getServerVersion, compareVersions } from "../shared/version.js";
+import { getServerVersion, compareVersions, checkFloor, MIN_TOOLKIT_VERSION } from "../shared/version.js";
 import type { NotificationHandler } from "../shared/types.js";
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -184,22 +184,34 @@ export function createChannel(
       // Version mismatch check — human-only (stderr), nothing on MCP wire.
       if (!skipVersionCheck) {
         const serverVer = getServerVersion();
-        const severity = compareVersions(serverVer, authResp.toolkitVersion);
-        // "patch" deliberately matches no branch below. Compatibility floors are declared at
-        // major.minor (ADR 0024), so a patch difference is compatible by construction and stays
-        // silent by fall-through — the omission is the behaviour, not an oversight.
-        if (severity === "major") {
+        // A side below the other's declared floor gets one actionable line in place of
+        // the product-version line; both floors are major.minor (RELEASING.md §Compatibility).
+        if (checkFloor(authResp.toolkitVersion, MIN_TOOLKIT_VERSION) === "below") {
           process.stderr.write(
-            `[bridge] ERROR: major version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Update both to the same major version.\n`,
+            `[bridge] ERROR: toolkit ${authResp.toolkitVersion} is below this server's floor (toolkit >= ${MIN_TOOLKIT_VERSION}). Update the addon (Godot Asset Store / Asset Library), or pin an older server in .mcp.json: @npgamedev/godot-mcp-server@<version>.\n`,
           );
-        } else if (severity === "minor") {
+        } else if (authResp.minServer != null && checkFloor(serverVer, authResp.minServer) === "below") {
           process.stderr.write(
-            `[bridge] WARNING: version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Consider updating.\n`,
+            `[bridge] ERROR: server ${serverVer} is below the toolkit's floor (server >= ${authResp.minServer}). Re-write .mcp.json from the toolkit dock to pin the server it was tested with, or run: npm install -g @npgamedev/godot-mcp-server@latest.\n`,
           );
-        } else if (severity === "unknown") {
-          process.stderr.write(
-            `[bridge] WARNING: toolkit did not report version (pre-handshake build?). Consider updating the toolkit plugin.\n`,
-          );
+        } else {
+          const severity = compareVersions(serverVer, authResp.toolkitVersion);
+          // "patch" deliberately matches no branch below. Compatibility floors are declared at
+          // major.minor (ADR 0024), so a patch difference is compatible by construction and stays
+          // silent by fall-through — the omission is the behaviour, not an oversight.
+          if (severity === "major") {
+            process.stderr.write(
+              `[bridge] ERROR: major version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Update both to the same major version.\n`,
+            );
+          } else if (severity === "minor") {
+            process.stderr.write(
+              `[bridge] WARNING: version mismatch — server ${serverVer}, toolkit ${authResp.toolkitVersion}. Consider updating.\n`,
+            );
+          } else if (severity === "unknown") {
+            process.stderr.write(
+              `[bridge] WARNING: toolkit did not report version (pre-handshake build?). Consider updating the toolkit plugin.\n`,
+            );
+          }
         }
       }
       // Notify on reconnect so the server can re-read config.
