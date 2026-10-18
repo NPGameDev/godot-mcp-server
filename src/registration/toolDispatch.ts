@@ -15,7 +15,7 @@ import {
   toolErrorFromException,
   runtimeErrorWithCrashContext,
 } from "../shared/errorContract.js";
-import type { Bridge, ToolTextResult } from "../shared/types.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../shared/types.js";
 
 /**
  * Whether a success hint should be applied: the payload is a non-null
@@ -69,6 +69,29 @@ export async function callAndWrap(
     }
     return toolErrorFromException(err);
   }
+}
+
+// ── Success-hint selection ──────────────────────────────────────────
+
+/**
+ * The success hint for one call of a tool: its per-operation hint when the
+ * call's operation has one, otherwise its static successHint.
+ *
+ * @param def - the tool's hint fields and the name of its operation argument
+ * @param input - the call's arguments
+ * @returns the hint to inject, or `undefined` for none
+ */
+export function resolveSuccessHint(
+  def: Pick<ToolDef, "successHint" | "operationHints" | "operationParam">,
+  input: unknown,
+): string | undefined {
+  if (def.operationHints && def.operationParam && input && typeof input === "object") {
+    const operation = (input as Record<string, unknown>)[def.operationParam];
+    if (typeof operation === "string" && Object.hasOwn(def.operationHints, operation)) {
+      return def.operationHints[operation];
+    }
+  }
+  return def.successHint;
 }
 
 // ── Success-hint injection (custom-handler path) ────────────────────

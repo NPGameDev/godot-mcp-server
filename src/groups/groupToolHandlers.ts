@@ -6,7 +6,7 @@
  * editor-bridge). A leaf factory — it depends on nothing group-internal above it.
  */
 import type { Bridge, ToolDef } from "../shared/types.js";
-import { callAndWrap, injectSuccessHint } from "../registration/toolDispatch.js";
+import { callAndWrap, injectSuccessHint, resolveSuccessHint } from "../registration/toolDispatch.js";
 import { toolErrorFromPayload, toolErrorFromException } from "../shared/errorContract.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 import { RUNTIME_TOOLS, LSP_TOOLS } from "./groupCatalogue.js";
@@ -119,6 +119,12 @@ export function createGroupToolHandler(bridge: Bridge, def: ToolDef) {
         };
       }
       const useRuntime = RUNTIME_TOOLS.has(def.name);
+      // A tool with per-operation hints gets its hint resolved per call; a static
+      // successHint alone is not injected on this path.
+      if (def.operationHints) {
+        return (input: unknown) =>
+          callAndWrap(bridge, def.method, input, { runtime: useRuntime, successHint: resolveSuccessHint(def, input) });
+      }
       return (input: unknown) => callAndWrap(bridge, def.method, input, { runtime: useRuntime });
     }
   }

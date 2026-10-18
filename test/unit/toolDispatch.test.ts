@@ -5,7 +5,7 @@
  */
 
 import assert from "node:assert/strict";
-import { callAndWrap } from "../../src/registration/toolDispatch.js";
+import { callAndWrap, resolveSuccessHint } from "../../src/registration/toolDispatch.js";
 import { BridgeError } from "../../src/shared/errors.js";
 import type { Bridge } from "../../src/shared/types.js";
 
@@ -79,6 +79,28 @@ function makeBridge(
   const withHint = makeBridge({ call: async () => ({ success: true, hint: "toolkit" }) });
   const kept = await callAndWrap(withHint, "some.method", {}, { successHint: "mine" });
   assert.equal(JSON.parse(kept.content[0].text).hint, "toolkit");
+}
+
+// resolveSuccessHint: a listed operation gets its own hint, any other call the static one.
+{
+  const def = {
+    successHint: "static",
+    operationParam: "action",
+    operationHints: { rename: "renamed", remove: "removed" },
+  };
+  assert.equal(resolveSuccessHint(def, { action: "rename" }), "renamed");
+  assert.equal(resolveSuccessHint(def, { action: "remove" }), "removed");
+  assert.equal(resolveSuccessHint(def, { action: "add" }), "static");
+  assert.equal(resolveSuccessHint(def, {}), "static");
+  assert.equal(resolveSuccessHint(def, undefined), "static");
+  // An inherited Object key is not an operation.
+  assert.equal(resolveSuccessHint(def, { action: "toString" }), "static");
+  // Without operationParam the per-operation hints cannot be read.
+  assert.equal(
+    resolveSuccessHint({ successHint: "static", operationHints: { rename: "x" } }, { action: "rename" }),
+    "static",
+  );
+  assert.equal(resolveSuccessHint({}, { action: "rename" }), undefined);
 }
 
 // runtime:true routes through callRuntime (call must not be invoked).

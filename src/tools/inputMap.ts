@@ -25,6 +25,11 @@ export const inputMapTools: ToolDef[] = [
     annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false, destructiveHint: false },
     operationParam: "action",
     successHint: "Bind events with input_map_event after creating the action.",
+    operationHints: {
+      rename:
+        "The action kept its events and deadzone. This tool does not update scripts or scenes that use the old name.",
+      remove: "This tool does not update scripts or scenes that still use this action's name.",
+    },
   },
   // Deliberately detailed description: all 4 event types (key, mouse_button,
   // joypad_button, joypad_motion) need inline examples to avoid agent guesswork.
