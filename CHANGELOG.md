@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   toolkit answers `INVALID_PARAMS`. Thanks to @benfeather
   ([#18](https://github.com/NPGameDev/godot-mcp-toolkit/issues/18),
   [#15](https://github.com/NPGameDev/godot-mcp-server/pull/15)).
+- `script_edit` declares an optional `edits` array of `old_string`/`new_string`/`replace_all`
+  objects, applied in order in one call; if any edit fails, nothing is written. `old_string` and
+  `new_string` become optional so a call can pass `edits` alone. Needs a toolkit that handles
+  `edits` ([NPGameDev/godot-mcp-toolkit#44](https://github.com/NPGameDev/godot-mcp-toolkit/issues/44)).
 
 ## [1.0.4] - 2026-10-14
 

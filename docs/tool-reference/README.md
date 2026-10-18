@@ -548,7 +548,7 @@ _1 operation._
 <!-- tool:script_edit -->
 ### `script_edit`
 
-Surgically replace a span in an existing .gd/.cs/.gdshader/.gdshaderinc file (res:// only) — the MCP analogue of the native Edit tool. old_string must match the file byte-for-byte (whitespace and indentation included); no regex, no fuzzy match. old_string not found -> NOT_FOUND; matches more than once without replace_all -> NOT_UNIQUE. new_string:'' deletes the span. replace_all replaces every occurrence and returns replacements:N. Prefer this over rewriting the whole file with script_write for a small change — it keeps the editor undo entry, reindexing, and inline diagnostics. For .gd files, returns inline diagnostics (valid: bool, diagnostics: [...]) — check valid before proceeding.
+Surgically replace a span in an existing .gd/.cs/.gdshader/.gdshaderinc file (res:// only) — the MCP analogue of the native Edit tool. old_string must match the file byte-for-byte (whitespace and indentation included); no regex, no fuzzy match. old_string not found -> NOT_FOUND; matches more than once without replace_all -> NOT_UNIQUE. new_string:'' deletes the span. replace_all replaces every occurrence and returns replacements:N. edits applies several edits in order in one call, writing nothing if any fails. Prefer this over rewriting the whole file with script_write for a small change — it keeps the editor undo entry, reindexing, and inline diagnostics. For .gd files, returns inline diagnostics (valid: bool, diagnostics: [...]) — check valid before proceeding.
 
 **eager**
 
@@ -556,9 +556,10 @@ _1 operation._
 
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
+| `edits` | array | no | several edits in one call, instead of old_string/new_string/replace_all; each applies to the text the earlier ones leave, and nothing is written if any fails |
 | `file_path` | string | yes |  |
-| `new_string` | string | yes | replacement text; empty string deletes the span |
-| `old_string` | string | yes | exact byte-for-byte span to replace (whitespace/indent must match) |
+| `new_string` | string | no | replacement text; empty string deletes the span; omit when passing edits |
+| `old_string` | string | no | exact byte-for-byte span to replace (whitespace/indent must match); omit when passing edits |
 | `replace_all` | boolean | no | replace every occurrence instead of requiring a unique match (default false) |
 
 <!-- examples:start -->

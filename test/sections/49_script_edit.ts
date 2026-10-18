@@ -9,6 +9,7 @@ export const TOOLS_TESTED: string[] = ["script_edit"];
 type EditResult = {
   success?: boolean;
   code?: string;
+  error?: string;
   bytes?: number;
   undoable?: boolean;
   indexed?: boolean;
@@ -150,6 +151,53 @@ export async function testScriptEdit(ctx: TestCtx): Promise<void> {
       fail(`script.edit empty old_string: expected INVALID_PARAMS, got ${JSON.stringify(emptyOld)}`);
     } else {
       pass("script.edit empty old_string -> INVALID_PARAMS");
+    }
+
+    // ── edits: several edits in order, one write ────────────────────────────
+    // The second edit matches only the text the first one leaves.
+    const multi = (await bridge.call(
+      "script.edit",
+      {
+        file_path: editPath,
+        edits: [
+          { old_string: `var a := 1`, new_string: `var a := 2` },
+          { old_string: `var a := 2`, new_string: `var renamed := 2` },
+        ],
+      },
+      CALL_TIMEOUT,
+    )) as EditResult;
+    const afterMulti = unwrapUntrusted(
+      ((await bridge.call("script.read", { file_path: editPath }, CALL_TIMEOUT)) as { content?: string }).content,
+    );
+    if (!multi?.success || multi.replacements !== 2) {
+      fail(`script.edit edits: expected success + replacements=2, got ${JSON.stringify(multi)}`);
+    } else if (afterMulti !== `extends Node\n# TAG\nvar renamed := 2\n# TAG\n`) {
+      fail(`script.edit edits: content wrong after edits: ${JSON.stringify(afterMulti)}`);
+    } else {
+      pass("script.edit edits -> both applied in order (replacements=2)");
+    }
+
+    // ── edits: one unmatched edit writes nothing ────────────────────────────
+    const multiMissing = (await bridge.call(
+      "script.edit",
+      {
+        file_path: editPath,
+        edits: [
+          { old_string: `var renamed := 2`, new_string: `var c := 3` },
+          { old_string: `never_here`, new_string: `x` },
+        ],
+      },
+      CALL_TIMEOUT,
+    )) as EditResult;
+    const afterMultiMissing = unwrapUntrusted(
+      ((await bridge.call("script.read", { file_path: editPath }, CALL_TIMEOUT)) as { content?: string }).content,
+    );
+    if (multiMissing?.code !== "NOT_FOUND" || !multiMissing.error?.startsWith("edits[1]: ")) {
+      fail(`script.edit edits unmatched: expected NOT_FOUND naming edits[1], got ${JSON.stringify(multiMissing)}`);
+    } else if (afterMultiMissing !== afterMulti) {
+      fail(`script.edit edits unmatched: file changed: ${JSON.stringify(afterMultiMissing)}`);
+    } else {
+      pass("script.edit edits with an unmatched edit -> NOT_FOUND, nothing written");
     }
 
     // ── NOT_FOUND on a missing file ─────────────────────────────────────────
