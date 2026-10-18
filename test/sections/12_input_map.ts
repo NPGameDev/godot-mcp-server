@@ -132,6 +132,73 @@ export async function testInputMap(ctx: TestCtx): Promise<void> {
     "non-empty",
   );
 
+  // Rename keeps the action's events: the joypad_button bound above unbinds under the new name.
+  const renamedAction = `${smokeAction}_renamed`;
+  const renameResult = (await bridge.call(
+    "input_map.action",
+    { action: "rename", name: smokeAction, new_name: renamedAction },
+    CALL_TIMEOUT,
+  )) as { success?: boolean; name?: string; old_name?: string };
+  if (renameResult?.success !== true || renameResult.name !== renamedAction || renameResult.old_name !== smokeAction)
+    fail(`input_map.action rename: ${JSON.stringify(renameResult)}`);
+  else pass(`input_map.action rename -> name=${renamedAction}, old_name=${smokeAction}`);
+  const unbindRenamed = (await bridge.call(
+    "input_map.event",
+    { action: "unbind", name: renamedAction, event: { type: "joypad_button", button_index: 0, device: -1 } },
+    CALL_TIMEOUT,
+  )) as { success?: boolean };
+  if (unbindRenamed?.success !== true) fail(`input_map.event unbind after rename: ${JSON.stringify(unbindRenamed)}`);
+  else pass(`input_map.event unbind joypad_button under the new name -> success (events moved)`);
+  assertGuard(
+    ctx,
+    "input_map.action rename onto existing",
+    await bridge.call(
+      "input_map.action",
+      { action: "rename", name: renamedAction, new_name: "ui_accept" },
+      CALL_TIMEOUT,
+    ),
+    "ALREADY_EXISTS",
+    "already exists",
+  );
+  // A rename onto another project action is refused like one onto a built-in.
+  const otherAction = `${smokeAction}_other`;
+  try {
+    await bridge.call("input_map.action", { action: "add", name: otherAction }, CALL_TIMEOUT);
+    assertGuard(
+      ctx,
+      "input_map.action rename onto a project action",
+      await bridge.call(
+        "input_map.action",
+        { action: "rename", name: renamedAction, new_name: otherAction },
+        CALL_TIMEOUT,
+      ),
+      "ALREADY_EXISTS",
+      `action '${otherAction}' already exists`,
+    );
+  } finally {
+    try {
+      await bridge.call("input_map.action", { action: "remove", name: otherAction }, CALL_TIMEOUT);
+    } catch {
+      /* noop */
+    }
+  }
+  assertGuard(
+    ctx,
+    "input_map.action rename onto the same name",
+    await bridge.call(
+      "input_map.action",
+      { action: "rename", name: renamedAction, new_name: renamedAction },
+      CALL_TIMEOUT,
+    ),
+    "INVALID_PARAMS",
+    "new_name equals name",
+  );
+  try {
+    await bridge.call("input_map.action", { action: "remove", name: renamedAction }, CALL_TIMEOUT);
+  } catch {
+    /* noop */
+  }
+
   // Cleanup.
   try {
     await bridge.call("input_map.action", { action: "remove", name: smokeAction }, CALL_TIMEOUT);

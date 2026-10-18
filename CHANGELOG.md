@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `input_map_action` has a `rename` action. `{"action": "rename", "name": "old",
+  "new_name": "new"}` moves a project input action to the new name with its events and
+  deadzone, and the response gives the old name as `old_name`. Each of `add`, `remove` and
+  `rename` now returns its own hint; rename's reminds the agent that scripts and scenes
+  keep the old name. Needs the toolkit release that adds the `rename` handler; an older
+  toolkit answers `INVALID_PARAMS`. Thanks to @benfeather
+  ([#18](https://github.com/NPGameDev/godot-mcp-toolkit/issues/18),
+  [#15](https://github.com/NPGameDev/godot-mcp-server/pull/15)).
+
 ## [1.0.4] - 2026-10-14
 
 ### Security

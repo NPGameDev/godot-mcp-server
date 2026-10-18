@@ -161,7 +161,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   // Operation grand-total canary — the built-in operation count. Bump this
   // deliberately when a discriminator enum gains/loses a value; the same
   // derivation drives `godot-mcp-server --tools-count` and the tool-reference.
-  const expectedOperations = 160;
+  const expectedOperations = 161;
   const operationCount = countBuiltinOperations(allTools);
   if (operationCount !== expectedOperations)
     fail(`operation count: expected ${expectedOperations}, got ${operationCount}`);

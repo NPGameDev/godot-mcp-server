@@ -1,6 +1,6 @@
 /**
  * Unit tests for group_tool_handlers.ts — createGroupToolHandler's per-tool routing
- * Five blocks, each asserting REAL behavior via a recording
+ * Six blocks, each asserting REAL behavior via a recording
  * mock Bridge (which channel a handler hits + the method/params it forwards, and
  * the content shape it returns) — never fn === fn:
  *   1. signal_emit dual-mode — editor → bridge.call, runtime → bridge.callRuntime,
@@ -12,9 +12,13 @@
  *      LSP-handler-specific error) and the bridge is never touched (own TCP client).
  *   4. a RUNTIME_TOOLS member → callAndWrap(runtime:true) → bridge.callRuntime.
  *   5. a default tool → callAndWrap(runtime:false) → bridge.call.
+ *   6. a tool with per-operation hints (input_map_action) → each operation's own
+ *      success hint on this path; its keys are operations the tool accepts.
  */
 import assert from "node:assert/strict";
 import { createGroupToolHandler } from "../../src/groups/groupToolHandlers.js";
+import type { z } from "zod";
+import { inputMapTools } from "../../src/tools/inputMap.js";
 import type { Bridge, ToolDef } from "../../src/shared/types.js";
 
 // The union of handler shapes createGroupToolHandler returns is uniformly callable with
@@ -209,6 +213,36 @@ async function testDefaultToolRouting() {
   assert.deepEqual(calls[0].params, { parent_path: "/root", type: "Node2D" }, "forwards input unchanged");
 }
 
+// ── Block 6 — per-operation success hints on the group path ──────────
+async function testOperationHints() {
+  const actionDef = inputMapTools.find((t) => t.name === "input_map_action")!;
+  assert.ok(actionDef.operationHints, "input_map_action declares per-operation hints");
+  const operations = (actionDef.inputSchema[actionDef.operationParam!] as z.ZodEnum).options;
+  for (const key of Object.keys(actionDef.operationHints!)) {
+    assert.ok(operations.includes(key), `operationHints key '${key}' is one of the tool's operations`);
+  }
+
+  const hintFor = async (input: Record<string, unknown>, ret: unknown = { success: true }) => {
+    const { bridge } = makeBridge(ret);
+    const handler = createGroupToolHandler(bridge, actionDef) as (
+      i: unknown,
+    ) => Promise<{ content: { text: string }[]; isError?: boolean }>;
+    return JSON.parse((await handler(input)).content[0].text).hint as string | undefined;
+  };
+  assert.equal(await hintFor({ action: "add", name: "jump" }), actionDef.successHint, "add gets the static hint");
+  assert.equal(
+    await hintFor({ action: "rename", name: "jump", new_name: "leap" }),
+    actionDef.operationHints!.rename,
+    "rename gets its own hint",
+  );
+  assert.equal(await hintFor({ action: "remove", name: "jump" }), actionDef.operationHints!.remove);
+  assert.equal(
+    await hintFor({ action: "rename", name: "jump" }, { success: false, code: "INVALID_PARAMS", error: "x" }),
+    undefined,
+    "an error result carries no success hint",
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 async function main() {
   console.log("group_tool_handlers tests:");
@@ -217,7 +251,8 @@ async function main() {
   await testLspRouting();
   await testRuntimeToolRouting();
   await testDefaultToolRouting();
-  console.log("All 5 group_tool_handlers tests passed.");
+  await testOperationHints();
+  console.log("All 6 group_tool_handlers tests passed.");
 }
 
 main().catch((err) => {

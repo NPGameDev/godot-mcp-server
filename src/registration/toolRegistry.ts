@@ -21,7 +21,7 @@ import { isVersionCompatible } from "../shared/version.js";
 import { checkPathGuard } from "../security/pathGuard.js";
 import { toolError } from "../shared/errorContract.js";
 import { isRawJsonSchema, jsonSchemaToZodShape, addStringCoercion } from "../shared/schemaCoercion.js";
-import { callAndWrap, injectSuccessHint } from "./toolDispatch.js";
+import { callAndWrap, injectSuccessHint, resolveSuccessHint } from "./toolDispatch.js";
 
 // ── Registration helpers ────────────────────────────────────────────
 
@@ -258,18 +258,18 @@ export function registerTools(
     const customHandler = opts.handlers?.get(tool.name);
     let handler = (customHandler ??
       ((input: unknown, signal?: AbortSignal) =>
-        callAndWrap(bridge, tool.method, input, { signal, successHint: tool.successHint }))) as (
+        callAndWrap(bridge, tool.method, input, { signal, successHint: resolveSuccessHint(tool, input) }))) as (
       input: unknown,
       signal?: AbortSignal,
     ) => Promise<ToolTextResult>;
 
     // Custom handlers bypass callAndWrap, so inject successHint via wrapper.
-    if (customHandler && tool.successHint) {
+    if (customHandler && (tool.successHint || tool.operationHints)) {
       const baseHandler = handler;
-      const hintText = tool.successHint;
       handler = (async (input: unknown, signal?: AbortSignal) => {
         const result = await baseHandler(input, signal);
-        if (!result.isError) injectSuccessHint(result, hintText);
+        const hintText = resolveSuccessHint(tool, input);
+        if (!result.isError && hintText) injectSuccessHint(result, hintText);
         return result;
       }) as typeof handler;
     }
