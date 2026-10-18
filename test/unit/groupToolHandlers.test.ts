@@ -236,10 +236,10 @@ async function testOperationHints() {
     "rename gets its own hint",
   );
   assert.equal(await hintFor({ action: "remove", name: "jump" }), actionDef.operationHints!.remove);
-  assert.notEqual(
+  assert.equal(
     await hintFor({ action: "rename", name: "jump" }, { success: false, code: "INVALID_PARAMS", error: "x" }),
-    actionDef.operationHints!.rename,
-    "an error result never carries the success hint",
+    undefined,
+    "an error result carries no success hint",
   );
 }
 

@@ -1,14 +1,20 @@
 /**
  * Unit tests for toolRegistry.ts — the tool-registration wrappers:
  * registerToolWrapped (path-guard dispatch wiring + version-gate filtering),
- * batchToolRegistration (notification collapse), and versionSupportText.
+ * batchToolRegistration (notification collapse), versionSupportText, and
+ * registerTools' per-operation success hints.
  */
 
 import assert from "node:assert/strict";
-import { registerToolWrapped, batchToolRegistration, versionSupportText } from "../../src/registration/toolRegistry.js";
+import {
+  registerToolWrapped,
+  registerTools,
+  batchToolRegistration,
+  versionSupportText,
+} from "../../src/registration/toolRegistry.js";
 import { PROJECT_FILE_PATH } from "../../src/security/pathGuard.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Bridge, PathGuard, ToolTextResult } from "../../src/shared/types.js";
+import type { Bridge, PathGuard, ToolDef, ToolTextResult } from "../../src/shared/types.js";
 
 // ── path-guard dispatch wiring (registerToolWrapped) ─────────────────
 // Shields the new spec: a tool that declares pathParams fast-fails an
@@ -188,4 +194,45 @@ assert.equal(
   assert.equal(versionSupportText("4.2", "4.5"), "Supported on Godot 4.2–4.5 (inclusive).");
   assert.equal(versionSupportText("4.5", undefined), "Requires Godot 4.5 or newer.");
   assert.equal(versionSupportText(undefined, "4.4"), "Supported up to Godot 4.4 (inclusive).");
+}
+
+// ── per-operation success hints (registerTools) ──────────────────────
+// A def with operationHints gets each operation's own hint on both the default
+// callAndWrap handler and a custom handler; an unlisted operation gets successHint.
+{
+  const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
+  const fakeServer = {
+    registerTool: (n: string, _c: unknown, h: (input: Record<string, unknown>) => Promise<ToolTextResult>) => {
+      handlers.set(n, h);
+      return {};
+    },
+    sendToolListChanged: () => {},
+  } as unknown as McpServer;
+  const fakeBridge = {
+    call: async () => ({ success: true }),
+    getGodotVersion: () => null,
+  } as unknown as Bridge;
+  const hinted = (name: string): ToolDef => ({
+    name,
+    method: "op.hints",
+    description: "t",
+    inputSchema: {},
+    operationParam: "action",
+    successHint: "static",
+    operationHints: { rename: "renamed" },
+  });
+  const custom = new Map([
+    [
+      "op_hints_custom",
+      async (): Promise<ToolTextResult> => ({ content: [{ type: "text", text: JSON.stringify({ success: true }) }] }),
+    ],
+  ]);
+  registerTools(fakeServer, fakeBridge, [hinted("op_hints_default"), hinted("op_hints_custom")], undefined, {
+    handlers: custom,
+  });
+  for (const name of ["op_hints_default", "op_hints_custom"]) {
+    const hintOf = async (action: string) => JSON.parse((await handlers.get(name)!({ action })).content[0].text).hint;
+    assert.equal(await hintOf("rename"), "renamed", `${name}: rename gets its own hint`);
+    assert.equal(await hintOf("add"), "static", `${name}: an unlisted operation gets successHint`);
+  }
 }
