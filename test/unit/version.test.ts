@@ -144,7 +144,7 @@ assert.equal(checkFloor("", "1.0"), "unknown");
 assert.equal(checkFloor("abc", "1.0"), "unknown"); // malformed peer
 assert.equal(checkFloor("1", "1.0"), "unknown");
 assert.equal(checkFloor("1.0.0", "x"), "unknown"); // malformed floor
-assert.equal(checkFloor(1 as unknown as string, "1.0"), "unknown"); // non-string off the wire
+assert.equal(checkFloor(1, "1.0"), "unknown"); // non-string off the wire
 assert.deepEqual(parseMajorMinor(" 1.2.3 "), [1, 2]);
 assert.equal(parseMajorMinor("1.2.3.4"), undefined);
 

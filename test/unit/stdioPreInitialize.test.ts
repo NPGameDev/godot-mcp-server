@@ -1,3 +1,12 @@
+/**
+ * Guard test for the stdio contract before `initialize`.
+ *
+ * MCP clients from spec 2026-07-28 probe legacy servers with an unknown pre-initialize
+ * method ("server/discover") and fall back to `initialize` only if the probe gets a
+ * prompt JSON-RPC error. This spawns the server over stdio and pins that the v1-SDK
+ * server answers at once and keeps stdout clean: every stdout line is JSON-RPC. The SDK
+ * v2 migration itself is release C1 (2.0.0).
+ */
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -5,10 +14,6 @@ import { createConnection } from "node:net";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// MCP clients from spec 2026-07-28 probe legacy servers with an unknown pre-initialize
-// method ("server/discover") and fall back to `initialize` only if the probe gets a
-// prompt JSON-RPC error. Pin that the v1-SDK server answers at once and keeps stdout
-// clean. The SDK v2 migration itself is release C1 (2.0.0).
 const DEAD_PORT = 6599; // outside the editor (6550-6560) and runtime (6570-6585) scans
 const portOpen = await new Promise<boolean>((resolve) => {
   const s = createConnection({ host: "127.0.0.1", port: DEAD_PORT });
@@ -32,9 +37,19 @@ const child = spawn(process.execPath, args, {
 });
 const lines: string[] = [];
 let buf = "";
+let stderr = "";
+child.stderr.on("data", (chunk: Buffer) => {
+  stderr += chunk.toString();
+});
 const answered = new Promise<Record<string, unknown>>((resolve, reject) => {
+  const fail = (reason: string): void => {
+    clearTimeout(timer);
+    reject(new Error(`${reason}\n--- server stderr so far ---\n${stderr}`));
+  };
   // 15 s: the cross-version runners start the server through tsx without a build.
-  const timer = setTimeout(() => reject(new Error("no reply to server/discover within 15 s")), 15_000);
+  const timer = setTimeout(() => fail("no reply to server/discover within 15 s"), 15_000);
+  child.once("error", (err) => fail(`the server failed to start: ${err.message}`));
+  child.once("exit", (code, signal) => fail(`the server exited before replying (code ${code}, signal ${signal})`));
   child.stdout.on("data", (chunk: Buffer) => {
     buf += chunk.toString();
     let nl: number;
@@ -43,7 +58,13 @@ const answered = new Promise<Record<string, unknown>>((resolve, reject) => {
       buf = buf.slice(nl + 1);
       if (!line) continue;
       lines.push(line);
-      const msg = JSON.parse(line) as Record<string, unknown>; // throws on non-JSON → test fails
+      let msg: Record<string, unknown>;
+      try {
+        msg = JSON.parse(line) as Record<string, unknown>;
+      } catch {
+        fail(`stdout carried a non-JSON line: ${line}`);
+        return;
+      }
       if (msg.id === 1) {
         clearTimeout(timer);
         resolve(msg);
@@ -65,3 +86,4 @@ try {
 } finally {
   child.kill();
 }
+console.log("All 1 stdio pre-initialize tests passed.");

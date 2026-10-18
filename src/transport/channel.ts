@@ -192,7 +192,7 @@ export function createChannel(
           );
         } else if (authResp.minServer != null && checkFloor(serverVer, authResp.minServer) === "below") {
           process.stderr.write(
-            `[bridge] ERROR: server ${serverVer} is below the toolkit's floor (server >= ${authResp.minServer}). Re-write .mcp.json from the toolkit dock to pin the server it was tested with, or run: npm install -g @npgamedev/godot-mcp-server@latest.\n`,
+            `[bridge] ERROR: server ${serverVer} is below the toolkit's floor (server >= ${authResp.minServer}). Pin the recommended server from the toolkit dock's .mcp.json panel, or run: npm install -g @npgamedev/godot-mcp-server@latest.\n`,
           );
         } else {
           const severity = compareVersions(serverVer, authResp.toolkitVersion);

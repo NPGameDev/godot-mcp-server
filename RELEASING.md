@@ -140,16 +140,17 @@ This is the npm `peerDependencies` / `engines` model carried over the wire: the
 floor couples the two repos exactly when the wire contract changes, and leaves
 them independent otherwise.
 
-**Status (1.1.x).** The floor machinery is live on both sides since 1.1.0. The server declares
+**Status (1.1.x).** The floor machinery ships in 1.1.0. The server declares
 `MIN_TOOLKIT_VERSION = "1.0"` (`src/shared/version.ts`) and sends `server_version` +
-`min_toolkit` in the auth request; the toolkit declares `MIN_SERVER_VERSION = "1.0"`
+`min_toolkit` in the auth request; the toolkit's 1.1.0 declares `MIN_SERVER_VERSION = "1.0"`
 (`addons/godot_mcp_toolkit/versioning/mcp_version_utils.gd`) and answers with `min_server`.
-When the peer is below its floor, each side prints one error on its own human-facing console
-that names which side to update. Otherwise the product-version messages stay: a patch
-difference is silent, a minor difference warns, a major difference is an error. None of them
-reaches the MCP wire or refuses the connection. The toolkit also pins the server it was tested
-with (`COMPATIBLE_SERVER_VERSION`) when it writes `.mcp.json`, so a fresh config lands on a
-matching pair; an unpinned config can drift a minor ahead and warns until it is pinned.
+When the peer is below its floor, each side reports it once (the server as an ERROR line on
+stderr, the toolkit as an editor warning and a dock line), naming which side to update.
+Otherwise the product-version messages stay: a patch difference is silent, a minor difference
+warns, a major difference is an error. None of them reaches the MCP wire or refuses the
+connection. From 1.1.0 the toolkit also pins the server it was tested with
+(`COMPATIBLE_SERVER_VERSION`) when it writes `.mcp.json`, so a fresh config lands on a matching
+pair; an unpinned config can drift a minor ahead and warns until it is pinned.
 
 ## The gated release flow
 

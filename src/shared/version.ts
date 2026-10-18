@@ -39,7 +39,8 @@ export function getServerVersion(): string {
 /**
  * Minimum toolkit version (major.minor) this server needs. Raise it only when the
  * server takes a real dependency on a newer toolkit wire contract; that raise is a
- * MAJOR bump (it drops older siblings). The toolkit declares its own `min_server`.
+ * MAJOR bump (it drops older siblings). From 1.1.0 the toolkit declares its own floor
+ * and sends it as `min_server`.
  */
 export const MIN_TOOLKIT_VERSION = "1.0";
 
@@ -53,7 +54,7 @@ export type FloorVerdict = "ok" | "below" | "unknown";
  * @returns `undefined` for anything else: missing, empty, non-numeric, a bare major
  *   (`"1"`) or more than three numeric parts.
  */
-export function parseMajorMinor(v: string | undefined): [number, number] | undefined {
+export function parseMajorMinor(v: unknown): [major: number, minor: number] | undefined {
   // The value comes off the wire: a GDScript float serialises as a JSON number.
   if (typeof v !== "string") return undefined;
   const m = /^(\d+)\.(\d+)(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$/.exec(v.trim());
@@ -68,7 +69,7 @@ export function parseMajorMinor(v: string | undefined): [number, number] | undef
  * @returns `"unknown"` when either side is unparsable, so the caller falls through to
  *   its product-version lines.
  */
-export function checkFloor(peerVersion: string | undefined, floorMajorMinor: string): FloorVerdict {
+export function checkFloor(peerVersion: unknown, floorMajorMinor: string): FloorVerdict {
   const peer = parseMajorMinor(peerVersion);
   const floor = parseMajorMinor(floorMajorMinor);
   if (!peer || !floor) return "unknown";
