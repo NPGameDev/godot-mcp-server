@@ -8,7 +8,7 @@ nav_order: 3
 
 Generated from the tool catalogue (`src/registration/catalogue.ts`) — regenerate with `npm run docs:tools`. This is the per-tool **reference**; for the subsystem **explanation** see [Architecture](../architecture/README.md).
 
-**112 built-in tools** exposing **160 operations** — an action-consolidated tool packs several operations behind one discriminator, so the operation count runs ahead of the tool count. Counts are a ceiling ("up to"); some tools and operations are Godot-version-gated and absent on older editors.
+**112 built-in tools** exposing **161 operations** — an action-consolidated tool packs several operations behind one discriminator, so the operation count runs ahead of the tool count. Counts are a ceiling ("up to"); some tools and operations are Godot-version-gated and absent on older editors.
 
 ## Startup surface (eager)
 
@@ -819,24 +819,39 @@ _1 operation._
 
 List, create, and edit input actions and their key/controller bindings
 
-_2 tools, 4 operations._
+_2 tools, 5 operations._
 
 <!-- tool:input_map_action -->
 ### `input_map_action`
 
-Add or remove an InputMap action. action: 'add' or 'remove' (the operation). name: the input map name (e.g. 'jump', 'move_left'). action='add' is idempotent with optional deadzone.
+Add, remove or rename an InputMap action. action: the operation. name: the action (e.g. 'jump'). 'add' is idempotent, optional deadzone; 'rename' needs new_name and keeps events and deadzone.
 
 on-demand (group: `input_map`)
 
-**2 operations** (`action`): `add`, `remove`
+**3 operations** (`action`): `add`, `remove`, `rename`
 
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
 | `action` | enum | yes |  |
 | `deadzone` | number | no |  |
 | `name` | string | yes |  |
+| `new_name` | string | no |  |
 
 <!-- examples:start -->
+Rename a project action. Its events, its deadzone and its place in `[input]` move with it:
+
+```json
+{ "action": "rename", "name": "jump", "new_name": "leap" }
+```
+
+The response is `{ "success": true, "name": "leap", "old_name": "jump" }` plus a `hint`. A rename is refused when:
+
+- `new_name` is missing, empty or equal to `name`: `INVALID_PARAMS`.
+- `name` is a built-in action such as `ui_accept`: `INVALID_PARAMS`.
+- `name` has no `input/<name>` project setting: `NOT_FOUND`.
+- `new_name` is already taken by a project action or a built-in one: `ALREADY_EXISTS`.
+
+Scripts and scenes that use the old name keep it; rename them yourself.
 <!-- examples:end -->
 
 <!-- tool:input_map_event -->

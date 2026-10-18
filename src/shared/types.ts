@@ -179,6 +179,10 @@ export type ToolDef = {
   godotMaxVersion?: string;
   /** Brief guidance appended to successful responses — next steps, related tools, common pitfalls. Omit for terminal actions or self-evident results. Does not overwrite toolkit-provided hints. */
   successHint?: string;
+  /** Per-operation success hints, keyed by the value of the `operationParam` argument. A call whose
+   *  operation has an entry gets that hint in place of successHint; any other call gets successHint.
+   *  Use it when one hint would mislead for some of the tool's operations. */
+  operationHints?: Readonly<Record<string, string>>;
   /** Filesystem-path params to syntactically pre-filter before dispatch (strict
    *  subset of the toolkit guard). Omit for tools with no fs path, or for params
    *  the toolkit doesn't guard (absolute-allowed source_path, node-tree paths). */

@@ -2,7 +2,7 @@
 
 How much context window does the MCP catalogue consume? This page provides concrete numbers so you can estimate the cost of registering the toolkit in your model's context.
 
-The numbers below are a generated snapshot (2026-07-26). Regenerate them any time with `npm run measure:tokens` — see [How to measure](#how-to-measure).
+The numbers below are a generated snapshot (2026-10-18). Regenerate them any time with `npm run measure:tokens` — see [How to measure](#how-to-measure).
 
 ## Catalogue cost
 
@@ -11,7 +11,7 @@ When your MCP client connects, the server sends a `tools/list` response containi
 | Surface | Tools | Bytes | Est. tokens |
 |---------|------:|------:|------------:|
 | **Startup surface** | 36 | 35,443 | ~8,861 |
-| **Full surface** | 114 | 116,094 | ~29,024 |
+| **Full surface** | 114 | 116,143 | ~29,036 |
 | **Read-only mode** | 39 | 31,051 | ~7,763 |
 
 Token estimates use the standard bytes/4 heuristic.
@@ -31,7 +31,7 @@ Specialized tool groups are loaded via `discover_tools`. Each group adds a known
 | runtime_advanced | 3 | 2,218 | ~555 |
 | signals | 1 | 575 | ~144 |
 | animation_authoring | 4 | 4,017 | ~1,005 |
-| input_map | 2 | 1,371 | ~343 |
+| input_map | 2 | 1,420 | ~355 |
 | resource_io | 2 | 1,283 | ~321 |
 | asset_ops | 3 | 2,213 | ~554 |
 | placeholders | 2 | 3,220 | ~805 |
@@ -63,7 +63,7 @@ Group costs scale with the size and description length of the tools they carry; 
 
 - **Heaviest:** `particles_create` (~1,409 tokens) — a large parameter schema with many typed fields
 - **Lightest:** `audiobus_list` (~85 tokens) — parameterless, description only
-- **Average:** ~1,021 bytes (~256 tokens) per tool
+- **Average:** ~1,022 bytes (~256 tokens) per tool
 
 Tools with more parameters and detailed descriptions cost more tokens. Most descriptions stay under the 200-character limit (I2 invariant), with documented waivers for action-consolidated tools that document per-operation behavior.
 

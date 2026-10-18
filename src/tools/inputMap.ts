@@ -12,18 +12,24 @@ export const inputMapTools: ToolDef[] = [
     name: "input_map_action",
     method: "input_map.action",
     description:
-      "Add or remove an InputMap action. " +
-      "action: 'add' or 'remove' (the operation). " +
-      "name: the input map name (e.g. 'jump', 'move_left'). " +
-      "action='add' is idempotent with optional deadzone.",
+      "Add, remove or rename an InputMap action. " +
+      "action: the operation. " +
+      "name: the action (e.g. 'jump'). " +
+      "'add' is idempotent, optional deadzone; 'rename' needs new_name and keeps events and deadzone.",
     inputSchema: {
-      action: z.enum(["add", "remove"]),
+      action: z.enum(["add", "remove", "rename"]),
       name: z.string(),
       deadzone: z.coerce.number().optional(),
+      new_name: z.string().optional(),
     },
     annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false, destructiveHint: false },
     operationParam: "action",
     successHint: "Bind events with input_map_event after creating the action.",
+    operationHints: {
+      rename:
+        "The action kept its events and deadzone. This tool does not update scripts or scenes that use the old name.",
+      remove: "This tool does not update scripts or scenes that still use this action's name.",
+    },
   },
   // Deliberately detailed description: all 4 event types (key, mouse_button,
   // joypad_button, joypad_motion) need inline examples to avoid agent guesswork.
