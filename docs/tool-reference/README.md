@@ -838,6 +838,20 @@ on-demand (group: `input_map`)
 | `new_name` | string | no |  |
 
 <!-- examples:start -->
+Rename a project action. Its events, its deadzone and its place in `[input]` move with it:
+
+```json
+{ "action": "rename", "name": "jump", "new_name": "leap" }
+```
+
+The response is `{ "success": true, "name": "leap", "old_name": "jump" }`. A rename is refused when:
+
+- `new_name` is missing, empty or equal to `name`: `INVALID_PARAMS`.
+- `name` is a built-in action such as `ui_accept`: `INVALID_PARAMS`.
+- `name` has no `input/<name>` project setting: `NOT_FOUND`.
+- `new_name` is already taken by a project action or a built-in one: `ALREADY_EXISTS`.
+
+Scripts and scenes that use the old name keep it; rename them yourself.
 <!-- examples:end -->
 
 <!-- tool:input_map_event -->
