@@ -66,6 +66,7 @@ export const scriptTools: ToolDef[] = [
             replace_all: z.boolean().optional(),
           }),
         )
+        .min(1)
         .optional()
         .describe(
           "several edits in one call, instead of old_string/new_string/replace_all; each applies to the text the earlier ones leave, and nothing is written if any fails",

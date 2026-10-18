@@ -41,6 +41,9 @@ const EDITS = [
   assert.deepEqual(parsed.data.edits, EDITS);
 }
 
+// An empty edits array fails to parse.
+assert.ok(!scriptEditSchema().safeParse({ file_path: "res://a.gd", edits: [] }).success, "empty edits is rejected");
+
 // ── the single form ──────────────────────────────────────────────────
 
 // old_string and new_string stay accepted, and only file_path is required.
@@ -54,4 +57,4 @@ const EDITS = [
   assert.deepEqual(advertised.required, ["file_path"], "old_string and new_string are optional");
 }
 
-console.log("All 3 tests passed.");
+console.log("All 4 tests passed.");
