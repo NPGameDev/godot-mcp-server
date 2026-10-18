@@ -844,7 +844,7 @@ Rename a project action. Its events, its deadzone and its place in `[input]` mov
 { "action": "rename", "name": "jump", "new_name": "leap" }
 ```
 
-The response is `{ "success": true, "name": "leap", "old_name": "jump" }`. A rename is refused when:
+The response is `{ "success": true, "name": "leap", "old_name": "jump" }` plus a `hint`. A rename is refused when:
 
 - `new_name` is missing, empty or equal to `name`: `INVALID_PARAMS`.
 - `name` is a built-in action such as `ui_accept`: `INVALID_PARAMS`.
