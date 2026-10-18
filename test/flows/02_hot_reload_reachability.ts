@@ -16,10 +16,12 @@
 //   A added method     | STALE (INVALID_METHOD)      | REACHABLE
 //   B body edit        | OLD value (silent, no err)  | NEW value (live)
 //   C compile error    | valid:false + diagnostics   | (same — version-indep.)
-//   D fresh node       | STALE (re-instantiate fails)| REACHABLE
+//   D fresh node       | REACHABLE                   | REACHABLE
 //
-// D proved a FRESH node is also stale on 4.2 AND 4.3 → both collapse to one
-// recovery: relaunch. The stale-instance hints make that opaque failure actionable:
+// node.set_script reloads a script whose file changed, so setting the script again
+// recovers on every version, on the same node (A's rebind) or a fresh one (D).
+// editor.refresh does not recover on < 4.4. The stale-instance hints make the stale
+// live instance actionable:
 //   - proactive: script.write of an EXISTING .gd that compiled OK on < 4.4 carries
 //     a stale-instance `hint` (suppressed on create / 4.4+ / compile-fail).
 //   - reactive: node.call_method → INVALID_METHOD carries the same hint when the
@@ -218,26 +220,32 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
               else fail(`A: 4.4+ expected REACHABLE, got ${JSON.stringify(after)}`);
             }
 
-            // Recovery probes still match the boundary (regression guard).
+            // Recovery probes still match the boundary (regression guard). node.set_script
+            // reloads the changed script, so the rebind recovers on every version.
             await refresh(ctx);
             await settleScan(ctx);
             const afterRefresh = await callMethod(ctx, node, "flow_added_method");
             await attach(ctx, node, A_SCRIPT);
             const afterRebind = await callMethod(ctx, node, "flow_added_method");
-            const recoveredAny = afterRefresh?.success === true || afterRebind?.success === true;
             if (pre44) {
-              // < 4.4: pre-NodeCache, no live reload → neither refresh nor re-set_script recovers.
-              if (!recoveredAny) pass(`A: <4.4 refresh + re-set_script both STALE (no in-session recovery)`);
+              // < 4.4: pre-NodeCache, no live reload → refresh stays stale, re-set_script recovers.
+              if (afterRefresh?.success !== true && afterRebind?.success === true)
+                pass(`A: <4.4 refresh STALE, re-set_script recovers`);
               else
                 fail(
                   `A recovery mismatch on ${verTag}: refresh=${afterRefresh?.success} rebind=${afterRebind?.success}`,
                 );
             } else if (headless) {
-              // 4.4+ headless: the reload is a timing race (mirrors the reactive outcome above) — the
-              // recovery probes either recover (reload took effect) or stay stale. Both are valid.
-              pass(
-                `A: 4.4+ headless refresh + re-set_script ${recoveredAny ? "recovered (reload took effect)" : "both STALE (no in-session recovery)"}`,
-              );
+              // 4.4+ headless: the refresh is a timing race (mirrors the reactive outcome above) — it
+              // either recovers (reload took effect) or stays stale. The rebind always recovers.
+              if (afterRebind?.success === true)
+                pass(
+                  `A: 4.4+ headless re-set_script recovers (refresh ${afterRefresh?.success === true ? "recovered too" : "STALE"})`,
+                );
+              else
+                fail(
+                  `A recovery mismatch on ${verTag}: refresh=${afterRefresh?.success} rebind=${afterRebind?.success}`,
+                );
             } else {
               // 4.4+ display: deterministically reachable through refresh + rebind.
               if (afterRefresh?.success === true && afterRebind?.success === true)
@@ -277,7 +285,7 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
         } else if (headless) {
           // 4.4+ headless is a TIMING RACE: either the NEW body (b2, reload took effect) or the OLD
           // body (b1, still stale) — both success:true. flow_body's signature is unchanged, so there
-          // is no INVALID_METHOD / hint on this path (the hint is asserted on the A/D fresh paths).
+          // is no INVALID_METHOD / hint on this path (the hint is asserted on the A path).
           if (after?.success === true && (after.result === "b2" || after.result === "b1"))
             pass(
               `B: 4.4+ headless body-edit -> "${after.result}" (${after.result === "b2" ? "reload took effect" : "still stale"})`,
@@ -334,38 +342,13 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           await attach(ctx, node2, D_SCRIPT);
           const b2 = await callMethod(ctx, node2, "fresh_b");
           dVerdict = b2?.success === true ? "fresh REACHABLE" : `fresh STALE(${b2?.code ?? "?"})`;
-          if (pre44) {
-            // < 4.4: a FRESH node is STALE too (re-instantiating does NOT help
-            // pre-NodeCache). Reactive hint fires (fresh_b is
-            // on the on-disk .gd), and the fresh node still attached (old method reachable → only the
-            // NEW member is stale, not a failed attach).
-            if (b2?.success === false && b2.code === "INVALID_METHOD" && hasStaleHint(b2))
-              pass(`D: <4.4 FRESH node STALE + reactive hint (re-instantiate does NOT help)`);
-            else fail(`D: <4.4 expected fresh-node STALE+hint, got ${JSON.stringify(b2)}`);
-            const a2 = await callMethod(ctx, node2, "fresh_a");
-            if (a2?.success === true)
-              pass(`D: fresh node2 sees the OLD method (attach worked; only the edit is stale)`);
-            else fail(`D: fresh node2 could not call fresh_a — attach failed? ${JSON.stringify(a2)}`);
-          } else if (headless) {
-            // 4.4+ headless is a TIMING RACE: the fresh node either re-instantiates (fresh_b REACHABLE,
-            // reload took effect) or stays STALE (INVALID_METHOD + the headless re-instantiation hint,
-            // which 4.5/4.6/4.7 deterministically hit). On the stale path the fresh node still attached
-            // (old method reachable → only the NEW member is stale).
-            if (b2?.success === true) {
-              pass(`D: 4.4+ headless FRESH node REACHABLE (reload took effect)`);
-            } else if (b2?.success === false && b2.code === "INVALID_METHOD" && hasHeadlessStaleHint(b2)) {
-              pass(`D: 4.4+ headless FRESH node STALE + headless re-instantiation hint`);
-              const a2 = await callMethod(ctx, node2, "fresh_a");
-              if (a2?.success === true)
-                pass(`D: fresh node2 sees the OLD method (attach worked; only the edit is stale)`);
-              else fail(`D: fresh node2 could not call fresh_a — attach failed? ${JSON.stringify(a2)}`);
-            } else {
-              fail(`D: 4.4+ headless expected REACHABLE or STALE+headless-hint, got ${JSON.stringify(b2)}`);
-            }
-          } else {
-            if (b2?.success === true) pass(`D: 4.4+ FRESH node REACHABLE`);
-            else fail(`D: 4.4+ expected fresh-node REACHABLE, got ${JSON.stringify(b2)}`);
-          }
+          // Every version: node.set_script reloads the changed script, so the fresh node runs the
+          // edit and the old method still works.
+          if (b2?.success === true && b2.result === "b") pass(`D: FRESH node REACHABLE on ${verTag}`);
+          else fail(`D: expected fresh-node REACHABLE on ${verTag}, got ${JSON.stringify(b2)}`);
+          const a2 = await callMethod(ctx, node2, "fresh_a");
+          if (a2?.success === true && a2.result === "a") pass(`D: fresh node2 keeps the old method`);
+          else fail(`D: fresh node2 could not call fresh_a — attach failed? ${JSON.stringify(a2)}`);
         }
       }
     }
