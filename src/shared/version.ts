@@ -3,7 +3,8 @@
  * Godot version-gating helpers. {@link GodotVer} is the parsed `[major, minor]`
  * tuple the tool-version gate compares against; the rest parse, compare, and
  * bound-check engine versions for the registration-time and per-call gates, plus
- * a semver severity compare for the auth-handshake version check.
+ * a semver severity compare and the declared toolkit floor for the auth-handshake
+ * version check.
  *
  * @module
  */
@@ -31,6 +32,49 @@ export function getServerVersion(): string {
     cachedVersion = "0.0.0";
   }
   return cachedVersion;
+}
+
+// ── Declared compatibility floor (RELEASING.md §Compatibility, toolkit ADR 0024) ──
+
+/**
+ * Minimum toolkit version (major.minor) this server needs. Raise it only when the
+ * server takes a real dependency on a newer toolkit wire contract; that raise is a
+ * MAJOR bump (it drops older siblings). From 1.1.0 the toolkit declares its own floor
+ * and sends it as `min_server`.
+ */
+export const MIN_TOOLKIT_VERSION = "1.0";
+
+/** How a peer version sits against a declared floor; `"unknown"` when either side is unparsable. */
+export type FloorVerdict = "ok" | "below" | "unknown";
+
+/**
+ * Parse a strict `major.minor` or `major.minor.patch` version, with an optional
+ * pre-release or build tag, to `[major, minor]`.
+ *
+ * @returns `undefined` for anything else: missing, empty, non-numeric, a bare major
+ *   (`"1"`) or more than three numeric parts.
+ */
+export function parseMajorMinor(v: unknown): [major: number, minor: number] | undefined {
+  // The value comes off the wire: a GDScript float serialises as a JSON number.
+  if (typeof v !== "string") return undefined;
+  const m = /^(\d+)\.(\d+)(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$/.exec(v.trim());
+  if (!m) return undefined;
+  return [Number(m[1]), Number(m[2])];
+}
+
+/**
+ * Judge a peer version against a declared `major.minor` floor; the patch segment is
+ * ignored. Pure and advisory: it never refuses, callers only print.
+ *
+ * @returns `"unknown"` when either side is unparsable, so the caller falls through to
+ *   its product-version lines.
+ */
+export function checkFloor(peerVersion: unknown, floorMajorMinor: string): FloorVerdict {
+  const peer = parseMajorMinor(peerVersion);
+  const floor = parseMajorMinor(floorMajorMinor);
+  if (!peer || !floor) return "unknown";
+  if (peer[0] !== floor[0]) return peer[0] > floor[0] ? "ok" : "below";
+  return peer[1] >= floor[1] ? "ok" : "below";
 }
 
 // ── Godot version gating ────────────────────────────────────────────

@@ -775,6 +775,78 @@ async function testPatchSkewIsSilent() {
   console.log("  PASS: a patch-level version skew is silent; a minor skew still warns");
 }
 
+// ── 13. a below-floor peer gets one floor line in place of the version line ──
+
+async function testBelowFloorLines() {
+  // Each side declares a major.minor floor for the other (ADR 0024). A peer below it gets
+  // one actionable ERROR line naming which side to update, in place of the product-version
+  // line; the connection still authenticates, so the call after auth resolves. The
+  // above-floor values derive from the server's own version, so a bump never turns a case
+  // vacuous; "0.9.0" sits below any 1.x toolkit floor.
+  const serverVer = getServerVersion();
+  const [major, minor] = serverVer.split(".").map(Number);
+  const BELOW_SERVER_FLOOR = "below this server's floor";
+  const BELOW_TOOLKIT_FLOOR = "below the toolkit's floor";
+  const countLines = (out: string, marker: string): number =>
+    out.split("\n").filter((line) => line.includes(marker)).length;
+
+  async function runCase(
+    ack: Record<string, unknown>,
+    check: (out: string) => void,
+    options?: { skipVersionCheck?: boolean },
+  ): Promise<void> {
+    const server = await makeMockServer((sock, msg) => respond(sock, msg.id, { ok: true }), ack);
+    const ch = createChannel(`ws://127.0.0.1:${server.port}`, undefined, undefined, undefined, options);
+    const cap = captureStderr();
+    try {
+      const result = await ch.call("warmup", {}, 5000);
+      assert.deepEqual(result, { ok: true }, "the channel still authenticates and answers the call");
+      check(cap.output());
+    } finally {
+      cap.restore();
+      await ch.close();
+      await server.close();
+    }
+  }
+
+  // 13a — a toolkit below this server's floor: the floor line replaces the major-mismatch line.
+  await runCase({ authed: true, godot_version: "4.5", version: "0.9.0" }, (out) => {
+    assert.equal(countLines(out, BELOW_SERVER_FLOOR), 1, "exactly one below-the-server's-floor line");
+    assert.ok(!out.includes("major version mismatch"), "the floor line replaces the major-mismatch line");
+    assert.equal(countLines(out, "ERROR:"), 1, "one ERROR line in all");
+  });
+
+  // 13b — this server below the toolkit's declared min_server.
+  await runCase({ authed: true, godot_version: "4.5", version: serverVer, min_server: `${major + 1}.0` }, (out) => {
+    assert.equal(countLines(out, BELOW_TOOLKIT_FLOOR), 1, "exactly one below-the-toolkit's-floor line");
+    assert.equal(countLines(out, "ERROR:"), 1, "one ERROR line in all");
+  });
+
+  // 13c — a matching pair whose min_server the server meets: no version line at all.
+  await runCase({ authed: true, godot_version: "4.5", version: serverVer, min_server: `${major}.${minor}` }, (out) => {
+    assert.ok(!out.includes("ERROR:"), "no ERROR line when both floors are met");
+    assert.ok(!out.includes("WARNING:"), "no WARNING line when both floors are met");
+  });
+
+  // 13d — a toolkit above the floor but a major apart keeps the major-mismatch line.
+  await runCase({ authed: true, godot_version: "4.5", version: `${major + 1}.0.0` }, (out) => {
+    const errors = out.split("\n").filter((line) => line.includes("ERROR:"));
+    assert.equal(errors.length, 1, "exactly one ERROR line");
+    assert.ok(errors[0].includes("major version mismatch"), "the ERROR line is the major-mismatch line");
+    assert.equal(countLines(out, "below"), 0, "no floor line above the floor");
+  });
+
+  // 13e — the runtime channel (skipVersionCheck) stays silent even below the floor.
+  await runCase(
+    { authed: true, godot_version: "4.5", version: "0.9.0" },
+    (out) => {
+      assert.ok(!out.includes("below"), "skipVersionCheck suppresses the floor lines");
+    },
+    { skipVersionCheck: true },
+  );
+  console.log("  PASS: a below-floor peer gets one floor line in place of the version line");
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -791,7 +863,8 @@ async function main() {
   await testQueuedTimeoutMarksSerialized();
   await testExecutingTimeoutKeepsGenericShape();
   await testPatchSkewIsSilent();
-  console.log("All 12 channel tests passed.");
+  await testBelowFloorLines();
+  console.log("All 13 channel tests passed.");
 }
 
 main()
