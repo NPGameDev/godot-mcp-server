@@ -160,6 +160,39 @@ export async function testInputMap(ctx: TestCtx): Promise<void> {
     "ALREADY_EXISTS",
     "already exists",
   );
+  // A rename onto another project action is refused like one onto a built-in.
+  const otherAction = `${smokeAction}_other`;
+  try {
+    await bridge.call("input_map.action", { action: "add", name: otherAction }, CALL_TIMEOUT);
+    assertGuard(
+      ctx,
+      "input_map.action rename onto a project action",
+      await bridge.call(
+        "input_map.action",
+        { action: "rename", name: renamedAction, new_name: otherAction },
+        CALL_TIMEOUT,
+      ),
+      "ALREADY_EXISTS",
+      `action '${otherAction}' already exists`,
+    );
+  } finally {
+    try {
+      await bridge.call("input_map.action", { action: "remove", name: otherAction }, CALL_TIMEOUT);
+    } catch {
+      /* noop */
+    }
+  }
+  assertGuard(
+    ctx,
+    "input_map.action rename onto the same name",
+    await bridge.call(
+      "input_map.action",
+      { action: "rename", name: renamedAction, new_name: renamedAction },
+      CALL_TIMEOUT,
+    ),
+    "INVALID_PARAMS",
+    "new_name equals name",
+  );
   try {
     await bridge.call("input_map.action", { action: "remove", name: renamedAction }, CALL_TIMEOUT);
   } catch {
