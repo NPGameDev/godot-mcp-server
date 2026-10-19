@@ -22,14 +22,15 @@ import type { ResponseCaps } from "./startupEnv.js";
  * @param caps - the env-set response caps, from `resolveResponseCaps`; each
  *   defined cap becomes an env override the bridge pushes after every editor auth
  * @param skipVersionCheck - the opt-out from `resolveSkipVersionCheck`; when true,
- *   the editor connection prints no version line
+ *   the editor connection prints no version line. Required, so a caller cannot
+ *   drop the opt-out without failing to compile.
  * @returns the options the composition root hands to `createBridge`
  */
 export function buildBridgeOptions(
   projectPath: string,
   ports: ResolvedPortConfig,
   caps: ResponseCaps,
-  skipVersionCheck = false,
+  skipVersionCheck: boolean,
 ): BridgeOptions {
   return {
     projectPath,

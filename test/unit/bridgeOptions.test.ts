@@ -31,7 +31,7 @@ const PORTS: ResolvedPortConfig = {
   try {
     process.env.GODOT_MCP_SCRIPT_READ_LIMIT = "524288";
     process.env.GODOT_MCP_WS_BUFFER_LIMIT = "2097152";
-    const opts = buildBridgeOptions("/project", PORTS, resolveResponseCaps());
+    const opts = buildBridgeOptions("/project", PORTS, resolveResponseCaps(), false);
     assert.equal(opts.scriptReadLimitBytes, 524288, "the env-set script cap reaches the bridge");
     assert.equal(opts.wsBufferLimitBytes, 2097152, "the env-set ws cap reaches the bridge");
     assert.equal(opts.projectPath, "/project", "the project path reaches the bridge");
@@ -52,6 +52,7 @@ const PORTS: ResolvedPortConfig = {
       "/project",
       { ...PORTS, editorPinned: false, runtimePort: undefined },
       resolveResponseCaps(),
+      false,
     );
     assert.equal(opts.scriptReadLimitBytes, undefined, "an unset script cap stays undefined");
     assert.equal(opts.wsBufferLimitBytes, undefined, "an unset ws cap stays undefined");
