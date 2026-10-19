@@ -27,6 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   toolkit release that handles `edits`; an older toolkit answers `INVALID_PARAMS`. Thanks to
   @benfeather ([NPGameDev/godot-mcp-toolkit#44](https://github.com/NPGameDev/godot-mcp-toolkit/issues/44),
   [#19](https://github.com/NPGameDev/godot-mcp-server/pull/19)).
+- `input_map_list`, a read-only tool in the `input_map` group, lists input actions with
+  their events. By default it returns the project actions and the built-in actions whose
+  events or deadzone differ from their default; `include_builtin: true` adds the rest, and
+  `name` returns one action. A changed built-in action has `can_revert: true` and its
+  `default`. The tool stays available in read-only mode. Needs the toolkit release that
+  adds `input_map.list`; an older toolkit answers that the method is unknown.
+- `input_map_action` has a `revert` action. `{"action": "revert", "name": "ui_accept"}`
+  puts a built-in action back to its default events and deadzone, and `project.godot`
+  drops its line. Needs the matching toolkit release; an older toolkit answers
+  `INVALID_PARAMS`.
+- The `input_map_event` description now lists the fields an event takes: `key_kind`,
+  `location` (Godot 4.3+), `command_or_control` and `device`. An event read from
+  `input_map_list` can be passed back to `unbind` as it is, and a response lists in
+  `warnings` any field the toolkit accepted but ignored.
 
 ### Changed
 
@@ -45,6 +59,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reloading a script in place can crash the editor. Thanks to @benfeather
   ([#43](https://github.com/NPGameDev/godot-mcp-toolkit/issues/43),
   [#20](https://github.com/NPGameDev/godot-mcp-server/pull/20)).
+- With the matching toolkit, `input_map_event` matches events the way Godot does when it
+  checks an action. A mouse button's `pressed` no longer splits a binding or misses on
+  `unbind`, a joypad motion matches on its axis and direction, an event with no `device`
+  matches any device, and the logical keys of a built-in action, such as `ui_accept`'s
+  Enter, can be unbound.
 
 ## [1.0.4] - 2026-10-14
 

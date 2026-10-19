@@ -2,7 +2,7 @@
 
 How much context window does the MCP catalogue consume? This page provides concrete numbers so you can estimate the cost of registering the toolkit in your model's context.
 
-The numbers below are a generated snapshot (2026-10-18). Regenerate them any time with `npm run measure:tokens` — see [How to measure](#how-to-measure).
+The numbers below are a generated snapshot (2026-10-19). Regenerate them any time with `npm run measure:tokens` — see [How to measure](#how-to-measure).
 
 ## Catalogue cost
 
@@ -10,17 +10,17 @@ When your MCP client connects, the server sends a `tools/list` response containi
 
 | Surface | Tools | Bytes | Est. tokens |
 |---------|------:|------:|------------:|
-| **Startup surface** | 36 | 35,443 | ~8,861 |
-| **Full surface** | 114 | 116,143 | ~29,036 |
-| **Read-only mode** | 39 | 31,051 | ~7,763 |
+| **Startup surface** | 36 | 36,039 | ~9,010 |
+| **Full surface** | 115 | 118,682 | ~29,671 |
+| **Read-only mode** | 40 | 32,359 | ~8,090 |
 
 Token estimates use the standard bytes/4 heuristic.
 
 - **Startup surface** — the eager tools plus the two meta tools (`discover_tools`, `extensions_refresh`), always in the initial `tools/list`.
-- **Full surface** — the startup surface with every on-demand group activated: the 112 built-in tools plus the two meta tools.
+- **Full surface** — the startup surface with every on-demand group activated: the 113 built-in tools plus the two meta tools.
 - **Read-only mode** (`GODOT_MCP_READ_ONLY=1`) — mutating tools filtered out, leaving the read-only set.
 
-The startup surface starts at ~8,900 tokens and grows incrementally as you load groups on demand.
+The startup surface starts at ~9,000 tokens and grows incrementally as you load groups on demand.
 
 ## On-demand group costs
 
@@ -31,7 +31,7 @@ Specialized tool groups are loaded via `discover_tools`. Each group adds a known
 | runtime_advanced | 3 | 2,218 | ~555 |
 | signals | 1 | 575 | ~144 |
 | animation_authoring | 4 | 4,017 | ~1,005 |
-| input_map | 2 | 1,420 | ~355 |
+| input_map | 3 | 3,293 | ~824 |
 | resource_io | 2 | 1,283 | ~321 |
 | asset_ops | 3 | 2,213 | ~554 |
 | placeholders | 2 | 3,220 | ~805 |
@@ -63,7 +63,7 @@ Group costs scale with the size and description length of the tools they carry; 
 
 - **Heaviest:** `particles_create` (~1,409 tokens) — a large parameter schema with many typed fields
 - **Lightest:** `audiobus_list` (~85 tokens) — parameterless, description only
-- **Average:** ~1,022 bytes (~256 tokens) per tool
+- **Average:** ~1,036 bytes (~259 tokens) per tool
 
 Tools with more parameters and detailed descriptions cost more tokens. Most descriptions stay under the 200-character limit (I2 invariant), with documented waivers for action-consolidated tools that document per-operation behavior.
 
