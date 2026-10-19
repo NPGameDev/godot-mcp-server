@@ -8,4 +8,4 @@
 
 > **VersionSeverity** = `"ok"` \| `"patch"` \| `"minor"` \| `"major"` \| `"unknown"`
 
-Defined in: [src/shared/version.ts:72](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L72)
+Defined in: [src/shared/version.ts:116](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L116)

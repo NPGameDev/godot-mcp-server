@@ -8,7 +8,7 @@
 
 > **Hook** = (`req`, `next`) => `Promise`\<[`ToolTextResult`](ToolTextResult.md)\>
 
-Defined in: [src/shared/types.ts:233](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L233)
+Defined in: [src/shared/types.ts:237](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L237)
 
 Middleware function that wraps tool dispatch.
 Call `next()` to continue the chain; return early to short-circuit.
