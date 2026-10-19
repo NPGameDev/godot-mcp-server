@@ -103,7 +103,7 @@ export const nodeTools: ToolDef[] = [
     name: "node_set_script",
     method: "node.set_script",
     description:
-      "Attach a script (.gd/.cs) to a node. Returns @export properties exposed by the script. Empty script_path string detaches.",
+      "Attach a script (.gd/.cs) to a node. A .gd changed on disk since the editor loaded it is reloaded first, for every node running it. Returns @export properties. Empty script_path string detaches.",
     inputSchema: {
       node_path: z.string(),
       script_path: z.string(),
