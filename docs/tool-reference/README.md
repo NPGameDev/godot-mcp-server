@@ -1240,7 +1240,7 @@ _1 operation._
 <!-- tool:scene_instantiate -->
 ### `scene_instantiate`
 
-Instantiate PackedScene at scene_path under parent_path. Single mode: silent-return on name collision. Batch mode: pass instances array to spawn N copies with transforms.  Single: scene_path: "res://coin.tscn", parent_path: ".", as_name: "Coin" Batch: scene_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200},properties:{coin_value:5}}, ...]
+Instantiate a scene at scene_path under parent_path: a .tscn or .scn, or a 3D model imported as a scene (.glb, .gltf, .dae...).Single mode: silent-return on name collision. Batch mode: pass instances array to spawn N copies with transforms.  Single: scene_path: "res://coin.tscn", parent_path: ".", as_name: "Coin" Batch: scene_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200},properties:{coin_value:5}}, ...]
 
 on-demand (group: `scene_advanced`)
 
