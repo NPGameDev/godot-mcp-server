@@ -8,7 +8,7 @@
 
 > **parseGodotVer**(`v`): [`GodotVer`](../type-aliases/GodotVer.md)
 
-Defined in: [src/shared/version.ts:42](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L42)
+Defined in: [src/shared/version.ts:86](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L86)
 
 Parse a "major.minor" or "major.minor.patch" string to a [major, minor] tuple.
 

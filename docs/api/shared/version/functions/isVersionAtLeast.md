@@ -8,7 +8,7 @@
 
 > **isVersionAtLeast**(`connected`, `min`): `boolean`
 
-Defined in: [src/shared/version.ts:54](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L54)
+Defined in: [src/shared/version.ts:98](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L98)
 
 Check whether a connected Godot version is >= the given minimum.
 

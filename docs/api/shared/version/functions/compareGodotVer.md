@@ -8,7 +8,7 @@
 
 > **compareGodotVer**(`a`, `b`): `number`
 
-Defined in: [src/shared/version.ts:48](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L48)
+Defined in: [src/shared/version.ts:92](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/version.ts#L92)
 
 Compare two GodotVer tuples. Returns negative/0/positive like strcmp.
 
