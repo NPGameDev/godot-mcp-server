@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   since the editor loaded it, so every node running the script gets the new code when
   the new source compiles. Otherwise the response carries `valid: false` and a hint that
   says so and points at `script_check`. The toolkit does the reload; with an older toolkit, `node_set_script` still sets the
-  version the editor loaded first. Thanks to @benfeather
+  version the editor loaded first, and so it does on Godot 4.2.0 and 4.2.1, where
+  reloading a script in place can crash the editor. Thanks to @benfeather
   ([#43](https://github.com/NPGameDev/godot-mcp-toolkit/issues/43),
   [#20](https://github.com/NPGameDev/godot-mcp-server/pull/20)).
 

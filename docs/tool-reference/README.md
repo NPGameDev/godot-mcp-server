@@ -177,7 +177,7 @@ _1 operation._
 <!-- tool:node_set_script -->
 ### `node_set_script`
 
-Attach a script (.gd/.cs) to a node. A .gd changed on disk since the editor loaded it is reloaded first, for every node running it. Returns @export properties. Empty script_path string detaches.
+Attach a script (.gd/.cs) to a node. On Godot 4.2.2+, a .gd changed on disk since it was loaded is reloaded first, for every node running it. Returns @export properties. Empty script_path detaches.
 
 **eager**
 
