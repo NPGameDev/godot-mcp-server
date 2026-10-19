@@ -52,16 +52,20 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
   // an existing extension's tools in-session diverges by editor version:
   //   • Godot 4.3+ : the edit is applied live (loader re-reads the script fresh via
   //                  CACHE_MODE_IGNORE and re-registers).
-  //   • Godot 4.2  : the edit is NOT applied in-session. Loading a freshly-edited
-  //                  @tool script fresh while the 4.2 editor is reimporting it
-  //                  crashes the editor (CACHE_MODE_IGNORE reimport reentrancy — see
-  //                  COMPATIBILITY.md / P-056), so the 4.2 loader reads through the
-  //                  editor cache (CACHE_MODE_REUSE) and cannot see the edit.
-  //                  extensions.refresh then returns a `hint` naming the extension and
-  //                  telling the user to restart the editor.
+  //   • Godot 4.2  : loading a freshly-edited @tool script fresh while the 4.2
+  //                  editor is reimporting it crashes the editor (CACHE_MODE_IGNORE
+  //                  reimport reentrancy — see COMPATIBILITY.md / P-056), so the 4.2
+  //                  loader reads through the editor cache (CACHE_MODE_REUSE). On
+  //                  4.2.2, an edit made with script.write or script.edit (or their
+  //                  undo/redo) reloads that cached script when it compiles, so it
+  //                  applies live. An edit made outside the toolkit, or to a C#
+  //                  extension, needs an editor restart, and so does every edit on
+  //                  4.2.0 and 4.2.1, where the toolkit reloads nothing in place (an
+  //                  in-place reload there can crash the editor); extensions.refresh
+  //                  names it in its `hint`.
   // The full live add/edit/remove lifecycle — including the 4.2 restart-nudge hint —
-  // is exercised by the interactive tool sweep (Section 24 E5), not here: this
-  // structural pass intentionally does not create extension scripts.
+  // is exercised by flow 01 and the interactive tool sweep (Section 24 E5), not here:
+  // this structural pass intentionally does not create extension scripts.
 
   // ── Reserved namespace rejection ─────────────────────────────────────
   // Verify that the extensions endpoint doesn't list any commands under
