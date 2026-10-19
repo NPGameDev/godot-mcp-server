@@ -113,6 +113,10 @@ function hasStaleHint(r: { hint?: string }): boolean {
 function hasHeadlessStaleHint(r: { hint?: string }): boolean {
   return typeof r?.hint === "string" && r.hint.includes(HEADLESS_STALE_MARKER);
 }
+// Either stale wording: a no-hint check must hold in every editor mode.
+function hasAnyStaleHint(r: { hint?: string }): boolean {
+  return hasStaleHint(r) || hasHeadlessStaleHint(r);
+}
 
 async function writeScript(ctx: TestCtx, path: string, content: string): Promise<WriteResult> {
   return (await ctx.bridge.call("script.write", { file_path: path, content }, CALL_TIMEOUT)) as WriteResult;
@@ -190,7 +194,7 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
       fail(`A SETUP: script.write v1 failed: ${JSON.stringify(aCreate)}`);
     } else {
       // A create carries NO stale hint.
-      if (!hasStaleHint(aCreate)) pass(`A: create (new file) → no stale hint`);
+      if (!hasAnyStaleHint(aCreate)) pass(`A: create (new file) → no stale hint`);
       else fail(`A: create wrongly carried a stale hint: ${aCreate.hint}`);
 
       await settleScan(ctx);
@@ -209,7 +213,7 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           // Reactive no-false-positive: a method absent EVERYWHERE (typo) → plain
           // INVALID_METHOD, NO stale hint.
           const typo = await callMethod(ctx, node, "flow_never_added");
-          if (typo?.success === false && typo.code === "INVALID_METHOD" && !hasStaleHint(typo))
+          if (typo?.success === false && typo.code === "INVALID_METHOD" && !hasAnyStaleHint(typo))
             pass(`A reactive: genuine typo -> INVALID_METHOD with NO stale hint`);
           else fail(`A reactive: typo expected INVALID_METHOD w/o stale hint, got ${JSON.stringify(typo)}`);
 
@@ -218,7 +222,7 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           if (aEdit?.success !== true) {
             fail(`A EDIT: script.write v2 failed: ${JSON.stringify(aEdit)}`);
           } else {
-            if (!hasStaleHint(aEdit)) pass(`A: existing-edit write has NO stale hint on ${verTag}`);
+            if (!hasAnyStaleHint(aEdit)) pass(`A: existing-edit write has NO stale hint on ${verTag}`);
             else fail(`A: existing-edit write wrongly carried a stale hint on ${verTag}: ${aEdit.hint}`);
 
             // The write reloaded the cached script, so the live instance has the new method.
@@ -317,7 +321,7 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
         else fail(`C: compile-gate ANOMALY (${cVerdict})`);
         // A compile-FAILED existing-edit carries NO stale hint: the diagnostics are the
         // right signal.
-        if (!hasStaleHint(wBad)) pass(`C: compile-failed write carries no stale hint`);
+        if (!hasAnyStaleHint(wBad)) pass(`C: compile-failed write carries no stale hint`);
         else fail(`C: compile-failed write wrongly carried a stale hint: ${wBad.hint}`);
       }
     }
