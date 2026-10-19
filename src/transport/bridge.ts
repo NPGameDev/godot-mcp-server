@@ -60,6 +60,11 @@ export interface BridgeOptions {
    *  pushed value applies only to connections accepted after the push, not to the
    *  one that pushed it. When unset, the push carries no override for this limit. */
   wsBufferLimitBytes?: number;
+  /** When true, every editor channel, re-discovered ones included, skips the
+   *  connect-time version check: no product-version line and no floor line. Set for
+   *  a local server build (`GODOT_MCP_SKIP_VERSION_CHECK=1`). The runtime channel
+   *  always skips it. */
+  skipVersionCheck?: boolean;
 }
 
 /**
@@ -157,7 +162,8 @@ export function createBridge(
   }
 
   const getNotificationHandler = () => notificationHandler;
-  let editor = createChannel(editorUrl, projectPath, onEditorAuth, getNotificationHandler);
+  const editorChannelOpts = { skipVersionCheck: opts?.skipVersionCheck ?? false };
+  let editor = createChannel(editorUrl, projectPath, onEditorAuth, getNotificationHandler, editorChannelOpts);
   let cachedEditorPort = Number(new URL(editorUrl).port);
 
   // ── Editor-port re-discovery ─────────────────────────────────────
@@ -183,7 +189,13 @@ export function createBridge(
     const oldPort = cachedEditorPort;
     cachedEditorPort = entry.port;
     await editor.close();
-    editor = createChannel(`ws://127.0.0.1:${cachedEditorPort}`, projectPath, onEditorAuth, getNotificationHandler);
+    editor = createChannel(
+      `ws://127.0.0.1:${cachedEditorPort}`,
+      projectPath,
+      onEditorAuth,
+      getNotificationHandler,
+      editorChannelOpts,
+    );
     process.stderr.write(`[bridge] editor port changed ${oldPort} → ${cachedEditorPort}\n`);
     return true;
   }

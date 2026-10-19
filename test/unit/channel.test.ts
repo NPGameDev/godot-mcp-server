@@ -844,6 +844,18 @@ async function testBelowFloorLines() {
     },
     { skipVersionCheck: true },
   );
+
+  // 13f — the below-the-toolkit's-floor line names the routes that change what a config
+  // launches: the dock's pin and the client config. A global install changes neither.
+  await runCase({ authed: true, godot_version: "4.5", version: serverVer, min_server: `${major + 1}.0` }, (out) => {
+    const line = out.split("\n").find((l) => l.includes(BELOW_TOOLKIT_FLOOR)) ?? "";
+    assert.ok(
+      line.includes("Pin the recommended server from the toolkit dock's .mcp.json panel"),
+      "the line names the dock's pin",
+    );
+    assert.ok(line.includes("set the server version in your MCP client's config"), "the line names the client config");
+    assert.ok(!line.includes("npm install"), "the line suggests no global install");
+  });
   console.log("  PASS: a below-floor peer gets one floor line in place of the version line");
 }
 

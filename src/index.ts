@@ -49,12 +49,16 @@ const projectPath = resolveProjectPath(process.env, process.cwd());
 const ports = resolvePortConfigOrExit(cli, projectPath); // invalid pin → exit 1
 logResolvedPortConfig(ports);
 const caps = startupEnv.resolveResponseCaps();
+const skipVersionCheck = startupEnv.resolveSkipVersionCheck();
 
 // Feed the CLI LSP override into the lazy per-connect LSP resolution (CLI wins
 // over env there; env stays live so a config reload can still change it).
 setLspOverride({ port: cli.lspPort, host: cli.lspHost });
 
-const bridge = createBridge(`ws://127.0.0.1:${ports.editorPort}`, buildBridgeOptions(projectPath, ports, caps));
+const bridge = createBridge(
+  `ws://127.0.0.1:${ports.editorPort}`,
+  buildBridgeOptions(projectPath, ports, caps, skipVersionCheck),
+);
 
 // LSP status reporter — pushes the GDScript-LSP verdict to the editor dock,
 // de-duped (the server computes the verdict; the editor has no engine API to

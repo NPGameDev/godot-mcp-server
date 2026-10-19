@@ -162,6 +162,23 @@ export function resolveResponseCaps(): ResponseCaps {
   };
 }
 
+// ── Version-check opt-out ────────────────────────────────────────────
+
+/**
+ * Resolve the version-check opt-out from `GODOT_MCP_SKIP_VERSION_CHECK`. The toolkit
+ * writes it into a `.mcp.json` entry it builds from a local server path, where the
+ * build's version says nothing about its wire contract, so a version line would only
+ * mislead. Only `"1"` turns the check off; when it does, one stderr line says so.
+ *
+ * @returns `true` when the editor connection should skip its version check, floor
+ *   lines included
+ */
+export function resolveSkipVersionCheck(): boolean {
+  if (process.env.GODOT_MCP_SKIP_VERSION_CHECK !== "1") return false;
+  process.stderr.write("[bridge] version check skipped (GODOT_MCP_SKIP_VERSION_CHECK)\n");
+  return true;
+}
+
 // ── Config version check ─────────────────────────────────────────────
 
 const EXPECTED_CONFIG_VERSION = 1;
