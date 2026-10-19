@@ -19,8 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `rename` now returns its own hint; rename's reminds the agent that scripts and scenes
   keep the old name. Needs the toolkit release that adds the `rename` handler; an older
   toolkit answers `INVALID_PARAMS`. Thanks to @benfeather
-  ([#18](https://github.com/NPGameDev/godot-mcp-toolkit/issues/18),
+  ([NPGameDev/godot-mcp-toolkit#18](https://github.com/NPGameDev/godot-mcp-toolkit/issues/18),
   [#15](https://github.com/NPGameDev/godot-mcp-server/pull/15)).
+- `script_edit` declares an optional `edits` array of `old_string`/`new_string`/`replace_all`
+  objects. The toolkit applies them in order in one call and writes nothing if one fails.
+  `old_string` and `new_string` are now optional, so a call can pass `edits` alone. Needs the
+  toolkit release that handles `edits`; an older toolkit answers `INVALID_PARAMS`. Thanks to
+  @benfeather ([NPGameDev/godot-mcp-toolkit#44](https://github.com/NPGameDev/godot-mcp-toolkit/issues/44),
+  [#19](https://github.com/NPGameDev/godot-mcp-server/pull/19)).
+
+### Changed
+
+- `scene_instantiate`'s description now names the files it takes: a `.tscn` or `.scn`,
+  or a 3D model imported as a scene (`.glb`, `.gltf`, `.dae`...). A toolkit before 1.1.0
+  still refuses every file but a `.tscn`
+  ([#39](https://github.com/NPGameDev/godot-mcp-toolkit/issues/39)).
 
 ### Fixed
 

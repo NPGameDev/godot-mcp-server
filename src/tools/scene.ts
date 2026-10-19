@@ -89,7 +89,8 @@ export const sceneTools: ToolDef[] = [
     name: "scene_instantiate",
     method: "scene.instantiate",
     description:
-      "Instantiate PackedScene at scene_path under parent_path. Single mode: silent-return on name collision. " +
+      "Instantiate a scene at scene_path under parent_path: a .tscn or .scn, or a 3D model imported as a scene (.glb, .gltf, .dae...)." +
+      "Single mode: silent-return on name collision. " +
       "Batch mode: pass instances array to spawn N copies with transforms.\n\n" +
       'Single: scene_path: "res://coin.tscn", parent_path: ".", as_name: "Coin"\n' +
       'Batch: scene_path: "res://coin.tscn", parent_path: ".", instances: [{name:"Coin1",position:{x:100,y:200},properties:{coin_value:5}}, ...]',
