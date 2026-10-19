@@ -1,7 +1,7 @@
 import type { TestCtx } from "../helpers.js";
-import { CALL_TIMEOUT, assertGuard } from "../helpers.js";
+import { CALL_TIMEOUT, assertGuard, unwrapUntrusted } from "../helpers.js";
 
-export const TOOLS_TESTED: string[] = ["input_map_action", "input_map_event"];
+export const TOOLS_TESTED: string[] = ["input_map_action", "input_map_event", "project_get_settings"];
 
 export async function testInputMap(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -132,6 +132,8 @@ export async function testInputMap(ctx: TestCtx): Promise<void> {
     "non-empty",
   );
 
+  await testBuiltinBindKeepsJoypadDefaults(ctx);
+
   // Rename keeps the action's events: the joypad_button bound above unbinds under the new name.
   const renamedAction = `${smokeAction}_renamed`;
   const renameResult = (await bridge.call(
@@ -206,4 +208,50 @@ export async function testInputMap(ctx: TestCtx): Promise<void> {
     /* noop */
   }
   pass(`input_map.* round-trip + guards complete`);
+}
+
+/**
+ * A bind on a built-in action keeps the joypad events of its default: the toolkit writes
+ * back the `input/<name>` setting, never the editor's InputMap, which holds only the keys.
+ * `ui_left` is used because its default holds a joypad button and a joypad motion, while
+ * `ui_accept`'s holds keys only. The unbind runs in `finally`, so the action's setting goes
+ * back to its default and project.godot keeps no line for it.
+ */
+async function testBuiltinBindKeepsJoypadDefaults(ctx: TestCtx): Promise<void> {
+  const { bridge, pass, fail } = ctx;
+  const builtinAction = "ui_left";
+  const smokeKey = { type: "key", keycode: "F9" };
+  const eventClasses = async (): Promise<string[] | undefined> => {
+    const result = (await bridge.call("project.get_settings", { prefix: `input/${builtinAction}` }, CALL_TIMEOUT)) as {
+      settings?: unknown;
+    };
+    const settings = (unwrapUntrusted(result?.settings) ?? {}) as Record<string, { events?: { class?: string }[] }>;
+    return settings[`input/${builtinAction}`]?.events?.map((event) => event.class ?? "?");
+  };
+
+  // Orphan pre-clean: a run that stopped before its unbind left the key bound.
+  await bridge.call("input_map.event", { action: "unbind", name: builtinAction, event: smokeKey }, CALL_TIMEOUT);
+  const classesBefore = await eventClasses();
+  try {
+    const bind = (await bridge.call(
+      "input_map.event",
+      { action: "bind", name: builtinAction, event: smokeKey },
+      CALL_TIMEOUT,
+    )) as { status?: string };
+    const classesAfterBind = await eventClasses();
+    if (bind?.status !== "created") fail(`input_map.event bind F9 on ${builtinAction}: ${JSON.stringify(bind)}`);
+    else if (!classesAfterBind?.includes("InputEventJoypadButton"))
+      fail(
+        `input_map.event bind F9 on ${builtinAction}: the saved events lost the default's joypad button: ${JSON.stringify(classesAfterBind)}`,
+      );
+    else pass(`input_map.event bind F9 on ${builtinAction} -> its default's joypad events stay saved`);
+  } finally {
+    await bridge.call("input_map.event", { action: "unbind", name: builtinAction, event: smokeKey }, CALL_TIMEOUT);
+  }
+  const classesAfterUnbind = await eventClasses();
+  if (JSON.stringify(classesAfterUnbind) !== JSON.stringify(classesBefore))
+    fail(
+      `input_map.event unbind F9 on ${builtinAction}: expected the default's events ${JSON.stringify(classesBefore)}, got ${JSON.stringify(classesAfterUnbind)}`,
+    );
+  else pass(`input_map.event unbind F9 on ${builtinAction} -> the setting holds its default's events again`);
 }
