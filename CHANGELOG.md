@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([#18](https://github.com/NPGameDev/godot-mcp-toolkit/issues/18),
   [#15](https://github.com/NPGameDev/godot-mcp-server/pull/15)).
 
+### Changed
+
+- `scene_instantiate`'s description now names the files it takes: a `.tscn` or `.scn`,
+  or a 3D model imported as a scene (`.glb`, `.gltf`, `.dae`...). A toolkit before 1.1.0
+  still refuses every file but a `.tscn`
+  ([#39](https://github.com/NPGameDev/godot-mcp-toolkit/issues/39)).
+
 ## [1.0.4] - 2026-10-14
 
 ### Security
