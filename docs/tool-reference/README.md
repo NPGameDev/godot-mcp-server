@@ -8,7 +8,7 @@ nav_order: 3
 
 Generated from the tool catalogue (`src/registration/catalogue.ts`) — regenerate with `npm run docs:tools`. This is the per-tool **reference**; for the subsystem **explanation** see [Architecture](../architecture/README.md).
 
-**112 built-in tools** exposing **161 operations** — an action-consolidated tool packs several operations behind one discriminator, so the operation count runs ahead of the tool count. Counts are a ceiling ("up to"); some tools and operations are Godot-version-gated and absent on older editors.
+**113 built-in tools** exposing **163 operations** — an action-consolidated tool packs several operations behind one discriminator, so the operation count runs ahead of the tool count. Counts are a ceiling ("up to"); some tools and operations are Godot-version-gated and absent on older editors.
 
 ## Startup surface (eager)
 
@@ -820,20 +820,37 @@ _1 operation._
 
 List, create, and edit input actions and their key/controller bindings
 
-_2 tools, 5 operations._
+_3 tools, 7 operations._
+
+<!-- tool:input_map_list -->
+### `input_map_list`
+
+List input actions and their events (read-only). Without name: project actions plus the built-ins that differ from their default; include_builtin adds the unchanged ones. Returns {actions, count}; an entry has name, source ('builtin' or 'project'), deadzone, events and can_revert. can_revert follows the editor's revert arrow: a built-in differs when its deadzone, its event count or the event at any position differs (order counts, device and mouse pressed do not), and default then holds the default deadzone and events. A dotted name such as jump.macos is a feature override: feature is the part after the first dot, and the entry applies only where OS.has_feature(tag) holds, so jump.editor replaces jump inside the editor. revert refuses a built-in's feature entry for now, even when can_revert is true. Events pass back to input_map_event as they are.
+
+on-demand (group: `input_map`) · read-only
+
+_1 operation._
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `include_builtin` | boolean | no | Also list the unchanged built-in actions (default false) |
+| `name` | string | no | Exact action name, built-in or not; an unknown name is NOT_FOUND |
+
+<!-- examples:start -->
+<!-- examples:end -->
 
 <!-- tool:input_map_action -->
 ### `input_map_action`
 
-Add, remove or rename an InputMap action. action: the operation. name: the action (e.g. 'jump'). 'add' is idempotent, optional deadzone; 'rename' needs new_name and keeps events and deadzone.
+Add, remove, rename or revert an InputMap action. name: the action (e.g. 'jump'). 'add' is idempotent, optional deadzone; 'rename' needs new_name; 'revert' puts a built-in back to its default.
 
 on-demand (group: `input_map`)
 
-**3 operations** (`action`): `add`, `remove`, `rename`
+**4 operations** (`action`): `add`, `remove`, `rename`, `revert`
 
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
-| `action` | enum | yes |  |
+| `action` | enum | yes | 'revert' also removes a project.godot line that only matches the default's content, and answers the input_map_list entry with status 'reverted', or 'returned' when there was no line to remove |
 | `deadzone` | number | no |  |
 | `name` | string | yes |  |
 | `new_name` | string | no |  |
@@ -858,7 +875,7 @@ Scripts and scenes that use the old name keep it; rename them yourself.
 <!-- tool:input_map_event -->
 ### `input_map_event`
 
-Bind/unbind an input event to an action. action: 'bind' or 'unbind' (the operation). event: object — {type:'key', keycode:'Space'}, {type:'mouse_button', button_index:1}, {type:'joypad_button', button_index:0}, {type:'joypad_motion', axis:0, axis_value:1.0}. action='bind' is idempotent.
+Bind or unbind an input event on an action. action: 'bind' (idempotent) or 'unbind'. event: {type:'key', keycode:'Space'}, {type:'mouse_button', button_index:1}, {type:'joypad_button', button_index:0}, {type:'joypad_motion', axis:0, axis_value:1.0}. A key takes key_kind ('physical_keycode' default, 'keycode', 'key_label'), location (1 left, 2 right; Godot 4.3+), shift, ctrl, alt, meta and command_or_control (Ctrl, or Cmd on macOS; ctrl and meta are then ignored). Every event takes device; an unbind without one matches any device. An event read from input_map_list passes back as it is. warnings lists the fields that were ignored.
 
 on-demand (group: `input_map`)
 

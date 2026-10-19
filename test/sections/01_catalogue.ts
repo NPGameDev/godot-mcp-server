@@ -43,7 +43,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   // Tool count — the complete canonical catalogue (ALL_TOOL_DEFS). Bump this
   // when tools are added/removed; `godot-mcp-server --tools-count` prints the
   // live value.
-  const expectedToolCount = 112;
+  const expectedToolCount = 113;
   const allTools = getAllToolDefs();
   if (allTools.length !== expectedToolCount) fail(`tool count: expected ${expectedToolCount}, got ${allTools.length}`);
   else pass(`tool count == ${expectedToolCount}`);
@@ -123,6 +123,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
     // Offset pagination guidance — the offset/limit/returned/total_matches/has_more/next_offset
     // envelope plus the between-pages mutation caveat must be spelled out (mirrors save_read).
     "scene_query",
+    // The list's entry fields, the editor's revert-arrow rule behind can_revert and the
+    // dotted feature-override rule must be spelled out for the agent — past 200 chars.
+    "input_map_list",
   ]);
   for (const t of allTools) {
     if (descWaivers.has(t.name)) continue;
@@ -132,9 +135,9 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
 
   // Readonly tool count canary — catches accidental annotation drift.
   // Count tools with readOnlyHint=true across the full canonical catalogue.
-  // 39 readonly tools across the full canonical catalogue; update the canary
+  // 40 readonly tools across the full canonical catalogue; update the canary
   // deliberately when a readonly tool is added or an annotation changes.
-  const expectedReadonly = 39;
+  const expectedReadonly = 40;
   const readonlyCount = allTools.filter((t: ToolDef) => t.annotations?.readOnlyHint === true).length;
   if (readonlyCount !== expectedReadonly) fail(`readonly count: expected ${expectedReadonly}, got ${readonlyCount}`);
   else pass(`readonly count == ${expectedReadonly} (readOnlyHint canary)`);
@@ -161,7 +164,7 @@ export function testCatalogueStatic(ctx: { pass: (msg: string) => void; fail: (m
   // Operation grand-total canary — the built-in operation count. Bump this
   // deliberately when a discriminator enum gains/loses a value; the same
   // derivation drives `godot-mcp-server --tools-count` and the tool-reference.
-  const expectedOperations = 161;
+  const expectedOperations = 163;
   const operationCount = countBuiltinOperations(allTools);
   if (operationCount !== expectedOperations)
     fail(`operation count: expected ${expectedOperations}, got ${operationCount}`);
