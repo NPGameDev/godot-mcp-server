@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   toolkit floor, 1.0) and reads the toolkit's `min_server`. When either side is below the
   other's floor, the connect-time message says which side to update and how. The existing
   version messages are unchanged, and none of them refuses the connection.
+- `GODOT_MCP_SKIP_VERSION_CHECK=1` turns the connect-time version check off, floor messages
+  included, and the server prints one line saying so. The toolkit writes it into the
+  `.mcp.json` entry it builds for a local server build, whose version says nothing about
+  what it supports.
 - `input_map_action` has a `rename` action. `{"action": "rename", "name": "old",
   "new_name": "new"}` moves a project input action to the new name with its events and
   deadzone, and the response gives the old name as `old_name`. Each of `add`, `remove` and

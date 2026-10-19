@@ -204,6 +204,7 @@ Everything works with zero configuration; the registry handles discovery. The va
 | `GODOT_MCP_RATE_LIMIT` | `0` | Max tool calls per second (`0` = unlimited) |
 | `GODOT_MCP_SCRIPT_READ_LIMIT` | the project's setting | Overrides the editor's cap on script-read responses, in bytes (minimum 65536) |
 | `GODOT_MCP_WS_BUFFER_LIMIT` | the project's setting | Overrides the editor's per-connection WebSocket buffer size, in bytes (minimum 262144). Applies to connections the editor accepts after the server pushes it, so it takes effect from the next connection |
+| `GODOT_MCP_SKIP_VERSION_CHECK` | unset | Set to `1` to turn off the connect-time version check, floor messages included; the server prints one line saying so. The plugin writes it into an entry it builds for a local server build |
 | `GODOT_MCP_CONFIG_VERSION` | written by the plugin | Config-schema version stamp in `.mcp.json`; the server warns on stderr if it is missing or does not match |
 
 ### CLI flags

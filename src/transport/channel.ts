@@ -79,9 +79,12 @@ export function createChannel(
 ): Channel {
   const noReconnect = opts?.noReconnect ?? false;
   const connectTimeout = opts?.connectTimeoutMs ?? 30_000;
-  // Skip the server/toolkit version-compat check on the runtime channel — the
-  // editor connection runs the authoritative check, and the runtime auth ack
-  // carries no version, so re-checking only false-warns about the same plugin.
+  // Skip the server/toolkit version-compat check, floor lines included. The
+  // runtime channel always skips it: the editor connection runs the
+  // authoritative check, and the runtime auth ack carries no version, so
+  // re-checking only false-warns about the same plugin. The editor channel skips
+  // it only for a local server build, whose version says nothing about its wire
+  // contract.
   const skipVersionCheck = opts?.skipVersionCheck ?? false;
   const pending = new Map<string, Pending>();
   const openWaiters = new Set<Waiter>();
@@ -192,7 +195,7 @@ export function createChannel(
           );
         } else if (authResp.minServer != null && checkFloor(serverVer, authResp.minServer) === "below") {
           process.stderr.write(
-            `[bridge] ERROR: server ${serverVer} is below the toolkit's floor (server >= ${authResp.minServer}). Pin the recommended server from the toolkit dock's .mcp.json panel, or run: npm install -g @npgamedev/godot-mcp-server@latest.\n`,
+            `[bridge] ERROR: server ${serverVer} is below the toolkit's floor (server >= ${authResp.minServer}). Pin the recommended server from the toolkit dock's .mcp.json panel, or set the server version in your MCP client's config.\n`,
           );
         } else {
           const severity = compareVersions(serverVer, authResp.toolkitVersion);
