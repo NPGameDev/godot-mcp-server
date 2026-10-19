@@ -33,6 +33,12 @@
 // headless); a genuine typo (method absent on disk) gets NO stale hint. No script.write
 // response carries a stale hint.
 //
+// Godot 4.2.0 and 4.2.1 are the exception: there an in-place reload can crash the
+// editor, so the toolkit reloads nothing. A, B, D and E stay STALE through the write,
+// editor.refresh and node.set_script alike; an existing-edit write that compiles
+// carries the stale hint, and both stale hints say to relaunch; node.set_script on C's
+// broken file just sets the version the editor has (no valid:false).
+//
 // These are PERMANENT assertions: if a future Godot moves the 4.3→4.4 boundary, the
 // per-version branch flips and these fail, flagging the change. The MATRIX line is
 // also emitted for human diagnosis. Operates on Main.tscn without saving; probe
@@ -42,7 +48,7 @@
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT } from "../helpers.js";
 import { isVersionAtLeast } from "../../src/shared/version.js";
-import { FLOW_PROBE_DIR, ensureProbeDir, cleanupProbeDir } from "./_shared.js";
+import { FLOW_PROBE_DIR, ensureProbeDir, cleanupProbeDir, toolkitSkipsReload } from "./_shared.js";
 
 export const TOOLS_TESTED: string[] = ["node_call_method", "node_set_script", "script_write"];
 
@@ -58,6 +64,10 @@ const HEADLESS_STALE_MARKER = "don't re-instantiate live nodes";
 
 // Distinctive substring of node.set_script's hint when the compile gate refuses the file.
 const REFUSED_MARKER = "was not loaded";
+
+// Distinctive substring of the relaunch form of the < 4.4 stale hint, the one Godot 4.2.0
+// and 4.2.1 get, where node.set_script does not reload either.
+const RELAUNCH_MARKER = "on Godot 4.2.0 and 4.2.1";
 
 const A_SCRIPT = `${FLOW_PROBE_DIR}/flow_hot_probe.gd`;
 const B_SCRIPT = `${FLOW_PROBE_DIR}/flow_body_probe.gd`;
@@ -117,6 +127,9 @@ function hasHeadlessStaleHint(r: { hint?: string }): boolean {
 function hasAnyStaleHint(r: { hint?: string }): boolean {
   return hasStaleHint(r) || hasHeadlessStaleHint(r);
 }
+function hasRelaunchStaleHint(r: { hint?: string }): boolean {
+  return hasStaleHint(r) && r.hint?.includes(RELAUNCH_MARKER) === true;
+}
 
 async function writeScript(ctx: TestCtx, path: string, content: string): Promise<WriteResult> {
   return (await ctx.bridge.call("script.write", { file_path: path, content }, CALL_TIMEOUT)) as WriteResult;
@@ -163,7 +176,6 @@ async function refresh(ctx: TestCtx): Promise<void> {
 
 export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
-  const ver = bridge.getGodotVersionString() ?? "unknown";
   const verPair = bridge.getGodotVersion();
   if (!verPair) {
     fail(`hot-reload: editor did not report a Godot version — cannot assert version-gated behaviour`);
@@ -174,12 +186,16 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
   // Clean slate so the first write of each probe is a genuine CREATE.
   await cleanupProbeDir(ctx);
   await ensureProbeDir(ctx);
-  // Editor display mode from the auth handshake (resolved by the calls above). It matters
+  // The full version (with its patch) and the editor display mode come from the auth
+  // handshake, resolved by the calls above. Before it, the version may be a bare
+  // major.minor. The display mode matters
   // only for scenario E, the file changed outside the toolkit: a 4.4+ display editor may
   // reload it on a focus scan (a race), a 4.4+ headless one never does, and < 4.4
   // (pre-NodeCache) never does in either mode.
   const headless = bridge.isHeadless() === true;
-  const verTag = `${ver} ${pre44 ? "(<4.4)" : headless ? "(4.4+ headless)" : "(4.4+ display)"}`;
+  const ver = bridge.getGodotVersionString() ?? "unknown";
+  const noReload = toolkitSkipsReload(ctx);
+  const verTag = `${ver} ${noReload ? "(4.2.0/4.2.1, no reload)" : pre44 ? "(<4.4)" : headless ? "(4.4+ headless)" : "(4.4+ display)"}`;
   const createdNodes: string[] = [];
   let aVerdict = "?";
   let bVerdict = "?";
@@ -221,6 +237,30 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           const aEdit = await writeScript(ctx, A_SCRIPT, A_V2);
           if (aEdit?.success !== true) {
             fail(`A EDIT: script.write v2 failed: ${JSON.stringify(aEdit)}`);
+          } else if (noReload) {
+            // 4.2.0/4.2.1: nothing reloads, so the write says to relaunch and the node stays stale.
+            if (hasRelaunchStaleHint(aEdit))
+              pass(`A: existing-edit write carries the relaunch stale hint on ${verTag}`);
+            else
+              fail(`A: expected the relaunch stale hint on the write on ${verTag}, got ${JSON.stringify(aEdit.hint)}`);
+
+            const after = await callMethod(ctx, node, "flow_added_method");
+            aVerdict = after?.success === true ? "REACHABLE" : `STALE(${after?.code ?? "?"})`;
+            if (after?.success === false && after.code === "INVALID_METHOD" && hasRelaunchStaleHint(after))
+              pass(`A: added-method STALE + relaunch stale hint on ${verTag}`);
+            else fail(`A: expected STALE + relaunch stale hint on ${verTag}, got ${JSON.stringify(after)}`);
+
+            await refresh(ctx);
+            await settleScan(ctx);
+            const afterRefresh = await callMethod(ctx, node, "flow_added_method");
+            await attach(ctx, node, A_SCRIPT);
+            const afterRebind = await callMethod(ctx, node, "flow_added_method");
+            if (afterRefresh?.code === "INVALID_METHOD" && afterRebind?.code === "INVALID_METHOD")
+              pass(`A: refresh and rebind stay STALE (INVALID_METHOD) on ${verTag}`);
+            else
+              fail(
+                `A recovery mismatch on ${verTag}: refresh=${JSON.stringify(afterRefresh)} rebind=${JSON.stringify(afterRebind)}`,
+              );
           } else {
             if (!hasAnyStaleHint(aEdit)) pass(`A: existing-edit write has NO stale hint on ${verTag}`);
             else fail(`A: existing-edit write wrongly carried a stale hint on ${verTag}: ${aEdit.hint}`);
@@ -262,11 +302,14 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
         else fail(`B invariant: flow_body expected "b1", got ${JSON.stringify(v1)}`);
 
         await writeScript(ctx, B_SCRIPT, B_V2); // body-only edit (same signature)
-        // The write reloaded the cached script, so the live instance runs the new body.
+        // The write reloaded the cached script, so the live instance runs the new body;
+        // on 4.2.0/4.2.1 nothing reloaded, so it silently runs the old one.
         const after = await callMethod(ctx, node, "flow_body");
         bVerdict = after?.success === true ? String(after.result) : `ERR(${after?.code ?? "?"})`;
-        if (after?.success === true && after.result === "b2") pass(`B: body-edit live -> "b2" on ${verTag}`);
-        else fail(`B: expected "b2" on ${verTag}, got ${JSON.stringify(after)}`);
+        const expectedBody = noReload ? "b1" : "b2";
+        if (after?.success === true && after.result === expectedBody)
+          pass(`B: body-edit -> "${expectedBody}" on ${verTag}`);
+        else fail(`B: expected "${expectedBody}" on ${verTag}, got ${JSON.stringify(after)}`);
       }
     }
 
@@ -300,7 +343,12 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           if (live?.success === true && live.result === 1)
             pass(`C: live node keeps the valid version after the broken write on ${verTag}`);
           else fail(`C: expected flow_ok() -> 1 after the broken write on ${verTag}, got ${JSON.stringify(live)}`);
-          if (refused) pass(`C: node.set_script refuses the broken file (valid:false + hint) on ${verTag}`);
+          if (noReload) {
+            // No reload is attempted, so nothing is refused: the node takes the version the editor has.
+            if (reSet?.success === true && reSet.valid === undefined && reSet.hint === undefined)
+              pass(`C: node.set_script sets the editor's version with no reload verdict on ${verTag}`);
+            else fail(`C: expected a plain node.set_script success on ${verTag}, got ${JSON.stringify(reSet)}`);
+          } else if (refused) pass(`C: node.set_script refuses the broken file (valid:false + hint) on ${verTag}`);
           else
             fail(
               `C: node.set_script expected valid:false + "${REFUSED_MARKER}" hint on ${verTag}, got ${JSON.stringify(reSet)}`,
@@ -350,9 +398,13 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           await attach(ctx, node2, D_SCRIPT);
           const b2 = await callMethod(ctx, node2, "fresh_b");
           dVerdict = b2?.success === true ? "fresh REACHABLE" : `fresh STALE(${b2?.code ?? "?"})`;
-          // Every version: node.set_script reloads the changed script, so the fresh node runs the
-          // edit and the old method still works.
-          if (b2?.success === true && b2.result === "b") pass(`D: FRESH node REACHABLE on ${verTag}`);
+          // node.set_script reloads the changed script, so the fresh node runs the edit and the
+          // old method still works; on 4.2.0/4.2.1 it does not reload, so the fresh node is stale.
+          if (noReload) {
+            if (b2?.success === false && b2.code === "INVALID_METHOD")
+              pass(`D: FRESH node STALE (INVALID_METHOD) on ${verTag}`);
+            else fail(`D: expected fresh-node STALE on ${verTag}, got ${JSON.stringify(b2)}`);
+          } else if (b2?.success === true && b2.result === "b") pass(`D: FRESH node REACHABLE on ${verTag}`);
           else fail(`D: expected fresh-node REACHABLE on ${verTag}, got ${JSON.stringify(b2)}`);
           const a2 = await callMethod(ctx, node2, "fresh_a");
           if (a2?.success === true && a2.result === "a") pass(`D: fresh node2 keeps the old method`);
@@ -385,7 +437,10 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
           const after = await callMethod(ctx, node, "outside_b");
           eVerdict = after?.success === true ? "REACHABLE" : `STALE(${after?.code ?? "?"})`;
           const stale = after?.success === false && after.code === "INVALID_METHOD";
-          if (pre44) {
+          if (noReload) {
+            if (stale && hasRelaunchStaleHint(after)) pass(`E: outside edit STALE + relaunch stale hint on ${verTag}`);
+            else fail(`E: expected STALE + relaunch stale hint on ${verTag}, got ${JSON.stringify(after)}`);
+          } else if (pre44) {
             if (stale && hasStaleHint(after)) pass(`E: <4.4 outside edit STALE + reactive stale hint`);
             else fail(`E: <4.4 expected STALE + stale hint, got ${JSON.stringify(after)}`);
           } else if (headless) {
@@ -402,10 +457,14 @@ export async function testHotReloadReachability(ctx: TestCtx): Promise<void> {
               fail(`E: 4.4+ display expected REACHABLE or INVALID_METHOD w/o stale hint, got ${JSON.stringify(after)}`);
           }
 
-          // Setting the script again reloads the changed file on every version.
+          // Setting the script again reloads the changed file, except on 4.2.0/4.2.1.
           await attach(ctx, node, E_SCRIPT);
           const afterRebind = await callMethod(ctx, node, "outside_b");
-          if (afterRebind?.success === true && afterRebind.result === "b")
+          if (noReload) {
+            if (afterRebind?.success === false && afterRebind.code === "INVALID_METHOD")
+              pass(`E: re-set_script stays STALE on ${verTag}`);
+            else fail(`E: expected re-set_script to stay STALE on ${verTag}, got ${JSON.stringify(afterRebind)}`);
+          } else if (afterRebind?.success === true && afterRebind.result === "b")
             pass(`E: re-set_script recovers the outside edit on ${verTag}`);
           else fail(`E: expected re-set_script to recover outside_b() -> b, got ${JSON.stringify(afterRebind)}`);
         }

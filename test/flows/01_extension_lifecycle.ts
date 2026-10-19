@@ -13,17 +13,20 @@
 // script.*, and the registered extension methods) — NOT the server-side
 // discover_tools/group layer (that is smoke §39 + server unit tests).
 //
-// Version branch: create→discovered and remove→gone are uniform
-// across all supported versions; only update-existing-in-session branches —
-// 4.3+ applies the edit live, 4.2 defers it with a restart hint (the
-// CACHE_MODE_REUSE gate). The 4.2 assertion here also regression-guards
-// that fix.
+// Version branch: create→discovered and remove→gone are uniform across all
+// supported versions. A toolkit write that compiles reloads the editor's cached
+// script, so the update applies live even on 4.2.2, where the extension loader
+// reads that cached script (the CACHE_MODE_REUSE gate). On 4.2.0 and 4.2.1 the
+// toolkit reloads nothing in place (an in-place reload there can crash the
+// editor), so the update stays deferred with a restart hint naming the
+// extension. An edit made outside the toolkit stays deferred on all of 4.2 the
+// same way; 4.3+ applies every edit live.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, SCREENSHOT_TIMEOUT } from "../helpers.js";
 import { isVersionAtLeast } from "../../src/shared/version.js";
-import { FLOW_PROBE_DIR, ensureProbeDir, cleanupProbeDir } from "./_shared.js";
+import { FLOW_PROBE_DIR, ensureProbeDir, cleanupProbeDir, toolkitSkipsReload } from "./_shared.js";
 
 export const TOOLS_TESTED: string[] = ["extensions_refresh", "script_write", "script_delete"];
 
@@ -85,6 +88,23 @@ func register(registry: MCPToolkitCommandRegistry, _server: Node) -> void:
 \t\t.with_group("flow_test_group", "Flow test group"))
 `;
 
+// The update-existing state plus flow_ext.subtract: the edit made outside the
+// toolkit. EXT_V2 ends inside register(), so the new add() continues its body.
+const EXT_V3 = `${EXT_V2}\tregistry.add("flow_ext.subtract", func(params: Dictionary) -> Dictionary:
+\t\tvar a := int(params.get("a", 0))
+\t\tvar b := int(params.get("b", 0))
+\t\treturn {"success": true, "result": a - b}
+\t, MCPToolkitExtensionOptions.new("Flow test subtractor")
+\t\t.with_input_schema({"type": "object", "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}}, "required": ["a", "b"]})
+\t\t.with_group("flow_test_group", "Flow test group"))
+`;
+
+// A @tool helper that writes a file with FileAccess, so the edit reaches the
+// disk without passing through script.write.
+const WRITER_PATH = `${FLOW_PROBE_DIR}/flow_ext_disk_writer.gd`;
+const WRITER_NODE = "FlowExtDiskWriter";
+const WRITER = `@tool\nextends Node\n\nfunc write_text(path: String, text: String) -> bool:\n\tvar file := FileAccess.open(path, FileAccess.WRITE)\n\tif file == null:\n\t\treturn false\n\tfile.store_string(text)\n\tfile.close()\n\treturn true\n`;
+
 interface RefreshResult {
   success?: boolean;
   commands?: { method: string }[];
@@ -96,6 +116,18 @@ function methodsOf(res: RefreshResult): string[] {
   return Array.isArray(res?.commands) ? res.commands.map((c) => c.method) : [];
 }
 
+function hasRestartAdvice(res: RefreshResult): boolean {
+  return typeof res?.hint === "string" && /restart/i.test(res.hint);
+}
+
+/** Does a sentence of the refresh hint ask for a restart and name `className`?
+ *  The hint is shared by every extension, so a restart awaited by another one
+ *  does not count. */
+function restartAdviceNames(res: RefreshResult, className: string): boolean {
+  if (typeof res?.hint !== "string") return false;
+  return res.hint.split(/(?<=\.)\s+/).some((sentence) => /restart/i.test(sentence) && sentence.includes(className));
+}
+
 /** Force the filesystem scan to settle before asserting on discovery. The
  *  bridge timeout outlasts the server-side wait so they cannot race. */
 async function settleScan(ctx: TestCtx): Promise<void> {
@@ -103,6 +135,79 @@ async function settleScan(ctx: TestCtx): Promise<void> {
     await ctx.bridge.call("editor.wait_for_idle", { timeout_ms: 5000 }, SCREENSHOT_TIMEOUT);
   } catch {
     // wait_for_idle is best-effort; refresh forces the scan regardless.
+  }
+}
+
+/** 4.2: rewrite the extension outside the toolkit and expect the edit to wait
+ *  for a restart, with a refresh hint that names the extension, while the
+ *  version loaded before keeps serving. */
+async function testOutsideEditDeferred(ctx: TestCtx): Promise<void> {
+  const { bridge, pass, fail } = ctx;
+  let writerNode: string | undefined;
+  try {
+    const helper = (await bridge.call("script.write", { file_path: WRITER_PATH, content: WRITER }, CALL_TIMEOUT)) as {
+      success?: boolean;
+    };
+    await settleScan(ctx);
+    const created = (await bridge.call(
+      "scene.create_node",
+      { class_name: "Node", parent_path: ".", node_name: WRITER_NODE },
+      CALL_TIMEOUT,
+    )) as { path?: string };
+    writerNode = created?.path;
+    const attached = writerNode
+      ? ((await bridge.call("node.set_script", { node_path: writerNode, script_path: WRITER_PATH }, CALL_TIMEOUT)) as {
+          success?: boolean;
+        })
+      : undefined;
+    if (helper?.success !== true || !writerNode || attached?.success !== true) {
+      fail(`ext lifecycle OUTSIDE (4.2) SETUP: could not write and attach the disk-writer helper`);
+      return;
+    }
+    const wrote = (await bridge.call(
+      "node.call_method",
+      { node_path: writerNode, method_name: "write_text", args: [EXT_PATH, EXT_V3] },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; result?: unknown };
+    if (wrote?.success !== true || wrote.result !== true) {
+      fail(`ext lifecycle OUTSIDE (4.2) SETUP: the outside write failed: ${JSON.stringify(wrote)}`);
+      return;
+    }
+    pass("ext lifecycle OUTSIDE (4.2): extension rewritten outside the toolkit (adds flow_ext.subtract)");
+
+    await settleScan(ctx);
+    const refreshOutside = (await bridge.call("extensions.refresh", {}, CALL_TIMEOUT)) as RefreshResult;
+    const outsideMethods = methodsOf(refreshOutside);
+    if (outsideMethods.includes("flow_ext.subtract")) {
+      fail(`ext lifecycle OUTSIDE (4.2): expected flow_ext.subtract DEFERRED, but it appeared live`);
+    } else if (hasRestartAdvice(refreshOutside) && refreshOutside.hint?.includes("FlowTestExtension")) {
+      pass("ext lifecycle OUTSIDE (4.2): subtract deferred + restart hint names FlowTestExtension");
+    } else {
+      fail(
+        `ext lifecycle OUTSIDE (4.2): expected a restart hint naming FlowTestExtension, got ${JSON.stringify(refreshOutside)}`,
+      );
+    }
+
+    // The loaded version: the update's on 4.2.2, the created one on 4.2.0 and 4.2.1,
+    // where the update itself never went live.
+    const [tool, args, expected] = toolkitSkipsReload(ctx)
+      ? (["flow_ext.add", { a: 3, b: 7 }, 10] as const)
+      : (["flow_ext.multiply", { a: 4, b: 5 }, 20] as const);
+    const served = (await bridge.call(tool, args, CALL_TIMEOUT)) as {
+      success?: boolean;
+      result?: number;
+    };
+    if (served?.success === true && served.result === expected)
+      pass(`ext lifecycle OUTSIDE (4.2): the loaded version keeps serving ${tool} -> ${expected}`);
+    else fail(`ext lifecycle OUTSIDE (4.2): ${tool} call: ${JSON.stringify(served)}`);
+  } finally {
+    if (writerNode) {
+      try {
+        await bridge.call("scene.delete_node", { node_path: writerNode }, CALL_TIMEOUT);
+      } catch {
+        /* node may not exist */
+      }
+    }
   }
 }
 
@@ -193,48 +298,64 @@ export async function testExtensionLifecycle(ctx: TestCtx): Promise<void> {
         `ext lifecycle RE-ENTRANCY: expected single flow_ext.hello, got ${helloCount} in [${againMethods.join(", ")}]`,
       );
 
-    // ── UPDATE-EXISTING (version-branched) ─────────────────────────────────
-    // Rewrite the SAME extension adding flow_ext.multiply. 4.3+ applies live;
-    // 4.2 defers with a restart hint (CACHE_MODE_REUSE gate).
+    // ── UPDATE-EXISTING through script.write (patch-branched on 4.2) ────────
+    // Rewrite the SAME extension adding flow_ext.multiply. The toolkit reloads
+    // the cached script after a write that compiles, so the edit applies live on
+    // 4.2.2 and later. 4.2 still loads extensions through that cached script
+    // (CACHE_MODE_REUSE): a fresh CACHE_MODE_IGNORE load while the editor
+    // reimports the file crashes the 4.2 editor, so a regressed gate would crash
+    // here instead. On 4.2.0 and 4.2.1 the toolkit reloads nothing in place, so
+    // the edit waits for a restart and the refresh hint names the extension.
     const writeV2 = (await bridge.call("script.write", { file_path: EXT_PATH, content: EXT_V2 }, CALL_TIMEOUT)) as {
       success?: boolean;
     };
     if (writeV2?.success !== true) {
       fail(`ext lifecycle UPDATE: script.write v2 failed: ${JSON.stringify(writeV2)}`);
+    } else if (toolkitSkipsReload(ctx)) {
+      pass("ext lifecycle UPDATE: script.write v2 (adds flow_ext.multiply)");
+      await settleScan(ctx);
+      const refreshUpdate = (await bridge.call("extensions.refresh", {}, CALL_TIMEOUT)) as RefreshResult;
+      if (methodsOf(refreshUpdate).includes("flow_ext.multiply")) {
+        fail(`ext lifecycle UPDATE (4.2.0/4.2.1): expected flow_ext.multiply DEFERRED, but it appeared live`);
+      } else if (hasRestartAdvice(refreshUpdate) && refreshUpdate.hint?.includes("FlowTestExtension")) {
+        pass("ext lifecycle UPDATE (4.2.0/4.2.1): multiply deferred + restart hint names FlowTestExtension");
+      } else {
+        fail(
+          `ext lifecycle UPDATE (4.2.0/4.2.1): expected a restart hint naming FlowTestExtension, got ${JSON.stringify(refreshUpdate)}`,
+        );
+      }
     } else {
       pass("ext lifecycle UPDATE: script.write v2 (adds flow_ext.multiply)");
       await settleScan(ctx);
       const refreshUpdate = (await bridge.call("extensions.refresh", {}, CALL_TIMEOUT)) as RefreshResult;
       const updMethods = methodsOf(refreshUpdate);
-      const hasMultiply = updMethods.includes("flow_ext.multiply");
-
-      if (godotVer != null && isVersionAtLeast(godotVer, "4.3")) {
-        // 4.3+: edit applied live; multiply present + callable.
-        if (!hasMultiply) {
-          fail(
-            `ext lifecycle UPDATE (4.3+): expected flow_ext.multiply live after refresh, got [${updMethods.join(", ")}]`,
-          );
-        } else {
-          const mul = (await bridge.call("flow_ext.multiply", { a: 4, b: 5 }, CALL_TIMEOUT)) as {
-            success?: boolean;
-            result?: number;
-          };
-          if (mul?.success === true && mul.result === 20)
-            pass("ext lifecycle UPDATE (4.3+): flow_ext.multiply(4,5) -> 20 live");
-          else fail(`ext lifecycle UPDATE (4.3+): flow_ext.multiply call: ${JSON.stringify(mul)}`);
-        }
+      if (!updMethods.includes("flow_ext.multiply")) {
+        fail(`ext lifecycle UPDATE: expected flow_ext.multiply live after refresh, got [${updMethods.join(", ")}]`);
       } else {
-        // 4.2: edit deferred; multiply absent + restart hint present. Also
-        // regression-guards the 4.2 REUSE gate (a regressed IGNORE-mid-scan
-        // load would crash here instead).
-        if (hasMultiply) {
-          fail(`ext lifecycle UPDATE (4.2): expected flow_ext.multiply DEFERRED, but it appeared live`);
-        } else if (typeof refreshUpdate?.hint === "string" && refreshUpdate.hint.length > 0) {
-          pass(`ext lifecycle UPDATE (4.2): multiply deferred + restart hint present`);
-        } else {
-          fail(`ext lifecycle UPDATE (4.2): expected a restart hint, got ${JSON.stringify(refreshUpdate)}`);
-        }
+        const mul = (await bridge.call("flow_ext.multiply", { a: 4, b: 5 }, CALL_TIMEOUT)) as {
+          success?: boolean;
+          result?: number;
+        };
+        if (mul?.success === true && mul.result === 20) pass("ext lifecycle UPDATE: flow_ext.multiply(4,5) -> 20 live");
+        else fail(`ext lifecycle UPDATE: flow_ext.multiply call: ${JSON.stringify(mul)}`);
       }
+      // The edit is live, so FlowTestExtension does not wait on a restart.
+      if (restartAdviceNames(refreshUpdate, "FlowTestExtension")) {
+        fail(
+          `ext lifecycle UPDATE: the refresh hint says to restart FlowTestExtension after a live edit: ${refreshUpdate.hint}`,
+        );
+      } else {
+        pass("ext lifecycle UPDATE: the refresh hint asks no restart for FlowTestExtension");
+      }
+    }
+
+    // ── UPDATE OUTSIDE THE TOOLKIT (4.2 only) ──────────────────────────────
+    // A @tool helper rewrites the extension with FileAccess, as an external
+    // editor would, adding flow_ext.subtract. Nothing reloads the cached script,
+    // and the 4.2 loader reads only that cache, so the edit waits for a restart
+    // and the refresh hint names the extension. 4.3+ reads the file fresh.
+    if (godotVer != null && !isVersionAtLeast(godotVer, "4.3")) {
+      await testOutsideEditDeferred(ctx);
     }
 
     // ── REMOVE → GONE (uniform across versions) ────────────────────────────

@@ -42,6 +42,21 @@ export async function restoreMainScene(ctx: TestCtx): Promise<void> {
   }
 }
 
+/**
+ * Whether the connected editor is Godot 4.2.0 or 4.2.1, where the toolkit reloads no
+ * script in place: an in-place reload there frees the code of lambdas that a Callable
+ * held elsewhere still points at, which crashes the editor (fixed in 4.2.2). A toolkit
+ * write, its undo and redo, and `node.set_script` then leave a changed script for an
+ * editor relaunch. Reads the patch from the version the editor reports at auth
+ * (`major.minor.patch`), so call it after the first bridge call: before auth the
+ * version can be a registry entry's bare `major.minor`, which counts as `major.minor.0`.
+ */
+export function toolkitSkipsReload(ctx: TestCtx): boolean {
+  const m = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec(ctx.bridge.getGodotVersionString() ?? "");
+  if (!m) return false;
+  return Number(m[1]) === 4 && Number(m[2]) === 2 && Number(m[3] ?? "0") < 2;
+}
+
 /** Narrow helper: did a bridge result come back as a success envelope? */
 export function isOk(result: unknown): boolean {
   return (result as { success?: boolean })?.success === true;
