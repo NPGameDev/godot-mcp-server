@@ -21,12 +21,12 @@ The npm bridge that connects AI coding assistants to the Godot 4.2+ editor over 
 
 *Built to fit your workflow, not the other way around.*
 
-The number that says the most is **150+ operations**. That is the real work on offer: create a node, paint a tilemap cell, key an animation track, read a live node mid-playtest, and roughly a hundred and fifty more. Those operations are packaged into **up to 112 tools** (an always-on core plus **28 on-demand groups**), because a tool is a slot in your client's tool budget and an operation is a thing you can actually do. Related actions sit behind one tool, which keeps the list short while the operation count tells the honest story of breadth. Some operations are version-gated, so older Godot versions (down to 4.2) expose fewer. "Up to" is literal.
+The number that says the most is **150+ operations**. That is the real work on offer: create a node, paint a tilemap cell, key an animation track, read a live node mid-playtest, and roughly a hundred and fifty more. Those operations are packaged into **up to 113 tools** (an always-on core plus **28 on-demand groups**), because a tool is a slot in your client's tool budget and an operation is a thing you can actually do. Related actions sit behind one tool, which keeps the list short while the operation count tells the honest story of breadth. Some operations are version-gated, so older Godot versions (down to 4.2) expose fewer. "Up to" is literal.
 
 Two things drive the design, and they carry equal weight:
 
 - **You can extend it without a fixed ceiling.** The toolkit's extension API lets a project register its own tools in GDScript. They hot-reload and reach the agent through this bridge exactly like built-ins, and there is no fixed cap on how many you add. The limit is what the current system supports, and each iteration raises that ceiling and gives extensions more room. C#/.NET projects extend the same way, which is the proof that this fits every project instead of being a bolt-on. Heuristic or third-party-dependent tools stay out of the core on purpose, and the extension API is where they belong.
-- **You can check the results.** The agent's context window is a budget, so the tool surface starts small (~8,800 tokens) and grows only when the agent asks for more. The evidence section below says what CI asserts on every build, what the test manifests cover, and what was measured when. Links, not adjectives.
+- **You can check the results.** The agent's context window is a budget, so the tool surface starts small (~9,000 tokens) and grows only when the agent asks for more. The evidence section below says what CI asserts on every build, what the test manifests cover, and what was measured when. Links, not adjectives.
 
 Tested primarily with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and compatible with any MCP client.
 
@@ -239,11 +239,11 @@ Most tools work under `godot --headless --editor`: file, scene, node, script, Cl
 
 ## Token efficiency
 
-The tool catalogue consumes context-window tokens, so the surface starts small and grows on demand: the startup surface costs **~8,800 tokens**, the full surface (every group activated) **~29,000**, and read-only mode **~7,800**. Per-group costs, the measurement method, and the regeneration command are in [docs/token-efficiency.md](docs/token-efficiency.md).
+The tool catalogue consumes context-window tokens, so the surface starts small and grows on demand: the startup surface costs **~9,000 tokens**, the full surface (every group activated) **~29,700**, and read-only mode **~8,100**. Per-group costs, the measurement method, and the regeneration command are in [docs/token-efficiency.md](docs/token-efficiency.md).
 
 ## How we know it works
 
-CI fails the build if any of these numbers drift: **112 tools** (34 always-on + 2 meta, 78 on-demand) in **28 groups**, covering **150+ operations**; **39 tools** visible in read-only mode.
+CI fails the build if any of these numbers drift: **113 tools** (34 always-on + 2 meta, 79 on-demand) in **28 groups**, covering **150+ operations**; **40 tools** visible in read-only mode.
 
 - Every tool has smoke coverage (happy path, guards, error hints), mapped in the [smoke coverage manifest](test/SMOKE-COVERAGE-MANIFEST.md). Cross-tool stateful flows run as their own deterministic suite (`npm run flows`), and dispatch behavior (mutation serialization, cancellation, disconnects) as another. Separate suites, separately maintained.
 - Every tool is also exercised end-to-end from GDScript in the toolkit's interactive sweep, mapped in the [sweep coverage manifest](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/Validations/SWEEP-COVERAGE-MANIFEST.md). Last full pass: 479 cases on Godot 4.7 (2026-07-03).

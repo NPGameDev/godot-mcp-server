@@ -6,6 +6,8 @@
  * calls `tools/list`, and diffs the two surfaces. Asserts:
  *   - mutating tools (scene_create_node & friends) are ABSENT under read-only,
  *   - read tools (scene_get_tree & friends) are still PRESENT,
+ *   - in an on-demand group with both kinds (input_map), the read tool surfaces after
+ *     discover_tools and the writers do not,
  *   - a direct tools/call of an unregistered mutating tool is rejected by the MCP
  *     layer before the toolkit ever sees it.
  *
@@ -18,8 +20,11 @@
  *   node_modules/.bin/tsx <abs-path-to-this-file>
  */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { dirname, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const SERVER_REPO = "C:/Users/nicol/OneDrive/Desktop/Personal/AIWithGodot/godot-mcp-server";
+// The checkout this file sits in, so a worktree probes its own build.
+const SERVER_REPO = resolvePath(dirname(fileURLToPath(import.meta.url)), "../..");
 const ENTRY = `${SERVER_REPO}/dist/index.js`;
 const PROJECT = "C:/Users/nicol/OneDrive/Desktop/Personal/AIWithGodot/godot-mcp-toolkit";
 
@@ -139,6 +144,11 @@ const MUST_BE_PRESENT = ["scene_get_tree", "script_read", "discover_tools"];
 const ON_DEMAND_MUTATORS = ["file_delete", "folder_delete"];
 const ON_DEMAND_GROUP = "cleanup";
 
+/** A group with both kinds: its read tool must surface under read-only, its writers must not. */
+const MIXED_GROUP = "input_map";
+const MIXED_GROUP_READERS = ["input_map_list"];
+const MIXED_GROUP_WRITERS = ["input_map_action", "input_map_event"];
+
 async function main(): Promise<void> {
   // ── Baseline (normal mode) ───────────────────────────────────────────────
   const normal = new StdioClient({});
@@ -146,6 +156,7 @@ async function main(): Promise<void> {
   // exits, so an initial value would only ever be dead.
   let normalTools: string[];
   let normalAfterGroup: string[];
+  let normalAfterMixed: string[];
   try {
     await normal.handshake();
     normalTools = await normal.listTools();
@@ -157,6 +168,8 @@ async function main(): Promise<void> {
     process.stdout.write(
       `[d4] normal-mode after discover_tools("${ON_DEMAND_GROUP}"): ${normalAfterGroup.length} tools\n`,
     );
+    await normal.request("tools/call", { name: "discover_tools", arguments: { request: MIXED_GROUP } });
+    normalAfterMixed = await normal.listTools();
   } finally {
     normal.kill();
   }
@@ -166,6 +179,7 @@ async function main(): Promise<void> {
   const ro = new StdioClient({ GODOT_MCP_READ_ONLY: "1" });
   let roTools: string[];
   let roAfterGroup: string[];
+  let roAfterMixed: string[];
   let directCall: string;
   try {
     await ro.handshake();
@@ -176,6 +190,8 @@ async function main(): Promise<void> {
     await ro.request("tools/call", { name: "discover_tools", arguments: { request: ON_DEMAND_GROUP } });
     roAfterGroup = await ro.listTools();
     process.stdout.write(`[d4] read-only after discover_tools("${ON_DEMAND_GROUP}"): ${roAfterGroup.length} tools\n`);
+    await ro.request("tools/call", { name: "discover_tools", arguments: { request: MIXED_GROUP } });
+    roAfterMixed = await ro.listTools();
 
     // Direct call of an unregistered mutating tool — MCP layer must reject it.
     const res = await ro.request("tools/call", {
@@ -254,6 +270,26 @@ async function main(): Promise<void> {
     roVisible.length === 0
       ? `none of [${ON_DEMAND_MUTATORS.join(", ")}] surfaced (list ${roTools.length} -> ${roAfterGroup.length})`
       : `LEAKED: ${roVisible.join(", ")}`,
+  );
+
+  // ── A mixed group: its read tool surfaces, its writers stay hidden ────────
+  const mixedTools = [...MIXED_GROUP_READERS, ...MIXED_GROUP_WRITERS];
+  const normalMixedSet = new Set(normalAfterMixed);
+  const roMixedSet = new Set(roAfterMixed);
+  const mixedControl = mixedTools.filter((t) => normalMixedSet.has(t));
+  report(
+    mixedControl.length === mixedTools.length,
+    `D4 control: every ${MIXED_GROUP} tool appears in NORMAL mode after discover_tools("${MIXED_GROUP}")`,
+    `visible: ${mixedControl.join(", ") || "(none)"} of ${mixedTools.join(", ")}`,
+  );
+  const readersMissing = MIXED_GROUP_READERS.filter((t) => !roMixedSet.has(t));
+  const writersLeaked = MIXED_GROUP_WRITERS.filter((t) => roMixedSet.has(t));
+  report(
+    readersMissing.length === 0 && writersLeaked.length === 0,
+    `D4 read-only after discover_tools("${MIXED_GROUP}"): ${MIXED_GROUP_READERS.join(", ")} present, writers absent`,
+    readersMissing.length === 0 && writersLeaked.length === 0
+      ? `present: ${MIXED_GROUP_READERS.join(", ")}; absent: ${MIXED_GROUP_WRITERS.join(", ")}`
+      : `MISSING: ${readersMissing.join(", ") || "(none)"}; LEAKED: ${writersLeaked.join(", ") || "(none)"}`,
   );
 
   process.stdout.write(`\n[d4] ${total - failures} passed, ${failures} failed, ${total} total\n`);
