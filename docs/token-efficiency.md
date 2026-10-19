@@ -11,8 +11,8 @@ When your MCP client connects, the server sends a `tools/list` response containi
 | Surface | Tools | Bytes | Est. tokens |
 |---------|------:|------:|------------:|
 | **Startup surface** | 36 | 36,039 | ~9,010 |
-| **Full surface** | 115 | 118,682 | ~29,671 |
-| **Read-only mode** | 40 | 32,359 | ~8,090 |
+| **Full surface** | 115 | 118,841 | ~29,711 |
+| **Read-only mode** | 40 | 32,417 | ~8,105 |
 
 Token estimates use the standard bytes/4 heuristic.
 
@@ -31,7 +31,7 @@ Specialized tool groups are loaded via `discover_tools`. Each group adds a known
 | runtime_advanced | 3 | 2,218 | ~555 |
 | signals | 1 | 575 | ~144 |
 | animation_authoring | 4 | 4,017 | ~1,005 |
-| input_map | 3 | 3,293 | ~824 |
+| input_map | 3 | 3,452 | ~863 |
 | resource_io | 2 | 1,283 | ~321 |
 | asset_ops | 3 | 2,213 | ~554 |
 | placeholders | 2 | 3,220 | ~805 |
@@ -63,7 +63,7 @@ Group costs scale with the size and description length of the tools they carry; 
 
 - **Heaviest:** `particles_create` (~1,409 tokens) — a large parameter schema with many typed fields
 - **Lightest:** `audiobus_list` (~85 tokens) — parameterless, description only
-- **Average:** ~1,036 bytes (~259 tokens) per tool
+- **Average:** ~1,037 bytes (~260 tokens) per tool
 
 Tools with more parameters and detailed descriptions cost more tokens. Most descriptions stay under the 200-character limit (I2 invariant), with documented waivers for action-consolidated tools that document per-operation behavior.
 

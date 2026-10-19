@@ -23,8 +23,8 @@ export const inputMapTools: ToolDef[] = [
       "and default then holds the default deadzone and events. " +
       "A dotted name such as jump.macos is a feature override: feature is the part after the first dot, " +
       "and the entry applies only where OS.has_feature(tag) holds, so jump.editor replaces jump inside the editor. " +
-      "revert refuses a built-in's feature entry for now, even when can_revert is true. " +
-      "Events pass back to input_map_event as they are.",
+      "A built-in's feature entry is read-only: every write refuses it, revert too, even when can_revert is true. " +
+      "Events pass back to input_map_event as they are, unless their type is 'unknown'.",
     inputSchema: {
       name: z.string().optional().describe("Exact action name, built-in or not; an unknown name is NOT_FOUND"),
       include_builtin: z.boolean().optional().describe("Also list the unchanged built-in actions (default false)"),
@@ -71,10 +71,12 @@ export const inputMapTools: ToolDef[] = [
       "action: 'bind' (idempotent) or 'unbind'. " +
       "event: {type:'key', keycode:'Space'}, {type:'mouse_button', button_index:1}, " +
       "{type:'joypad_button', button_index:0}, {type:'joypad_motion', axis:0, axis_value:1.0}. " +
-      "A key takes key_kind ('physical_keycode' default, 'keycode', 'key_label'), location (1 left, 2 right; Godot 4.3+), " +
-      "shift, ctrl, alt, meta and command_or_control (Ctrl, or Cmd on macOS; ctrl and meta are then ignored). " +
+      "A key takes key_kind ('physical_keycode' default, 'keycode', 'key_label') and location (1 left, 2 right; Godot 4.3+). " +
+      "A key or mouse_button takes shift, ctrl, alt, meta and command_or_control (Ctrl, or Cmd on macOS; ctrl and meta " +
+      "are then ignored); a mouse_button also takes double_click. " +
       "Every event takes device; an unbind without one matches any device. " +
-      "An event read from input_map_list passes back as it is. warnings lists the fields that were ignored.",
+      "An event read from input_map_list passes back as it is, unless its type is 'unknown'. " +
+      "warnings lists the fields that were ignored.",
     inputSchema: {
       action: z.enum(["bind", "unbind"]),
       name: z.string(),
