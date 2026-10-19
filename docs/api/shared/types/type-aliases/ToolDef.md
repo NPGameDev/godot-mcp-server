@@ -76,11 +76,23 @@ Defined in: [src/shared/types.ts:171](https://github.com/NPGameDev/godot-mcp-ser
 
 ***
 
+### operationHints?
+
+> `optional` **operationHints?**: `Readonly`\<`Record`\<`string`, `string`\>\>
+
+Defined in: [src/shared/types.ts:185](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L185)
+
+Per-operation success hints, keyed by the value of the `operationParam` argument. A call whose
+ operation has an entry gets that hint in place of successHint; any other call gets successHint.
+ Use it when one hint would mislead for some of the tool's operations.
+
+***
+
 ### operationParam?
 
 > `optional` **operationParam?**: `string`
 
-Defined in: [src/shared/types.ts:189](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L189)
+Defined in: [src/shared/types.ts:193](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L193)
 
 Names the tool's operation-discriminator enum param — the top-level inputSchema
  key whose values are the distinct operations this tool performs (e.g. "action",
@@ -92,7 +104,7 @@ Names the tool's operation-discriminator enum param — the top-level inputSchem
 
 > `optional` **operations?**: readonly `string`[]
 
-Defined in: [src/shared/types.ts:193](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L193)
+Defined in: [src/shared/types.ts:197](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L197)
 
 Explicit operation list for a tool whose discriminator is not a plain top-level
  z.enum (e.g. an enum nested inside a union/array). Used in place of operationParam
@@ -104,7 +116,7 @@ Explicit operation list for a tool whose discriminator is not a plain top-level
 
 > `optional` **pathParams?**: readonly [`PathGuard`](PathGuard.md)[]
 
-Defined in: [src/shared/types.ts:185](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L185)
+Defined in: [src/shared/types.ts:189](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L189)
 
 Filesystem-path params to syntactically pre-filter before dispatch (strict
  subset of the toolkit guard). Omit for tools with no fs path, or for params

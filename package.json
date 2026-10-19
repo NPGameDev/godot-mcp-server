@@ -33,6 +33,7 @@
     "build": "npm run clean && tsc",
     "postbuild": "node scripts/add-shebang.mjs",
     "docs:api": "typedoc",
+    "docs:api:check": "node scripts/docs-api-check.mjs",
     "docs:tools": "tsx scripts/generate-tool-reference.ts",
     "docs:tools:check": "tsx scripts/generate-tool-reference.ts --check",
     "measure:tokens": "tsx scripts/measure-tokens.ts",
