@@ -214,9 +214,9 @@ export async function testInputMap(ctx: TestCtx): Promise<void> {
 /**
  * A bind on a built-in action saves the new key and keeps the joypad events of its default.
  * `ui_left` is used because its default holds a joypad button and a joypad motion, while
- * `ui_accept`'s holds keys only. The unbind runs in `finally`; on a toolkit that keeps the
- * default's events, it puts the action's setting back to its default, so project.godot
- * keeps no line for it.
+ * `ui_accept`'s holds keys only. The unbind runs in `finally` and must leave the default's
+ * events, but project.godot then still holds a line for the action whose content equals the
+ * default; the closing `revert` removes it (a toolkit without `revert` keeps the line).
  */
 async function testBuiltinBindKeepsJoypadDefaults(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -265,12 +265,18 @@ async function testBuiltinBindKeepsJoypadDefaults(ctx: TestCtx): Promise<void> {
       .call("input_map.event", { action: "unbind", name: builtinAction, event: smokeKey }, CALL_TIMEOUT)
       .catch(() => undefined);
   }
-  const classesAfterUnbind = await eventClasses();
-  if (JSON.stringify(classesAfterUnbind) !== JSON.stringify(classesBefore))
-    fail(
-      `input_map.event unbind F9 on ${builtinAction}: expected the default's events ${JSON.stringify(classesBefore)}, got ${JSON.stringify(classesAfterUnbind)}`,
-    );
-  else pass(`input_map.event unbind F9 on ${builtinAction} -> the setting holds its default's events again`);
+  try {
+    const classesAfterUnbind = await eventClasses();
+    if (JSON.stringify(classesAfterUnbind) !== JSON.stringify(classesBefore))
+      fail(
+        `input_map.event unbind F9 on ${builtinAction}: expected the default's events ${JSON.stringify(classesBefore)}, got ${JSON.stringify(classesAfterUnbind)}`,
+      );
+    else pass(`input_map.event unbind F9 on ${builtinAction} -> the setting holds its default's events again`);
+  } finally {
+    await bridge
+      .call("input_map.action", { action: "revert", name: builtinAction }, CALL_TIMEOUT)
+      .catch(() => undefined);
+  }
 }
 
 interface ListedEvent {
