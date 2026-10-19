@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([#18](https://github.com/NPGameDev/godot-mcp-toolkit/issues/18),
   [#15](https://github.com/NPGameDev/godot-mcp-server/pull/15)).
 
+### Fixed
+
+- The `node_set_script` description now says it reloads a `.gd` that changed on disk
+  since the editor loaded it, so every node running the script gets the new code. The
+  toolkit does the reload; with an older toolkit, `node_set_script` still sets the
+  version the editor loaded first. Thanks to @benfeather
+  ([#43](https://github.com/NPGameDev/godot-mcp-toolkit/issues/43),
+  [#20](https://github.com/NPGameDev/godot-mcp-server/pull/20)).
+
 ## [1.0.4] - 2026-10-14
 
 ### Security
