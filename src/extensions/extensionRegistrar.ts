@@ -136,10 +136,6 @@ export function createExtensionRegistrar(deps: {
           extensionTimeoutHint,
           signal,
         }) as Promise<ToolTextResult>,
-      {
-        godotMinVersion: cmd.min_godot_version,
-        godotMaxVersion: cmd.max_godot_version,
-      },
     );
     return true;
   }

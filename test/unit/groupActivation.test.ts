@@ -26,6 +26,7 @@
  */
 import assert from "node:assert/strict";
 import {
+  registerGroupTools,
   activateGroup,
   activateGroupByName,
   reportGroupStatus,
@@ -33,7 +34,7 @@ import {
   deactivateGroups,
   buildDiscoverToolsDesc,
 } from "../../src/groups/groupActivation.js";
-import { GROUPS, allDefs } from "../../src/groups/groupCatalogue.js";
+import { GROUPS, allDefs, type GroupDef } from "../../src/groups/groupCatalogue.js";
 import { loadedGroups } from "../../src/groups/groupState.js";
 import {
   addExtensionGroup,
@@ -46,7 +47,7 @@ import {
 import { isAllowedInReadOnly } from "../../src/security/profiles.js";
 import { hasToolRef, removeAllToolRefs } from "../../src/registration/toolRefs.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Bridge } from "../../src/shared/types.js";
+import type { Bridge, ToolDef } from "../../src/shared/types.js";
 
 // A fake MCP server: registerTool returns a removable ref so the real tool_refs
 // module tracks each registration. Mirrors the fake in extensionGroups.test.ts.
@@ -363,6 +364,56 @@ for (const { version, label, gated } of [
     buildDiscoverToolsDesc(bridge, false).includes("cleanup ["),
     `[${label}] cleanup stays in the meta description (has version-agnostic tools)`,
   );
+}
+
+// ── Block 9 — group registration renders a version-tailored description ──
+// A group tool that defines describe registers with describe(connected version), `null`
+// while the version is unknown, the same as an eager tool; one without it keeps its
+// static description.
+
+reset();
+{
+  const registered = new Map<string, string>();
+  const server = {
+    registerTool(name: string, cfg: { description: string }) {
+      registered.set(name, cfg.description);
+      return { remove: () => {}, update: (_u: unknown) => {} };
+    },
+    sendToolListChanged: () => {},
+  } as unknown as McpServer;
+  const tailored: ToolDef = {
+    name: "group_desc_tailored",
+    method: "group.desc_tailored",
+    description: "fallback",
+    describe: (v) => (v == null ? "fallback" : `for ${v[0]}.${v[1]}`),
+    inputSchema: {},
+  };
+  const plain: ToolDef = {
+    name: "group_desc_plain",
+    method: "group.desc_plain",
+    description: "static",
+    inputSchema: {},
+  };
+  allDefs.set(tailored.name, tailored);
+  allDefs.set(plain.name, plain);
+  const group: GroupDef = {
+    name: "user_data",
+    description: "fixture",
+    tools: [tailored.name, plain.name],
+    keywords: [],
+  };
+
+  try {
+    registerGroupTools(server, makeFakeBridgeAt([4, 5]), group, false);
+    assert.equal(registered.get("group_desc_tailored"), "for 4.5", "group registration passes the connected version");
+    assert.equal(registered.get("group_desc_plain"), "static", "a group tool without describe keeps its description");
+
+    registerGroupTools(server, makeFakeBridgeAt(undefined), group, false);
+    assert.equal(registered.get("group_desc_tailored"), "fallback", "group registration passes null while unknown");
+  } finally {
+    allDefs.delete(tailored.name);
+    allDefs.delete(plain.name);
+  }
 }
 
 reset();

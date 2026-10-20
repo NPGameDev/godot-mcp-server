@@ -62,6 +62,10 @@ const GODOT_INTRO = {
   os_add_logger: "4.5",
   /** `TileMapLayer` node — introduced 4.3; TileMap deprecated after. */
   tilemaplayer: "4.3",
+  /** The editor's `--log-file` command-line flag — present 4.3+ (4.3
+   *  `main/main.cpp:1316`), absent on 4.2. Gates editor_get_console's claim that
+   *  source='file' can read the editor's own log. */
+  log_file_flag: "4.3",
 
   // ── Behavioral boundaries (engine behavior, not API presence) ──
   /** LSP auto-rebind on port contention — added 4.5; 4.2-4.4 have no bind retry
@@ -254,7 +258,7 @@ assertDescHas("folder_delete", `On ${GODOT_INTRO.close_scene}+ closes`, "folder.
 sites += 1;
 assertDescHas("file_delete", `tabs on ${GODOT_INTRO.close_scene}+ (tab_closed`, "file.ts:14");
 sites += 1;
-assertDescHas("script_check", `On ${GODOT_INTRO.os_add_logger}+ the error diagnostic`, "script.ts:54");
+assertDescHas("script_check", `a compile error only on ${GODOT_INTRO.os_add_logger}+`, "script.ts:94");
 sites += 1;
 assertDescHas("tilemap_read_cells", `TileMapLayer (${GODOT_INTRO.tilemaplayer}+)`, "tilemap.ts:13");
 sites += 1;
@@ -264,6 +268,82 @@ assertDescHas(
   "sceneInheritance.ts:12",
 );
 sites += 1;
+
+// The two eager descriptions that follow the connected Godot version (`describe`):
+// render each at every vendored boundary, and assert the fragments the vendored
+// model licenses. This file keeps its own thresholds; it is the independent check
+// on the constants the server compares against.
+{
+  const renderAt = (name: string, version: string | null): string => {
+    const def = defByName(name);
+    assert.ok(def.describe, `${name} must define describe — it is version-tailored`);
+    return def.describe(version == null ? null : parseGodotVer(version));
+  };
+  const atLeast = (version: string, intro: string): boolean =>
+    compareGodotVer(parseGodotVer(version), parseGodotVer(intro)) >= 0;
+  const rendered: (string | null)[] = ["4.2", "4.3", "4.4", "4.5", "4.7", null];
+  const belowLogger = minorBelow(GODOT_INTRO.logger_class);
+
+  for (const name of ["script_check", "editor_get_console"]) {
+    // The static description is the fallback the docs generator and the pins read.
+    assert.equal(renderAt(name, null), defByName(name).description, `${name}: describe(null) must equal description`);
+    sites += 1;
+  }
+
+  for (const v of rendered) {
+    const label = v ?? "unknown";
+    const check = renderAt("script_check", v);
+    if (v == null) {
+      assert.ok(
+        check.includes(`a compile error only on ${GODOT_INTRO.os_add_logger}+`),
+        `script_check @${label}: the generic text states the compile-error line is ${GODOT_INTRO.os_add_logger}+ only`,
+      );
+      assert.ok(check.includes("A class_name clash always carries its line (1-based)"), `${label}: clash`);
+    } else if (atLeast(v, GODOT_INTRO.os_add_logger)) {
+      assert.ok(check.includes("each error with its line (1-based)"), `script_check @${label}: every error has a line`);
+      assert.ok(!check.includes("carries none"), `script_check @${label}: must not say a compile error has no line`);
+    } else {
+      assert.ok(
+        check.includes("A class_name clash carries its line (1-based); a compile error carries none"),
+        `script_check @${label}: a compile error has no line below ${GODOT_INTRO.os_add_logger}`,
+      );
+      assert.ok(!check.includes("each error with its line"), `script_check @${label}: must not promise every line`);
+    }
+    sites += 1;
+
+    const consoleText = renderAt("editor_get_console", v);
+    const liveConsole = `source='buffer' (default): live editor console`;
+    const gameTail = `source='buffer' (default): game-log tail`;
+    const ownLog = "or the editor's own when launched with --log-file";
+    if (v == null) {
+      assert.ok(
+        consoleText.includes(
+          `${liveConsole} on ${GODOT_INTRO.logger_class}+, game-log tail on ${GODOT_INTRO.supported_floor}-${belowLogger}`,
+        ),
+        `editor_get_console @${label}: the generic text names both buffer behaviours`,
+      );
+      assert.ok(consoleText.includes(`--log-file (${GODOT_INTRO.log_file_flag}+; not 4.4 on Windows)`), label);
+    } else if (atLeast(v, GODOT_INTRO.logger_class)) {
+      assert.ok(consoleText.includes(`${liveConsole}. `), `editor_get_console @${label}: live console`);
+      assert.ok(consoleText.includes(ownLog), `editor_get_console @${label}: the editor's own log is readable`);
+      assert.ok(!consoleText.includes("Windows"), `editor_get_console @${label}: no 4.4 Windows caveat`);
+    } else if (atLeast(v, GODOT_INTRO.log_file_flag)) {
+      assert.ok(consoleText.includes(`${gameTail}. `), `editor_get_console @${label}: game-log tail`);
+      assert.ok(consoleText.includes(ownLog), `editor_get_console @${label}: --log-file exists`);
+      assert.ok(consoleText.includes("(not 4.4 on Windows)"), `editor_get_console @${label}: the Windows caveat`);
+    } else {
+      assert.ok(consoleText.includes(`${gameTail}. `), `editor_get_console @${label}: game-log tail`);
+      assert.ok(consoleText.includes("source='file': the game-written log."), `${label}: game log only`);
+      assert.ok(
+        !consoleText.includes("--log-file"),
+        `editor_get_console @${label}: no --log-file before ${GODOT_INTRO.log_file_flag}`,
+      );
+    }
+    // Whatever the version, the paging guidance after the tailored sentences stays.
+    assert.ok(consoleText.includes("page via since_id"), `editor_get_console @${label}: paging note kept`);
+    sites += 1;
+  }
+}
 
 // ── Block C — behavioral thresholds in getGodotVersion() branches / comments ──
 //

@@ -117,9 +117,10 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
   }
 
   // ─── Diagnostics shape: {severity, message[, line]} — version-aware ────
-  // The severity:"error" entry carries the real 1-based parse-error line on
-  // Godot 4.5+ (Logger capture); on <4.5 the line key is entirely absent
-  // (never a fabricated 0). No diagnostic ever carries a column — columns are
+  // A compile error's severity:"error" entry carries the real 1-based line on
+  // Godot 4.5+ (Logger capture); on <4.5 its line key is entirely absent
+  // (never a fabricated 0). A class_name clash carries its line on every
+  // version. No diagnostic ever carries a column — columns are
   // lsp_diagnostics' domain — and hint-severity entries never carry line.
   const hintBrokenPath = "res://smoke_check_hint.gd";
   const hintBrokenContent = "extends Node\n\nfunc _ready():\n  var x = \n";

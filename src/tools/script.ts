@@ -5,6 +5,7 @@ import type { Bridge, ToolDef } from "../shared/types.js";
 import { registerTools } from "../registration/toolRegistry.js";
 import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 import { lineWindowParams, paginationDoc } from "../shared/pagination.js";
+import { describeScriptCheck } from "./descriptions/scriptCheckDescription.js";
 
 export const scriptTools: ToolDef[] = [
   {
@@ -90,8 +91,8 @@ export const scriptTools: ToolDef[] = [
   {
     name: "script_check",
     method: "script.check",
-    description:
-      "Offline GDScript validation — pass/fail + diagnostics. On 4.5+ the error diagnostic carries the real line (1-based; omitted on 4.2-4.4). Columns are lsp_diagnostics' domain. Works without editor.",
+    description: describeScriptCheck(null),
+    describe: describeScriptCheck,
     inputSchema: { file_path: z.string().describe("res:// path to a .gd file") },
     annotations: { readOnlyHint: true, openWorldHint: false },
     successHint:

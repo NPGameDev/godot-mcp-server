@@ -171,6 +171,12 @@ export type ToolDef = {
   name: string;
   method: string;
   description: string;
+  /** Renders the description for the connected Godot version (`null` while it is not yet
+   *  known). Tool registration, eager and group, calls it in place of reading `description`.
+   *  Catalogue listings (the docs generator, the tool counts, `discover_tools`) keep the
+   *  static `description`, the version-neutral text that is true on every version, so
+   *  `describe(null)` must equal `description`. */
+  describe?: (version: GodotVer | null) => string;
   inputSchema: ZodRawShape;
   annotations?: ToolAnnotations;
   /** Minimum Godot version required ("major.minor", e.g. "4.5"). Omit for 4.2+ (baseline). */
@@ -218,8 +224,6 @@ export type ExtensionCmdWire = {
   annotations?: Record<string, boolean>;
   group?: { name: string; description?: string; keywords?: string[] };
   timeout_ms?: number;
-  min_godot_version?: string;
-  max_godot_version?: string;
 };
 
 // ── Hook pipeline types ──────────────────────────────────────────────

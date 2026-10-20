@@ -103,35 +103,6 @@ export async function testExtensibility(ctx: TestCtx): Promise<void> {
     }
   }
 
-  // ── Extension version-gating structural assertion ────────────────────
-  // Verify that extensions.list response supports version-gating fields.
-  // Extensions may declare min_godot_version / max_godot_version constraints
-  // so the server can hide them on incompatible editor versions. Here we
-  // validate the schema supports these fields (if any extensions are present,
-  // verify their version fields are well-formed).
-  if (extResult?.success && Array.isArray(extResult.commands)) {
-    let versionFieldsValid = true;
-    for (const cmd of extResult.commands) {
-      const ext = cmd as Record<string, unknown>;
-      // If extension declares version constraints, they must be semver-like strings.
-      const minVer = ext.min_godot_version as string | undefined;
-      const maxVer = ext.max_godot_version as string | undefined;
-      if (minVer && !/^\d+\.\d+/.test(minVer)) {
-        fail(`extension ${cmd.method}: malformed min_godot_version "${minVer}"`);
-        versionFieldsValid = false;
-      }
-      if (maxVer && !/^\d+\.\d+/.test(maxVer)) {
-        fail(`extension ${cmd.method}: malformed max_godot_version "${maxVer}"`);
-        versionFieldsValid = false;
-      }
-    }
-    if (versionFieldsValid) {
-      pass(
-        `extension version-gating: ${extResult.commands.length} extension(s) have valid version fields (or none declared)`,
-      );
-    }
-  }
-
   // ── Error contract: invalid params → structured error with hint ─────
   // Use a built-in tool with required params to verify the error envelope
   // survives the MCP bridge round-trip: {success:false, code, error, hint}.

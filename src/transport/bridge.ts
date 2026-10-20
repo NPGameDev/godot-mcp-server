@@ -18,7 +18,7 @@ import { Bridge, EditorAuthHook, NotificationHandler } from "../shared/types.js"
 import { BridgeError } from "../shared/errors.js";
 import { createChannel, type Channel } from "./channel.js";
 import { createRuntimeConnection } from "./runtimeConnection.js";
-import { parseGodotVer } from "../shared/version.js";
+import { compareGodotVer, parseGodotVer } from "../shared/version.js";
 import type { GodotVer } from "../shared/version.js";
 import { lookupProject } from "../registry.js";
 
@@ -90,8 +90,9 @@ export function capKb(bytes: number): number {
  * @returns the {@link Bridge}, augmented with `onNotification` (unsolicited plugin
  *   pushes), `onGodotVersionKnown` (fires once on the unknown → known version
  *   transition, so the composition root can complete a tool surface registered
- *   before the editor reported its version) and `onEditorAuthenticated` (fires
- *   after every editor auth)
+ *   before the editor reported its version), `onGodotVersionChanged` (fires when a
+ *   known version is replaced by a different major.minor) and `onEditorAuthenticated`
+ *   (fires after every editor auth)
  */
 export function createBridge(
   editorUrl: string,
@@ -102,6 +103,11 @@ export function createBridge(
    *  resolves (unknown → known). The composition root uses it to complete an
    *  incomplete startup tool surface. */
   onGodotVersionKnown(handler: () => void): void;
+  /** Register a hook fired when a known Godot version is replaced by one with a
+   *  different major.minor (the editor was swapped or restarted on another Godot).
+   *  The composition root uses it to re-render what depends on the version. A patch
+   *  change fires nothing. */
+  onGodotVersionChanged(handler: () => void): void;
 } & EditorAuthHook {
   const projectPath = opts?.projectPath;
   let godotVersion: string | undefined = undefined;
@@ -111,18 +117,29 @@ export function createBridge(
   let headless: boolean | undefined = undefined;
   let notificationHandler: NotificationHandler | undefined = undefined;
   let versionKnownHandler: (() => void) | undefined = undefined;
+  let versionChangedHandler: (() => void) | undefined = undefined;
   let editorAuthHandler: (() => void) | undefined = undefined;
 
   // Record the connected Godot version. Fires the version-resolved hook on the
-  // unknown → known transition (and only then) so the composition root can
-  // complete a tool surface that was registered before the editor reported its
-  // version — version-gated tools (scene_close) and extension tools stranded on
-  // a server-before-editor cold start. Routing every version-set
-  // site through here keeps the unknown → known lifecycle owned in one place.
+  // unknown → known transition so the composition root can complete a tool surface
+  // that was registered before the editor reported its version — version-gated tools
+  // (scene_close) and extension tools stranded on a server-before-editor cold start.
+  // Routing every version-set site through here keeps the unknown → known lifecycle
+  // owned in one place.
+  //
+  // A known version replaced by one with a different major.minor fires the version-
+  // changed hook instead: the editor behind the project was swapped for another Godot
+  // version, so anything rendered from the old one is stale. A patch-only change fires
+  // nothing, as does a re-auth that re-delivers the same version.
   function setGodotVersion(v: string): void {
-    const versionWasUnknown = godotVersion == null;
+    const previous = godotVersion == null ? undefined : parseGodotVer(godotVersion);
     godotVersion = v;
-    if (versionWasUnknown && versionKnownHandler) versionKnownHandler();
+    if (previous == null) {
+      versionKnownHandler?.();
+      return;
+    }
+    const current = parseGodotVer(v);
+    if (compareGodotVer(previous, current) !== 0) versionChangedHandler?.();
   }
 
   // Pre-populate version from registry entry (available before auth).
@@ -320,6 +337,9 @@ export function createBridge(
     },
     onGodotVersionKnown(handler: () => void) {
       versionKnownHandler = handler;
+    },
+    onGodotVersionChanged(handler: () => void) {
+      versionChangedHandler = handler;
     },
     onEditorAuthenticated(handler: () => void) {
       editorAuthHandler = handler;

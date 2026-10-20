@@ -68,6 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `unbind`, a joypad motion matches on its axis and direction, an event with no `device`
   matches any device, and the logical keys of a built-in action, such as `ui_accept`'s
   Enter, can be unbound.
+- The `script_check` and `editor_get_console` descriptions now say what holds on the
+  connected Godot version: on 4.5+ every compile error carries its line and the console
+  is the live editor output, and on older versions they say what is missing and where
+  `--log-file` applies. Until the editor reports its version they give the text that is
+  true on every version, and they update when the editor reconnects on another Godot
+  version. The server also stops reading `min_godot_version` and `max_godot_version` from
+  extension commands, which the toolkit never sent.
 
 ## [1.0.4] - 2026-10-14
 

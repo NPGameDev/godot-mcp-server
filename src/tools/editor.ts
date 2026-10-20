@@ -9,6 +9,7 @@ import { stableStringify } from "../shared/stableJson.js";
 import { PROJECT_FILE_PATH } from "../security/pathGuard.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 import { PAGE_FIELD, type PaginatedResult } from "../shared/pagination.js";
+import { describeEditorConsole } from "./descriptions/editorConsoleDescription.js";
 
 // ── Tool definitions ─────────────────────────────────────────────────
 
@@ -104,10 +105,8 @@ export const editorTools: ToolDef[] = [
   {
     name: "editor_get_console",
     method: "editor.get_console",
-    description:
-      "Tail editor Output. source='buffer' (default): live editor console on 4.5+, game-log tail on 4.2-4.4. source='file': the game-written log (never editor output, any version). " +
-      "level_filter, since_id, text_filter (is_regex=true for regex). Carries returned/total_lines/has_more + next_id — page via since_id. " +
-      "Primary post-crash diagnostic tool — reads runtime errors even after game_stop.",
+    description: describeEditorConsole(null),
+    describe: describeEditorConsole,
     inputSchema: {
       limit: z.coerce.number().optional(),
       level_filter: z

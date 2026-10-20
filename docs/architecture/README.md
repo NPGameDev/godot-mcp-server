@@ -745,6 +745,7 @@ flowchart TD
     subgraph recov["Recovery (version known after a cold start)"]
       rdrop --> hook["bridge.onGodotVersionKnown (unknown → known)"]
       hook --> rec["startup reconcile (one-shot) → re-register"]
+      chg["bridge.onGodotVersionChanged (known → different major.minor)"] --> reload["scheduleConfigReload → re-register, descriptions re-rendered"]
     end
     subgraph runt["Runtime gate (wrappedHandler) — fails OPEN"]
       u1{"connected version?"}
@@ -766,6 +767,19 @@ when the version is known *and* incompatible). Because the server filters versio
 tools out of `tools/list` at registration, it never surfaces the toolkit's `-32601`
 version-block on the happy path.
 
+**Version-tailored descriptions.** Two eager tools (`script_check`, `editor_get_console`)
+describe engine behaviour that differs by Godot version, so their `ToolDef` carries a
+`describe(version)` beside the static `description`. Registration renders
+`describe(bridge.getGodotVersion())`, with `null` while the version is unknown; the
+static `description` equals `describe(null)` and feeds the docs generator and the tool
+counts. The thresholds live in `shared/engineThresholds.ts` and the builders in
+`tools/descriptions/`. A known version replaced by one with a different major.minor
+(a patch change counts for nothing) fires `bridge.onGodotVersionChanged`, which the
+composition root routes to `scheduleConfigReload()`, so one batched `tools/list_changed`
+re-renders both the descriptions and the version gate. Extension commands carry no
+version bounds on the wire: the toolkit refuses an incompatible command at `add()` and
+the server does not gate extensions by version.
+
 ---
 
 ## 13. The extension system
@@ -782,14 +796,14 @@ flowchart TD
     mgr --> disc["extensionDiscovery.discoverExtensions (single-flight)"]
     disc --> rpc["bridge.call('extensions.refresh') (fallback 'extensions.list')"]
     rpc --> part{"cmd.group?.name ?"}
-    part -->|"ungrouped"| ung["batch → extensionRegistrar.registerExtensionTool<br/>(annotations · read-only skip · collision guard · version gate · registerToolWrapped)"]
+    part -->|"ungrouped"| ung["batch → extensionRegistrar.registerExtensionTool<br/>(annotations · read-only skip · collision guard · registerToolWrapped)"]
     part -->|"grouped"| grp["addExtensionGroup (extensionGroups.ts — dynamic mirror)"]
     ung --> once["one tools/list_changed"]
     grp --> desc["registerGroupSystem — refresh discover_tools description"]
     chg["toolkit 'extensions.changed' push"] --> apply["extensionChanges.handleExtensionsChanged<br/>remove + register + reconcile + read-only transitions — ONE batch"]
     apply --> once
     refresh["extensions_refresh (eager meta-tool — manual re-sync)"] --> disc
-    note["Full-trust (ADR 0009). tools/list_changed is unreliable in all Claude Code modes →<br/>extensions_refresh + eager promotion of dynamic-sensitive tools are the compensations."]
+    note["Full-trust (ADR 0009). Current Claude Code processes tools/list_changed;<br/>extensions_refresh is the manual re-sync for a client or session that does not."]
     mgr -.-> note
 ```
 *Figure 13 — the extension lifecycle (consumer projection) · verified 446b412*
@@ -808,8 +822,8 @@ boot pass is deadline-wrapped. **Live reconcile**: the
 toolkit's `extensions.changed` broadcast → `extensionChanges.handleExtensionsChanged`
 applies the whole delta (removes, adds, in-place updates, read-only transitions) inside
 **one batch** → one `tools/list_changed`. `extensions_refresh` is the always-on meta-tool
-the LLM calls to force a manual re-sync — load-bearing because `tools/list_changed` is
-dropped in all Claude Code modes.
+the LLM calls to force a manual re-sync, for a client or session that does not process
+`tools/list_changed` (current Claude Code does).
 
 ---
 

@@ -17,7 +17,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { isReadOnly, isExcludedByReadOnly } from "../security/profiles.js";
 import type { Bridge, ToolDef, ToolTextResult, ToolRequest, PathGuard } from "../shared/types.js";
 import { setToolRef } from "./toolRefs.js";
-import { isVersionCompatible } from "../shared/version.js";
+import { isVersionCompatible, type GodotVer } from "../shared/version.js";
 import { checkPathGuard } from "../security/pathGuard.js";
 import { toolError } from "../shared/errorContract.js";
 import { isRawJsonSchema, jsonSchemaToZodShape, addStringCoercion } from "../shared/schemaCoercion.js";
@@ -61,6 +61,19 @@ export function versionSupportText(min?: string, max?: string): string {
   if (min && max) return `Supported on Godot ${min}–${max} (inclusive).`;
   if (min) return `Requires Godot ${min} or newer.`;
   return `Supported up to Godot ${max} (inclusive).`;
+}
+
+/**
+ * The description a tool registers with: its `describe` rendering for the connected
+ * Godot version when it has one, otherwise the static `description`. Eager and group
+ * registration both call it, so a tool reads the same wherever it is installed.
+ *
+ * @param def - the tool definition
+ * @param version - the connected Godot version, or `null` while it is not yet known
+ * @returns the description text to register
+ */
+export function renderDescription(def: ToolDef, version: GodotVer | null): string {
+  return def.describe ? def.describe(version) : def.description;
 }
 
 /**
@@ -254,7 +267,7 @@ export function registerTools(
     if (allowedTools && !allowedTools.has(tool.name)) continue;
     if (isExcludedByReadOnly(readOnly, tool.annotations)) continue;
 
-    const description = tool.description;
+    const description = renderDescription(tool, bridge.getGodotVersion() ?? null);
     const customHandler = opts.handlers?.get(tool.name);
     let handler = (customHandler ??
       ((input: unknown, signal?: AbortSignal) =>
