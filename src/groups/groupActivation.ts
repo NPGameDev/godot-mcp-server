@@ -26,7 +26,7 @@ import {
 import { createGroupToolHandler } from "./groupToolHandlers.js";
 import { isAllowedInReadOnly, isExcludedByReadOnly } from "../security/profiles.js";
 import { isVersionCompatible } from "../shared/version.js";
-import { registerToolWrapped } from "../registration/toolRegistry.js";
+import { registerToolWrapped, renderDescription } from "../registration/toolRegistry.js";
 import { removeToolByName } from "../registration/toolRefs.js";
 import type { ToolMeta, GroupResult } from "../registration/toolMeta.js";
 import { activatedResult, alreadyLoadedResult, availableResult, readOnlyEmptyResult } from "./groupResult.js";
@@ -95,7 +95,7 @@ export function registerGroupTools(server: McpServer, bridge: Bridge, group: Gro
       bridge,
       def.name,
       {
-        description: def.description,
+        description: renderDescription(def, bridge.getGodotVersion() ?? null),
         inputSchema: def.inputSchema,
         annotations: def.annotations,
       },

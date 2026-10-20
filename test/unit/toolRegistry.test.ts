@@ -236,3 +236,34 @@ assert.equal(
     assert.equal(await hintOf("add"), "static", `${name}: an unlisted operation gets successHint`);
   }
 }
+
+// ── version-tailored descriptions (registerTools) ────────────────────
+// A def with describe is registered with describe(connected version), `null` while the
+// version is unknown; a def without it keeps its static description.
+{
+  const registered = new Map<string, string>();
+  const fakeServer = {
+    registerTool: (n: string, config: { description: string }) => {
+      registered.set(n, config.description);
+      return {};
+    },
+    sendToolListChanged: () => {},
+  } as unknown as McpServer;
+  const bridgeAt = (version: [number, number] | undefined) =>
+    ({ call: async () => ({ success: true }), getGodotVersion: () => version }) as unknown as Bridge;
+  const tailored: ToolDef = {
+    name: "desc_tailored",
+    method: "desc.tailored",
+    description: "fallback",
+    describe: (v) => (v == null ? "fallback" : `for ${v[0]}.${v[1]}`),
+    inputSchema: {},
+  };
+  const plain: ToolDef = { name: "desc_plain", method: "desc.plain", description: "static", inputSchema: {} };
+
+  registerTools(fakeServer, bridgeAt([4, 5]), [tailored, plain]);
+  assert.equal(registered.get("desc_tailored"), "for 4.5", "describe receives the connected version");
+  assert.equal(registered.get("desc_plain"), "static", "a def without describe keeps its description");
+
+  registerTools(fakeServer, bridgeAt(undefined), [tailored]);
+  assert.equal(registered.get("desc_tailored"), "fallback", "describe receives null while the version is unknown");
+}

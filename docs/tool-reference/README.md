@@ -67,7 +67,7 @@ _1 operation._
 <!-- tool:editor_get_console -->
 ### `editor_get_console`
 
-Tail editor Output. source='buffer' (default): live editor console on 4.5+, game-log tail on 4.2-4.4. source='file': the game-written log (never editor output, any version). level_filter, since_id, text_filter (is_regex=true for regex). Carries returned/total_lines/has_more + next_id — page via since_id. Primary post-crash diagnostic tool — reads runtime errors even after game_stop.
+Tail editor Output. source='buffer' (default): live editor console on 4.5+, game-log tail on 4.2-4.4. source='file': the newest log — the game's, or the editor's own when launched with --log-file (4.3+; not 4.4 on Windows). level_filter, since_id, text_filter (is_regex=true for regex). Carries returned/total_lines/has_more + next_id — page via since_id. Primary post-crash diagnostic tool — reads runtime errors even after game_stop.
 
 **eager** · read-only
 
@@ -568,7 +568,7 @@ _1 operation._
 <!-- tool:script_check -->
 ### `script_check`
 
-Offline GDScript validation — pass/fail + diagnostics. On 4.5+ the error diagnostic carries the real line (1-based; omitted on 4.2-4.4). Columns are lsp_diagnostics' domain. Works without editor.
+Offline GDScript validation — pass/fail + diagnostics. A class_name clash always carries its line (1-based); a compile error only on 4.5+. Columns are lsp_diagnostics' domain. Works headless.
 
 **eager** · read-only
 

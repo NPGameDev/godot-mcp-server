@@ -94,6 +94,13 @@ const extensions = createExtensionManager({ server, bridge, getReadOnly: isReadO
 // `this`) so reconcile.ts imports no other composition module (acyclic graph).
 const reconciler = createReconciler({ server, bridge, projectPath, discover: extensions.discoverExtensions });
 
+// A Godot version replaced by a different major.minor (the editor was restarted on
+// another version, or the registry held one left by another editor) leaves the
+// registered surface stale: version-gated tools and the version-tailored descriptions
+// were rendered for the old one. Re-render through the batched reload. Armed before
+// eager discovery opens the editor channel, whose first auth can deliver the change.
+bridge.onGodotVersionChanged(() => reconciler.scheduleConfigReload());
+
 // A cap the env sets is shown as the KB value the bridge pushes; an unset one as
 // "project", because the editor's own setting governs it.
 function capLabel(bytes: number | undefined): string {
