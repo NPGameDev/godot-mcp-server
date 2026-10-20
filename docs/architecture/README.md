@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="55df663" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="3845d8c" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified 55df663*
+*Figure 1 — system context · verified 3845d8c*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -162,7 +162,7 @@ the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
 `startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
 or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="55df663" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="3845d8c" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -195,7 +195,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified 55df663*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 3845d8c*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -601,7 +601,7 @@ JSON-RPC-over-TCP client) and was **not carved**. The refactor carved only the *
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="55df663" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="3845d8c" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -623,7 +623,7 @@ flowchart TD
     auth["every editor auth (bridge.onEditorAuthenticated)"] --> regv["reportRegistryVerdict — resolution only, fire-and-forget<br/>dropped if a verified verdict lands first"]
     regv --> verdict
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified 55df663*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified 3845d8c*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -683,7 +683,7 @@ crash.
 The server is a **read-only consumer** of the toolkit's `projects.json` (`registry.ts`):
 `readRegistry` reads only the aggregate file, never the per-instance `entries/` dir.
 
-<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="55df663" -->
+<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="3845d8c" -->
 ```mermaid
 flowchart TD
     pj[("projects.json — the toolkit writes")] --> read["registry.readRegistry → by_path[ normalizePath(projectPath) ]<br/>(PATH key — NOT the sha256 project hash)"]
@@ -697,7 +697,7 @@ flowchart TD
     tok["token: tokenPath.ts READS entry.token_path<br/>(toolkit-published · globalized-absolute) and<br/>STRUCTURALLY VALIDATES it — assertPublishedTokenPath:<br/>absolute · no '..' · existing file · …/project_instance_&lt;12-hex&gt;/mcp_token suffix"]
     pj -. "token_path: READ + structurally validated (ADR-0011)" .-> tok
 ```
-*Figure 11 — the registry consume path · verified 55df663*
+*Figure 11 — the registry consume path · verified 3845d8c*
 
 **Path key, not hash.** `by_path` is keyed by the **canonical project path**; the server
 forms the same key via `normalizePath` (backslash → `/`, strip trailing `/`, lowercase on
