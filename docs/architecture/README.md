@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="4790707" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="55df663" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified 4790707*
+*Figure 1 — system context · verified 55df663*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -162,7 +162,7 @@ the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
 `startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
 or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="4790707" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="55df663" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -195,7 +195,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified 4790707*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 55df663*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -363,7 +363,7 @@ flowchart TD
     editor -.-> note1
     note2["ping every 15 s (10 s ping timeout); 4 consecutive fails<br/>(~60 s) → onDead teardown. isAlive self-stop guard<br/>when the channel is cleared out-of-band"]
     hb -.-> note2
-    note3["fs.watch on projects.json (diffAndNotify on runtime_port)<br/>→ connect / teardown; token re-read each connect → auth self-heals"]
+    note3["fs.watch on projects.json (diffAndNotify on runtime_port / runtime_pid changes)<br/>→ connect / teardown; token re-read each connect → auth self-heals"]
     rc -.-> note3
 ```
 *Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified 4790707*
@@ -384,7 +384,8 @@ flowchart TD
   fails (~60 s) → proactive teardown. The `isAlive` self-stop guard is load-bearing —
   `callRuntime`/`clearRuntime` can null the channel without stopping the heartbeat,
   relying on the next tick's guard. Discovery is via an `fs.watch` on `projects.json`
-  whose `diffAndNotify` reacts **only** to `runtime_port` transitions. A **pinned**
+  whose `diffAndNotify` reacts **only** to a change of the entry's `runtime_port` or
+  `runtime_pid`, and announces a port only when it is usable. A **pinned**
   runtime port (`GODOT_MCP_RUNTIME_PORT` / `--runtime-port`) skips discovery — and since
   no watcher exists to rebuild its channel after a game stop clears it, the next call
   lazily re-creates the channel against the pin. Auth self-heals
@@ -600,7 +601,7 @@ JSON-RPC-over-TCP client) and was **not carved**. The refactor carved only the *
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="9ea398a" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="55df663" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -622,7 +623,7 @@ flowchart TD
     auth["every editor auth (bridge.onEditorAuthenticated)"] --> regv["reportRegistryVerdict — resolution only, fire-and-forget<br/>dropped if a verified verdict lands first"]
     regv --> verdict
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified 9ea398a*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified 55df663*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -682,7 +683,7 @@ crash.
 The server is a **read-only consumer** of the toolkit's `projects.json` (`registry.ts`):
 `readRegistry` reads only the aggregate file, never the per-instance `entries/` dir.
 
-<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="4790707" -->
+<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="55df663" -->
 ```mermaid
 flowchart TD
     pj[("projects.json — the toolkit writes")] --> read["registry.readRegistry → by_path[ normalizePath(projectPath) ]<br/>(PATH key — NOT the sha256 project hash)"]
@@ -690,13 +691,13 @@ flowchart TD
     read --> ver["godot_version → bridge pre-pop (available before auth)"]
     read --> rport["runtime_port / runtime_pid → discoverRuntime · getCachedRuntimePort<br/>(one shared check: port range + isPidAlive gate only — see the asymmetry below)"]
     read --> lsp["lsp_port / lsp_host → discoverLspEndpoint<br/>(isPidAlive AND wsPortNotRefused on entry.port)"]
-    read --> watch["diffAndNotify watcher — ONLY runtime_port transitions<br/>(editor port / version / lsp_port do NOT flow through it)"]
+    read --> watch["runtimeTransitions → diffAndNotify watcher — ONLY (runtime_port, runtime_pid) changes<br/>(discovered only for a usable port; editor port / version / lsp_port do NOT flow through it)"]
     lsp -.-> live["registryLiveness.ts — process.kill(pid, 0)<br/>+ 300 ms loopback probe of the peer's own WS port"]
     rport -.-> live
     tok["token: tokenPath.ts READS entry.token_path<br/>(toolkit-published · globalized-absolute) and<br/>STRUCTURALLY VALIDATES it — assertPublishedTokenPath:<br/>absolute · no '..' · existing file · …/project_instance_&lt;12-hex&gt;/mcp_token suffix"]
     pj -. "token_path: READ + structurally validated (ADR-0011)" .-> tok
 ```
-*Figure 11 — the registry consume path · verified 4790707*
+*Figure 11 — the registry consume path · verified 55df663*
 
 **Path key, not hash.** `by_path` is keyed by the **canonical project path**; the server
 forms the same key via `normalizePath` (backslash → `/`, strip trailing `/`, lowercase on
@@ -714,15 +715,19 @@ an operator override (read directly, bypassing the suffix check). The server rea
 stale / runtime-only / ping-pong entries gracefully. The registry's `godot_version` only
 seeds the bridge before auth: the editor's own version at auth replaces it, and a
 different major.minor fires `onGodotVersionChanged`
-([§12](#12-cross-version-compatibility)). The `diffAndNotify` watcher reacts
-**only** to `runtime_port` transitions.
+([§12](#12-cross-version-compatibility)). The watcher (`runtimeTransitions`, applied by
+`diffAndNotify`) reacts **only** to a change of an entry's `(runtime_port, runtime_pid)`
+pair, so a relaunch on the same port under a new pid is a transition. It reports
+`discovered` only for a port the shared runtime check accepts, and `removed` for any
+previous port.
 
 **Liveness is read at two strengths, and the asymmetry is deliberate.** The base check is
 `isPidAlive` (`process.kill(pid, 0)`, which answers for any process, unlike the toolkit's
 `OS.is_process_running`, which is documented for its own children only), which proves only that *some* signalable process holds that
 number, not that it is still the editor that wrote the entry. The runtime-port lookups
-stop there, the file read (`discoverRuntime`) and the watcher's cache
-(`getCachedRuntimePort`) alike, through one shared check: a runtime entry advertises
+stop there, the file read (`discoverRuntime`), the watcher's cache
+(`getCachedRuntimePort`) and the watcher's `discovered` events alike, through one
+shared check: a runtime entry advertises
 `port: -1` (nothing to probe), a wrong runtime port announces itself through a failed
 connect plus the channel's own per-instance auth
 handshake, and that path runs on **every** runtime RPC. LSP claimants go further and are
