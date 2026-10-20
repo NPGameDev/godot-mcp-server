@@ -171,6 +171,28 @@ async function testWatcher() {
   console.log("  PASS: watcher onDiscovered swap/port/heartbeat-start/waiter-resolve; onRemoved stop/close/undefined");
 }
 
+// ── 2b. onRemoved is idempotent ───────────────────────────────────────
+//
+// The watcher can report `removed` for an entry whose `discovered` it never
+// reported (its pid was dead), so onRemoved must tolerate having nothing to close.
+
+function testRemovedWithoutChannel() {
+  const t = makeDeps();
+  createRuntimeConnection({ projectPath: "/proj" }, t.deps);
+
+  assert.doesNotThrow(() => t.fireRemoved("/proj"), "onRemoved with no channel open does not throw");
+  assert.equal(t.hb.startCalls, 0, "onRemoved with no channel never starts the heartbeat");
+  assert.equal(t.hb.stopCalls, 1, "onRemoved with no channel leaves the heartbeat stopped");
+  assert.equal(t.channels.length, 0, "onRemoved with no channel opens none");
+
+  // A repeat after a real teardown closes the channel once, not twice.
+  t.fireDiscovered("/proj", 7000);
+  t.fireRemoved("/proj");
+  t.fireRemoved("/proj");
+  assert.equal(t.channels[0].closeCalls, 1, "a repeated onRemoved does not close the channel again");
+  console.log("  PASS: onRemoved with no channel open is harmless, and a repeat closes nothing twice");
+}
+
 // ── 3. callRuntime paths ──────────────────────────────────────────────
 
 async function testCallRuntimePaths() {
@@ -400,6 +422,7 @@ async function main() {
   console.log("runtime_connection tests:");
   await testDiscoveryBranches();
   await testWatcher();
+  testRemovedWithoutChannel();
   await testCallRuntimePaths();
   await testClearRuntime();
   await testExplicitPortRecreateAfterClear();

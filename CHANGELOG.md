@@ -55,6 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `game_start` no longer reports a game that exited during startup as ready, and the bridge
+  now picks up a game relaunched on the same runtime port when no editor cleared the old
+  entry.
 - The `node_set_script` description now says it reloads a `.gd` that changed on disk
   since the editor loaded it, so every node running the script gets the new code when
   the new source compiles. Otherwise the response carries `valid: false` and a hint that
