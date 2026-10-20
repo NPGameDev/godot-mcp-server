@@ -43,9 +43,10 @@ export interface RegistryEntry {
 }
 
 /**
- * The parsed `projects.json`: every project entry, keyed by canonical path.
+ * The parsed `projects.json`: every project entry, keyed by canonical path. The
+ * parameter type of `runtimeTransitions`.
  *
- * @internal Exported for the watcher's pure diff and its unit tests.
+ * @internal
  */
 export interface Registry {
   by_path: Record<string, RegistryEntry>;
@@ -230,10 +231,10 @@ export type RuntimeTransition = { kind: "removed"; key: string } | { kind: "disc
  * them. A project transitions when its (runtime_port, runtime_pid) pair changes:
  * the runtime band always scans from the same port, so a relaunched game often
  * returns the same port under a new pid. `removed` is reported for any previous
- * port; `discovered` only for a port `usableRuntimePort` accepts, so a game that
- * whose recorded pid is dead is never announced as ready. An absent pid compares as null, so a
- * toolkit that records none transitions on the port alone. Reads no file and starts
- * no timer; the only outside look is the pid-liveness probe.
+ * port; `discovered` only for a port `usableRuntimePort` accepts, so a game whose
+ * recorded pid is dead is never announced as ready. An absent pid compares as null,
+ * so a toolkit that records none transitions on the port alone. Reads no file and
+ * starts no timer; the only outside look is the pid-liveness probe.
  *
  * @internal Exported for the unit tests; the watcher is the one caller.
  */
