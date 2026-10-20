@@ -82,7 +82,7 @@ live instance's port from the toolkit's machine-wide `projects.json`. A single
 **side channel** — the GDScript LSP client — opens its own TCP socket to Godot's
 language server, bypassing the bridge entirely ([§9](#9-the-gdscript-lsp-client)).
 
-<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="f8d1d95" -->
+<!-- data-depicts="src/index.ts src/transport/bridge.ts src/registry.ts src/lsp/lspClient.ts" data-verified="4790707" -->
 ```mermaid
 flowchart LR
     AI["AI assistant<br/>(MCP client)"]
@@ -104,7 +104,7 @@ flowchart LR
     Lsp -.->|"discovers LSP endpoint"| Registry
     ModeA -.->|"publishes entry"| Registry
 ```
-*Figure 1 — system context · verified f8d1d95*
+*Figure 1 — system context · verified 4790707*
 
 Static `GODOT_MCP_EDITOR_PORT` / `GODOT_MCP_RUNTIME_PORT` / `GODOT_MCP_LSP_PORT` pins (or the
 matching `--editor-port` / `--runtime-port` / `--lsp-port` CLI flags) fix a port and
@@ -162,7 +162,7 @@ the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
 `startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
 or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="f8d1d95" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -195,7 +195,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified f8d1d95*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 4790707*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -208,14 +208,14 @@ its three services + shared registrar, and `index.ts` over every subsystem it co
 domain logic"). The boot order is load-bearing — the transport connects **last**, so
 nothing is advertised before its guards are in place:
 
-<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/projectPath.ts src/startup/portConfig.ts src/startup/bridgeOptions.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="f8d1d95" -->
+<!-- data-depicts="src/index.ts src/startup/startupEnv.ts src/startup/cliArgs.ts src/startup/projectPath.ts src/startup/portConfig.ts src/startup/bridgeOptions.ts src/startup/registrars.ts src/startup/serverMode.ts src/startup/lifecycle.ts src/startup/reconcile.ts src/registration/catalogue.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     pre["preflight (may process.exit)<br/>Node ≥ 22 gate · --help / --tools-count / --list-eager / parse-error exit<br/>projectPath (GODOT_MCP_PROJECT_PATH, empty = unset → cwd)<br/>portConfig (cli → env → registry → 6550) · response caps"]
     bridge["createBridge(ws://127.0.0.1:&lt;port&gt;, buildBridgeOptions(projectPath, ports, caps, skipVersionCheck))<br/>then createLspStatusReporter (subscribes to editor auth before any bridge call)<br/>then the config-version warning"]
     srv["new McpServer<br/>capabilities.tools.listChanged = true"]
     hooks["createHookPipeline + setGlobalHookPipeline"]
-    subsys["createExtensionManager + createReconciler"]
+    subsys["createExtensionManager + createReconciler<br/>+ bridge.onGodotVersionChanged → scheduleConfigReload"]
     reg["registrars.registerBuiltinModules(MODULE_ALLOWED)<br/>+ registerGroups + extensions_refresh"]
     mcpcap["registerPrompts / Resources / Roots"]
     eager["await extensions.discoverEagerly() — deadline-wrapped"]
@@ -226,7 +226,7 @@ flowchart TD
     part["Eager partition (startup tools/list):<br/>EAGER_TOOLS − GROUP_TOOL_NAMES (= MODULE_ALLOWED)<br/>+ 2 meta tools; group tools absent (no stubs).<br/>current counts: godot-mcp-server --tools-count"]
     reg -.-> part
 ```
-*Figure 3 — composition-root boot order · verified f8d1d95*
+*Figure 3 — composition-root boot order · verified 4790707*
 
 - **Preflight** (`startup/startupEnv.ts` + `startup/cliArgs.ts` + `startup/projectPath.ts` +
   `startup/portConfig.ts`) runs
@@ -256,7 +256,10 @@ flowchart TD
   reports its version *after* eager registration, the startup reconcile re-registers the
   version-gated and extension tools exactly once, fired immediately if the version is
   already known, else via `bridge.onGodotVersionKnown`
-  ([§12](#12-cross-version-compatibility)).
+  ([§12](#12-cross-version-compatibility)). The root also arms
+  `bridge.onGodotVersionChanged` → `scheduleConfigReload` right after building the
+  reconciler, before eager discovery can open the editor channel, so a later switch to
+  another Godot major.minor re-renders the surface the same way.
 - **Lifecycle** (`startup/lifecycle.ts`): one **departure shutdown** — stdin EOF (the
   client closed its end), any stdout error (transport dead), or SIGINT/SIGTERM → a
   `bridge.close()` bounded by a 2 s deadline → exit 0. A **stderr** error is muted: only
@@ -279,7 +282,7 @@ per-OS token-file resolver), `heartbeat.ts` (the generic liveness primitive), an
 
 A tool call reaches the editor like this:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="f8d1d95" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="4790707" -->
 ```mermaid
 sequenceDiagram
     participant SDK as MCP SDK (tool call)
@@ -299,6 +302,7 @@ sequenceDiagram
     Ch->>B: onAuthResolved({ version, headless })
     Note over B,Ch: every editor auth, reconnects and re-discoveries included
     Ch-)TK: meta.set_limits { the whole env-override set, or {} } — fire-and-forget
+    Note over B: setGodotVersion → onGodotVersionKnown (unknown → known) or onGodotVersionChanged (different major.minor)
     Note over B: onEditorAuthenticated hook → the LSP status reporter (§9)
     Ch-)TK: editor.set_lsp_status { registry verdict } — fire-and-forget, after the peer probes
     Note over Ch: version check → stderr only, skipped when GODOT_MCP_SKIP_VERSION_CHECK=1 — below a floor → one error, else patch silent, minor warns, major errors
@@ -307,7 +311,7 @@ sequenceDiagram
     Ch-->>D: result
     D-->>SDK: stableStringify(result) — verbatim
 ```
-*Figure 4 — connect → auth handshake → dispatch · verified f8d1d95*
+*Figure 4 — connect → auth handshake → dispatch · verified 4790707*
 
 The handshake (`authHandshake.ts`) sends `{ auth: token, version, server_version,
 min_toolkit }` (the legacy `version` beside the server version and its declared toolkit
@@ -331,13 +335,17 @@ set, or `{}` when neither is set. A 1.0.4 or later toolkit replaces its env over
 each push, so `{}` clears them, and keeps them out of `project.godot`. Older toolkits apply
 each pushed value in memory, where the next settings save persists it, and ignore `{}`. A
 pushed WebSocket buffer size reaches only connections accepted after the push. The same
-auth callback then runs the bridge's `onEditorAuthenticated` hook, where the LSP status
+auth callback records the ack's `godot_version`: the first known value fires
+`onGodotVersionKnown`, and one with a different major.minor than the value held before
+(registry-seeded or from an earlier auth) fires `onGodotVersionChanged`; a patch-only
+difference or a re-delivery of the same version fires neither
+([§12](#12-cross-version-compatibility)). It then runs the bridge's `onEditorAuthenticated` hook, where the LSP status
 reporter pushes the registry LSP verdict to the editor dock ([§9](#9-the-gdscript-lsp-client)).
 
 The bridge composes a **persistent editor channel** and a **discovered runtime channel**,
 each with their own resilience policy:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="f8d1d95" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     bridge["bridge.ts — editor-side facade + composition"]
@@ -358,7 +366,7 @@ flowchart TD
     note3["fs.watch on projects.json (diffAndNotify on runtime_port)<br/>→ connect / teardown; token re-read each connect → auth self-heals"]
     rc -.-> note3
 ```
-*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified f8d1d95*
+*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified 4790707*
 
 - **Editor channel** — persistent and reconnecting with exponential backoff
   (`1·2·4·8·16·32·60·60…` s; **reset on a successful round-trip, not on open**, so a
@@ -395,7 +403,7 @@ counted in one place and missed in another. The human-readable
 (`npm run docs:tools`) — the canonical list of every tool and operation, never
 hand-edited.
 
-<!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="f8d1d95" -->
+<!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     defs["tools/*.ts — ToolDef arrays"] --> cat["catalogue.ALL_TOOL_DEFS<br/>dedup SSOT (01_catalogue CI gate)"]
@@ -411,7 +419,7 @@ flowchart TD
     pg --> hook["hook pipeline (global or explicit)"]
     hook --> handler["handler → callAndWrap<br/>one bridge call → stableStringify(result)"]
 ```
-*Figure 6 — catalogue → registration → per-call dispatch · verified f8d1d95*
+*Figure 6 — catalogue → registration → per-call dispatch · verified 4790707*
 
 **The choke point.** Every built-in and extension tool registers through
 `registerToolWrapped` (`registration/toolRegistry.ts`) — never `server.registerTool`
@@ -420,7 +428,10 @@ the coerced Zod schema + annotations + version bounds (`versionMap`) + path guar
 (`pathParamMap`) + the tool ref. **The dispatch wrapper** (`wrappedHandler`, built per
 tool) runs, on every call: a runtime version gate → a syntactic path pre-filter → the
 hook pipeline → the real handler. `callAndWrap` (`registration/toolDispatch.ts`) is the
-default body — "one bridge call → JSON-stringify the result". The `name` (snake_case) ⟷
+default body — "one bridge call → JSON-stringify the result". The description a tool
+registers with comes from `renderDescription(def, version)`, which both eager and group
+registration call: the def's `describe(version)` when it has one, else its static
+`description` ([§12](#12-cross-version-compatibility)). The `name` (snake_case) ⟷
 `method` (dotted `domain.verb`) mapping mirrors the toolkit lockstep (C8).
 
 ---
@@ -434,7 +445,7 @@ default body — "one bridge call → JSON-stringify the result". The `name` (sn
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="9ea398a" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}
@@ -447,7 +458,7 @@ flowchart TD
     exc -.-> note
     pe -.-> note
 ```
-*Figure 7 — the response & error contract (REFLECT) · verified 9ea398a*
+*Figure 7 — the response & error contract (REFLECT) · verified 4790707*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
 result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`
@@ -484,7 +495,7 @@ data modules in `groups/defs/`, plus the derived `GROUP_TOOL_NAMES` / `RUNTIME_T
 and the leaves `groupState.ts` / `groupResult.ts` / `groupTypes.ts`. `groups.ts` itself is
 the thin `discover_tools` orchestrator over them.
 
-<!-- data-depicts="src/groups/groups.ts src/groups/groupMatch.ts src/groups/groupActivation.ts src/groups/groupCatalogue.ts src/registration/toolRegistry.ts" data-verified="9ea398a" -->
+<!-- data-depicts="src/groups/groups.ts src/groups/groupMatch.ts src/groups/groupActivation.ts src/groups/groupCatalogue.ts src/registration/toolRegistry.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     req["discover_tools({ request, activate, reset, include_schemas })"] --> batch["batchToolRegistration — suppress per-op notifications"]
@@ -500,7 +511,7 @@ flowchart TD
     enrich --> resp["response: groups[] (+ >5-groups warning, fuzzy / reset hints)"]
     body --> one["exactly ONE tools/list_changed — fired in finally"]
 ```
-*Figure 8 — the `discover_tools` activation flow · verified 9ea398a*
+*Figure 8 — the `discover_tools` activation flow · verified 4790707*
 
 **The load-bearing invariant**: one `discover_tools` call — however many groups it
 activates and deactivates — emits **exactly one** `tools/list_changed`. All mutation
@@ -521,7 +532,9 @@ summary, and the meta description, so `discover_tools` never advertises a tool t
 `tools/list` omits. A version-unknown editor mirrors registration's conservative skip. By
 contrast, `--tools-count` is a **pre-connection** static audit that has no connected editor to
 gate against, so it is intentionally version-agnostic (it counts the full catalogue) and must
-not be "fixed" to filter.
+not be "fixed" to filter. The same split holds for descriptions: the tool metadata `discover_tools`
+returns carries a tool's static, version-neutral `description`, while `registerGroupTools`
+registers it through `renderDescription` for the connected version.
 
 ---
 
@@ -536,7 +549,7 @@ guards.
 tool is **never registered** (absent from `tools/list`, with **no per-call forward-time
 reject**):
 
-<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="9ea398a" -->
+<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     env["GODOT_MCP_READ_ONLY=1"] --> pred["profiles.isExcludedByReadOnly(readOnly, annotations)"]
@@ -550,7 +563,7 @@ flowchart TD
     sites["Applied at EVERY registration site:<br/>modules (registerTools) · groups (registerGroupTools)<br/>· extensions (registerExtensionTool)"]
     sites -.-> pred
 ```
-*Figure 9 — read-only enforcement points · verified 9ea398a*
+*Figure 9 — read-only enforcement points · verified 4790707*
 
 STRICT means a tool is exposed iff `readOnlyHint: true ∧ ¬destructiveHint`; **an
 unannotated tool defaults to excluded (safe)**, and the `readOnlyHint ∧ destructiveHint`
@@ -669,7 +682,7 @@ crash.
 The server is a **read-only consumer** of the toolkit's `projects.json` (`registry.ts`):
 `readRegistry` reads only the aggregate file, never the per-instance `entries/` dir.
 
-<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="f8d1d95" -->
+<!-- data-depicts="src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/transport/tokenPath.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     pj[("projects.json — the toolkit writes")] --> read["registry.readRegistry → by_path[ normalizePath(projectPath) ]<br/>(PATH key — NOT the sha256 project hash)"]
@@ -683,7 +696,7 @@ flowchart TD
     tok["token: tokenPath.ts READS entry.token_path<br/>(toolkit-published · globalized-absolute) and<br/>STRUCTURALLY VALIDATES it — assertPublishedTokenPath:<br/>absolute · no '..' · existing file · …/project_instance_&lt;12-hex&gt;/mcp_token suffix"]
     pj -. "token_path: READ + structurally validated (ADR-0011)" .-> tok
 ```
-*Figure 11 — the registry consume path · verified f8d1d95*
+*Figure 11 — the registry consume path · verified 4790707*
 
 **Path key, not hash.** `by_path` is keyed by the **canonical project path**; the server
 forms the same key via `normalizePath` (backslash → `/`, strip trailing `/`, lowercase on
@@ -698,7 +711,10 @@ was **deleted**; honoring the published path is what makes a relocated `user://`
 an operator override (read directly, bypassing the suffix check). The server reads `port`,
 `godot_version`,
 `runtime_port` / `runtime_pid`, and `lsp_port` / `lsp_host`, and tolerates
-stale / runtime-only / ping-pong entries gracefully. The `diffAndNotify` watcher reacts
+stale / runtime-only / ping-pong entries gracefully. The registry's `godot_version` only
+seeds the bridge before auth: the editor's own version at auth replaces it, and a
+different major.minor fires `onGodotVersionChanged`
+([§12](#12-cross-version-compatibility)). The `diffAndNotify` watcher reacts
 **only** to `runtime_port` transitions.
 
 **Liveness is read at two strengths, and the asymmetry is deliberate.** The base check is
@@ -733,7 +749,7 @@ patch / minor / major severity lines) is a separate, human-only stderr check on 
 channel ([§4](#4-transport-the-websocket-bridge)); `GODOT_MCP_SKIP_VERSION_CHECK=1` turns it
 off but leaves the two gates below untouched.
 
-<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="f8d1d95" -->
+<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     subgraph regn["Registration gate (registerToolWrapped) — fails CLOSED"]
@@ -756,7 +772,7 @@ flowchart TD
     note["isVersionCompatible (version.ts). The null asymmetry is intentional + recoverable:<br/>registration refuses the unverifiable; runtime tolerates it. The server filters<br/>version-gated tools from tools/list, so it never surfaces the toolkit's -32601 on the happy path."]
     rkeep -.-> note
 ```
-*Figure 12 — the version dual-gate · verified f8d1d95*
+*Figure 12 — the version dual-gate · verified 4790707*
 
 The dual gate has a deliberate **null asymmetry**, so a server that starts before the
 editor still ends with the full tool surface: the
@@ -789,7 +805,7 @@ ADR 0009). `extensions.ts` is a pure-composition facade over one shared registra
 single known-extension ledger), the discovery service, and the change-application service
 — so the ledger stays one consistency boundary.
 
-<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="446b412" -->
+<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="4790707" -->
 ```mermaid
 flowchart TD
     mgr["createExtensionManager — facade<br/>(one shared registrar = one ledger)"]
@@ -806,7 +822,7 @@ flowchart TD
     note["Full-trust (ADR 0009). Current Claude Code processes tools/list_changed;<br/>extensions_refresh is the manual re-sync for a client or session that does not."]
     mgr -.-> note
 ```
-*Figure 13 — the extension lifecycle (consumer projection) · verified 446b412*
+*Figure 13 — the extension lifecycle (consumer projection) · verified 4790707*
 
 `extensionDiscovery` reads the toolkit's `extensions.refresh` (falling back to
 `extensions.list`), builds `{ readOnlyHint / destructiveHint / idempotentHint ?? false }`
