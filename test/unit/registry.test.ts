@@ -26,6 +26,7 @@ import {
   watchRegistry,
   unwatchRegistry,
   getCachedRuntimePort,
+  runtimeTransitions,
   type RegistryEntry,
 } from "../../src/registry.js";
 
@@ -338,6 +339,81 @@ function withWatchedRegistry(byPath: Record<string, RegistryEntry>, fn: () => vo
   withWatchedRegistry({ [key]: makeEntry({ runtime_port: 70000, runtime_pid: ALIVE }) }, () => {
     assert.equal(getCachedRuntimePort("/proj/run"), null, "getCachedRuntimePort: out-of-range port → null");
   });
+}
+
+// ── runtimeTransitions: what the watcher reports for a registry change ──
+//
+// Pure: no file, no watcher. The key is only a label here.
+{
+  const regOf = (entry?: RegistryEntry): { by_path: Record<string, RegistryEntry> } => ({
+    by_path: entry ? { "/proj/run": entry } : {},
+  });
+  const run = (over: Partial<RegistryEntry>) => makeEntry({ runtime_port: 6570, runtime_pid: ALIVE, ...over });
+
+  // A dead pid is not usable: the old port is removed and nothing is discovered.
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({ runtime_port: 6571 })), regOf(run({ runtime_pid: DEAD }))),
+    [{ kind: "removed", key: "/proj/run" }],
+    "runtimeTransitions: new port with a dead runtime_pid → removed, no discovered",
+  );
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({ runtime_port: null, runtime_pid: null })), regOf(run({ runtime_pid: DEAD }))),
+    [],
+    "runtimeTransitions: no port → dead-pid port → nothing to report",
+  );
+
+  // The same port under a new live pid is a new game: removed, then discovered.
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({ runtime_pid: ALIVE - 1 })), regOf(run({ runtime_pid: ALIVE }))),
+    [
+      { kind: "removed", key: "/proj/run" },
+      { kind: "discovered", key: "/proj/run", port: 6570 },
+    ],
+    "runtimeTransitions: same port, new pid → removed then discovered",
+  );
+
+  // The same pair is no transition.
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({})), regOf(run({}))),
+    [],
+    "runtimeTransitions: unchanged (port, pid) → no events",
+  );
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({ runtime_pid: DEAD })), regOf(run({ runtime_pid: DEAD }))),
+    [],
+    "runtimeTransitions: an unchanged dead pair → no events",
+  );
+
+  // A toolkit that records no pid still reports a new port, and never a repeat.
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({ runtime_port: null, runtime_pid: null })), regOf(run({ runtime_pid: null }))),
+    [{ kind: "discovered", key: "/proj/run", port: 6570 }],
+    "runtimeTransitions: a port with no pid → discovered",
+  );
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({ runtime_pid: null })), regOf(run({ runtime_pid: null }))),
+    [],
+    "runtimeTransitions: a port with no pid, unchanged → no events",
+  );
+
+  // An out-of-range port is not usable either.
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({ runtime_port: null, runtime_pid: null })), regOf(run({ runtime_port: 70000 }))),
+    [],
+    "runtimeTransitions: out-of-range port → no discovered",
+  );
+
+  // The entry gone: removed for the old port; a port-less old entry has nothing to remove.
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({})), regOf()),
+    [{ kind: "removed", key: "/proj/run" }],
+    "runtimeTransitions: entry gone → removed",
+  );
+  assert.deepEqual(
+    runtimeTransitions(regOf(run({ runtime_port: null, runtime_pid: null })), regOf()),
+    [],
+    "runtimeTransitions: port-less entry gone → no events",
+  );
 }
 
 // ── readRegistry: malformed / wrong-shape / missing → graceful empty ──

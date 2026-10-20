@@ -42,7 +42,13 @@ export interface RegistryEntry {
   lsp_host?: string;
 }
 
-interface Registry {
+/**
+ * The parsed `projects.json`: every project entry, keyed by canonical path. The
+ * parameter type of `runtimeTransitions`.
+ *
+ * @internal
+ */
+export interface Registry {
   by_path: Record<string, RegistryEntry>;
 }
 
@@ -106,8 +112,9 @@ export function lookupProject(projectPath: string): RegistryEntry | null {
 
 /**
  * The runtime port an entry advertises, or null when the port is out of range or
- * its owning playtest process is provably dead. Both runtime-port lookups, the fresh
- * file read and the watcher's cache, go through this one check, so they agree.
+ * its owning playtest process is provably dead. The runtime-port lookups (the fresh
+ * file read and the watcher's cache) and the watcher's `discovered` events all go
+ * through this one check, so they agree.
  */
 function usableRuntimePort(entry: RegistryEntry): number | null {
   const port = entry.runtime_port;
@@ -198,7 +205,7 @@ export async function discoverLspEndpoint(
 // -- Registry watcher ----------------------------------------------------------
 //
 // Watches projects.json via fs.watch and fires callbacks when a project's
-// runtime_port transitions (null→port, port→null, port→different port).
+// (runtime_port, runtime_pid) pair changes (see runtimeTransitions).
 // Replaces per-RPC file reads with in-memory lookups when active.
 //
 // Safety net: a 30s stat-poll heartbeat catches silent watcher death (rare),
@@ -212,22 +219,55 @@ let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined = undefined;
 let lastKnownMtimeMs: number = 0;
 
-function diffAndNotify(cached: Registry, fresh: Registry): void {
+/**
+ * One watcher event for a project's runtime; only `discovered` carries a port.
+ *
+ * @internal Return shape of `runtimeTransitions`.
+ */
+export type RuntimeTransition = { kind: "removed"; key: string } | { kind: "discovered"; key: string; port: number };
+
+/**
+ * The events a registry change owes the runtime connection, in the order to apply
+ * them. A project transitions when its (runtime_port, runtime_pid) pair changes:
+ * the runtime band always scans from the same port, so a relaunched game often
+ * returns the same port under a new pid. `removed` is reported for any previous
+ * port; `discovered` only for a port `usableRuntimePort` accepts, so a game whose
+ * recorded pid is dead is never announced as ready. An absent pid compares as null,
+ * so a toolkit that records none transitions on the port alone. Reads no file and
+ * starts no timer; the only outside look is the pid-liveness probe.
+ *
+ * @internal Exported for the unit tests; the watcher is the one caller.
+ */
+export function runtimeTransitions(cached: Registry, fresh: Registry): RuntimeTransition[] {
+  const events: RuntimeTransition[] = [];
   const allKeys = new Set([...Object.keys(cached.by_path), ...Object.keys(fresh.by_path)]);
 
   for (const key of allKeys) {
-    const oldPort = cached.by_path[key]?.runtime_port ?? null;
-    const newPort = fresh.by_path[key]?.runtime_port ?? null;
+    const oldEntry = cached.by_path[key];
+    const newEntry = fresh.by_path[key];
+    const oldPort = oldEntry?.runtime_port ?? null;
+    const newPort = newEntry?.runtime_port ?? null;
+    if (oldPort === newPort && (oldEntry?.runtime_pid ?? null) === (newEntry?.runtime_pid ?? null)) continue;
 
-    if (oldPort === newPort) continue;
-
-    // Tear down before connect so the bridge never holds two channels
-    // to the same project simultaneously (important for port-change).
     if (oldPort != null && oldPort > 0) {
-      runtimeRemovedCb?.(key);
+      events.push({ kind: "removed", key });
     }
-    if (newPort != null && newPort > 0) {
-      runtimeDiscoveredCb?.(key, newPort);
+    const usablePort = newEntry ? usableRuntimePort(newEntry) : null;
+    if (usablePort != null) {
+      events.push({ kind: "discovered", key, port: usablePort });
+    }
+  }
+  return events;
+}
+
+function diffAndNotify(cached: Registry, fresh: Registry): void {
+  // Events arrive remove-before-discover per project, so the bridge never holds
+  // two channels to the same project at once (important for a port or pid change).
+  for (const event of runtimeTransitions(cached, fresh)) {
+    if (event.kind === "removed") {
+      runtimeRemovedCb?.(event.key);
+    } else {
+      runtimeDiscoveredCb?.(event.key, event.port);
     }
   }
 }
