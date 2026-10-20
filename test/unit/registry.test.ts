@@ -381,7 +381,7 @@ function withWatchedRegistry(byPath: Record<string, RegistryEntry>, fn: () => vo
   assert.deepEqual(
     runtimeTransitions(regOf(run({ runtime_pid: DEAD })), regOf(run({ runtime_pid: DEAD }))),
     [],
-    "runtimeTransitions: an unchanged dead pair is reported once, never again",
+    "runtimeTransitions: an unchanged dead pair → no events",
   );
 
   // A toolkit that records no pid still reports a new port, and never a repeat.

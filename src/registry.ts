@@ -42,6 +42,11 @@ export interface RegistryEntry {
   lsp_host?: string;
 }
 
+/**
+ * The parsed `projects.json`: every project entry, keyed by canonical path.
+ *
+ * @internal Exported for the watcher's pure diff and its unit tests.
+ */
 export interface Registry {
   by_path: Record<string, RegistryEntry>;
 }
@@ -213,12 +218,12 @@ let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined = undefined;
 let lastKnownMtimeMs: number = 0;
 
-/** One watcher event for a project's runtime; `port` is set on `discovered`. */
-export interface RuntimeTransition {
-  kind: "removed" | "discovered";
-  key: string;
-  port?: number;
-}
+/**
+ * One watcher event for a project's runtime; only `discovered` carries a port.
+ *
+ * @internal Return shape of `runtimeTransitions`.
+ */
+export type RuntimeTransition = { kind: "removed"; key: string } | { kind: "discovered"; key: string; port: number };
 
 /**
  * The events a registry change owes the runtime connection, in the order to apply
@@ -226,7 +231,7 @@ export interface RuntimeTransition {
  * the runtime band always scans from the same port, so a relaunched game often
  * returns the same port under a new pid. `removed` is reported for any previous
  * port; `discovered` only for a port `usableRuntimePort` accepts, so a game that
- * already exited is never announced as ready. An absent pid compares as null, so a
+ * whose recorded pid is dead is never announced as ready. An absent pid compares as null, so a
  * toolkit that records none transitions on the port alone. Reads no file and starts
  * no timer; the only outside look is the pid-liveness probe.
  *
@@ -260,7 +265,7 @@ function diffAndNotify(cached: Registry, fresh: Registry): void {
   for (const event of runtimeTransitions(cached, fresh)) {
     if (event.kind === "removed") {
       runtimeRemovedCb?.(event.key);
-    } else if (event.port !== undefined) {
+    } else {
       runtimeDiscoveredCb?.(event.key, event.port);
     }
   }
