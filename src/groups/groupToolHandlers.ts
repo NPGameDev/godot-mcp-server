@@ -6,7 +6,7 @@
  * editor-bridge). A leaf factory — it depends on nothing group-internal above it.
  */
 import type { Bridge, ToolDef } from "../shared/types.js";
-import { callAndWrap, injectSuccessHint, resolveSuccessHint } from "../registration/toolDispatch.js";
+import { callAndWrap, injectHintAfterCall, withSuccessHint } from "../registration/toolDispatch.js";
 import { toolErrorFromPayload, toolErrorFromException } from "../shared/errorContract.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 import { RUNTIME_TOOLS, LSP_TOOLS } from "./groupCatalogue.js";
@@ -105,27 +105,21 @@ export function createGroupToolHandler(bridge: Bridge, def: ToolDef) {
     default: {
       if (LSP_TOOLS.has(def.name)) {
         const projectPath = resolveProjectPath(process.env, process.cwd());
-        const handler = createLspHandler(def.name, projectPath);
         // LSP handlers own their TCP transport and never flow through callAndWrap,
-        // so their declared successHint must be injected here, matching the
-        // custom-handler wrapping registerTools does. injectSuccessHint no-ops on
-        // an error result or a payload that already carries a hint.
-        if (!def.successHint) return handler;
-        const hintText = def.successHint;
-        return async (input: unknown) => {
-          const result = await handler(input);
-          if (!result.isError) injectSuccessHint(result, hintText);
-          return result;
-        };
+        // so the hint goes into their response after the call. This path reads
+        // only the static successHint, never operationHints.
+        return withSuccessHint(
+          { successHint: def.successHint },
+          injectHintAfterCall(createLspHandler(def.name, projectPath)),
+        );
       }
       const useRuntime = RUNTIME_TOOLS.has(def.name);
       // A tool with per-operation hints gets its hint resolved per call; a static
-      // successHint alone is not injected on this path.
-      if (def.operationHints) {
-        return (input: unknown) =>
-          callAndWrap(bridge, def.method, input, { runtime: useRuntime, successHint: resolveSuccessHint(def, input) });
-      }
-      return (input: unknown) => callAndWrap(bridge, def.method, input, { runtime: useRuntime });
+      // successHint alone is not injected on this path. The group path does not
+      // forward the call's signal.
+      return withSuccessHint(def.operationHints ? def : {}, (input, _signal, successHint) =>
+        callAndWrap(bridge, def.method, input, { runtime: useRuntime, successHint }),
+      );
     }
   }
 }
