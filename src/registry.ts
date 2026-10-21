@@ -219,9 +219,11 @@ let heartbeatTimer: ReturnType<typeof setInterval> | undefined = undefined;
 let lastKnownMtimeMs: number = 0;
 
 /**
- * One watcher event for a project's runtime; only `discovered` carries a port.
+ * One watcher event for a project's runtime, keyed by the project's canonical
+ * path: `removed` means its previous runtime port is gone, `discovered` carries the
+ * usable port to connect to.
  *
- * @internal Return shape of `runtimeTransitions`.
+ * @internal
  */
 export type RuntimeTransition = { kind: "removed"; key: string } | { kind: "discovered"; key: string; port: number };
 
