@@ -117,8 +117,8 @@ export function createGroupToolHandler(bridge: Bridge, def: ToolDef) {
       // A tool with per-operation hints gets its hint resolved per call; a static
       // successHint alone is not injected on this path. The group path does not
       // forward the call's signal.
-      return withSuccessHint(def.operationHints ? def : {}, (input, _signal, successHint) =>
-        callAndWrap(bridge, def.method, input, { runtime: useRuntime, successHint }),
+      return withSuccessHint(def.operationHints ? def : {}, (input, _signal, resolveHint) =>
+        callAndWrap(bridge, def.method, input, { runtime: useRuntime, successHint: resolveHint() }),
       );
     }
   }

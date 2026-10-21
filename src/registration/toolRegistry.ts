@@ -273,7 +273,8 @@ export function registerTools(
       tool,
       customHandler
         ? injectHintAfterCall(customHandler)
-        : (input, signal, successHint) => callAndWrap(bridge, tool.method, input, { signal, successHint }),
+        : (input, signal, resolveHint) =>
+            callAndWrap(bridge, tool.method, input, { signal, successHint: resolveHint() }),
     );
 
     registerToolWrapped(

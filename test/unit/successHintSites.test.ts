@@ -3,8 +3,9 @@
  * site that wraps a tool handler with a success hint:
  *   1. registerTools' default handler (callAndWrap; hint resolved per call,
  *      injected before the sorted-key serialization);
- *   2. registerTools' custom-handler wrapper (hint resolved per call, injected
- *      into the handler's first JSON text block after a successful call);
+ *   2. registerTools' custom-handler wrapper (hint resolved per call after the
+ *      handler returns, from the same input object, and injected into the
+ *      handler's first JSON text block after a successful call);
  *   3. the group path's LSP handler (the static successHint only; operationHints
  *      are ignored);
  *   4. the group path's default handler (a hint only when the tool declares
@@ -161,6 +162,13 @@ const text = (result: ToolTextResult): string => result.content.map((b) => (b.ty
         ],
       }),
     ],
+    [
+      "c_mutating",
+      async (input) => {
+        (input as Record<string, unknown>).action = "rename";
+        return { content: [{ type: "text", text: '{"success":true}' }] };
+      },
+    ],
   ]);
   const h = registerAll(
     bridge,
@@ -171,6 +179,7 @@ const text = (result: ToolTextResult): string => result.content.map((b) => (b.ty
       tool("c_kept", BOTH),
       tool("c_err", BOTH),
       tool("c_multi", STATIC_ONLY),
+      tool("c_mutating", BOTH),
     ],
     custom,
   );
@@ -205,6 +214,11 @@ const text = (result: ToolTextResult): string => result.content.map((b) => (b.ty
     text(await h.get("c_multi")!({})),
     'plain prose|{"z":1,"a":2,"hint":"static"}',
     "site 2: the hint lands in the first JSON text block",
+  );
+  assert.equal(
+    text(await h.get("c_mutating")!({ action: "add" })),
+    '{"success":true,"hint":"renamed"}',
+    "site 2: the hint is resolved after the call, from the input the handler may have changed",
   );
   assert.equal(calls.length, 0, "site 2: a custom handler replaces the bridge call");
 }
