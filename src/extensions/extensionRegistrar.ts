@@ -42,15 +42,15 @@ export interface ExtensionRegistrar {
   /** Register the always-on extensions_refresh tool (self-guards via hasToolRef). */
   registerRefreshTool(): void;
   /**
-   * Record a tool name as a member of the known-extension ledger (was
-   * knownExtensionTools.add). This is the track half of the register/track
-   * separation — it updates ledger membership only; it does NOT register anything
-   * with the MCP server (use registerExtensionTool for that).
+   * Record a tool name as a member of the known-extension ledger. This is the track
+   * half of the register/track separation — it updates ledger membership only; it
+   * does NOT register anything with the MCP server (use registerExtensionTool for
+   * that).
    */
   register(toolName: string): void;
   /** Whether a tool name is currently a member of the known-extension ledger. */
   isRegistered(toolName: string): boolean;
-  /** Remove a tool name from the known-extension ledger (was knownExtensionTools.delete). */
+  /** Remove a tool name from the known-extension ledger. */
   deregister(toolName: string): void;
 }
 
