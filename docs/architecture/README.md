@@ -550,7 +550,7 @@ guards.
 tool is **never registered** (absent from `tools/list`, with **no per-call forward-time
 reject**):
 
-<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="de33059" -->
+<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="115d137" -->
 ```mermaid
 flowchart TD
     env["GODOT_MCP_READ_ONLY=1"] --> pred["profiles.isExcludedByReadOnly(readOnly, annotations)"]
@@ -564,7 +564,7 @@ flowchart TD
     sites["Applied at EVERY registration site:<br/>modules (registerTools) · groups (registerGroupTools)<br/>· extensions (registerExtensionTool)"]
     sites -.-> pred
 ```
-*Figure 9 — read-only enforcement points · verified de33059*
+*Figure 9 — read-only enforcement points · verified 115d137*
 
 STRICT means a tool is exposed iff `readOnlyHint: true ∧ ¬destructiveHint`; **an
 unannotated tool defaults to excluded (safe)**, and the `readOnlyHint ∧ destructiveHint`
@@ -810,7 +810,7 @@ ADR 0009). `extensions.ts` is a pure-composition facade over one shared registra
 single known-extension ledger), the discovery service, and the change-application service
 — so the ledger stays one consistency boundary.
 
-<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="de33059" -->
+<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="115d137" -->
 ```mermaid
 flowchart TD
     mgr["createExtensionManager — facade<br/>(one shared registrar = one ledger)"]
@@ -827,7 +827,7 @@ flowchart TD
     note["Full-trust (ADR 0009). Current Claude Code processes tools/list_changed;<br/>extensions_refresh is the manual re-sync for a client or session that does not."]
     mgr -.-> note
 ```
-*Figure 13 — the extension lifecycle (consumer projection) · verified de33059*
+*Figure 13 — the extension lifecycle (consumer projection) · verified 115d137*
 
 `extensionDiscovery` reads the toolkit's `extensions.refresh` (falling back to
 `extensions.list`), builds `{ readOnlyHint / destructiveHint / idempotentHint ?? false }`
