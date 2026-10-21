@@ -162,7 +162,7 @@ the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
 `startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
 or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="687a1b0" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="1d3ca38" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -195,7 +195,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified 687a1b0*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 1d3ca38*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -282,7 +282,7 @@ per-OS token-file resolver), `heartbeat.ts` (the generic liveness primitive), an
 
 A tool call reaches the editor like this:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="687a1b0" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="1d3ca38" -->
 ```mermaid
 sequenceDiagram
     participant SDK as MCP SDK (tool call)
@@ -311,7 +311,7 @@ sequenceDiagram
     Ch-->>D: result
     D-->>SDK: stableStringify(result) — verbatim
 ```
-*Figure 4 — connect → auth handshake → dispatch · verified 687a1b0*
+*Figure 4 — connect → auth handshake → dispatch · verified 1d3ca38*
 
 The handshake (`authHandshake.ts`) sends `{ auth: token, version, server_version,
 min_toolkit }` (the legacy `version` beside the server version and its declared toolkit
@@ -404,7 +404,7 @@ counted in one place and missed in another. The human-readable
 (`npm run docs:tools`) — the canonical list of every tool and operation, never
 hand-edited.
 
-<!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="687a1b0" -->
+<!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="1d3ca38" -->
 ```mermaid
 flowchart TD
     defs["tools/*.ts — ToolDef arrays"] --> cat["catalogue.ALL_TOOL_DEFS<br/>dedup SSOT (01_catalogue CI gate)"]
@@ -420,7 +420,7 @@ flowchart TD
     pg --> hook["hook pipeline (global or explicit)"]
     hook --> handler["handler → callAndWrap<br/>one bridge call → stableStringify(result)"]
 ```
-*Figure 6 — catalogue → registration → per-call dispatch · verified 687a1b0*
+*Figure 6 — catalogue → registration → per-call dispatch · verified 1d3ca38*
 
 **The choke point.** Every built-in and extension tool registers through
 `registerToolWrapped` (`registration/toolRegistry.ts`) — never `server.registerTool`
@@ -446,7 +446,7 @@ registration call: the def's `describe(version)` when it has one, else its stati
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="687a1b0" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="1d3ca38" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}
@@ -459,7 +459,7 @@ flowchart TD
     exc -.-> note
     pe -.-> note
 ```
-*Figure 7 — the response & error contract (REFLECT) · verified 687a1b0*
+*Figure 7 — the response & error contract (REFLECT) · verified 1d3ca38*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
 result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`
@@ -496,7 +496,7 @@ data modules in `groups/defs/`, plus the derived `GROUP_TOOL_NAMES` / `RUNTIME_T
 and the leaves `groupState.ts` / `groupResult.ts` / `groupTypes.ts`. `groups.ts` itself is
 the thin `discover_tools` orchestrator over them.
 
-<!-- data-depicts="src/groups/groups.ts src/groups/groupMatch.ts src/groups/groupActivation.ts src/groups/groupCatalogue.ts src/registration/toolRegistry.ts" data-verified="687a1b0" -->
+<!-- data-depicts="src/groups/groups.ts src/groups/groupMatch.ts src/groups/groupActivation.ts src/groups/groupCatalogue.ts src/registration/toolRegistry.ts" data-verified="1d3ca38" -->
 ```mermaid
 flowchart TD
     req["discover_tools({ request, activate, reset, include_schemas })"] --> batch["batchToolRegistration — suppress per-op notifications"]
@@ -512,7 +512,7 @@ flowchart TD
     enrich --> resp["response: groups[] (+ >5-groups warning, fuzzy / reset hints)"]
     body --> one["exactly ONE tools/list_changed — fired in finally"]
 ```
-*Figure 8 — the `discover_tools` activation flow · verified 687a1b0*
+*Figure 8 — the `discover_tools` activation flow · verified 1d3ca38*
 
 **The load-bearing invariant**: one `discover_tools` call — however many groups it
 activates and deactivates — emits **exactly one** `tools/list_changed`. All mutation
@@ -550,7 +550,7 @@ guards.
 tool is **never registered** (absent from `tools/list`, with **no per-call forward-time
 reject**):
 
-<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="687a1b0" -->
+<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="1d3ca38" -->
 ```mermaid
 flowchart TD
     env["GODOT_MCP_READ_ONLY=1"] --> pred["profiles.isExcludedByReadOnly(readOnly, annotations)"]
@@ -564,7 +564,7 @@ flowchart TD
     sites["Applied at EVERY registration site:<br/>modules (registerTools) · groups (registerGroupTools)<br/>· extensions (registerExtensionTool)"]
     sites -.-> pred
 ```
-*Figure 9 — read-only enforcement points · verified 687a1b0*
+*Figure 9 — read-only enforcement points · verified 1d3ca38*
 
 STRICT means a tool is exposed iff `readOnlyHint: true ∧ ¬destructiveHint`; **an
 unannotated tool defaults to excluded (safe)**, and the `readOnlyHint ∧ destructiveHint`
@@ -601,7 +601,7 @@ JSON-RPC-over-TCP client) and was **not carved**. The refactor carved only the *
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="687a1b0" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="1d3ca38" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -623,7 +623,7 @@ flowchart TD
     auth["every editor auth (bridge.onEditorAuthenticated)"] --> regv["reportRegistryVerdict — resolution only, fire-and-forget<br/>dropped if a verified verdict lands first"]
     regv --> verdict
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified 687a1b0*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified 1d3ca38*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -754,7 +754,7 @@ patch / minor / major severity lines) is a separate, human-only stderr check on 
 channel ([§4](#4-transport-the-websocket-bridge)); `GODOT_MCP_SKIP_VERSION_CHECK=1` turns it
 off but leaves the two gates below untouched.
 
-<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="687a1b0" -->
+<!-- data-depicts="src/registration/toolRegistry.ts src/shared/version.ts src/transport/bridge.ts src/startup/reconcile.ts" data-verified="1d3ca38" -->
 ```mermaid
 flowchart TD
     subgraph regn["Registration gate (registerToolWrapped) — fails CLOSED"]
@@ -777,7 +777,7 @@ flowchart TD
     note["isVersionCompatible (version.ts). The null asymmetry is intentional + recoverable:<br/>registration refuses the unverifiable; runtime tolerates it. The server filters<br/>version-gated tools from tools/list, so it never surfaces the toolkit's -32601 on the happy path."]
     rkeep -.-> note
 ```
-*Figure 12 — the version dual-gate · verified 687a1b0*
+*Figure 12 — the version dual-gate · verified 1d3ca38*
 
 The dual gate has a deliberate **null asymmetry**, so a server that starts before the
 editor still ends with the full tool surface: the
