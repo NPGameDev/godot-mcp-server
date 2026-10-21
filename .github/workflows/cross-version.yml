@@ -5,12 +5,11 @@
 # workflow runs the FULL two-editor behavioral matrix for a SERVER change — a
 # .NET/mono-editor tier AND a GDScript-editor tier — against the PINNED toolkit
 # sibling. Both tiers launch a real headless Godot editor and round-trip the FULL
-# server smoke + flows suites (no --skip — the headless-incompatible sections were
-# made headless-safe in 41n-quater-bis) through the WS bridge, one job per supported minor, via the
+# server smoke + flows suites (no --skip — every section is headless-safe) through the
+# WS bridge, one job per supported minor, via the
 # SHARED language-parameterized composite (.github/actions/cross-version-behavioral,
 # local; language: dotnet | gdscript). The section set is byte-identical across both
-# languages AND across both repos, so the tiers cannot drift (iter 41n-quater-ter +
-# the "full behavioral matrix in both repos" follow-on). The TOOLKIT repo's
+# languages AND across both repos, so the tiers cannot drift. The TOOLKIT repo's
 # cross-version.yml runs the SAME full two-editor matrix for its own changes against
 # the pinned server — so an opt-in on EITHER repo proves the full GDScript+.NET
 # contract for that repo's change. (The GDScript-editor UNIT leg lives in the TOOLKIT
@@ -28,12 +27,12 @@
 #     to an org — at which point the queue, not the PR, becomes the binding gate.
 #   • [run-cross-version-ci] in the push commit message  (the LINUX legs)
 #   • release.yml CALLS this workflow (workflow_call) on a v* tag / dry-run dispatch,
-#     and its publish job needs: it — the D13 backstop (never SHIP a cross-version
+#     and its publish job needs: it — the release backstop (never SHIP a cross-version
 #     regression) is now an ENFORCED release gate, not a parallel best-effort run
 #   • workflow_dispatch (ad-hoc / sibling-ref override)
 # A bare push to main carrying no token still skips every job, as before.
 #
-# Cross-platform legs (41n-quater-sexies) — additive, each behind its OWN token so a
+# Cross-platform legs — additive, each behind its OWN token so a
 # release is validated on 3 OS × 6 versions × 2 languages = 36 combos, plus a
 # GDScript-only 4.2.2 row per OS:
 #   • [run-macos-ci]         -> macOS behavioral (gdscript+dotnet, 4.2-4.7) + install-smoke + unit
@@ -51,12 +50,12 @@
 # The per-OS mechanics (timeout binary, editor kill, dispatch token path, macOS
 # quarantine) live in the shared composite's `os` branch — no forked flow.
 # No schedule: (see the toolkit cross-version.yml rationale). The .NET tier now runs
-# 4.2.0 too (41n-quater-septies): its cold class-cache warm-up ports to dotnet in the
+# 4.2.0 too: its cold class-cache warm-up ports to dotnet in the
 # shared composite (CWD = the C# fixture; run_units_cold.sh invoked from the pinned
 # toolkit checkout), so the .NET tier covers 4.2–4.7 in lockstep with the GDScript
 # tier. BOTH tiers include 4.2.0 (its class-cache warm-up runs inside the composite).
 #
-# Feasibility proven 2026-07-01 (41n-quater Stage-2): a display-less runner serves the
+# Feasibility proven 2026-07-01: a display-less runner serves the
 # mono WS round-trip (§25 15/0, real Speed 200->201 + Poked signal on Godot 4.5) and the
 # standard WS round-trip (29/0). The shared composite AND the C# fixture + smoke/flows
 # harness live HERE; the toolkit addon (dotnet tier) and the toolkit dogfood project
@@ -66,12 +65,12 @@
 # main; bump the pin deliberately, with [run-cross-version-ci] on the bump commit.
 name: cross-version (server)
 
-# D7: least privilege by default; the sibling checkout uses the default github.token.
+# Least privilege by default; the sibling checkout uses the default github.token.
 permissions:
   contents: read
 
 on:
-  # D13: release.yml calls this workflow so a release GATES on the full behavioral
+  # release.yml calls this workflow so a release GATES on the full behavioral
   # matrix. Under workflow_call the job `if:` gates below evaluate the CALLER's
   # context — a v* tag push satisfies startsWith(github.ref,'refs/tags/v'); a
   # dry-run dispatch satisfies event_name=='workflow_dispatch' — so they need no
@@ -100,7 +99,7 @@ on:
         description: "Override the pinned toolkit sibling ref (ad-hoc cross-testing / spike trials)"
         required: false
         default: ""
-      # 41n-quater-sexies D7e — debug-probe targeting for the EXPENSIVE non-Linux
+      # Debug-probe targeting for the EXPENSIVE non-Linux
       # matrix. Empty platforms => Linux static legs only (release-dry-run shape). A
       # single {platform,version,language} triple runs one cheap combo instead of the
       # full non-Linux grid (~$0.80 vs ~$9.60). The FINAL confirm is always the full
@@ -119,7 +118,7 @@ on:
         required: false
         default: ""
   push:
-    # D13: the v* self-trigger is REMOVED — a release tag now reaches this workflow
+    # No v* self-trigger: a release tag reaches this workflow
     # ONCE, through release.yml's workflow_call, instead of firing a second parallel
     # run. The [run-cross-version-ci] commit-token path (push to main) is unchanged.
     branches: [main]
@@ -169,7 +168,7 @@ jobs:
       # ships the .NET 6 runtime and cannot load a net8.0 assembly.
       matrix:
         include:
-          # 4.2.0 (net6.0): 4.2-mono behavioral leg (41n-quater-septies). Its cold
+          # 4.2.0 (net6.0): 4.2-mono behavioral leg. Its cold
           # class-cache warm-up runs in the shared composite (dotnet path). 4.2 & 4.3
           # are both net6.0 (the net6->net8 TFM boundary is 4.4).
           - godot-version: "4.2.0"
@@ -260,7 +259,7 @@ jobs:
           server-dir: "."
           project-path: ${{ github.workspace }}/toolkit
           project-name: "Godot MCP Toolkit"
-          # D11: run the 7 dispatch-integration flows on exactly ONE row per repo
+          # Run the 7 dispatch-integration flows on exactly ONE row per repo
           # mirror (GDScript · 4.7.0) — dispatch semantics live in toolkit GDScript +
           # server transport, so project language is irrelevant (GDScript avoids the
           # mono variables) and 4.7.0 is the ceiling. Closes the last editor-required
@@ -269,12 +268,13 @@ jobs:
           run-dispatch: ${{ matrix.godot-version == '4.7.0' }}
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # macOS + Windows platform legs (41n-quater-sexies) — additive, token-gated.
+  # macOS + Windows platform legs — additive, token-gated.
   # The two static Linux legs above are the release backstop + the [run-cross-version-ci]
   # path. These add the OTHER two desktop OSes so a release is validated on 3 OS × 6
   # versions × 2 languages = 36 combos. Everything below is opt-in (its own token /
   # dispatch input) and yields an EMPTY matrix on a bare/tag/release trigger, so the
-  # release gate stays Linux-only until 42b. Same shared composite (os branch).
+  # release gate stays Linux-only (the full grid already ran on the PR). Same shared
+  # composite (os branch).
   # ═══════════════════════════════════════════════════════════════════════════
 
   # Compute the macOS+Windows behavioral matrix from the trigger (a pull request or
@@ -397,7 +397,7 @@ jobs:
           run-dispatch: ${{ matrix.run_dispatch }}
           # server-dir defaults to "." (server is self)
 
-  # Editor-free install-smoke (D7a): npm pack -> install -g -> --tools-count. Proves
+  # Editor-free install-smoke: npm pack -> install -g -> --tools-count. Proves
   # the published CLI launches from a global install per OS — closes the Windows
   # .cmd/.ps1-shim gap no editor test touches. macОS uses the sh shim / shebang; the
   # Windows run step uses the default (pwsh) shell to exercise the shim.
@@ -488,7 +488,7 @@ jobs:
           npm ci
           npm run test:unit
 
-  # ── Aggregate platform gate (41n-quater-sexies D7b/7c) ───────────────────────
+  # ── Aggregate platform gate ──────────────────────────────────────────────────
   # "Platform matrix OK" is the SINGLE stable name the required check binds to (the
   # SECOND required-check tier, scoped to pull requests) — never an individual matrix
   # row (a required check pinned to a matrix leg breaks when the matrix retunes). It

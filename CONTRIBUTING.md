@@ -9,14 +9,14 @@ need to get started.
 - **Godot 4.x** (4.4+ recommended, for running the companion plugin)
 - **Git**
 
-This project spans two public repositories that live as siblings on disk, plus a
-private planning repo:
+This project spans two public repositories that live as siblings on disk.
+Planning happens outside these repositories; issues and PRs here are the public
+channel.
 
 | Repo | What it is |
 |------|-----------|
 | [`godot-mcp-toolkit`](https://github.com/NPGameDev/godot-mcp-toolkit) | Godot editor plugin (GDScript) |
 | [`godot-mcp-server`](https://github.com/NPGameDev/godot-mcp-server) (this repo) | TypeScript MCP bridge (npm package) |
-| `godot-mcp-creation` (private, maintainer's planning repo) | Execution plan and design docs |
 
 Clone both as siblings:
 

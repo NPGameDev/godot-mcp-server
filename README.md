@@ -176,6 +176,8 @@ Those 28 groups are the built-in surface. A project can add more: register your 
 
 The authoritative per-tool list (every tool, operation, parameter, and version gate) is the generated **[tool reference](docs/tool-reference/README.md)**. Which tools exist on which Godot version is in the shipped [compatibility guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/compatibility.md).
 
+**Tested on:** Godot 4.2–4.7.x
+
 ## How it is designed
 
 A few deliberate choices shape the tool surface:

@@ -1,6 +1,6 @@
 # Smoke Test Maintenance Protocol
 
-> **Standing rule (41m-bis): new tools/params → update sweep + smoke + flows.**
+> **Standing rule: new tools/params → update sweep + smoke + flows.**
 > Three validation layers now share maintenance (see the toolkit's
 > `docs/dev/glossary.md` "Validation vocabulary"):
 > - **Smoke** (`test/sections/`) — every tool in **isolation** (this file).
@@ -25,7 +25,7 @@ When updating the smoke suite, run `git log --oneline <this SHA>..HEAD` to find 
 
 ## When to update smoke tests
 
-Update `test/sections/` whenever an iteration:
+Update `test/sections/` whenever a change:
 
 1. **Adds a new tool** — create a new section file or extend the most
    relevant existing section. Must include: happy path, at least one
@@ -38,7 +38,8 @@ Update `test/sections/` whenever an iteration:
 4. **Improves DX hints** — add a hint content assertion (substring match
    via `assertHint`) to preserve the improvement.
 5. **Fixes a bug** — add a REGRESSION assertion that would catch the bug
-   if reintroduced. Include both T: and S: commit SHAs for traceability.
+   if reintroduced. Record the fixing commit SHAs (toolkit and server) in
+   the coverage manifest for traceability.
 6. **Renames a parameter** — update all test calls using the old name.
 7. **Changes profile behavior** — update section 01 (catalogue)
    expected tool counts.
@@ -53,8 +54,8 @@ Update `test/sections/` whenever an iteration:
     `godotMaxVersion`) — guard every call with `bridge.getGodotVersion()` +
     `isVersionAtLeast(...)` so the suite runs to completion on every supported
     version. An unregistered tool returns JSON-RPC `-32601`, which `bridge.call`
-    **throws**; the harness isolates a thrown section (fail-and-continue,
-    41m-ter A0), but guard anyway to avoid false failures. `scene_close` (4.5+)
+    **throws**; the harness isolates a thrown section (fail-and-continue),
+    but guard anyway to avoid false failures. `scene_close` (4.5+)
     is the example (sections 04/08/14 all gate on `godotVer >= 4.5`). For
     version-divergent node *types*, use the centralized helper
     (`tilemapNodeClass()` — TileMapLayer 4.3+ / legacy TileMap 4.2) rather than
@@ -62,7 +63,7 @@ Update `test/sections/` whenever an iteration:
 
 ## Section naming convention
 
-`NN_descriptive_name.ts` where NN is the next available number (currently 01–44).
+`NN_descriptive_name.ts` where NN is the next available number.
 
 ## Running specific sections
 
@@ -96,7 +97,8 @@ assertGuard(ctx, "REGRESSION description", result, "CODE", "substring");
 ```
 
 The comment states what broke and what the assertion verifies — intent, not
-fix provenance. Cross-repo traceability (T:/S: SHAs) lives in this manifest
+fix provenance. Cross-repo traceability (the toolkit and server commit SHAs)
+lives in the coverage manifest
 and in commit messages, never in section-code comments.
 
 ## Coverage manifest
@@ -140,7 +142,7 @@ Before committing smoke test changes:
 
 ---
 
-## Flow suite maintenance (`test/flows/`, added 41m-bis)
+## Flow suite maintenance (`test/flows/`)
 
 The flow suite is the **deterministic cross-tool layer**. It shares this suite's
 infrastructure but runs as its own command.
@@ -152,7 +154,7 @@ Assertion helpers + `TestCtx` come from `test/helpers.ts`. The flow suite does
 **not** use the dispatch raw-WS helpers (`test/integration/dispatch/helpers.ts`)
 — those bypass the bridge to watch `_queued`/`_executing`; flows are tool-level.
 
-**When to update flows.** When an iteration changes a **cross-tool or stateful**
+**When to update flows.** When a change touches a **cross-tool or stateful**
 behaviour:
 1. Extension discovery / hot-reload / lifecycle → `flows/01_extension_lifecycle.ts`.
 2. Live-instance method reachability after a script edit → `flows/02_hot_reload_reachability.ts`.
@@ -162,9 +164,10 @@ behaviour:
 Single-call checks stay in smoke (dedup rule above).
 
 **Running.** `npm run flows` / `npm run flows:single -- --only N`. Editor
-required. **No CI mode** (decision #8): the flow suite is local-only — same tier
-as full smoke + dispatch integration. The deterministic+version-gated payload
-feeds forward to `41n-quater`'s cross-version matrix (which runs real editors).
+required. **No floor-CI mode**: the flow suite needs an editor, so `ci.yml` does
+not run it — same tier as full smoke + dispatch integration. Being deterministic
+and version-gated, it runs in the opt-in cross-version matrix
+(`.github/workflows/cross-version.yml`), which launches real editors.
 
 **Probe hygiene.** Flows write real files under `res://flow_probes/` in the
 dogfood project (same as smoke's `res://smoke_*` probes). Every flow is
