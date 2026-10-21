@@ -12,5 +12,5 @@ Defined in: [src/shared/version.ts:45](https://github.com/NPGameDev/godot-mcp-se
 
 Minimum toolkit version (major.minor) this server needs. Raise it only when the
 server takes a real dependency on a newer toolkit wire contract; that raise is a
-MAJOR bump (it drops older siblings). From 1.1.0 the toolkit declares its own floor
-and sends it as `min_server`.
+MAJOR bump (it drops older siblings). The toolkit declares its own floor and sends it
+as `min_server`; a 1.0.x toolkit sends none.

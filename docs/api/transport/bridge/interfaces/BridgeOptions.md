@@ -64,6 +64,19 @@ Max bytes for script content responses: the env override for
 
 ***
 
+### skipVersionCheck?
+
+> `optional` **skipVersionCheck?**: `boolean`
+
+Defined in: [src/transport/bridge.ts:67](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/transport/bridge.ts#L67)
+
+When true, every editor channel, re-discovered ones included, skips the
+ connect-time version check: no product-version line and no floor line. Set for
+ a local server build (`GODOT_MCP_SKIP_VERSION_CHECK=1`). The runtime channel
+ always skips it.
+
+***
+
 ### wsBufferLimitBytes?
 
 > `optional` **wsBufferLimitBytes?**: `number`

@@ -20,7 +20,31 @@ is consumed at registration time.
 
 > `optional` **annotations?**: [`ToolAnnotations`](ToolAnnotations.md)
 
-Defined in: [src/shared/types.ts:175](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L175)
+Defined in: [src/shared/types.ts:181](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L181)
+
+***
+
+### describe?
+
+> `optional` **describe?**: (`version`) => `string`
+
+Defined in: [src/shared/types.ts:179](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L179)
+
+Renders the description for the connected Godot version (`null` while it is not yet
+ known). Tool registration, eager and group, calls it in place of reading `description`.
+ Catalogue listings (the docs generator, the tool counts, `discover_tools`) keep the
+ static `description`, the version-neutral text that is true on every version, so
+ `describe(null)` must equal `description`.
+
+#### Parameters
+
+##### version
+
+[`GodotVer`](../../version/type-aliases/GodotVer.md) \| `null`
+
+#### Returns
+
+`string`
 
 ***
 
@@ -36,7 +60,7 @@ Defined in: [src/shared/types.ts:173](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **godotMaxVersion?**: `string`
 
-Defined in: [src/shared/types.ts:179](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L179)
+Defined in: [src/shared/types.ts:185](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L185)
 
 Maximum Godot version supported ("major.minor", e.g. "4.6"). Omit for no upper bound.
 
@@ -46,7 +70,7 @@ Maximum Godot version supported ("major.minor", e.g. "4.6"). Omit for no upper b
 
 > `optional` **godotMinVersion?**: `string`
 
-Defined in: [src/shared/types.ts:177](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L177)
+Defined in: [src/shared/types.ts:183](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L183)
 
 Minimum Godot version required ("major.minor", e.g. "4.5"). Omit for 4.2+ (baseline).
 
@@ -56,7 +80,7 @@ Minimum Godot version required ("major.minor", e.g. "4.5"). Omit for 4.2+ (basel
 
 > **inputSchema**: `ZodRawShape`
 
-Defined in: [src/shared/types.ts:174](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L174)
+Defined in: [src/shared/types.ts:180](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L180)
 
 ***
 
@@ -80,7 +104,7 @@ Defined in: [src/shared/types.ts:171](https://github.com/NPGameDev/godot-mcp-ser
 
 > `optional` **operationHints?**: `Readonly`\<`Record`\<`string`, `string`\>\>
 
-Defined in: [src/shared/types.ts:185](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L185)
+Defined in: [src/shared/types.ts:191](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L191)
 
 Per-operation success hints, keyed by the value of the `operationParam` argument. A call whose
  operation has an entry gets that hint in place of successHint; any other call gets successHint.
@@ -92,7 +116,7 @@ Per-operation success hints, keyed by the value of the `operationParam` argument
 
 > `optional` **operationParam?**: `string`
 
-Defined in: [src/shared/types.ts:193](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L193)
+Defined in: [src/shared/types.ts:199](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L199)
 
 Names the tool's operation-discriminator enum param — the top-level inputSchema
  key whose values are the distinct operations this tool performs (e.g. "action",
@@ -104,7 +128,7 @@ Names the tool's operation-discriminator enum param — the top-level inputSchem
 
 > `optional` **operations?**: readonly `string`[]
 
-Defined in: [src/shared/types.ts:197](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L197)
+Defined in: [src/shared/types.ts:203](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L203)
 
 Explicit operation list for a tool whose discriminator is not a plain top-level
  z.enum (e.g. an enum nested inside a union/array). Used in place of operationParam
@@ -116,7 +140,7 @@ Explicit operation list for a tool whose discriminator is not a plain top-level
 
 > `optional` **pathParams?**: readonly [`PathGuard`](PathGuard.md)[]
 
-Defined in: [src/shared/types.ts:189](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L189)
+Defined in: [src/shared/types.ts:195](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L195)
 
 Filesystem-path params to syntactically pre-filter before dispatch (strict
  subset of the toolkit guard). Omit for tools with no fs path, or for params
@@ -128,6 +152,6 @@ Filesystem-path params to syntactically pre-filter before dispatch (strict
 
 > `optional` **successHint?**: `string`
 
-Defined in: [src/shared/types.ts:181](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L181)
+Defined in: [src/shared/types.ts:187](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L187)
 
 Brief guidance appended to successful responses — next steps, related tools, common pitfalls. Omit for terminal actions or self-evident results. Does not overwrite toolkit-provided hints.
