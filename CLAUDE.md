@@ -53,7 +53,9 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   `batchToolRegistration` + the wrapped-handler pre-flight (version gate, path guard,
   hook pipeline).
 - `src/registration/toolDispatch.ts` — per-call dispatch: `callAndWrap` (bridge call + error-wrap +
-  success-hint; uses `stableStringify` for deterministic output), `injectSuccessHint`.
+  success-hint; uses `stableStringify` for deterministic output), `withSuccessHint` (wraps a
+  handler with the success-hint rule), `injectHintAfterCall` (for handlers that shape their own
+  response).
 - `src/shared/errorContract.ts` — `toolError*` builders, `EXCEPTION_HINTS`, crash-context errors.
 - `src/shared/schemaCoercion.ts` — input coercion (`coercedBoolean`, `jsonCoerce`) + JSON-Schema→Zod.
 - `src/security/profiles.ts` — tool visibility (`resolveAllowedTools`, `isReadOnly`,

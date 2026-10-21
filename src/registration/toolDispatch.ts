@@ -1,7 +1,8 @@
 /**
  * Tool dispatch — execute ONE tool call: route it to the bridge, normalize
  * the result into the canonical MCP error contract, and inject the
- * happy-path success hint. The per-call primitive that registration wires
+ * happy-path success hint (resolved and wrapped around a handler in one
+ * place, withSuccessHint). The per-call primitive that registration wires
  * every default tool's handler through; it knows nothing of registration
  * (no version gate, path guard, or hook pipeline — those wrap the handler
  * one layer above, in the registration core's wrappedHandler). A mid-tier module:
@@ -73,6 +74,9 @@ export async function callAndWrap(
 
 // ── Success-hint selection ──────────────────────────────────────────
 
+/** The hint fields of a tool that {@link resolveSuccessHint} reads. */
+export type SuccessHintSource = Pick<ToolDef, "successHint" | "operationHints" | "operationParam">;
+
 /**
  * The success hint for one call of a tool: its per-operation hint when the
  * call's operation has one, otherwise its static successHint.
@@ -81,10 +85,7 @@ export async function callAndWrap(
  * @param input - the call's arguments
  * @returns the hint to inject, or `undefined` for none
  */
-export function resolveSuccessHint(
-  def: Pick<ToolDef, "successHint" | "operationHints" | "operationParam">,
-  input: unknown,
-): string | undefined {
+export function resolveSuccessHint(def: SuccessHintSource, input: unknown): string | undefined {
   if (def.operationHints && def.operationParam && input && typeof input === "object") {
     const operation = (input as Record<string, unknown>)[def.operationParam];
     if (typeof operation === "string" && Object.hasOwn(def.operationHints, operation)) {
@@ -94,11 +95,66 @@ export function resolveSuccessHint(
   return def.successHint;
 }
 
-// ── Success-hint injection (custom-handler path) ────────────────────
+// ── Success-hint wrapping ───────────────────────────────────────────
+
+/** A tool handler as registration calls it: the call's arguments and its cancellation signal. */
+export type ToolCallHandler = (input: unknown, signal?: AbortSignal) => Promise<ToolTextResult>;
+
+/**
+ * A tool handler that also receives its call's success-hint resolver and
+ * attaches the hint itself. The resolver returns the hint, or `undefined` when
+ * the call has none; the handler calls it at the point its path reads the hint.
+ */
+export type HintedToolHandler = (
+  input: unknown,
+  signal: AbortSignal | undefined,
+  resolveHint: () => string | undefined,
+) => Promise<ToolTextResult>;
+
+/**
+ * Wrap a tool handler with the success-hint rule: each call's hint is
+ * {@link resolveSuccessHint} of `def` and the call's arguments object.
+ *
+ * @remarks
+ * The hint is resolved when the handler calls its resolver, not when the
+ * wrapper is entered: a {@link callAndWrap} handler resolves it before the
+ * bridge call, and {@link injectHintAfterCall} resolves it after the handler
+ * returns. The resolver reads the same arguments object the handler received,
+ * so a handler that rewrites an operation field changes the hint picked after
+ * its call.
+ *
+ * @param def - the hint fields that apply on this path; a path that does not
+ *   inject a hint field passes a view without it
+ * @param handler - attaches the hint: a {@link callAndWrap} handler passes the
+ *   resolved hint as `successHint`, so it lands in the payload before serialization; a handler that
+ *   builds its own response goes through {@link injectHintAfterCall}
+ * @returns the handler registration calls
+ */
+export function withSuccessHint(def: SuccessHintSource, handler: HintedToolHandler): ToolCallHandler {
+  return (input, signal) => handler(input, signal, () => resolveSuccessHint(def, input));
+}
+
+/**
+ * Adapt a handler that builds its own response (custom shaping, the LSP client)
+ * to {@link withSuccessHint}: the hint is resolved after the handler returns,
+ * and after a call that is not an error result it goes into the first JSON text
+ * block of the response.
+ *
+ * @param handler - the self-shaping handler
+ * @returns a handler that injects the hint its resolver returns
+ */
+export function injectHintAfterCall(handler: ToolCallHandler): HintedToolHandler {
+  return async (input, signal, resolveHint) => {
+    const result = await handler(input, signal);
+    const successHint = resolveHint();
+    if (!result.isError && successHint) injectSuccessHint(result, successHint);
+    return result;
+  };
+}
 
 /** Inject a success hint into the first JSON text block of a ToolTextResult.
  *  Skips if the payload already has a toolkit-provided hint. */
-export function injectSuccessHint(result: ToolTextResult, hint: string): void {
+function injectSuccessHint(result: ToolTextResult, hint: string): void {
   for (const block of result.content) {
     if (block.type === "text") {
       try {

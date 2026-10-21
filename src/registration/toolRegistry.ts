@@ -21,7 +21,7 @@ import { isVersionCompatible, type GodotVer } from "../shared/version.js";
 import { checkPathGuard } from "../security/pathGuard.js";
 import { toolError } from "../shared/errorContract.js";
 import { isRawJsonSchema, jsonSchemaToZodShape, addStringCoercion } from "../shared/schemaCoercion.js";
-import { callAndWrap, injectSuccessHint, resolveSuccessHint } from "./toolDispatch.js";
+import { callAndWrap, injectHintAfterCall, withSuccessHint, type ToolCallHandler } from "./toolDispatch.js";
 
 // ── Registration helpers ────────────────────────────────────────────
 
@@ -268,24 +268,14 @@ export function registerTools(
     if (isExcludedByReadOnly(readOnly, tool.annotations)) continue;
 
     const description = renderDescription(tool, bridge.getGodotVersion() ?? null);
-    const customHandler = opts.handlers?.get(tool.name);
-    let handler = (customHandler ??
-      ((input: unknown, signal?: AbortSignal) =>
-        callAndWrap(bridge, tool.method, input, { signal, successHint: resolveSuccessHint(tool, input) }))) as (
-      input: unknown,
-      signal?: AbortSignal,
-    ) => Promise<ToolTextResult>;
-
-    // Custom handlers bypass callAndWrap, so inject successHint via wrapper.
-    if (customHandler && (tool.successHint || tool.operationHints)) {
-      const baseHandler = handler;
-      handler = (async (input: unknown, signal?: AbortSignal) => {
-        const result = await baseHandler(input, signal);
-        const hintText = resolveSuccessHint(tool, input);
-        if (!result.isError && hintText) injectSuccessHint(result, hintText);
-        return result;
-      }) as typeof handler;
-    }
+    const customHandler = opts.handlers?.get(tool.name) as ToolCallHandler | undefined;
+    const handler = withSuccessHint(
+      tool,
+      customHandler
+        ? injectHintAfterCall(customHandler)
+        : (input, signal, resolveHint) =>
+            callAndWrap(bridge, tool.method, input, { signal, successHint: resolveHint() }),
+    );
 
     registerToolWrapped(
       server,
