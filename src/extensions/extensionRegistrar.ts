@@ -31,9 +31,10 @@ const DEFAULT_EXTENSION_TIMEOUT_MS = 30_000;
 export interface ExtensionRegistrar {
   /**
    * Register one ungrouped extension command WITH THE MCP SERVER (the registration
-   * recipe): applies the read-only filter, the timeout hint, and the version gate.
-   * Returns true when the tool was registered, false when skipped by read-only
-   * exclusion. Does NOT record ledger membership — this is the register half of the
+   * recipe): refuses a name that collides with an existing tool, applies the
+   * read-only filter, and attaches the timeout hint. Returns true when the tool was
+   * registered, false when skipped for a name collision or by read-only exclusion.
+   * Does NOT record ledger membership — this is the register half of the
    * deliberate register/track separation; callers own the ledger bookkeeping via
    * register/deregister below.
    */
@@ -41,15 +42,15 @@ export interface ExtensionRegistrar {
   /** Register the always-on extensions_refresh tool (self-guards via hasToolRef). */
   registerRefreshTool(): void;
   /**
-   * Record a tool name as a member of the known-extension ledger (was
-   * knownExtensionTools.add). This is the track half of the register/track
-   * separation — it updates ledger membership only; it does NOT register anything
-   * with the MCP server (use registerExtensionTool for that).
+   * Record a tool name as a member of the known-extension ledger. This is the track
+   * half of the register/track separation — it updates ledger membership only; it
+   * does NOT register anything with the MCP server (use registerExtensionTool for
+   * that).
    */
   register(toolName: string): void;
   /** Whether a tool name is currently a member of the known-extension ledger. */
   isRegistered(toolName: string): boolean;
-  /** Remove a tool name from the known-extension ledger (was knownExtensionTools.delete). */
+  /** Remove a tool name from the known-extension ledger. */
   deregister(toolName: string): void;
 }
 
@@ -106,10 +107,10 @@ export function createExtensionRegistrar(deps: {
 
   /**
    * Register one ungrouped extension command as an MCP tool. Returns true when the
-   * tool was registered, false when skipped by read-only exclusion. Callers own
-   * their own pre-checks (dedup guard), counters, and knownExtensionTools
-   * bookkeeping — this encapsulates only the shared registration recipe common to
-   * the eager-discovery and live-reconciliation ungrouped paths.
+   * tool was registered, false when skipped for a name collision or by read-only
+   * exclusion. Callers own their own pre-checks (dedup guard), counters, and
+   * knownExtensionTools bookkeeping — this encapsulates only the registration
+   * recipe every ungrouped extension command shares.
    */
   function registerExtensionTool(cmd: ExtensionCmdWire): boolean {
     const toolName = toolNameFromMethod(cmd.method);

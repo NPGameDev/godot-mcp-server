@@ -24,3 +24,4 @@ registration choke point and its two pre-flight maps (version bounds + path guar
 - [batchToolRegistration](functions/batchToolRegistration.md)
 - [registerTools](functions/registerTools.md)
 - [registerToolWrapped](functions/registerToolWrapped.md)
+- [renderDescription](functions/renderDescription.md)
