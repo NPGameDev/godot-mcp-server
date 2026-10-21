@@ -1,8 +1,9 @@
 /**
- * The seam between the resolved startup configuration and the bridge. Preflight
- * resolves the project path, the ports and the response caps on its own; this one
- * function assembles them into what `createBridge` takes, so a resolved value
- * cannot be dropped on its way to the bridge without a unit test noticing.
+ * The seam between the resolved startup configuration and the bridge. Startup
+ * resolves the project path, the ports, the response caps and the version-check
+ * opt-out on its own; this one function assembles them into what `createBridge`
+ * takes, so a resolved value cannot be dropped on its way to the bridge without a
+ * unit test noticing.
  * Type-only imports: it adds no runtime edge from `startup/` to `transport/`.
  *
  * @module

@@ -43,8 +43,7 @@ export interface RegistryEntry {
 }
 
 /**
- * The parsed `projects.json`: every project entry, keyed by canonical path. The
- * parameter type of `runtimeTransitions`.
+ * The parsed `projects.json`: every project entry, keyed by canonical path.
  *
  * @internal
  */
@@ -236,7 +235,7 @@ export type RuntimeTransition = { kind: "removed"; key: string } | { kind: "disc
  * so a toolkit that records none transitions on the port alone. Reads no file and
  * starts no timer; the only outside look is the pid-liveness probe.
  *
- * @internal Exported for the unit tests; the watcher is the one caller.
+ * @internal Exported for the unit tests.
  */
 export function runtimeTransitions(cached: Registry, fresh: Registry): RuntimeTransition[] {
   const events: RuntimeTransition[] = [];
