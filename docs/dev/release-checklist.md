@@ -6,9 +6,8 @@ cross-version behavioral matrix; this sheet covers connection stability, securit
 probing, cross-subsystem flows, dispatch integration, and the supply-chain audit that need a
 running editor, a live client, or a fresh dependency scan.
 
-Every check is runnable from a clone of this repo. Where a `Plan/…` path is cited it is the
-**full methodology in the planning repo** — a secondary reference; the one-liners here are
-self-contained. Most sections need a Godot editor running with the toolkit plugin enabled
+Every check is runnable from a clone of this repo; each one-liner is self-contained. Most
+sections need a Godot editor running with the toolkit plugin enabled
 (listening on port 6550) and the server built (`npm run build`).
 
 ---
@@ -16,8 +15,7 @@ self-contained. Most sections need a Godot editor running with the toolkit plugi
 ## 1. Connection stability (B1–B9) — BLOCKING
 
 Transport-layer behavior under adverse conditions — the failure modes most likely to frustrate
-real users. Full methodology: `Plan/ExecutionPlan/41o-stability-sanity-check.md` → Part B
-(planning repo).
+real users.
 
 - [ ] **B1 — Rapid connect/disconnect.** Connect, `Ctrl+C` the server, restart, reconnect —
       5 cycles fast. Each cycle clean; no leaked peers, no crash; dock shows correct status.
@@ -53,8 +51,7 @@ real users. Full methodology: `Plan/ExecutionPlan/41o-stability-sanity-check.md`
 
 ## 2. Security boundaries (D1–D7) — BLOCKING
 
-Verify the security model holds under deliberate probing. Full methodology:
-`Plan/ExecutionPlan/41o-stability-sanity-check.md` → Part D (planning repo).
+Verify the security model holds under deliberate probing.
 
 > **Automated coverage:** `npm run smoke:single -- --only 18,21` exercises the path-traversal,
 > envelope-injection, and response-cap boundaries (D1/D6/D7). Run it first, then hand-probe the

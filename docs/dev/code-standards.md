@@ -438,8 +438,9 @@ background the same rules serve. Cohesion is a property of the **whole tree**: a
 decomposition pattern everywhere so a contributor recognises one shape in every subsystem.
 
 6.1 **One statable responsibility per file (file-level SRP).** A module should have a single reason to
-change. *Test:* if its one-paragraph spec needs an "and", it is a split candidate. *Rationale: a file
-you can't spec in a sentence is one a reader can't hold in their head.*
+change. *Test:* describe the module or class in about 25 words with no "and", "if", "or" or "but"; if
+you can't, it is a decomposition candidate. *Rationale: a file you can't spec in a sentence is
+one a reader can't hold in their head.*
 
 6.2 **Orchestrator + collaborators is the standard decomposition.** A thin **orchestrator** owns
 **lifecycle, delegation, and wiring** — not domain logic; the single-responsibility **collaborators**
@@ -450,12 +451,32 @@ another.
 6.3 **When to split — guidance, not a hard line.** **Responsibility count, not line count, is the
 metric.** A long *cohesive* module (one tool group, one serializer) is fine; banner-separated
 *distinct* concerns and mixed abstraction levels are the real smell. Size alone never forces a split.
+Size does trigger a check: a reviewer writes the one-sentence responsibility of each non-test file
+over 500 lines that a change touches; a sentence that needs "and" marks it as a decomposition
+candidate. The 500 lines is a prompt to look, not a ceiling, and there is no function-length limit.
 
 6.4 **DRY — extract any shape or decision built ≥ 2×, with the rule-of-three caveat.** A single
 failure-shape builder, a single serializer, a single try/catch→error→stringify wrapper beats the same
 logic copied across call sites — a duplicated shape is a latent contract that drifts. **Caveat:**
 incidental similarity *expected to diverge* is **not** duplication — prefer a little repetition over
-the wrong abstraction.
+the wrong abstraction. **A fix covers every site with the same defect,** and logic duplicated across
+those sites moves into one module they all call: the copies drift, and the one a fix misses keeps
+the bug.
+
+```ts
+// ✗ two handlers each fit the raw value to the property's declared type
+function setProperty(raw: string, declared: string) {
+  const value = declared === "int" ? Number.parseInt(raw, 10) : raw;
+  // ...
+}
+function writeResource(raw: string, declared: string) {
+  const value = declared === "int" ? Number(raw) : raw;
+  // ...
+}
+
+// ✓ one fitter both handlers call, so each body becomes:
+//   const value = fitToDeclaredType(raw, declared);
+```
 
 6.5 **CQS — a function mutates state OR returns data, not both.** A read folded into a mutating verb
 hides the read from callers and the routing layer; extract it into its own read path.
@@ -528,8 +549,8 @@ added.)*
 This part records what is specific to *this* repo: the Bridge, the MCP/SDK surface, the cross-repo
 error contract, the deterministic-JSON discipline, the contract recipes, npm shipping, the on-disk
 module taxonomy, and the canonical in-tree exemplars. Part I's rules are the law; this part is where
-they touch concrete files. Paths are relative to the server repo root, and line numbers drift — the
-**symbol name is the durable anchor**.
+they touch concrete files. Paths are relative to the server repo root, and each citation names a file
+and a symbol, never a line: line numbers drift, the **symbol name is the durable anchor**.
 
 ## B1. The Bridge — the transport reference implementation
 
@@ -537,63 +558,62 @@ The Bridge is the stdio↔WebSocket reference implementation of [§7](#7-async-p
 it owns the editor channel plus the lazy playtest-runtime channel, the reconnect state machine, and
 every cancellation/timeout guarantee.
 
-- **Construction.** `createBridge(...)` (`src/transport/bridge.ts:91`) returns the single `Bridge`
-  (`src/shared/types.ts:21`) the tool layer calls. The low-level socket, reconnect, and pending-request
-  bookkeeping live in `src/transport/channel.ts`; the reconnect backoff tunable is
-  `RECONNECT_BASE_MS` (`src/transport/channel.ts:33`).
+- **Construction.** `createBridge(...)` (`src/transport/bridge.ts`) returns the single `Bridge`
+  (`interface Bridge`, `src/shared/types.ts`) the tool layer calls. The low-level socket, reconnect, and
+  pending-request bookkeeping live in `createChannel` (`src/transport/channel.ts`); the reconnect
+  backoff tunable is `RECONNECT_BASE_MS` in the same file.
 - **Cancellation ([§7.4](#7-async-promises-and-the-event-loop)).** A pre-aborted signal throws
-  `CANCELLED` immediately (`src/transport/channel.ts:369`); an abort mid-flight clears the timer,
-  rejects `CANCELLED`, and sends the toolkit a cooperative `_cancel` notification
-  (`src/transport/channel.ts:110`).
+  `CANCELLED` immediately (the channel's `call`, `src/transport/channel.ts`); an abort mid-flight
+  clears the timer, rejects `CANCELLED`, and sends the toolkit a cooperative `_cancel` notification
+  (`cancelPending`, same file).
 - **Timeout ([§7.5](#7-async-promises-and-the-event-loop)).** Every call arms a timer that rejects
-  `TIMEOUT` and deletes the pending entry (`src/transport/channel.ts:374`); `_queued` / `_executing`
-  progress notifications **reset** the timer so queued mutations don't false-timeout
-  (`src/transport/channel.ts:285`).
+  `TIMEOUT` and deletes the pending entry (the channel's `call`); `_queued` / `_executing` progress
+  notifications **reset** the timer so queued mutations don't false-timeout (the socket's `message`
+  handler in `connect`, `src/transport/channel.ts`).
 - **Process survival ([§7.6](#7-async-promises-and-the-event-loop)).** `installProcessHandlers`
-  (`src/startup/lifecycle.ts:50`) installs the `unhandledRejection` / `uncaughtException` stderr
+  (`src/startup/lifecycle.ts`) installs the `unhandledRejection` / `uncaughtException` stderr
   loggers that keep the bridge alive.
 - **Fire-and-forget exemplar ([§7.3](#7-async-promises-and-the-event-loop)).** `void
-  bridge.call(...).catch(() => {})` at `src/lsp/lspStatusReporter.ts:35` — a status push whose failure
-  is safe to drop, marked `void` and commented.
+  bridge.call(...).catch(() => {})` in `sendLspStatus` (`src/lsp/lspStatusReporter.ts`) — a status
+  push whose failure is safe to drop, marked `void` and commented.
 
 ## B2. MCP / SDK surface discipline
 
 - **Register tools through the project wrapper, never the SDK directly — hard-line.** Use
-  `registerToolWrapped` / `registerTools` (`src/registration/toolRegistry.ts:123`, `:242`) — **never**
-  the SDK's raw `server.registerTool` (called in exactly one place, the wrapper's body,
-  `src/registration/toolRegistry.ts:222`). The wrapper adds version-gating, path-guard pre-filtering,
+  `registerToolWrapped` / `registerTools` (`src/registration/toolRegistry.ts`) — **never** the SDK's
+  raw `server.registerTool` (called in exactly one place, the body of `registerToolWrapped`). The wrapper adds version-gating, path-guard pre-filtering,
   hook-pipeline wrapping, string-coercion, and tool-ref tracking; bypassing it silently drops those
   guarantees. Prompts / resources / roots go through their own registrars (`src/mcp/`).
 - **SDK construction.** `McpServer` with `{ capabilities: { tools: { listChanged: true } } }`;
   `StdioServerTransport` built by `createStdioTransport` (`src/startup/lifecycle.ts`) and connected
   **last** (`await server.connect(transport)`, at the end of `src/index.ts`).
   Zod is the schema lib; raw JSON Schema from extensions is converted to a Zod shape by
-  `jsonSchemaToZodShape` (`src/shared/schemaCoercion.ts:139`, invoked from
-  `src/registration/toolRegistry.ts:139`).
+  `jsonSchemaToZodShape` (`src/shared/schemaCoercion.ts`, invoked from `registerToolWrapped`).
 - **stdout is the stdio transport — never `console.log` to stdout — hard-line.** **All** human
   diagnostics go to `process.stderr.write`. The only stdout writes are protocol frames and the
-  pre-transport `--tools-count` summary that exits *before* `connect` (`src/startup/startupEnv.ts:72`).
+  pre-transport CLI reports that exit *before* `connect` (`printToolCount` for `--tools-count`,
+  dispatched by `applyCliMetaGates` in `src/startup/startupEnv.ts`).
   A stray stdout write corrupts the JSON-RPC stream.
 - **Coalesce a multi-tool registration change into a single `tools/list_changed`.** The SDK auto-emits
   `tools/list_changed` on every `registerTool` / `removeTool`, so a remove-then-rebuild (startup,
   config-reload, extension reconcile) fires a notification **burst** unless wrapped. Run any multi-tool
-  mutation inside `batchToolRegistration` (`src/registration/toolRegistry.ts:79`), which suppresses the
+  mutation inside `batchToolRegistration` (`src/registration/toolRegistry.ts`), which suppresses the
   per-call emit and sends exactly **one** notification in its `finally`. *Rationale: a burst
   destabilizes clients that drop or restart their session on `tools/list_changed`.*
 
 ## B3. Error classification & the `ErrorCode` cross-repo contract
 
 - **Classify every error to its specific code; never swallow or relabel across the bridge — hard-line.**
-  `BridgeError(code, message)` (`src/shared/errors.ts:6`) carries a `code` from the canonical
-  `ErrorCode` union (`src/shared/types.ts:73`). `toolErrorFromException`
-  (`src/shared/errorContract.ts:95`) **preserves** `err.code` when `err instanceof BridgeError`, else
+  `BridgeError(code, message)` (`src/shared/errors.ts`) carries a `code` from the canonical
+  `ErrorCode` union (`src/shared/types.ts`). `toolErrorFromException`
+  (`src/shared/errorContract.ts`) **preserves** `err.code` when `err instanceof BridgeError`, else
   `INTERNAL` — the transport code (`TIMEOUT` / `CANCELLED` / `CONNECT_FAILED` / …) is **never**
   flattened to a generic message, so the client can decide retry-vs-give-up. A plugin-returned
   `{ success: false, code }` is translated to an MCP `isError` response **without relabeling**
-  (`toolErrorFromPayload`, `src/shared/errorContract.ts:36`).
+  (`toolErrorFromPayload`, same file).
 - **The `ErrorCode` union is a cross-repo contract.** It must stay in sync with the toolkit's
   `MCPToolkitError.CODES` (in `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`); the sync
-  obligation is documented at the union's definition (`src/shared/types.ts:73`). A new plugin-emitted
+  obligation is documented at the union's definition (`ErrorCode`, `src/shared/types.ts`). A new plugin-emitted
   code touches **both** repos — it is a contract change
   ([B5](#b5-contract-surface-fidelity--cross-version-caveats)), not a unilateral add. Seven codes
   originate in the server and never travel through the plugin, so the toolkit does not list them:
@@ -603,7 +623,7 @@ every cancellation/timeout guarantee.
 ## B4. Deterministic JSON & token discipline
 
 - **Serialize the cacheable surface with stable key order.** `stableStringify`
-  (`src/shared/stableJson.ts:16`) recursively sorts object keys so the re-sent tools/schema block is
+  (`src/shared/stableJson.ts`) recursively sorts object keys so the re-sent tools/schema block is
   **byte-identical across turns**, matching the prompt cache. **Do not hand-roll `JSON.stringify` on
   the cacheable surface.**
 - **Per-call responses use plain `JSON.stringify`** — serialized once into history, so sorting buys no
@@ -619,15 +639,16 @@ the cross-repo SSOT**, which this repo cross-links rather than restating.
 
 - **Token-path, project-key, WS-framing, and port ranges are contract.** The server validates the
   published token-path **shape** (`…/addons/godot_mcp_toolkit/project_instance_<hash>/mcp_token`,
-  re-read every connect) at `src/transport/tokenPath.ts:48`; the project key is canonicalized and
-  lowercased on win32/darwin by `normalizePath` (`src/registry.ts:52`). *The project-hash is computed
+  re-read every connect) in `assertPublishedTokenPath` (`src/transport/tokenPath.ts`); the project key
+  is canonicalized and lowercased on win32/darwin by `normalizePath` (`src/registry.ts`). *The project-hash is computed
   **toolkit-side** — the server consumes the published path and only checks its shape, so there is no
   hash routine here to keep in sync, only the path recipe.* Ports bind on `127.0.0.1` via env /
   registry. Changing any recipe is a **contract change**, not a free refactor.
 - **Version-gate at the wrapper.** Version-incompatible tools are filtered/blocked through
   `registerToolWrapped` + `src/shared/version.ts`; the out-of-range error must be informative
   (`UNSUPPORTED`). The wrapper skips registration when the version is **not yet known** and the startup
-  reconcile re-runs once it resolves (`src/registration/toolRegistry.ts:158`).
+  reconcile re-runs once it resolves (the version filter in `registerToolWrapped`,
+  `src/registration/toolRegistry.ts`).
 
 ### B5.x Paginating tools — shared fragment, REFLECT-only
 
@@ -655,14 +676,15 @@ Paginating tools share one fragment module (request-param zod fragments +
   "LICENSE", "ATTRIBUTIONS.md"]` — **only `dist/` ships**; `src/`, `test/`, and `docs/` do **not**
   (there is no `.npmignore`). The package is scoped (`@npgamedev/godot-mcp-server`) with `bin:
   godot-mcp-server → dist/index.js`.
-- **`engines.node >= 22`**, runtime-enforced — `src/startup/startupEnv.ts:18` hard-exits below 22.
+- **`engines.node >= 22`**, runtime-enforced — `enforceNodeVersion` (`src/startup/startupEnv.ts`)
+  hard-exits below 22.
 - **The build is the gate** (`noEmitOnError`): a green `dist/` means the typecheck passed; `postbuild`
   injects the bin shebang.
 - **Route every tool through an `npm run` script; never a bare `npx`.** `build` / `lint` / `format` /
   `format:fix` / `test:unit` and the rest are the prompt-free, CI-aligned path; a bare `npx` is
   permission-gated and breaks autonomous runs. The unit-test runner spawns each test file via the
   Node binary already running it (`execFileSync(process.execPath, ["--import", "tsx", file])`,
-  `test/unit/run-all.ts:27`) — per-file subprocess isolation with no PATH / `npx` dependency.
+  in the per-file loop of `test/unit/run-all.ts`) — per-file subprocess isolation with no PATH / `npx` dependency.
 - **Generated API reference.** The public surface is published as **generated Markdown**
   (`npm run docs:api` → `typedoc` + `typedoc-plugin-markdown` → committed `docs/api/`), the
   contributor companion to `docs/architecture/`. It is **committed** (the Pages renderer does not run
@@ -691,8 +713,14 @@ the `bin` entry and the multi-instance registry at the root:
 
 `index.ts` is the thin composition root of [§2.2](#2-module-structure-and-declaration-order): it
 sequences the boot (preflight gates → bridge → registration → `server.connect`) and delegates each
-phase to a `startup/` collaborator. The namespace-imported tool family it composes is wired in
-`src/startup/registrars.ts:15` onward.
+phase to a `startup/` collaborator. The namespace-imported tool family it composes is wired by
+`registerBuiltinModules` (`src/startup/registrars.ts`).
+
+**A shape two modules build lives in the module that owns its seam**
+([§6.4](#6-design-solid-cohesion-and-decomposition)). A handler wrapper, a hint injection or a version
+grammar is one exported function in its owner (`registration/toolDispatch.ts` for dispatch,
+`shared/version.ts` for versions), and both callers import it. A `groups/` or `extensions/` module
+never re-implements what `registration/` already does.
 
 ## B8. Test-code conventions
 
@@ -723,27 +751,27 @@ messages** alike. On top of the general rules:
 
 ## B10. Canonical exemplars
 
-The in-tree examples a reviewer or contributor jumps to. Line numbers drift; the **symbol name is the
-durable anchor**.
+The in-tree examples a reviewer or contributor jumps to, each cited by file and symbol (the **symbol
+name is the durable anchor**).
 
-- **Naming / typing.** `RECONNECT_BASE_MS` (`src/transport/channel.ts:33`) UPPER_SNAKE tunable; the
-  `ErrorCode` union (`src/shared/types.ts:73`) UPPER_SNAKE members; `interface Bridge`
-  (`src/shared/types.ts:21`); `readonly` array field `pathParams?: readonly PathGuard[]`
-  (`src/shared/types.ts:185`).
+- **Naming / typing.** `RECONNECT_BASE_MS` (`src/transport/channel.ts`) UPPER_SNAKE tunable; the
+  `ErrorCode` union (`src/shared/types.ts`) UPPER_SNAKE members; `interface Bridge`
+  (`src/shared/types.ts`); `readonly` array field `pathParams?: readonly PathGuard[]` (the
+  `ToolDef` type, `src/shared/types.ts`).
 - **Comments / TSDoc ([§5](#5-comments-and-documentation)).** `registerToolWrapped`
-  (`src/registration/toolRegistry.ts:90`) — the exemplary doc comment: one-line summary, `@param`,
-  `@remarks`, `@example`, plus the **sanctioned, justified `any` escape-hatch** at
-  `src/registration/toolRegistry.ts:127`. `stableStringify` (`src/shared/stableJson.ts:16`) — module
-  header + intent-first function doc.
+  (`src/registration/toolRegistry.ts`) — the exemplary doc comment: one-line summary, `@param`,
+  `@remarks`, `@example`, plus the **sanctioned, justified `any` escape-hatch** on its `config`
+  parameter. `stableStringify` (`src/shared/stableJson.ts`) — module header + intent-first function
+  doc.
 - **Cohesion ([§6](#6-design-solid-cohesion-and-decomposition)).** `index.ts` (composition root) +
   `src/startup/` collaborators; `transport/bridge.ts` (orchestrator) + `transport/channel.ts`;
-  `shared/errors.ts` split out of `shared/types.ts` to keep the latter a pure-type leaf
-  (`src/shared/errors.ts:6`); the DRY single-call wrapper `callAndWrap`
-  (`src/registration/toolDispatch.ts:44`).
+  `shared/errors.ts` (`BridgeError`) split out of `shared/types.ts` to keep the latter a pure-type
+  leaf; the DRY single-call wrapper `callAndWrap` (`src/registration/toolDispatch.ts`).
 - **Async ([§7](#7-async-promises-and-the-event-loop)).** Cancellation + timeout in
-  `src/transport/channel.ts` (`:369`, `:374`, `:285`); process survival in
-  `src/startup/lifecycle.ts:50`; commented fire-and-forget `void … .catch(() => {})` at
-  `src/lsp/lspStatusReporter.ts:35`.
+  `src/transport/channel.ts` (`call`, `cancelPending`, and the progress-reset branch of the socket's
+  `message` handler); process survival in `installProcessHandlers` (`src/startup/lifecycle.ts`);
+  commented fire-and-forget `void … .catch(() => {})` in `sendLspStatus`
+  (`src/lsp/lspStatusReporter.ts`).
 
 ---
 
@@ -767,8 +795,14 @@ durable anchor**.
   in `batchToolRegistration` → one `tools/list_changed`.
 - [ ] Comments state intent, not dev-history; TSDoc on public seams documents semantics not types;
   `@internal` on sibling-only exports.
-- [ ] File has one statable responsibility ([§6.1](#6-design-solid-cohesion-and-decomposition));
-  orchestrators stay thin; no import cycles; collaborators born in the right folder.
+- [ ] File has one statable responsibility ([§6.1](#6-design-solid-cohesion-and-decomposition)); a
+  non-test file over 500 lines that a change touches has its one-sentence responsibility written
+  down, and a sentence that needs "and" marks a decomposition candidate
+  ([§6.3](#6-design-solid-cohesion-and-decomposition)); orchestrators stay thin; no import cycles;
+  collaborators born in the right folder.
+- [ ] A fix covers every site with the same defect; a shape two modules build is one function in the
+  module that owns the seam, imported by both ([§6.4](#6-design-solid-cohesion-and-decomposition),
+  [B7](#b7-module-taxonomy--the-composition-root)).
 - [ ] Contract recipes (token-path / project-key / framing / ports / error codes) unchanged — or
   treated as a contract change against the toolkit-owned `docs/dev/contract.md`.
 - [ ] `files` allowlist still ships only `dist/` (+ license / readme / attributions); `docs/` unshipped.
@@ -779,5 +813,5 @@ durable anchor**.
   `noImplicitOverride`, `noPropertyAccessFromIndexSignature`) — a noted gap, **not** an as-built rule.
   Tightening is a post-1.0 consideration.
 - **Justified `any` escape-hatches** (SDK overload shapes / third-party-schema internals), each
-  inline-disabled with a one-line reason ([§4.1](#4-static-typing); exemplar at
-  `src/registration/toolRegistry.ts:127`). Permitted; do not add more without the same justification.
+  inline-disabled with a one-line reason ([§4.1](#4-static-typing); exemplar: the `config` parameter
+  of `registerToolWrapped`, `src/registration/toolRegistry.ts`). Permitted; do not add more without the same justification.

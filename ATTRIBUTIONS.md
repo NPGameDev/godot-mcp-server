@@ -6,7 +6,7 @@ entries below cover (a) original artwork made for this project, (b) runtime
 library dependencies whose licenses ship with the installed package, and (c)
 architectural references we studied while planning the stack.
 
-If future iterations import or adapt code from any of the sources below, append a
+If this project later imports or adapts code from any of the sources below, append a
 "Copied into: …" line with the file path(s) to keep this file accurate.
 
 ---

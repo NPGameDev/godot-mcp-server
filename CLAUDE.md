@@ -71,7 +71,7 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   Each exports a typed `ToolDef[]` (with MCP annotations) and a
   `register(server, bridge, allowedTools)` function. Tools filter via the
   `allowedTools` Set.
-- `test/smoke.ts` — harness. **Port-check first** (iter 05 contract) then round-trip
+- `test/smoke.ts` — harness. **Port-check first**, then round-trip
   assertions. Do NOT move the port-check below the assertions — it exits with
   instructions when the editor is down.
 
@@ -85,14 +85,15 @@ root — no `server/` subdir wrapper. Distributed via `npm install -g @npgamedev
   See **Error code reference** below for the canonical `ErrorCode` list.
 - **I2 — description ≤ 200 chars.** Enforced by smoke. Tight descriptions help
   Claude Code pick the right tool.
-- **I4 — path rule.** All `res://` path input eventually passes through
-  `FileGuard.resolve_safe` (plugin side, iter 18). For now, callers leave
-  `TODO(iter-18)` at each path-touching call site.
+- **I4 — path rule.** All `res://` path input passes through
+  `FileGuard.resolve_safe` on the plugin side
+  (toolkit-repo `addons/godot_mcp_toolkit/security/file_guard.gd`), the
+  authoritative check.
 - **I6 — localhost-only.** Bridge URL is `ws://127.0.0.1:${GODOT_MCP_EDITOR_PORT}`.
   Never allow a non-loopback host.
-- **I7 — one commit per iteration per repo.** Conventional-commit form:
+- **I7 — one commit per change.** Conventional-commit form:
   `feat(server): …`, `fix(server): …`, `refactor(server): …`.
-- **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one iteration's
+- **I8 — rollback granularity.** `git revert <sha>` cleanly undoes one change's
   server-side work.
 
 ## Tool catalogue
@@ -105,7 +106,8 @@ Source of truth: each tool's `annotations.readOnlyHint`, filtered by
 
 ### Lazy-load groups
 
-28 groups (78 tools) loaded via `discover_tools`. `node_manage`,
+On-demand groups load via `discover_tools` (`godot-mcp-server --tools-count`
+prints the live group and tool counts). `node_manage`,
 `node_groups`, `autoload_manage` were promoted to the eager set early, when
 Claude Code did not yet process `tools/list_changed` notifications (current
 versions do, in both interactive and pipe mode).
@@ -149,7 +151,7 @@ response caps (`GODOT_MCP_SCRIPT_READ_LIMIT`, `GODOT_MCP_WS_BUFFER_LIMIT`) and
 `GODOT_MCP_RATE_LIMIT` — the README's environment-variable table documents the
 full live set.
 
-## Version-aware tool catalog (iters 37, 41l-undecies)
+## Version-aware tool catalog
 
 The plugin sends its Godot version in the WebSocket auth handshake
 (`{ "authed": true, "godot_version": "4.5.2" }`). The bridge also
@@ -203,10 +205,10 @@ Run `npm run lint && npm run format` before committing.
   the deep behavioral tier (`behavioral: uses: cross-version.yml` + `needs:`), then
   validates tag matches `package.json` version, runs the package-shape gate
   (`npm pack` + publint + generated-docs freshness), builds, publishes to npm
-  (`NPM_TOKEN` secret; OIDC is a 42b TODO), and creates a GitHub Release.
+  (OIDC trusted publishing; no token secret), and creates a GitHub Release.
   `workflow_dispatch` runs the whole chain as a **dry-run** (publish skipped).
 
-## Accuracy eval suite (iter 40)
+## Accuracy eval suite
 
 Separate from smoke (smoke = "does it work", eval = "does it work well").
 Runs against a live Godot instance like smoke but tests two dimensions:
@@ -247,20 +249,12 @@ npm link             # dogfood: global `godot-mcp-server` resolves to this dist/
 **Editor UAF (engine bug, root-caused — smoke no longer arms it):** setting
 `editor_description` on a node then deleting it within ~0.5 s triggers a
 use-after-free in the editor's `SceneTreeEditor` tooltip timer (Godot 4.3+, not
-ours; `Insights/smoke-backpressure-crash-characterization.md` +
-`EngineBugs/scene-tree-tooltip-timer-uaf/`). Section 02 did this and SIGSEGV'd
+ours). Section 02 did this and SIGSEGV'd
 the editor on full-run-then-`--only 2`; it now round-trips on the never-deleted
 scene root, so the suite is deterministically safe (6/6 on the former killer).
 When adding a test, never set `editor_description` on a node you then delete —
 target the scene root. Belt-and-suspenders: a run dying with `WebSocket closed
 before response` + a dead editor = this flake → relaunch and re-run.
-
-Pre-iter-20 dogfood runs against a locally-built `dist/` via a path-based
-`.mcp.json` in the toolkit repo + `godot-mcp-dogfood-playground/` (not `npm
-link`, because `@npgamedev/godot-mcp-server` is not yet published). Iter 20
-publishes to npm and swaps the toolkit `.mcp.json` + template back to
-`npx -y @npgamedev/godot-mcp-server` — at which point the same config works
-for end users with no further edits. See iter 13b + iter 20 in the plan repo.
 
 ## Adding a tool
 
@@ -286,7 +280,7 @@ deliberately **not** duplicated in the contract doc, whose **C4** describes the
 error-code *wire framing* + stability tier and points to source for the full
 enumeration. C4 is the contract; this table is the lookup — keep them consistent.
 
-Canonical `ErrorCode` union lives in `src/shared/types.ts:73` (single source of truth on
+Canonical `ErrorCode` union lives in `src/shared/types.ts` (single source of truth on
 this side; mirrored as `MCPToolkitError.CODES` in the toolkit-repo
 `addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`). Seven codes originate in the server
 and are absent from the toolkit's list: `AUTH_FAILED`, `CANCELLED`, `CLOSED`,
@@ -295,8 +289,8 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 
 | Code               | Origin           | When                                                                          |
 |--------------------|------------------|-------------------------------------------------------------------------------|
-| `ALREADY_EXISTS`   | plugin           | `scene_create` / `resource_create` with `if_exists: "fail"` on collision. **Error payload only** post-iter-15 — idempotent collisions return success with `status: "returned"`. |
-| `ALREADY_PLAYING`  | plugin (iter 15c)| `game_start` while `EditorInterface.is_playing_scene()` is true — call `game_stop` first. |
+| `ALREADY_EXISTS`   | plugin           | `scene_create` / `resource_create` with `if_exists: "fail"` on collision. **Error payload only** — idempotent collisions return success with `status: "returned"`. |
+| `ALREADY_PLAYING`  | plugin           | `game_start` while `EditorInterface.is_playing_scene()` is true — call `game_stop` first. |
 | `AUTH_FAILED`      | bridge           | The auth handshake failed: the registry has no entry or no token path for the project, the token file is missing or unreadable, its path is not absolute, contains `..` or has the wrong shape, or the editor closed the handshake or did not answer it in time. Relaunch or reconnect the editor. |
 | `BUSY`             | plugin           | A scene save is already in progress, so a second save cannot start; retry once it completes. |
 | `CANCELLED`        | bridge           | The client cancelled the call (its abort signal fired) before the reply arrived, or before it was sent. |
@@ -304,57 +298,57 @@ sides AND this table. Codes are UPPER_SNAKE_CASE.
 | `CLOSED`           | bridge           | Bridge call after `bridge.close()`.                                           |
 | `COMPILATION_FAILED` | plugin         | `game_start` with `runtime_poll: true` finds no game running and errors in the log: the game failed to start on a startup or parse error. Fix the errors shown, then call `game_start` again. |
 | `CONNECT_FAILED`   | bridge           | WebSocket open failure (cold path; first attempt).                            |
-| `CREATE_DIR_FAILED`| plugin (iter 15b)| `DirAccess.make_dir_recursive_absolute` returned non-OK on `folder_create`.   |
-| `DELETE_FAILED`    | plugin (iter 15 / 15b) | `DirAccess.remove` non-OK from `scene_delete` / `script_delete` / `resource_delete` / `folder_delete`. |
-| `DIR_NOT_EMPTY`    | plugin (iter 15b)| `folder_delete` with `recursive: false` on a non-empty directory.             |
+| `CREATE_DIR_FAILED`| plugin           | `DirAccess.make_dir_recursive_absolute` returned non-OK on `folder_create`.   |
+| `DELETE_FAILED`    | plugin           | `DirAccess.remove` non-OK from `scene_delete` / `script_delete` / `resource_delete` / `folder_delete`. |
+| `DIR_NOT_EMPTY`    | plugin           | `folder_delete` with `recursive: false` on a non-empty directory.             |
 | `DISCONNECTED`     | bridge           | Socket closed mid-call or no reconnect within `CALL_AWAIT_RECONNECT_MS`.      |
-| `EDITED_SCENE`     | plugin (iter 15) | `scene_delete` / `file_delete` against the active scene on 4.2-4.4 (no tab-close API). On 4.5+ the tab is auto-closed first. |
+| `EDITED_SCENE`     | plugin           | `scene_delete` / `file_delete` against the active scene on 4.2-4.4 (no tab-close API). On 4.5+ the tab is auto-closed first. |
 | `EDITOR_VIEWPORT_UNAVAILABLE` | plugin | `editor_screenshot`: the editor window is minimized (and `force_foreground_editor` is not set), or no 2D/3D viewport composited a usable frame. |
 | `EMPTY_CONTENT`    | plugin           | `editor_screenshot` with `node_path`: the node produced no visible image (no texture, no mesh); capture the full viewport instead. |
 | `EXECUTE_FAILED`   | plugin (Mode B)  | `game.eval` Expression.execute returned an error.                             |
 | `EXTERNAL_EDITOR_ACTIVE` | plugin     | `debug_set_breakpoint` while Editor Settings → Text Editor → External → *Use External Editor* is on; breakpoints need the built-in script editor. Ask the user to turn the setting off, then retry. |
 | `FAILED`           | plugin           | Generic failure, the cause in the message: `tileset_add_alternative` could not create the alternative tile. Also the code an extension command returns when its call is cancelled. |
-| `FILE_TOO_LARGE`   | plugin (iter 20) | Response cap exceeded; reserved.                                              |
-| `FILESYSTEM_NOT_READY` | plugin (iter 15e) | `EditorFileSystem.is_scanning()` true when `asset_list` or `asset_get_dependencies` called. Agent should retry in 500-2000ms. |
-| `FOLDER_PROTECTED` | plugin (iter 15b)| `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
+| `FILE_TOO_LARGE`   | plugin           | Response cap exceeded; reserved.                                              |
+| `FILESYSTEM_NOT_READY` | plugin       | `EditorFileSystem.is_scanning()` true when `asset_list` or `asset_get_dependencies` called. Agent should retry in 500-2000ms. |
+| `FOLDER_PROTECTED` | plugin           | `folder_delete` targeting project root, `res://addons`, or the toolkit plugin dir. |
 | `GAME_NOT_RUNNING` | bridge           | Mode B call with no live game to reach: no runtime port registered, its owning game process has exited, or nothing answers on it. |
 | `HEADLESS_UNSUPPORTED` | plugin       | The command needs a display server and the editor runs headless (`editor_screenshot`, `game_start`). |
 | `INTERNAL`         | both             | Catch-all for unexpected failure (viewport unavailable, save_png empty, …).   |
-| `INVALID_CLASS`    | plugin           | Class resolution failure — unknown in both ClassDB + global class list / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`) / packed file is not a `PackedScene` (`scene_instantiate`) / script load failure for global class (`scene_create_node` iter 15h). |
-| `INVALID_METHOD`   | plugin (iter 15c)| `node_call_method` target node exists but `has_method(method)` is false.     |
+| `INVALID_CLASS`    | plugin           | Class resolution failure — unknown in both ClassDB + global class list / not instantiable / not a Node subclass (`scene_create_node` / `scene_create`) / not a Resource subclass (`resource_create`) / packed file is not a `PackedScene` (`scene_instantiate`) / script load failure for global class (`scene_create_node`). |
+| `INVALID_METHOD`   | plugin           | `node_call_method` target node exists but `has_method(method)` is false.     |
 | `INVALID_PARAMS`   | plugin           | JSON-RPC params shape error (missing required field, wrong type).             |
 | `INVALID_PATH`     | plugin           | Semantic refusal — edited-root on `scene_delete_node`, wrong prefix/extension on `scene_*` / `script_*` / `resource_*` / `folder_*`. Script tools now require `.gd`/`.cs`/`.gdshader`/`.gdshaderinc`. |
 | `INVALID_STATE`    | plugin           | The target cannot be acted on as it stands: an AnimationTree with no `tree_root`, or one that is not a state machine; `tilemap_set_cells` on a node with no tileset assigned. |
 | `INVALID_VALUE`    | plugin           | `node_set_property`: the value cannot be coerced to the property's type, or a Resource-typed property got a bare `res://` string (pass `{"type": "Resource", "path": …}`). |
 | `LOAD_FAILED`      | plugin           | `ResourceLoader.load` returned null.                                          |
 | `LOG_BUSY`         | plugin           | `editor_get_console` / `debugger_get_log`: the log file exists but could not be opened for reading. On Windows a running game holds it open; with no game running, a backup, antivirus or sync tool may. The hint depends on the Godot version (`source="buffer"` avoids the file on 4.5+). |
-| `LOG_UNAVAILABLE`  | plugin (iter 15e)| `editor_get_console` couldn't find a readable log under `user://logs/`. Check `application/config/use_file_logging`. |
+| `LOG_UNAVAILABLE`  | plugin           | `editor_get_console` couldn't find a readable log under `user://logs/`. Check `application/config/use_file_logging`. |
 | `LSP_PORT_CONFLICT` | LSP client      | An `lsp_*` tool refuses to answer from another editor's LSP: the registry shows another live editor, started no later than this project's, holding its LSP port, or the LSP reached is open on a different project (root mismatch). Close the other editor, or give each editor its own `--lsp-port` and `GODOT_MCP_LSP_PORT`. |
 | `LSP_UNAVAILABLE`  | LSP client       | An `lsp_*` tool cannot reach the GDScript LSP: the connect failed, or the registry has no LSP endpoint for the project and another editor holds port 6005. Also `lsp_project_diagnostics` when no file in a batch returned diagnostics in time (the editor is busy or wedged). |
 | `NO_SCENE`         | plugin           | `EditorInterface.get_edited_scene_root()` returned null.                      |
 | `NODE_NOT_FOUND`   | plugin           | `path2d_edit_curve`: no node at `node_path` in the edited scene. Most tools report a missing node as `NOT_FOUND`. |
-| `NOT_A_RESOURCE`   | plugin (iter 15b)| `resource_save` / `resource_delete` target loaded but isn't a Resource subclass. |
+| `NOT_A_RESOURCE`   | plugin           | `resource_save` / `resource_delete` target loaded but isn't a Resource subclass. |
 | `NOT_BREAKED`      | plugin           | `debug_continue` while a debug session is active but not paused at a breakpoint. |
 | `NOT_FOUND`        | plugin           | Node / scene file / resource / animation / connection / folder not found.     |
 | `NOT_UNIQUE`       | plugin           | `script_edit`: `old_string` matches more than once and `replace_all` is not set. Add context so it matches once, or set `replace_all: true`. |
-| `PACK_FAILED`      | plugin (iter 15) | `PackedScene.pack(root)` returned non-OK — only `scene_create` emits this.    |
-| `PARENT_NOT_FOUND` | plugin (iter 15 / 15b) | `scene_create` / `resource_create` target's parent dir does not exist — use `folder_create` first (pre-FileGuard guard). |
+| `PACK_FAILED`      | plugin           | `PackedScene.pack(root)` returned non-OK — only `scene_create` emits this.    |
+| `PARENT_NOT_FOUND` | plugin           | `scene_create` / `resource_create` target's parent dir does not exist — use `folder_create` first (pre-FileGuard guard). |
 | `PARSE_ERROR`      | plugin (Mode B)  | `game.eval` Expression.parse failed.                                          |
-| `PATH_DENIED`      | plugin           | Path didn't pass the `res://` prefix check (full FileGuard in iter 18).       |
-| `PATH_IN_USE`      | plugin (iter 15b)| `folder_delete` target contains the currently-edited scene or an open script tab. |
+| `PATH_DENIED`      | plugin           | Path failed a FileGuard check.                                                |
+| `PATH_IN_USE`      | plugin           | `folder_delete` target contains the currently-edited scene or an open script tab. |
 | `PROPERTY_NOT_FOUND` | plugin         | `node_set_property`: the property is not in the node's property list.        |
 | `READ_FAILED`      | plugin           | `FileAccess` read error.                                                      |
 | `RESPONSE_TOO_LARGE` | plugin         | The response exceeded the WebSocket transport buffer and could not be delivered; narrow or paginate the query, or raise `mcp_toolkit/limits/ws_buffer_kb` and reconnect. |
 | `RPC_ERROR`        | bridge           | Plugin returned a JSON-RPC envelope `error` field (transport-level).          |
 | `RUNTIME_WINDOW_MINIMIZED` | plugin   | `runtime_screenshot`: the running game's window cannot render (minimized or fully occluded), so no frame arrives. Retry with `force_foreground_game: true`, or restore the window. |
-| `SAVE_DELETE_FAILED` | plugin (iter 19c) | `DirAccess.remove_absolute` failed on a `user://` file via `save_delete`.   |
+| `SAVE_DELETE_FAILED` | plugin         | `DirAccess.remove_absolute` failed on a `user://` file via `save_delete`.   |
 | `SAVE_FAILED`      | plugin           | `EditorInterface.save_scene` / `save_scene_as` / `ResourceSaver.save` failure. |
-| `SAVE_READ_FAILED`  | plugin (iter 19c) | `FileAccess.open(READ)` failed on a whitelisted `user://` file.              |
-| `SAVE_WRITE_FAILED` | plugin (iter 19c) | `FileAccess.open(WRITE)` failed on a whitelisted `user://` file.             |
+| `SAVE_READ_FAILED` | plugin           | `FileAccess.open(READ)` failed on a whitelisted `user://` file.              |
+| `SAVE_WRITE_FAILED` | plugin          | `FileAccess.open(WRITE)` failed on a whitelisted `user://` file.             |
 | `SEND_FAILED`      | bridge           | WebSocket send callback errored.                                              |
 | `SET_FAILED`       | plugin           | `node_set_property` / `runtime_set_property`: the engine dropped the write (wrong type); the prior value is restored, so nothing changed. |
 | `TIMEOUT`          | bridge           | Per-call timer fired before response.                                         |
-| `UNKNOWN_CLASS`    | plugin (iter 26)   | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |
+| `UNKNOWN_CLASS`    | plugin           | `classdb_get_info` class not found in ClassDB (engine classes) or global class list (user `class_name`). |
 | `UNSUPPORTED`      | both             | Tool requires a newer Godot version than connected. Server checks `godotMinVersion`; plugin checks `has_method()`. |
 | `UNSUPPORTED_FILE_TYPE` | both        | The file type is outside the tool's scope: `debug_set_breakpoint` on a file other than `.gd` (plugin), or a single-file `lsp_*` tool on a file other than `.gd` / `.gdshader` / `.gdshaderinc` (server). C# is served by the IDE's .NET tooling. |
 | `WRITE_FAILED`     | plugin           | `FileAccess.open(WRITE)` failed.                                              |
@@ -383,6 +377,5 @@ workflow, dependency policy, and PR guidelines.
 
 ## Pointers
 
-- Execution plan (all iterations, cross-repo): `<plan-repo>/Plan/ExecutionPlan/00-index.md`
 - Companion plugin: `<toolkit-repo>/` — see its `CLAUDE.md` for tool usage.
 - Distribution procedure: `<toolkit-repo>/DISTRIBUTION.md`.

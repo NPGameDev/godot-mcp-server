@@ -17,12 +17,12 @@ on:
   # produce ONE floor run, not two.
   merge_group:
 
-# D7 (going-public supply-chain baseline): least privilege by default. No floor job
+# Supply-chain baseline: least privilege by default. No floor job
 # writes repo contents; the release path grants its own contents: write per-job.
 permissions:
   contents: read
 
-# D6: cancel an in-flight floor run when a newer commit lands on the same ref — the
+# Cancel an in-flight floor run when a newer commit lands on the same ref — the
 # floor gates the tip, so a superseded run's result is moot. NOT on cross-version.yml:
 # those deep-tier runs are cancelled only for a pull request, where superseding is the
 # point (see that workflow's own concurrency block). Keying the group on github.ref is
@@ -39,9 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # D3: Node 20 reached EOL 2026-04-30 — dropped. 22 (Active LTS) + 24 (Current);
+        # Node 20 reached EOL 2026-04-30 — dropped. 22 (Active LTS) + 24 (Current);
         # engines.node is ">=22" (pre-1.0 clean break, no compat shim). The release job
-        # runs on 24 (npm >= 11.5.1 — the 42b OIDC trusted-publishing prerequisite).
+        # runs on 24 (npm >= 11.5.1 — the minimum OIDC trusted publishing needs).
         node-version: [22.x, 24.x]
     name: "Server floor (Node ${{ matrix.node-version }}): build+unit+lint+format+smoke:ci"
     # Fuse: the unit runner has no per-file timeout; the whole leg (checkout, install,
@@ -90,13 +90,13 @@ jobs:
   # nuget.org. Proves the toolkit's C# surface compiles across the SDK/TFM range.
   # Behavioral C# (§25) rides the opt-in cross-version.yml, not here.
   #
-  # D4: trimmed 6 rows -> the 3 TFM boundaries. The fixture rarely changes and a
+  # Trimmed 6 rows -> the 3 TFM boundaries. The fixture rarely changes and a
   # middle SDK row cannot fail a *compile* differently from its boundary neighbors;
   # the deep tier `dotnet build`s the fixture on all six versions per opt-in run, so
   # SDK breadth lives there. Boundaries kept:
   #   • 4.2.0 / net6.0 — the net6 floor (minimum supported SDK)
   #   • 4.4.0 / net8.0 — the net6->net8 TFM flip (source-verified via Godot's
-  #     ProjectGenerator.GodotMinimumRequiredTfm; see build-packet §7b)
+  #     ProjectGenerator.GodotMinimumRequiredTfm)
   #   • 4.7.0 / net8.0 — the net8 ceiling
   csharp-build:
     runs-on: ubuntu-latest
@@ -195,10 +195,10 @@ jobs:
             exit 1
           fi
 
-  # ── Aggregate floor gate (D8) ────────────────────────────────────────────────
+  # ── Aggregate floor gate ─────────────────────────────────────────────────────
   # "Server floor OK" is the SINGLE name bound as a required check for pull requests
   # (and on the protected branch) — never an individual matrix row. A required
-  # check pinned to a matrix leg breaks whenever the matrix is retuned (D3/D4 just did);
+  # check pinned to a matrix leg breaks whenever the matrix is retuned;
   # pinning to this one stable name never does. Every job in needs: runs unconditionally
   # on every trigger this workflow accepts, merge_group included, so the gate is always
   # substantive: an all-skip, which WOULD pass vacuously here, is structurally

@@ -12,11 +12,10 @@ description: >
   full GDScript+.NET contract for that repo's change against the pinned sibling.
   Works from either workspace layout (toolkit-as-root with the server at server/;
   server-as-root with the toolkit at toolkit/) — the gdscript project-path always
-  points at the toolkit root, server-dir at the server checkout. See iter
-  41n-quater-ter and the "full behavioral matrix in both repos" follow-on. The
+  points at the toolkit root, server-dir at the server checkout. The
   caller must check out both repos (self + sibling) first.
 
-  Cross-platform (41n-quater-sexies): the same flow runs on ubuntu / macOS /
+  Cross-platform: the same flow runs on ubuntu / macOS /
   windows runners; the `os` input selects the per-OS branches (GNU-timeout binary,
   editor kill, dispatch token path, macOS quarantine strip). Linux is the default,
   so the pre-existing Linux callers are unaffected.
@@ -33,7 +32,7 @@ inputs:
       "windows". Callers pass the matrix os_key; the pre-existing Linux caller
       jobs omit it and inherit the default, so their behaviour is byte-identical.
       Everything else in the flow (editor launch, poll, smoke, flows, dispatch)
-      is OS-agnostic. See iter 41n-quater-sexies.
+      is OS-agnostic.
     required: false
     default: "linux"
   godot-version:
@@ -73,7 +72,7 @@ runs:
   steps:
     # Resolve the GNU-`timeout`-compatible binary for this OS ONCE and stash it in
     # $GITHUB_ENV so every fused step below (warm-up, smoke, flows, dispatch) reads
-    # $TIMEOUT_BIN. Why per-OS (grill Q6 — a real footgun): on Windows `shell: bash`
+    # $TIMEOUT_BIN. Why per-OS (a real footgun): on Windows `shell: bash`
     # (Git Bash) a bare `timeout` can resolve to C:\Windows\System32\timeout.exe — a
     # DIFFERENT command that errors on redirected stdin — so we force Git Bash's
     # bundled GNU coreutils build at /usr/bin/timeout. macOS ships NO `timeout` in
@@ -313,7 +312,7 @@ runs:
           exit 1
         fi
 
-    # Windows platform forensics (41n-quater-sexies C3 investigation) — pure-info
+    # Windows platform forensics (for diagnosing a 4.2 LSP hang) — pure-info
     # and FAIL-SAFE: every command is || true'd and the step exits 0, so it can
     # never redden a leg. Captures the process/port/registry state right after
     # the editor launch. The discriminator it exists for: a surviving 4.2
@@ -333,7 +332,7 @@ runs:
         netstat -ano 2>/dev/null | grep -E ":(6550|6551|6005)[^0-9]" || true
         echo "── toolkit registry ──"
         cat "$(cygpath -u "$APPDATA")/godot-mcp-toolkit/projects.json" 2>/dev/null || true
-        echo "forensics key: H1 (zombie warm-up editor) = 2+ godot PIDs, or 6005/6550 owned by a PID that is not the main editor, or the registry shows the main editor on 6551 -> fix: warm-up teardown (toolkit scripts/test_framework/run_units_cold.sh). H2 (engine-internal LSP wedge) = exactly 1 godot PID, 6005 owned by the main editor, initialize still mute -> upstream Godot 4.2 defect (no LSP bind retry 4.2-4.4; unbudgeted main-thread poll, fixed-shape 4.3); see the plan repo Insights doc; section-41 options are a user decision."
+        echo "forensics key: H1 (zombie warm-up editor) = 2+ godot PIDs, or 6005/6550 owned by a PID that is not the main editor, or the registry shows the main editor on 6551 -> fix: warm-up teardown (toolkit scripts/test_framework/run_units_cold.sh). H2 (engine-internal LSP wedge) = exactly 1 godot PID, 6005 owned by the main editor, initialize still mute -> upstream Godot 4.2 defect (no LSP bind retry 4.2-4.4; unbudgeted main-thread poll, fixed-shape 4.3); the mitigation options are a maintainer decision."
         exit 0
 
     # Composite-action run steps cannot take `timeout-minutes` (GitHub limitation),
@@ -341,9 +340,9 @@ runs:
     # STEP (letting the always() log steps run), not the job (a job-level kill
     # skips always()).
     #
-    # FULL HEADLESS SUITE (41n-quater-bis, headless-DX determinism) — the former
-    # `--skip 10,14` / `flows --skip 2` workaround is REMOVED here, once, in this shared
-    # composite, so all four jobs (both languages, both repos) un-skip together (R7). §10
+    # FULL HEADLESS SUITE (headless determinism) — no `--skip`: running the whole
+    # suite here, once, in this shared composite keeps all four jobs (both languages,
+    # both repos) on the same section set. §10
     # game.start, §14 editor_get_console, and flows §02 are now is_headless-aware: the
     # toolkit returns deterministic, self-explaining responses headless (game.start
     # HEADLESS_UNSUPPORTED; the editor.get_console `headless_hint` steering to
@@ -370,7 +369,7 @@ runs:
         GODOT_MCP_PROJECT_NAME: ${{ inputs.project-name }}
       run: $TIMEOUT_BIN -k 30 600 npm run flows
 
-    # Dispatch-integration leg (D11 + 41n-quater-sexies D3) — runs ONLY on the rows the
+    # Dispatch-integration leg — runs ONLY on the rows the
     # caller flags with run-dispatch: true (GDScript · 4.7.0, one per repo mirror, on
     # EACH of the three platforms). The 7 flows exercise FIFO ordering, cancellation,
     # peer-disconnect, and scene-lease semantics against the already-booted editor — the
@@ -437,5 +436,5 @@ runs:
         netstat -ano 2>/dev/null | grep -E ":(6550|6551|6005)[^0-9]" || true
         echo "── toolkit registry ──"
         cat "$(cygpath -u "$APPDATA")/godot-mcp-toolkit/projects.json" 2>/dev/null || true
-        echo "forensics key: H1 (zombie warm-up editor) = 2+ godot PIDs, or 6005/6550 owned by a PID that is not the main editor, or the registry shows the main editor on 6551 -> fix: warm-up teardown (toolkit scripts/test_framework/run_units_cold.sh). H2 (engine-internal LSP wedge) = exactly 1 godot PID, 6005 owned by the main editor, initialize still mute -> upstream Godot 4.2 defect (no LSP bind retry 4.2-4.4; unbudgeted main-thread poll, fixed-shape 4.3); see the plan repo Insights doc; section-41 options are a user decision."
+        echo "forensics key: H1 (zombie warm-up editor) = 2+ godot PIDs, or 6005/6550 owned by a PID that is not the main editor, or the registry shows the main editor on 6551 -> fix: warm-up teardown (toolkit scripts/test_framework/run_units_cold.sh). H2 (engine-internal LSP wedge) = exactly 1 godot PID, 6005 owned by the main editor, initialize still mute -> upstream Godot 4.2 defect (no LSP bind retry 4.2-4.4; unbudgeted main-thread poll, fixed-shape 4.3); the mitigation options are a maintainer decision."
         exit 0
