@@ -39,6 +39,19 @@ export const playtestTools: ToolDef[] = [
   },
 ];
 
+// The toolkit's hint can say why the runtime is not ready (a runtime opt-out in
+// the editor's environment), which the server's generic guidance cannot, so the
+// server never replaces it.
+function hasHint(hint: unknown): hint is string {
+  return typeof hint === "string" && hint !== "";
+}
+
+// Keeps the toolkit's hint first and appends the server's after one space, in the
+// one `hint` string.
+function withServerHint(toolkitHint: unknown, serverHint: string): string {
+  return hasHint(toolkitHint) ? `${toolkitHint} ${serverHint}` : serverHint;
+}
+
 export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
   handlers.set("game_start", async (input) => {
@@ -59,10 +72,12 @@ export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<s
     }
     // Nudge: the caller opted out of blocking (wait_for_runtime:false) but the
     // runtime isn't ready yet — point them at the blocking and polling paths.
+    // The toolkit sends its own nudge on this path, so the server's is only a
+    // fallback when the toolkit sent no hint; appending would repeat the advice.
     if (!input.wait_for_runtime && result.content?.[0]?.type === "text" && !result.isError) {
       try {
         const payload = JSON.parse(result.content[0].text);
-        if (payload.success && payload.runtime_ready === false) {
+        if (payload.success && payload.runtime_ready === false && !hasHint(payload.hint)) {
           payload.hint =
             "runtime_ready is false — runtime tools are not yet available. " +
             "Call game_start with wait_for_runtime:true to block until ready, " +
@@ -87,12 +102,15 @@ export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<s
             delete payload.runtime_discovery;
             delete payload.hint;
           } else {
-            // Timeout — add fallback hint (toolkit hint is suppressed when
-            // wait_for_runtime=true, so the agent needs guidance here).
-            payload.hint =
+            // Timeout — add a fallback hint. The toolkit leaves out its own
+            // runtime-wait guidance when wait_for_runtime=true, so the agent
+            // needs guidance here.
+            payload.hint = withServerHint(
+              payload.hint,
               "Game launched but runtime did not connect within 10s. " +
-              "Follow up with game_start(if_running:'return', runtime_poll:true) " +
-              "to retry, or check editor_get_console for startup errors.";
+                "Follow up with game_start(if_running:'return', runtime_poll:true) " +
+                "to retry, or check editor_get_console for startup errors.",
+            );
           }
           result.content[0].text = JSON.stringify(payload);
         }
