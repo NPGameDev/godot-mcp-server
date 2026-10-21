@@ -39,19 +39,6 @@ export const playtestTools: ToolDef[] = [
   },
 ];
 
-// The toolkit's hint can say why the runtime is not ready (a runtime opt-out in
-// the editor's environment), which the server's generic guidance cannot, so the
-// server never replaces it.
-function hasHint(hint: unknown): hint is string {
-  return typeof hint === "string" && hint !== "";
-}
-
-// Keeps the toolkit's hint first and appends the server's after one space, in the
-// one `hint` string.
-function withServerHint(toolkitHint: unknown, serverHint: string): string {
-  return hasHint(toolkitHint) ? `${toolkitHint} ${serverHint}` : serverHint;
-}
-
 export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<string>): void {
   const handlers = new Map<string, (input: Record<string, unknown>) => Promise<ToolTextResult>>();
   handlers.set("game_start", async (input) => {
@@ -121,4 +108,17 @@ export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<s
     return result;
   });
   registerTools(server, bridge, playtestTools, allowedTools, { handlers });
+}
+
+// The toolkit's hint can say why the runtime is not ready (a runtime opt-out in
+// the editor's environment), which the server's generic guidance cannot, so the
+// server never replaces it.
+function hasHint(hint: unknown): hint is string {
+  return typeof hint === "string" && hint !== "";
+}
+
+// Keeps the toolkit's hint first and appends the server's after one space, in the
+// one `hint` string.
+function withServerHint(toolkitHint: unknown, serverHint: string): string {
+  return hasHint(toolkitHint) ? `${toolkitHint} ${serverHint}` : serverHint;
 }
