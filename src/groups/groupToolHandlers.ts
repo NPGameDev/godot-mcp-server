@@ -115,8 +115,9 @@ export function createGroupToolHandler(bridge: Bridge, def: ToolDef) {
       }
       const useRuntime = RUNTIME_TOOLS.has(def.name);
       // A tool with per-operation hints gets its hint resolved per call; a static
-      // successHint alone is not injected on this path. The group path does not
-      // forward the call's signal.
+      // successHint alone is not injected on this path. Known gap: the group path
+      // does not forward the call's AbortSignal, so cancelling a call here does
+      // not cancel its bridge request.
       return withSuccessHint(def.operationHints ? def : {}, (input, _signal, resolveHint) =>
         callAndWrap(bridge, def.method, input, { runtime: useRuntime, successHint: resolveHint() }),
       );

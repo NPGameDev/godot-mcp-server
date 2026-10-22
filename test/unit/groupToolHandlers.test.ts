@@ -1,6 +1,6 @@
 /**
  * Unit tests for group_tool_handlers.ts — createGroupToolHandler's per-tool routing
- * Six blocks, each asserting REAL behavior via a recording
+ * Eight blocks, each asserting REAL behavior via a recording
  * mock Bridge (which channel a handler hits + the method/params it forwards, and
  * the content shape it returns) — never fn === fn:
  *   1. signal_emit dual-mode — editor → bridge.call, runtime → bridge.callRuntime,
@@ -14,12 +14,18 @@
  *   5. a default tool → callAndWrap(runtime:false) → bridge.call.
  *   6. a tool with per-operation hints (input_map_action) → each operation's own
  *      success hint on this path; its keys are operations the tool accepts.
+ *   7. the LSP route's success-hint text — the static successHint only;
+ *      operationHints are ignored.
+ *   8. the default route's success-hint text — a hint only when the tool declares
+ *      operationHints (a static successHint alone is not injected); the call's
+ *      signal is not forwarded. Each hinted case in 7-8 compares the whole text
+ *      block, so a change to which hint the route picks or where it lands fails.
  */
 import assert from "node:assert/strict";
 import { createGroupToolHandler } from "../../src/groups/groupToolHandlers.js";
 import type { z } from "zod";
 import { inputMapTools } from "../../src/tools/inputMap.js";
-import type { Bridge, ToolDef } from "../../src/shared/types.js";
+import type { Bridge, ToolDef, ToolTextResult } from "../../src/shared/types.js";
 
 // The union of handler shapes createGroupToolHandler returns is uniformly callable with
 // one unknown input and yields a promise; widen to this for the assertions.
@@ -243,6 +249,138 @@ async function testOperationHints() {
   );
 }
 
+// ── Success-hint text fixtures (blocks 7-8) ──────────────────────────
+type HintHandler = (input: unknown, signal?: AbortSignal) => Promise<ToolTextResult>;
+type SignalRecorded = { method: string; params: unknown; signal: AbortSignal | undefined };
+
+/** A bridge whose editor and runtime calls record their arguments and return `ret`. */
+function makeSignalBridge(ret: unknown) {
+  const calls: SignalRecorded[] = [];
+  const bridge = {
+    async call(method: string, params: unknown, _timeoutMs?: number, signal?: AbortSignal) {
+      calls.push({ method, params, signal });
+      return structuredClone(ret);
+    },
+    async callRuntime(method: string, params: unknown, _timeoutMs?: number, signal?: AbortSignal) {
+      calls.push({ method, params, signal });
+      return structuredClone(ret);
+    },
+    async close() {},
+    getGodotVersionString: () => undefined,
+    getGodotVersion: () => undefined,
+  } as unknown as Bridge;
+  return { bridge, calls };
+}
+
+const tool = (name: string, hints: Partial<ToolDef>): ToolDef => ({
+  name,
+  method: `pin.${name}`,
+  description: "t",
+  inputSchema: {},
+  ...hints,
+});
+
+const BOTH: Partial<ToolDef> = {
+  operationParam: "action",
+  successHint: "static",
+  operationHints: { rename: "renamed" },
+};
+const STATIC_ONLY: Partial<ToolDef> = { successHint: "static" };
+
+const text = (result: ToolTextResult): string => result.content.map((b) => (b.type === "text" ? b.text : "")).join("|");
+
+// ── Block 7 — success-hint text on the LSP route (site 3) ────────────
+// lsp_diagnostics on a shader returns a success before any socket opens, so the
+// LSP path's injection runs without an editor; the closed port turns any
+// accidental connect into an LSP_UNAVAILABLE error instead of a hang.
+async function testLspSuccessHint() {
+  const prevPort = process.env.GODOT_MCP_LSP_PORT;
+  process.env.GODOT_MCP_LSP_PORT = "59999";
+  try {
+    const { bridge, calls } = makeSignalBridge({ success: true });
+    const lspDef = (hints: Partial<ToolDef>): ToolDef => ({
+      ...tool("lsp_diagnostics", hints),
+      method: "lsp.diagnostics",
+    });
+    const shader = { file_path: "res://fx/pin.gdshader" };
+    const bare = await createGroupToolHandler(bridge, lspDef({}))(shader);
+    const bareText = text(bare);
+    assert.equal(bare.isError, undefined, "site 3: the shader short-circuit is a success");
+    assert.ok(!("hint" in JSON.parse(bareText)), "site 3: no hint declared, none injected");
+
+    const withHint = text(await createGroupToolHandler(bridge, lspDef(STATIC_ONLY))(shader));
+    const expected = JSON.stringify({ ...JSON.parse(bareText), hint: "static" });
+    assert.equal(withHint, expected, "site 3: the static hint is appended to the handler's JSON");
+
+    assert.equal(
+      text(await createGroupToolHandler(bridge, lspDef(BOTH))({ ...shader, action: "rename" })),
+      expected,
+      "site 3: operationHints are ignored on the LSP path",
+    );
+
+    const opOnly = { operationParam: "action", operationHints: { rename: "renamed" } };
+    assert.equal(
+      text(await createGroupToolHandler(bridge, lspDef(opOnly))({ ...shader, action: "rename" })),
+      bareText,
+      "site 3: operationHints without a static hint inject nothing",
+    );
+
+    const failed = await createGroupToolHandler(bridge, lspDef(STATIC_ONLY))({ file_path: "res://player.cs" });
+    assert.equal(failed.isError, true, "site 3: a rejected input is an error result");
+    assert.ok(!("hint" in JSON.parse(text(failed))), "site 3: no success hint on an error");
+    assert.equal(calls.length, 0, "site 3: the LSP path never touches the bridge");
+  } finally {
+    if (prevPort === undefined) delete process.env.GODOT_MCP_LSP_PORT;
+    else process.env.GODOT_MCP_LSP_PORT = prevPort;
+  }
+}
+
+// ── Block 8 — success-hint text on the default route (site 4) ────────
+async function testDefaultSuccessHint() {
+  {
+    const payload = { success: true, zeta: 1, alpha: { b: 2, a: 1 } };
+    const { bridge, calls } = makeSignalBridge(payload);
+    const group = (name: string, hints: Partial<ToolDef>) =>
+      createGroupToolHandler(bridge, tool(name, hints)) as HintHandler;
+
+    const signal = new AbortController().signal;
+    assert.equal(
+      text(await group("g_both", BOTH)({ action: "rename" }, signal)),
+      '{"alpha":{"a":1,"b":2},"hint":"renamed","success":true,"zeta":1}',
+      "site 4: a listed operation gets its own hint",
+    );
+    assert.equal(calls[0].signal, undefined, "site 4: the group path does not forward the signal");
+    assert.equal(
+      text(await group("g_both", BOTH)({ action: "add" })),
+      '{"alpha":{"a":1,"b":2},"hint":"static","success":true,"zeta":1}',
+      "site 4: an unlisted operation falls back to the static hint",
+    );
+    assert.equal(
+      text(await group("g_static", STATIC_ONLY)({})),
+      '{"alpha":{"a":1,"b":2},"success":true,"zeta":1}',
+      "site 4: a static hint alone is not injected",
+    );
+    assert.equal(
+      text(await group("g_none", {})({})),
+      '{"alpha":{"a":1,"b":2},"success":true,"zeta":1}',
+      "site 4: no hint declared, none injected",
+    );
+
+    const runtime = makeSignalBridge(payload);
+    const rt = createGroupToolHandler(runtime.bridge, tool("runtime_get_node_state", BOTH)) as HintHandler;
+    assert.equal(
+      text(await rt({ action: "rename" })),
+      '{"alpha":{"a":1,"b":2},"hint":"renamed","success":true,"zeta":1}',
+      "site 4: the runtime route resolves the same hint",
+    );
+  }
+  {
+    const { bridge } = makeSignalBridge({ success: true, hint: "toolkit" });
+    const h = createGroupToolHandler(bridge, tool("g_kept", BOTH)) as HintHandler;
+    assert.equal(text(await h({ action: "rename" })), '{"hint":"toolkit","success":true}', "site 4: toolkit hint kept");
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 async function main() {
   console.log("group_tool_handlers tests:");
@@ -252,7 +390,9 @@ async function main() {
   await testRuntimeToolRouting();
   await testDefaultToolRouting();
   await testOperationHints();
-  console.log("All 6 group_tool_handlers tests passed.");
+  await testLspSuccessHint();
+  await testDefaultSuccessHint();
+  console.log("All 8 group_tool_handlers tests passed.");
 }
 
 main().catch((err) => {

@@ -109,8 +109,8 @@ export function createExtensionRegistrar(deps: {
    * Register one ungrouped extension command as an MCP tool. Returns true when the
    * tool was registered, false when skipped for a name collision or by read-only
    * exclusion. Callers own their own pre-checks (dedup guard), counters, and
-   * knownExtensionTools bookkeeping — this encapsulates only the registration
-   * recipe every ungrouped extension command shares.
+   * ledger bookkeeping (register/deregister) — this encapsulates only the
+   * registration recipe every ungrouped extension command shares.
    */
   function registerExtensionTool(cmd: ExtensionCmdWire): boolean {
     const toolName = toolNameFromMethod(cmd.method);
