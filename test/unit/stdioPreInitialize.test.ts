@@ -4,8 +4,8 @@
  * MCP clients from spec 2026-07-28 probe legacy servers with an unknown pre-initialize
  * method ("server/discover") and fall back to `initialize` only if the probe gets a
  * prompt JSON-RPC error. This spawns the server over stdio and pins that the v1-SDK
- * server answers at once and keeps stdout clean: every stdout line is JSON-RPC. The SDK
- * v2 migration itself is release C1 (2.0.0).
+ * server answers at once and keeps stdout clean: every stdout line is JSON-RPC. The pin
+ * holds for as long as the server runs on the v1 SDK.
  */
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

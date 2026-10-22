@@ -126,8 +126,9 @@ export type HintedToolHandler = (
  * @param def - the hint fields that apply on this path; a path that does not
  *   inject a hint field passes a view without it
  * @param handler - attaches the hint: a {@link callAndWrap} handler passes the
- *   resolved hint as `successHint`, so it lands in the payload before serialization; a handler that
- *   builds its own response goes through {@link injectHintAfterCall}
+ *   resolved hint as `successHint`, so it lands in the payload before
+ *   serialization; a handler that builds its own response goes through
+ *   {@link injectHintAfterCall}
  * @returns the handler registration calls
  */
 export function withSuccessHint(def: SuccessHintSource, handler: HintedToolHandler): ToolCallHandler {
@@ -135,10 +136,10 @@ export function withSuccessHint(def: SuccessHintSource, handler: HintedToolHandl
 }
 
 /**
- * Adapt a handler that builds its own response (custom shaping, the LSP client)
- * to {@link withSuccessHint}: the hint is resolved after the handler returns,
- * and after a call that is not an error result it goes into the first JSON text
- * block of the response.
+ * Adapt a handler that builds its own response to {@link withSuccessHint}: the
+ * hint is resolved after the handler returns, and after a call that is not an
+ * error result it goes into the first text block of the response that
+ * {@link injectSuccessHint} accepts.
  *
  * @param handler - the self-shaping handler
  * @returns a handler that injects the hint its resolver returns
@@ -152,8 +153,14 @@ export function injectHintAfterCall(handler: ToolCallHandler): HintedToolHandler
   };
 }
 
-/** Inject a success hint into the first JSON text block of a ToolTextResult.
- *  Skips if the payload already has a toolkit-provided hint. */
+/**
+ * Inject a success hint into the first text block of a ToolTextResult that
+ * holds a JSON object with no non-empty hint. A block that is not JSON, is a
+ * JSON primitive or null, or already carries a non-empty hint is passed over
+ * and the search goes on, so the hint can land in a later block; a non-empty
+ * hint is never overwritten. A JSON array ends the search with no hint: it is
+ * accepted, but the hint property is dropped when the array is serialized again.
+ */
 function injectSuccessHint(result: ToolTextResult, hint: string): void {
   for (const block of result.content) {
     if (block.type === "text") {

@@ -728,17 +728,114 @@ The `test/` trees are OSS-public code held to all of Part I (naming, formatting,
 §5, DRY) — the intent-not-history bar applies across **comments, test-case labels, and assertion
 messages** alike. On top of the general rules:
 
-- **Bare `node:assert/strict`, no framework.** `import assert from "node:assert/strict"`, then
-  top-level scoped `{ … }` blocks, each an independent case, closing with `console.log("All N tests
-  passed.")`. No `describe` / `it`, no Jest / Vitest / Mocha. New tests match this.
-- **One test file per source module**, `<module>.test.ts` (bridge sub-aspects
-  `bridge-<aspect>.test.ts`). The runner auto-discovers `*.test.ts` (drop a file in; no central
-  registry) and fails fast.
-- **Test helpers are stateless pure factories** — no shared mutable state across files; each returns a
-  restore closure so every test file is hermetic.
-- The coverage **manifests** and maintenance protocols (`test/SMOKE-COVERAGE-MANIFEST.md`,
-  `test/SMOKE-MAINTENANCE-PROTOCOL.md`) are Markdown traceability where section refs are load-bearing —
-  out of scope for the intent-not-history strip except to reconcile a reference a rename made stale.
+**The rules below bind the tests a change adds or edits:** a new test file, a new `{ … }` block, or an
+existing block whose inputs, assertions, or messages the change alters. A block the change leaves alone
+keeps its shape until a change touches it, and bringing untouched tests in line is its own test-only
+change. A file-level rule (the file's module, its header, its entry-point signature, its fake factory)
+binds a new file only. In an edited block, the rules bind the lines the change adds or alters; the
+block's other assertions keep their inputs, values, and messages.
+
+B8.1 **Bare `node:assert/strict`, no framework.** `import assert from "node:assert/strict"`, then
+top-level scoped `{ … }` blocks, each an independent case, closing with
+`console.log("All N tests passed.")`. No `describe` / `it`, no Jest / Vitest / Mocha. New tests match
+this.
+
+B8.2 **One test file per source module**, `<module>.test.ts` (bridge sub-aspects
+`bridge-<aspect>.test.ts`). The runner auto-discovers `*.test.ts` (drop a file in; no central registry)
+and fails fast. A test of a seam between modules goes in a file named for the seam, whose header names
+the modules it covers. A module's cases live in one file. *Rationale: a reader finds a module's tests
+from the module's name.*
+
+B8.3 **Test helpers are stateless pure factories** — no shared mutable state across files; each returns
+a restore closure so every test file is hermetic.
+
+B8.4 The coverage **manifests** and maintenance protocols (`test/SMOKE-COVERAGE-MANIFEST.md`,
+`test/SMOKE-MAINTENANCE-PROTOCOL.md`) are Markdown traceability where section refs are load-bearing —
+out of scope for the intent-not-history strip except to reconcile a reference a rename made stale.
+
+B8.5 **A unit drives one module through its exported interface.** A test imports what callers import and
+asserts on what comes back: return values, thrown `BridgeError` codes, and what crossed a real boundary
+(the frames a fake bridge received, the tools a fake server registered). A module-private function is
+reached through the export that uses it. For a tool, the interface is what the model sees: its name,
+description, input schema, and result and error payloads. *Rationale: a test that reaches past the
+interface breaks on every refactor and proves nothing about what callers get.*
+
+B8.6 **Tests move with the code, unaltered.** When a function moves to another module, its cases move to
+that module's test file in the same change with the same inputs, expected values, and messages. Changing
+what a moved case asserts is a separate change. *Rationale: a case left behind misleads the next reader
+about where the behaviour lives, and an unaltered move is easy to verify in the diff.*
+
+B8.7 **No new duplicate pins.** An input and its expected result are asserted in one place in the suite.
+Before adding a case, search `test/unit/` for the same call and message, and extend the existing case if
+one already pins it. A duplicate that already exists is reported in the change's description and left in
+place: retiring an existing assertion is the maintainers' decision, made test by test. *Rationale: two
+copies drift apart, and after the next change one of them is wrong.*
+
+B8.8 **Every new case is seen to fail once.** A bug fix adds the case that reproduces the bug and runs
+it red before the fix. A case for new behaviour fails before the behaviour exists. A case that pins
+behaviour already in place passes on its first run, so its author breaks the pinned code once on purpose
+(flips a branch, changes a constant), watches the case fail, and restores the code. The change's
+description names the red run or the deliberate break. *Rationale: a test that has never failed may be
+unable to.*
+
+B8.9 **Extracting a module adds tests for it.** When a change moves behaviour out of a module into a new
+module that the original then imports, the change adds `<newModule>.test.ts` driving the new module's
+exports (B8.5). The original's tests stay as they are; any the new file makes redundant are listed in
+the change's description for the maintainers to retire (B8.7). *Rationale: the extraction creates a new
+contract, and an untested contract is the first to break.*
+
+B8.10 **Expected values are written down, not computed.** An expected value is a literal taken from the
+contract, the MCP specification, or a hand calculation. It never comes from the code under test, from a
+copy of its algorithm, or from pasting what a run printed. *Rationale: an expected value derived from
+the code passes by construction, including when the code is wrong.*
+
+B8.11 **One behaviour per block, and every assertion says what it checks.** A `{ … }` block pins one
+behaviour and holds at least one assertion. Each `assert` call carries a message stating the behaviour
+in the contract's words (the state, the action, the result). *Rationale: a failure line should read as a
+sentence about the contract.*
+
+B8.12 **Edges and error paths are tested.** A response cap, truncation marker, page size, or version
+floor is asserted at the limit and one step past it. A tool or function with a documented error result
+has at least one assertion on that result, including its `ErrorCode`. *Rationale: off-by-one and
+unhandled-error bugs live at the edges, which a suite of happy paths never reaches.*
+
+B8.13 **A block restores what it changes, in `finally`.** A block that changes module-level state
+(tracked tool refs, extension groups, the environment, a stderr capture) restores it in a `finally`,
+through the `snapshotEnv` / `captureStderr` helpers where they apply. Sockets and child processes close,
+and temp directories (`mkdtemp`) are removed, in the same `finally`. A block reads no state another
+block left. *Rationale: the blocks of a file share one process (the runner isolates files, not blocks),
+so a leak in one block fails a later one.*
+
+B8.14 **Waits poll a condition, with a cap.** A block never sleeps to synchronise. It waits for a
+condition by polling with a timeout that fails with a message naming what never happened, or drives the
+timer the code under test arms. A block that asserts something does **not** happen waits a fixed window,
+named in a constant with a comment. *Rationale: a sleep is slow on a fast machine and flaky on a slow
+one.*
+
+B8.15 **Collaborators are real; fakes sit at a real boundary.** The module under test and its in-process
+collaborators run for real. A hand-written fake replaces only a real boundary: the SDK `McpServer`, the
+toolkit bridge or its WebSocket, the filesystem, the environment, the clock. Loopback sockets and local
+child processes are allowed; a real Godot and any network beyond loopback are not. An assertion checks
+what the module did with a fake's answer, never the answer itself. *Rationale: a fake for your own code
+makes the test check the fake.*
+
+B8.16 **Tests are never weakened quietly.** A change that lowers the suite's assertion count, or a
+file's count other than by an unaltered move (B8.6), comments out or skips a block, returns before a
+block's assertions, or loosens an expected value has the maintainers' agreement in review, and its
+description says which assertions changed and why. *Rationale: a green run with fewer checks looks the
+same as a full one, so the drop has to be visible.*
+
+B8.17 **Test comments follow §5, with a short header.** A test file's header states, in at most six
+lines, what the file pins and through which export. It carries no change history ("the former X was
+collapsed", "a later internal split"), no "mirrors `other.test.ts`" pointer (shared setup moves into
+`test/unit/helpers.ts` instead), and no claim stronger than its assertions make. *Rationale: a
+header is read by someone who never saw the history, which belongs in the commit message.*
+
+B8.18 **Fakes are typed narrowly and cast once (§4).** A fake is typed by a narrow local `interface` or
+a `Pick<…>` of the SDK type, and one factory per faked type in a file performs that type's single
+`as unknown as` cast to the full type, with a comment naming what the fake leaves out. No `any` without
+§4's inline justification. *Rationale: one documented cast keeps the fake honest about the surface it
+skips.*
 
 ## B9. Decision trail & companions
 
@@ -806,6 +903,25 @@ name is the durable anchor**).
 - [ ] Contract recipes (token-path / project-key / framing / ports / error codes) unchanged — or
   treated as a contract change against the toolkit-owned `docs/dev/contract.md`.
 - [ ] `files` allowlist still ships only `dist/` (+ license / readme / attributions); `docs/` unshipped.
+- [ ] Tests: a new or moved case sits in its module's `<module>.test.ts` (or `bridge-<aspect>.test.ts`,
+  or a seam file whose header names its modules); moved cases unaltered; assertions go through the
+  exported interface ([B8.2](#b8-test-code-conventions), [B8.5](#b8-test-code-conventions),
+  [B8.6](#b8-test-code-conventions)).
+- [ ] Tests: no new duplicate pin; an existing duplicate is reported, not deleted; no assertion dropped,
+  block skipped, or expected value loosened without the maintainers' agreement
+  ([B8.7](#b8-test-code-conventions), [B8.16](#b8-test-code-conventions)).
+- [ ] Tests: each new case was seen red once (a fix's case before the fix; a pin by a deliberate break)
+  and the description says how; an extraction ships `<newModule>.test.ts` and lists the pins it makes
+  redundant ([B8.8](#b8-test-code-conventions), [B8.9](#b8-test-code-conventions)).
+- [ ] Tests: expected values are literals; one behaviour per block; every `assert` has a message; caps
+  tested at and past the limit; documented error results asserted with their code
+  ([B8.10](#b8-test-code-conventions)–[B8.12](#b8-test-code-conventions)).
+- [ ] Tests: module state, env, stderr, sockets, child processes, and temp dirs restored in `finally`;
+  waits poll with a cap, no sleeps; fakes only at a real boundary
+  ([B8.13](#b8-test-code-conventions)–[B8.15](#b8-test-code-conventions)).
+- [ ] Tests: header at most six lines of intent, with no history, "mirrors" pointer, or overclaim; fakes
+  typed narrowly with one commented cast per faked type ([B8.17](#b8-test-code-conventions),
+  [B8.18](#b8-test-code-conventions)).
 
 ## Appendix B — documented exceptions & gaps
 
