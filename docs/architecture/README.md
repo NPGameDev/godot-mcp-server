@@ -282,7 +282,7 @@ per-OS token-file resolver), `heartbeat.ts` (the generic liveness primitive), an
 
 A tool call reaches the editor like this:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="1d3ca38" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="c0ab997" -->
 ```mermaid
 sequenceDiagram
     participant SDK as MCP SDK (tool call)
@@ -311,7 +311,7 @@ sequenceDiagram
     Ch-->>D: result
     D-->>SDK: stableStringify(result) — verbatim
 ```
-*Figure 4 — connect → auth handshake → dispatch · verified 1d3ca38*
+*Figure 4 — connect → auth handshake → dispatch · verified c0ab997*
 
 The handshake (`authHandshake.ts`) sends `{ auth: token, version, server_version,
 min_toolkit }` (the legacy `version` beside the server version and its declared toolkit
@@ -404,7 +404,7 @@ counted in one place and missed in another. The human-readable
 (`npm run docs:tools`) — the canonical list of every tool and operation, never
 hand-edited.
 
-<!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="1d3ca38" -->
+<!-- data-depicts="src/registration/catalogue.ts src/registration/toolRegistry.ts src/registration/toolDispatch.ts src/security/pathGuard.ts src/shared/version.ts" data-verified="c0ab997" -->
 ```mermaid
 flowchart TD
     defs["tools/*.ts — ToolDef arrays"] --> cat["catalogue.ALL_TOOL_DEFS<br/>dedup SSOT (01_catalogue CI gate)"]
@@ -420,7 +420,7 @@ flowchart TD
     pg --> hook["hook pipeline (global or explicit)"]
     hook --> handler["handler → callAndWrap<br/>one bridge call → stableStringify(result)"]
 ```
-*Figure 6 — catalogue → registration → per-call dispatch · verified 1d3ca38*
+*Figure 6 — catalogue → registration → per-call dispatch · verified c0ab997*
 
 **The choke point.** Every built-in and extension tool registers through
 `registerToolWrapped` (`registration/toolRegistry.ts`) — never `server.registerTool`
@@ -446,7 +446,7 @@ registration call: the def's `describe(version)` when it has one, else its stati
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="1d3ca38" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="c0ab997" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}
@@ -459,12 +459,12 @@ flowchart TD
     exc -.-> note
     pe -.-> note
 ```
-*Figure 7 — the response & error contract (REFLECT) · verified 1d3ca38*
+*Figure 7 — the response & error contract (REFLECT) · verified c0ab997*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
 result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`
 becomes `toolErrorFromException` + a static `EXCEPTION_HINTS` entry (the
-transport-code → recovery-hint map, in `shared/errorContract.ts`). A toolkit-supplied hint
+transport-code → recovery-hint map, in `shared/errorContract.ts`). A non-empty toolkit hint
 is **never overwritten** — the server's `successHint` injects only when the toolkit set
 none. A tool def can also declare `operationHints`, keyed by its operation argument, to give
 one operation its own hint in place of `successHint`. For such a tool, `resolveSuccessHint`
@@ -550,7 +550,7 @@ guards.
 tool is **never registered** (absent from `tools/list`, with **no per-call forward-time
 reject**):
 
-<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="1d3ca38" -->
+<!-- data-depicts="src/security/profiles.ts src/registration/toolRegistry.ts src/groups/groupActivation.ts src/extensions/extensionRegistrar.ts" data-verified="c0ab997" -->
 ```mermaid
 flowchart TD
     env["GODOT_MCP_READ_ONLY=1"] --> pred["profiles.isExcludedByReadOnly(readOnly, annotations)"]
@@ -564,7 +564,7 @@ flowchart TD
     sites["Applied at EVERY registration site:<br/>modules (registerTools) · groups (registerGroupTools)<br/>· extensions (registerExtensionTool)"]
     sites -.-> pred
 ```
-*Figure 9 — read-only enforcement points · verified 1d3ca38*
+*Figure 9 — read-only enforcement points · verified c0ab997*
 
 STRICT means a tool is exposed iff `readOnlyHint: true ∧ ¬destructiveHint`; **an
 unannotated tool defaults to excluded (safe)**, and the `readOnlyHint ∧ destructiveHint`
@@ -601,7 +601,7 @@ JSON-RPC-over-TCP client) and was **not carved**. The refactor carved only the *
 the status-reporter callback, the connect-failure hint, the `withLspDoc` prologue), and
 `tools/lsp.ts` (7 defs + handlers + `createLspHandler`).
 
-<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="1d3ca38" -->
+<!-- data-depicts="src/lsp/lspClient.ts src/lsp/lspSession.ts src/groups/groupToolHandlers.ts src/registry.ts src/registryLiveness.ts src/lsp/lspStatusReporter.ts src/tools/lsp.ts" data-verified="c0ab997" -->
 ```mermaid
 flowchart TD
     dispatch["createGroupToolHandler (groupToolHandlers.ts)"] --> isLsp{"def.name ∈ LSP_TOOLS ?"}
@@ -623,7 +623,7 @@ flowchart TD
     auth["every editor auth (bridge.onEditorAuthenticated)"] --> regv["reportRegistryVerdict — resolution only, fire-and-forget<br/>dropped if a verified verdict lands first"]
     regv --> verdict
 ```
-*Figure 10 — LSP endpoint resolution + bridge bypass · verified 1d3ca38*
+*Figure 10 — LSP endpoint resolution + bridge bypass · verified c0ab997*
 
 **Three-tier resolution** (`resolveLspEndpoint`, ADR 0008): explicit override
 (`--lsp-port` / `GODOT_MCP_LSP_PORT` / `_HOST`, CLI winning over env — the multi-instance
@@ -810,7 +810,7 @@ ADR 0009). `extensions.ts` is a pure-composition facade over one shared registra
 single known-extension ledger), the discovery service, and the change-application service
 — so the ledger stays one consistency boundary.
 
-<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="115d137" -->
+<!-- data-depicts="src/extensions/extensions.ts src/extensions/extensionDiscovery.ts src/extensions/extensionRegistrar.ts src/extensions/extensionChanges.ts src/groups/extensionGroups.ts src/registration/extensionCollision.ts" data-verified="c0ab997" -->
 ```mermaid
 flowchart TD
     mgr["createExtensionManager — facade<br/>(one shared registrar = one ledger)"]
@@ -827,7 +827,7 @@ flowchart TD
     note["Full-trust (ADR 0009). Current Claude Code processes tools/list_changed;<br/>extensions_refresh is the manual re-sync for a client or session that does not."]
     mgr -.-> note
 ```
-*Figure 13 — the extension lifecycle (consumer projection) · verified 115d137*
+*Figure 13 — the extension lifecycle (consumer projection) · verified c0ab997*
 
 `extensionDiscovery` reads the toolkit's `extensions.refresh` (falling back to
 `extensions.list`), builds `{ readOnlyHint / destructiveHint / idempotentHint ?? false }`
