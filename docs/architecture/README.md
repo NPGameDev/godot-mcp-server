@@ -466,7 +466,7 @@ result that preserves `code` + `message` + the toolkit's `hint`; a thrown `Bridg
 becomes `toolErrorFromException` + a static `EXCEPTION_HINTS` entry (the
 transport-code → recovery-hint map, in `shared/errorContract.ts`). A non-empty toolkit hint
 is **never overwritten** — the server's `successHint` injects only when the toolkit set
-none. A tool def can also declare `operationHints`, keyed by its operation argument, to give
+none or an empty one. A tool def can also declare `operationHints`, keyed by its operation argument, to give
 one operation its own hint in place of `successHint`. For such a tool, `resolveSuccessHint`
 (`registration/toolDispatch.ts`) picks the hint per call on both the direct and the group
 registration path.
