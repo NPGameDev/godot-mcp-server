@@ -1,0 +1,14 @@
+SCRIPT ERROR: Parse Error: Could not find base class "BogusHitClass".
+          at: GDScript::reload (gdscript://-9223369467575077451.gd:1)
+SCRIPT ERROR: Parse Error: Could not find base class "BogusMissClass".
+          at: GDScript::reload (res://smoke_txtflt_McpValCsNode ready: Val @ 200
+[MCPTools] node.call_method invoked McpCsProbe._Ready(0 args)
+McpValCsNode ready: Val @ 200
+[MCPServer] unfocused-responsive mode OFF: interface/editor/unfocused_low_processor_mode_sleep_usec restored to 100000
+[MCP] MCP client disconnected
+[MCPServer] unfocused-responsive mode ON: interface/editor/unfocused_low_processor_mode_sleep_usec 100000 -> 16666 (~60 fps while unfocused)
+[MCP] MCP client connected (1 peer)
+[MCPExtensions] Hot-reload: +1 class(es) changed
+miss.gd:1)
+ERROR: Failed to load script "res://smoke_txtflt_miss.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:2775)

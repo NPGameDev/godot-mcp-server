@@ -1,0 +1,13 @@
+SCRIPT ERROR: Parse Error: Member "renamed" redefined (original in native class 'Node')
+          at: GDScript::reload (res://smoke_edit_probe.gd:3)
+ERROR: Failed to load script "res://smoke_edit_probe.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:3022)
+SCRIPT ERROR: Parse Error: Member "renamed" redefined (original in native class 'Node')
+          at: GDScript::reload (gdscript://-9223366622545096122.gd:3)
+[MCPTools] node.call_method invoked FlowBodyProbe.flow_body(0 args)
+SCRIPT ERROR: Parse Error: Expected variable name after "var".
+          at: GDScript::reload (res://flow_probes/flow_compile_probe.gd:7)
+ERROR: Failed to load script "res://flow_probes/flow_compile_probe.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:3022)
+SCRIPT ERROR: Parse Error: Expected variable name after "var".
+          at: GDScript::reload (gdscript://-9223366223767448912.gd:7)

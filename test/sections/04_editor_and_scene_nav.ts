@@ -18,6 +18,7 @@ export const TOOLS_TESTED: string[] = [
   "scene_create",
   "scene_delete",
   "project_get_settings",
+  "execute_code",
 ];
 export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
@@ -296,4 +297,48 @@ export async function testEditorAndSceneNav(ctx: TestCtx): Promise<void> {
     if (leaks.length > 0) fail(`project.get_settings leaked secret-like keys: ${leaks.join(", ")}`);
     else pass(`project.get_settings prefix=application/ -> ${settingsResult.count} keys, 0 leaks`);
   }
+
+  await testUnfocusedSleepBoosted(ctx);
+}
+
+// The editor's unfocused sleep, newest name first: Godot 4.7 moved it under timers/, and an
+// editor without saved settings answers only to the name its version defines.
+const UNFOCUSED_SLEEP_NAMES = [
+  "interface/editor/timers/unfocused_low_processor_mode_sleep_usec",
+  "interface/editor/unfocused_low_processor_mode_sleep_usec",
+];
+// The toolkit's default boost while a client is connected. CI's editor starts without saved
+// settings, so nothing overrides it.
+const BOOSTED_SLEEP_USEC = 16666;
+// execute.code evaluates an Expression, which resolves no singleton by name, so the editor
+// settings are reached through an EditorPlugin in the editor's tree.
+const EDITOR_SETTINGS_EXPR =
+  'get_tree().get_root().find_children("*", "EditorPlugin", true, false)[0].get_editor_interface().get_editor_settings()';
+
+/**
+ * While this smoke client is connected, the unfocused-sleep setting the running editor
+ * defines holds the toolkit's boost. Fails when the editor defines none of the names.
+ */
+async function testUnfocusedSleepBoosted(ctx: TestCtx): Promise<void> {
+  const { bridge, pass, fail } = ctx;
+  const evalInEditor = async (code: string) =>
+    (await bridge.call("execute.code", { code }, CALL_TIMEOUT)) as { result?: unknown; code?: string };
+  for (const name of UNFOCUSED_SLEEP_NAMES) {
+    const defined = await evalInEditor(`${EDITOR_SETTINGS_EXPR}.has_setting("${name}")`);
+    if (typeof defined?.result !== "boolean") {
+      fail(`unfocused sleep: has_setting("${name}") did not evaluate: ${JSON.stringify(defined)}`);
+      return;
+    }
+    if (!defined.result) continue;
+    // 4.2 stores the setting as a float, so the value is compared as a number.
+    const value = await evalInEditor(`${EDITOR_SETTINGS_EXPR}.get_setting("${name}")`);
+    if (value?.result === BOOSTED_SLEEP_USEC)
+      pass(`unfocused sleep boosted while a client is connected: ${name} = ${value.result}`);
+    else
+      fail(
+        `unfocused sleep while a client is connected: ${name} expected ${BOOSTED_SLEEP_USEC}, got ${JSON.stringify(value)}`,
+      );
+    return;
+  }
+  fail(`unfocused sleep: the editor defines none of ${UNFOCUSED_SLEEP_NAMES.join(", ")}`);
 }

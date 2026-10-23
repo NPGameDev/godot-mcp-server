@@ -417,6 +417,20 @@ runs:
           taskkill //F //T //IM godot.exe 2>/dev/null || true
         fi
 
+    # Nothing else checks the editor log for errors, so without this step a GDScript error
+    # raised in the toolkit addon (a renamed engine API on a new Godot version) leaves the
+    # job green. It fails the job on a SCRIPT ERROR whose erroring frame is a toolkit file,
+    # and on a missing or empty editor.log; the rule and its known gaps are in the
+    # script's header. editor.log sits in the workspace root, where the launch step writes
+    # it. warmup.log (4.2 only) is not checked: its tee holds the tail of a failed boot
+    # attempt, which carries the transient `Identifier "…" not declared` parse errors
+    # expected on 4.2, so a recovered retry would fail the job. A warm-up that never
+    # succeeds already fails its own step.
+    - name: Fail on toolkit script errors in the editor log (always)
+      if: always()
+      shell: bash
+      run: node "${{ inputs.server-dir }}/scripts/ci/editor-log-script-errors.mjs" editor.log
+
     - name: Editor + warm-up logs (always)
       if: always()
       shell: bash
