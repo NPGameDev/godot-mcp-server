@@ -3,6 +3,7 @@
  * fails a job on a GDScript error raised in the toolkit addon. Drives findOffendingBlocks
  * and checkLogs on log excerpts from real smoke jobs (test/fixtures/editor-logs/) and on
  * synthetic blocks in each engine line shape, and the CLI's exit codes through a child process.
+ * The script is new, so the cases pin its behaviour as built; none is a regression pin.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

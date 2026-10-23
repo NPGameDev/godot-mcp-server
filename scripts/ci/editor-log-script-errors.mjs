@@ -1,8 +1,10 @@
 // scripts/ci/editor-log-script-errors.mjs
 // Fail a cross-version smoke job when its editor log holds a GDScript error raised in
-// the toolkit addon. Nothing else in the job reads the log, so without this step an
+// the toolkit addon. Nothing else checks the log for errors, so without this step an
 // addon script error (a renamed engine API, a parse error on a new Godot version)
-// still ends the job green.
+// still ends the job green. The composite passes editor.log only: the 4.2 warm-up log
+// holds the tail of a failed boot attempt, whose transient parse errors are expected, so
+// a recovered retry would fail the job.
 //
 // The rule, per `SCRIPT ERROR:` block (parse errors included, `USER SCRIPT ERROR:` too):
 //   • ANSI colour codes are stripped first: macOS editors write them into the log.

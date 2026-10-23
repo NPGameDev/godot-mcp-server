@@ -332,7 +332,7 @@ async function testUnfocusedSleepBoosted(ctx: TestCtx): Promise<void> {
     if (!defined.result) continue;
     // 4.2 stores the setting as a float, so the value is compared as a number.
     const value = await evalInEditor(`${EDITOR_SETTINGS_EXPR}.get_setting("${name}")`);
-    if (typeof value?.result === "number" && value.result === BOOSTED_SLEEP_USEC)
+    if (value?.result === BOOSTED_SLEEP_USEC)
       pass(`unfocused sleep boosted while a client is connected: ${name} = ${value.result}`);
     else
       fail(
