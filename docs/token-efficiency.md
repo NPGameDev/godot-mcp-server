@@ -2,7 +2,7 @@
 
 How much context window does the MCP catalogue consume? This page provides concrete numbers so you can estimate the cost of registering the toolkit in your model's context.
 
-The numbers below are a generated snapshot (2026-10-19). Regenerate them any time with `npm run measure:tokens` — see [How to measure](#how-to-measure).
+The numbers below are a generated snapshot (2026-10-23). Regenerate them any time with `npm run measure:tokens` — see [How to measure](#how-to-measure).
 
 ## Catalogue cost
 
@@ -10,9 +10,9 @@ When your MCP client connects, the server sends a `tools/list` response containi
 
 | Surface | Tools | Bytes | Est. tokens |
 |---------|------:|------:|------------:|
-| **Startup surface** | 36 | 36,039 | ~9,010 |
-| **Full surface** | 115 | 118,841 | ~29,711 |
-| **Read-only mode** | 40 | 32,417 | ~8,105 |
+| **Startup surface** | 36 | 36,087 | ~9,022 |
+| **Full surface** | 115 | 118,890 | ~29,723 |
+| **Read-only mode** | 40 | 32,465 | ~8,117 |
 
 Token estimates use the standard bytes/4 heuristic.
 
@@ -37,7 +37,7 @@ Specialized tool groups are loaded via `discover_tools`. Each group adds a known
 | placeholders | 2 | 3,220 | ~805 |
 | cleanup | 6 | 2,941 | ~736 |
 | user_data | 4 | 2,132 | ~533 |
-| scene_advanced | 2 | 1,806 | ~452 |
+| scene_advanced | 2 | 1,877 | ~470 |
 | editor_advanced | 3 | 2,770 | ~693 |
 | tilemap | 2 | 2,519 | ~630 |
 | tileset | 6 | 7,247 | ~1,812 |
