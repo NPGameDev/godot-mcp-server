@@ -282,7 +282,7 @@ enumeration. C4 is the contract; this table is the lookup — keep them consiste
 
 Canonical `ErrorCode` union lives in `src/shared/types.ts` (single source of truth on
 this side; mirrored as `MCPToolkitError.CODES` in the toolkit-repo
-`addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`). Seven codes originate in the server
+`addons/godot_mcp_toolkit/contract/mcp_toolkit_error.gd`). These codes originate in the server
 and are absent from the toolkit's list: `AUTH_FAILED`, `CANCELLED`, `CLOSED`,
 `LSP_PORT_CONFLICT`, `LSP_UNAVAILABLE`, `RPC_ERROR`, `SEND_FAILED`. Adding a new code requires updating BOTH
 sides AND this table. Codes are UPPER_SNAKE_CASE.
