@@ -1,0 +1,63 @@
+SCRIPT ERROR: Parse Error: Could not find base class "BogusHitClass".
+          at: GDScript::reload (res://smoke_txtflt_hit.gd:1)
+ERROR: Failed to load script "res://smoke_txtflt_hit.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:2775)
+SCRIPT ERROR: Parse Error: Could not find base class "BogusHitClass".
+          at: GDScript::reload (gdscript://-9223368878996784258.gd:1)
+SCRIPT ERROR: Parse Error: Could not find base class "BogusMissClass".
+          at: GDScript::reload (res://smoke_txtflt_miss.gd:1)
+ERROR: Failed to load script "res://smoke_txtflt_miss.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:2775)
+SCRIPT ERROR: Parse Error: Could not find base class "BogusMissClass".
+          at: GDScript::reload (gdscript://-9223368864182502541.gd:1)
+ERROR: 13: missing closing parenthesis
+   at: compile (modules/regex/regex.cpp:198)
+WARNING: IDAT: incorrect data check
+     at: check_error (drivers/png/png_driver_common.cpp:56)
+ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+   at: png_to_image (drivers/png/png_driver_common.cpp:119)
+ERROR: Error loading image: res://smoke_import_b64.png
+   at: load_image (core/io/image_loader.cpp:101)
+ERROR: Error importing 'res://smoke_import_b64.png'.
+   at: _reimport_file (editor/editor_file_system.cpp:2050)
+ERROR: Attempt to open script 'res://nonexistent_script.gd' resulted in error 'File not found'.
+   at: load_source_code (modules/gdscript/gdscript.cpp:1025)
+ERROR: Failed loading resource: res://nonexistent_script.gd. Make sure resources have been imported by opening the project in the editor at least once.
+   at: _load (core/io/resource_loader.cpp:274)
+ERROR: Error loading resource: 'res://nonexistent_script.gd'.
+   at: load (core/core_bind.cpp:73)
+SCRIPT ERROR: Parse Error: Expected parameter name.
+          at: GDScript::reload (res://smoke_check_broken.gd:4)
+ERROR: Failed to load script "res://smoke_check_broken.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:2775)
+SCRIPT ERROR: Parse Error: Expected parameter name.
+          at: GDScript::reload (gdscript://-9223368198529681555.gd:4)
+SCRIPT ERROR: Parse Error: Expected parameter name.
+          at: GDScript::reload (gdscript://-9223368184587814132.gd:4)
+SCRIPT ERROR: Parse Error: Expected expression for variable initial value after "=".
+          at: GDScript::reload (res://smoke_check_hint.gd:4)
+ERROR: Failed to load script "res://smoke_check_hint.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:2775)
+SCRIPT ERROR: Parse Error: Expected expression for variable initial value after "=".
+          at: GDScript::reload (gdscript://-9223368141722027016.gd:4)
+SCRIPT ERROR: Parse Error: Expected expression for variable initial value after "=".
+          at: GDScript::reload (gdscript://-9223368127830492171.gd:4)
+ERROR: Resource file not found: res://no_such.png (expected type: )
+   at: _load (core/io/resource_loader.cpp:279)
+WARNING: [MCPTools] auto-created directory res://mcp_smoke_placeholders for texture.generate
+     at: push_warning (core/variant/variant_utility.cpp:1111)
+SCRIPT ERROR: Parse Error: Expected expression as dictionary key.
+          at: GDScript::reload (res://smoke_lsp_projdiag_broken.gd:6)
+ERROR: Failed to load script "res://smoke_lsp_projdiag_broken.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:2775)
+SCRIPT ERROR: Parse Error: Expected expression as dictionary key.
+          at: GDScript::reload (gdscript://-9223363202341863395.gd:6)
+SCRIPT ERROR: Parse Error: Member "renamed" redefined (original in native class 'Node')
+          at: GDScript::reload (gdscript://-9223360086527639622.gd:3)
+[MCPServer] unfocused-responsive mode OFF: interface/editor/unfocused_low_processor_mode_sleep_usec restored to 100000
+[MCP] MCP client disconnected
+[MCPServer] unfocused-responsive mode ON: interface/editor/unfocused_low_processor_mode_sleep_usec 100000 -> 16666 (~60 fps while unfocused)
+[MCP] MCP client connected (1 peer)
+[MCPTools] node.call_method invoked FlowBodyProbe.flow_body(0 args)
+SCRIPT ERROR: Parse Error: Expected variable name after "var".
+          at: GDScript::reload (gdscript://-9223359430404276106.gd:7)

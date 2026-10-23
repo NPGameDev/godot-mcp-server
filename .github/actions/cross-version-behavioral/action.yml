@@ -417,6 +417,17 @@ runs:
           taskkill //F //T //IM godot.exe 2>/dev/null || true
         fi
 
+    # Nothing else reads the editor log, so without this step a GDScript error raised in
+    # the toolkit addon (a renamed engine API on a new Godot version) leaves the job
+    # green. It fails the job on a SCRIPT ERROR whose erroring frame is a toolkit file,
+    # and on a missing or empty editor.log; the rule and its known gaps are in the
+    # script's header. warmup.log exists only on 4.2 (the class-cache warm-up above).
+    # Both logs sit in the workspace root, where the launch and warm-up steps write them.
+    - name: Fail on toolkit script errors in the editor log (always)
+      if: always()
+      shell: bash
+      run: node "${{ inputs.server-dir }}/scripts/ci/editor-log-script-errors.mjs" editor.log --if-present warmup.log
+
     - name: Editor + warm-up logs (always)
       if: always()
       shell: bash

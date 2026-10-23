@@ -1,0 +1,11 @@
+SCRIPT ERROR: Invalid call. Nonexistent 'int' constructor.
+          at: lower (res://addons/godot_mcp_toolkit/core/unfocused_sleep_controller.gd:111)
+          GDScript backtrace (most recent call first):
+              [0] lower (res://addons/godot_mcp_toolkit/core/unfocused_sleep_controller.gd:111)
+              [1] _on_peer_authed (res://addons/godot_mcp_toolkit/transport/mcp_server.gd:727)
+              [2] validate_auth (res://addons/godot_mcp_toolkit/transport/ws_transport.gd:489)
+              [3] _handle_message (res://addons/godot_mcp_toolkit/transport/mcp_server.gd:694)
+              [4] poll_peers (res://addons/godot_mcp_toolkit/transport/ws_transport.gd:446)
+              [5] pump (res://addons/godot_mcp_toolkit/transport/ws_transport.gd:241)
+              [6] _poll_connections (res://addons/godot_mcp_toolkit/transport/mcp_server.gd:664)
+[MCP] MCP client connected (1 peer)
