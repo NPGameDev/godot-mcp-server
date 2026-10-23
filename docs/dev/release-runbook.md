@@ -100,15 +100,15 @@ recorded as a documented coverage gap, since no Mac was available).
 
 ### The validation ladder
 
-On top of the full gate, a minor release (x.Y.0) runs three live checks:
+On top of the full gate, a minor release (x.Y.0) runs these live checks:
 
 - On Godot 4.2, the oldest supported version: the full smoke suite and the full tool sweep (the
   toolkit's `Validations/tool-sweep.md`).
 - On the newest supported stable, now 4.7: one smoke run.
 - A mixed-version handshake check: the previous toolkit with the new server, the new toolkit with
   the previous server, the new pair, and one pair where a side is below the other's floor. For
-  1.1.0 that is toolkit 1.0.4 + server 1.1.0, toolkit 1.1.0 + server 1.0.4, and 1.1.0 + 1.1.0.
-  Read both consoles for every pair: the server's stderr and the editor's Output panel.
+  1.1.0 that is toolkit 1.0.4 + server 1.1.0, toolkit 1.1.0 + server 1.0.4, 1.1.0 + 1.1.0, and a
+  below-floor pair. Read both consoles for every pair: the server's stderr and the editor's Output panel.
 
 A major release (X.0.0) adds a full tool sweep on the newest stable, a local smoke run and full
 tool sweep on 4.5, and an npm `-rc` prerelease before the final version.
@@ -133,16 +133,16 @@ reload, and none raises an error or a crash:
 - On Godot 4.7, flow 02's E rebind.
 - 4.2.0 and 4.2.1, where the flows expect the fallback, were not measured.
 
-Two more come from earlier toolkit commits, not from `v1.0.4` itself:
+These were measured at later toolkit commits, not on `v1.0.4` itself:
 
 - Smoke section 12 (`test/sections/12_input_map.ts`), its two `ui_left` cases (binding F9 keeps
   the default's joypad events; unbinding F9 leaves the default). Toolkit 1.0.4's `bind` saves
   the editor's keys-only `InputMap` list. Measured at toolkit `0e81b86` on 4.7: 17 passed, 2
   failed.
-- On a toolkit without them, `input_map_list` answers `RPC_ERROR` "-32601: Method not found:
-  input_map.list" and `revert` answers `INVALID_PARAMS`, with no crash. Smoke section 12's six
-  list, revert and round-trip cases fail. Measured against toolkit `567d8b6` on 4.7: 19 passed,
-  6 failed.
+- On a toolkit without the `input_map.list` method and the `revert` action, `input_map_list`
+  answers `RPC_ERROR` "-32601: Method not found: input_map.list" and `revert` answers
+  `INVALID_PARAMS`, with no crash. Smoke section 12's six list, revert and round-trip cases fail.
+  Measured against toolkit `567d8b6` on 4.7: 19 passed, 6 failed.
 
 The release's mixed-pair check confirms every entry not yet measured on `v1.0.4`.
 
@@ -203,9 +203,10 @@ There is no pause to curate in, so `[Unreleased]` must be final and committed be
 For a change that genuinely spans both repos, `./scripts/release.sh <server-version> --with-sibling
 <toolkit-version>` delegates the toolkit half to the toolkit's own script and then releases the
 server, as two independent versioned releases in one run. While the tag gates force a lockstep
-release, the two versions must be the same. That path replaces Phase 6. A toolkit release that
-moves its server pin cannot use `--with-sibling`: the new pin must name a server version npm
-already serves, and this path tags the toolkit first.
+release, the two versions must be the same. That path replaces Phase 6. The delegated toolkit
+half gets no server pin flag, so the toolkit script refuses it; until that changes, release the
+toolkit through Phase 6. A release that moves the pin could not use this path anyway: the new pin
+must name a server version npm already serves, and this path tags the toolkit first.
 
 The script runs its pre-flights, rolls the CHANGELOG, then **pauses**. Use the pause: read the rolled
 section and the printed `npm pack --dry-run` listing. The listing must be `dist/`, `README.md`,
@@ -268,8 +269,8 @@ toolkit release that keeps the current pin passes `--keep-compatible-server` ins
 
 The rest is the Phase 4 ritual:
 `./scripts/release.sh <version> --compatible-server <server-version>`, curate at the pause, verify
-the tag content, push main and the tag. An agent-driven release runs the same two non-interactive commands as Phase 4, with the gate
-dispositions file and the pin flag:
+the tag content, push main and the tag. An agent-driven release runs the same two non-interactive
+commands as Phase 4, with the gate dispositions file and the pin flag:
 
 ```bash
 ./scripts/release.sh <version> --compatible-server <server-version> --dry-run --non-interactive --gate-dispositions <file>
