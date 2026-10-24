@@ -78,6 +78,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   true on every version, and they update when the editor reconnects on another Godot
   version. The server also stops reading `min_godot_version` and `max_godot_version` from
   extension commands, which the toolkit never sent.
+- With zod 4.6.7, `lsp_completion` lists `limit` as optional in `tools/list`, as its default of 10
+  implies; before, the schema marked it required. Calls that omit it behave as before.
+
+### Security
+
+- zod moves from 4.3.6 to 4.6.7, out of the range of
+  [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), a memory-exhaustion
+  advisory reached through an array argument in a tool call from the connected client. 1.0.4
+  pinned an affected version, so every install carried it.
 
 ## [1.0.4] - 2026-10-14
 
