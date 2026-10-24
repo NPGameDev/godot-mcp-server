@@ -26,7 +26,7 @@ The number that says the most is **150+ operations**. That is the real work on o
 Two things drive the design, and they carry equal weight:
 
 - **You can extend it without a fixed ceiling.** The toolkit's extension API lets a project register its own tools in GDScript. They hot-reload and reach the agent through this bridge exactly like built-ins, and there is no fixed cap on how many you add. The limit is what the current system supports, and each iteration raises that ceiling and gives extensions more room. C#/.NET projects extend the same way, which is the proof that this fits every project instead of being a bolt-on. Heuristic or third-party-dependent tools stay out of the core on purpose, and the extension API is where they belong.
-- **You can check the results.** The agent's context window is a budget, so the tool surface starts small (~9,000 tokens) and grows only when the agent asks for more. The evidence section below says what CI asserts on every build, what the test manifests cover, and what was measured when. Links, not adjectives.
+- **You can check the results.** The agent's context window is a budget, so the tool surface starts small (~9,500 tokens) and grows only when the agent asks for more. The evidence section below says what CI asserts on every build, what the test manifests cover, and what was measured when. Links, not adjectives.
 
 Tested primarily with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and compatible with any MCP client.
 
@@ -242,7 +242,7 @@ Most tools work under `godot --headless --editor`: file, scene, node, script, Cl
 
 ## Token efficiency
 
-The tool catalogue consumes context-window tokens, so the surface starts small and grows on demand: the startup surface costs **~9,000 tokens**, the full surface (every group activated) **~29,700**, and read-only mode **~8,100**. Per-group costs, the measurement method, and the regeneration command are in [docs/token-efficiency.md](docs/token-efficiency.md).
+The tool catalogue consumes context-window tokens, so the surface starts small and grows on demand: the startup surface costs **~9,500 tokens**, the full surface (every group activated) **~29,100**, and read-only mode **~8,700**. Per-group costs, the measurement method, and the regeneration command are in [docs/token-efficiency.md](docs/token-efficiency.md).
 
 ## How we know it works
 

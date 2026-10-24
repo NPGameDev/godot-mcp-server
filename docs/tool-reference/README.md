@@ -169,7 +169,7 @@ _1 operation._
 |-------|------|----------|-------------|
 | `mask` | enum | no | Property filter. 'common' (default) returns 8-12 most-edited. 'all' returns full list. 'groups' returns names+usage only. 'script' returns script variables with visibility label. Prefer 'common' or node_get_property; 'all' returns the full list and is large. |
 | `node_path` | string | yes |  |
-| `visibility` | enum | yes | Filter for mask='script'. 'public' = no _ prefix, 'private' = _ prefix, 'all' = both. |
+| `visibility` | enum | no | Filter for mask='script'. 'public' = no _ prefix, 'private' = _ prefix, 'all' = both. |
 
 <!-- examples:start -->
 <!-- examples:end -->
@@ -304,7 +304,7 @@ _1 operation._
 | `if_running` | enum | no |  |
 | `runtime_poll` | boolean | no | With if_running:'return', re-check whether the already-running game's runtime has since connected. Default false. |
 | `scene_path` | string | no |  |
-| `wait_for_runtime` | boolean | yes | Defaults true — blocks until runtime connects (or times out) so runtime tools are immediately available. Pass wait_for_runtime:false to launch without blocking. |
+| `wait_for_runtime` | boolean | no | Defaults true — blocks until runtime connects (or times out) so runtime tools are immediately available. Pass wait_for_runtime:false to launch without blocking. |
 
 <!-- examples:start -->
 <!-- examples:end -->
@@ -390,7 +390,7 @@ _1 operation._
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
 | `node_path` | string | yes |  |
-| `visibility` | enum | yes |  |
+| `visibility` | enum | no |  |
 
 <!-- examples:start -->
 <!-- examples:end -->
@@ -2176,7 +2176,7 @@ _1 operation._
 |-------|------|----------|-------------|
 | `column` | integer | yes | Zero-based column number |
 | `file_path` | string | yes | Godot resource path (must start with res://, e.g. res://scripts/player.gd). Only .gd and .gdshader — not .cs |
-| `limit` | integer | yes | Max items to return (default 10) |
+| `limit` | integer | no | Max items to return (default 10) |
 | `line` | integer | yes | Zero-based line number |
 
 <!-- examples:start -->

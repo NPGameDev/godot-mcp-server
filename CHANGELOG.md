@@ -78,6 +78,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   true on every version, and they update when the editor reconnects on another Godot
   version. The server also stops reading `min_godot_version` and `max_godot_version` from
   extension commands, which the toolkit never sent.
+- With zod 4.6.7, `lsp_completion` lists `limit` as optional in `tools/list`, as its default of 10
+  implies; before, the schema marked it required. Calls that omit it behave as before.
+- The tool reference and the token figures now come from the entries `tools/list` sends.
+  The reference lists `visibility` (`node_get_property_list` and `runtime_get_script_vars`)
+  and `game_start`'s `wait_for_runtime` as optional, as the server already advertised them.
+  The token figures now count `discover_tools`' full group list and, in read-only mode, the
+  two meta tools: the startup surface is about 9,500 tokens (was 9,000), the full surface
+  about 29,100 (was 29,700) and read-only mode about 8,700 (was 8,100).
+
+### Security
+
+- zod moves from 4.3.6 to 4.6.7, outside the affected range of
+  [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5). The vulnerable
+  validation runs on array arguments in the connected client's tool calls. 1.0.4 pinned an
+  affected version, so every install carried it.
 
 ## [1.0.4] - 2026-10-14
 
