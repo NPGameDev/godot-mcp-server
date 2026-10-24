@@ -141,7 +141,7 @@ concurrency:
 # [run-cross-version-ci] (the bump IS the tested integration event); override ad-hoc via
 # the sibling-ref dispatch input.
 env:
-  SIBLING_PIN_TOOLKIT: "6be195b13ca81065775066730aedc374cbabc4cf"
+  SIBLING_PIN_TOOLKIT: "c22ddb4be5f45c1e01b86866356935bbd8643dd9"
 
 jobs:
   csharp-behavioral:
