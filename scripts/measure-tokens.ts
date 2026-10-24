@@ -116,9 +116,10 @@ function surfaceCost(defs: ToolDef[], extras: McpToolEntry[] = []): SurfaceCost 
 // The two always-on meta tools (discover_tools, extensions_refresh) are
 // registered outside the ToolDef arrays, so they are defined here to measure
 // the startup surface accurately (eager + both meta tools, matching the
-// --tools-count "Startup surface" definition). Each input shape repeats its
-// registration (registerGroupSystem in src/groups/groups.ts, registerRefreshTool
-// in src/extensions/extensionRegistrar.ts) and must change with it.
+// --tools-count "Startup surface" definition). discover_tools' input shape
+// repeats registerGroupSystem in src/groups/groups.ts, and the extensions_refresh
+// entry repeats registerRefreshTool in src/extensions/extensionRegistrar.ts; each
+// must change with its registration.
 
 // discover_tools' description lists every group with its loaded state, so it is
 // built by the server's own builder for each surface. The builder reads the
@@ -183,17 +184,12 @@ const EXTENSIONS_REFRESH_ENTRY: McpToolEntry = {
   annotations: { readOnlyHint: true, idempotentHint: true },
 };
 
-/**
- * Both meta-tool entries as `tools/list` sends them on one surface, exported with
- * {@link toMcpEntry} so a check can compare them against a captured payload.
- */
-export function metaEntries(readOnly: boolean, loaded: readonly string[]): McpToolEntry[] {
+/** Both meta-tool entries as `tools/list` sends them on one surface. */
+function metaEntries(readOnly: boolean, loaded: readonly string[]): McpToolEntry[] {
   const { name, inputSchema, annotations } = DISCOVER_TOOLS_BASE;
   const discover = { name, description: discoverToolsDescription(readOnly, loaded), inputSchema, annotations };
   return [discover, EXTENSIONS_REFRESH_ENTRY];
 }
-
-export { toMcpEntry };
 
 // ── Build surface catalogues ─────────────────────────────────────────
 

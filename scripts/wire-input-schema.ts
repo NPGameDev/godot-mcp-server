@@ -5,6 +5,7 @@
  */
 import { objectFromShape } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
+import type { z } from "zod";
 
 import { addStringCoercion } from "../src/shared/schemaCoercion.js";
 import type { ToolDef } from "../src/shared/types.js";
@@ -19,6 +20,7 @@ import type { ToolDef } from "../src/shared/types.js";
  * Throws when the shape cannot be converted, as the SDK would.
  */
 export function toWireInputSchema(shape: ToolDef["inputSchema"]): Record<string, unknown> {
-  const object = objectFromShape(addStringCoercion(shape));
+  // Cast: ZodRawShape is typed with core zod types, but every tool shape is built with classic zod.
+  const object = objectFromShape(addStringCoercion(shape as Record<string, z.ZodTypeAny>));
   return toJsonSchemaCompat(object, { strictUnions: true, pipeStrategy: "input" }) as Record<string, unknown>;
 }
