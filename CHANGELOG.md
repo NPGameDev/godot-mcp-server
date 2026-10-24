@@ -29,42 +29,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   objects. The toolkit applies them in order in one call and writes nothing if one fails.
   `old_string` and `new_string` are now optional, so a call can pass `edits` alone. Needs the
   toolkit release that handles `edits`; an older toolkit answers `INVALID_PARAMS`. Thanks to
-  @benfeather ([NPGameDev/godot-mcp-toolkit#44](https://github.com/NPGameDev/godot-mcp-toolkit/issues/44),
+  @benfeather
+  ([NPGameDev/godot-mcp-toolkit#44](https://github.com/NPGameDev/godot-mcp-toolkit/issues/44),
   [#19](https://github.com/NPGameDev/godot-mcp-server/pull/19)).
 - `input_map_list`, a read-only tool in the `input_map` group, lists input actions with
   their events. By default it returns the project actions and the built-in actions whose
   events or deadzone differ from their default; `include_builtin: true` adds the rest, and
   `name` returns one action. A changed built-in action has `can_revert: true` and its
-  `default`. The tool stays available in read-only mode. Needs the toolkit release that
-  adds `input_map.list`; an older toolkit answers that the method is unknown.
+  `default`. A dotted name such as `jump.macos` is listed with its `feature` tag, and a
+  built-in action's feature entry is read-only. The tool stays available in read-only
+  mode. Needs the toolkit release that adds `input_map.list`; an older toolkit answers
+  that the method is unknown.
 - `input_map_action` has a `revert` action. `{"action": "revert", "name": "ui_accept"}`
   puts a built-in action back to its default events and deadzone, and `project.godot`
   drops its line. Needs the matching toolkit release; an older toolkit answers
   `INVALID_PARAMS`.
-- The `input_map_event` description now lists the fields an event takes: `key_kind`,
-  `location` (Godot 4.3+), `command_or_control` and `device`. An event read from
-  `input_map_list` can be passed back to `unbind` as it is, and a response lists in
-  `warnings` any field the toolkit accepted but ignored.
+- The `input_map_event` description now lists the fields an event takes: `key_kind` and
+  `location` (Godot 4.3+) on a key, the modifiers and `command_or_control` on a key or a
+  mouse button, `double_click` on a mouse button, and `device` on every event. An event
+  read from `input_map_list` can be passed back to `unbind` as it is, and a response lists
+  in `warnings` any field the toolkit accepted but ignored.
 
 ### Changed
 
 - `scene_instantiate`'s description now names the files it takes: a `.tscn` or `.scn`,
   or a 3D model imported as a scene (`.glb`, `.gltf`, `.dae`...). A toolkit before 1.1.0
-  still refuses every file but a `.tscn`
-  ([#39](https://github.com/NPGameDev/godot-mcp-toolkit/issues/39)).
+  still refuses every file but a `.tscn`. Thanks to @benfeather
+  ([NPGameDev/godot-mcp-toolkit#39](https://github.com/NPGameDev/godot-mcp-toolkit/issues/39),
+  [NPGameDev/godot-mcp-toolkit#40](https://github.com/NPGameDev/godot-mcp-toolkit/pull/40)).
 
 ### Fixed
 
 - `game_start` no longer reports a game as ready when the game had already exited by the
   time the bridge read its registry entry, and the bridge now picks up a game relaunched on
   the same runtime port when no editor cleared the old entry.
-- The `node_set_script` description now says it reloads a `.gd` that changed on disk
-  since the editor loaded it, so every node running the script gets the new code when
-  the new source compiles. Otherwise the response carries `valid: false` and a hint that
-  says so and points at `script_check`. The toolkit does the reload; with an older toolkit, `node_set_script` still sets the
-  version the editor loaded first, and so it does on Godot 4.2.0 and 4.2.1, where
-  reloading a script in place can crash the editor. Thanks to @benfeather
-  ([#43](https://github.com/NPGameDev/godot-mcp-toolkit/issues/43),
+- The `node_set_script` description now says that on Godot 4.2.2 and later it reloads a
+  `.gd` that changed on disk since the editor loaded it, for every node running the
+  script. The toolkit does the reload, and only when the new source compiles; otherwise the
+  response carries `valid: false` and a hint that says so and points at `script_check`.
+  With an older toolkit, or on Godot 4.2.0 and 4.2.1, where reloading a script in place can
+  crash the editor, `node_set_script` still sets the version the editor loaded first.
+  Thanks to @benfeather
+  ([NPGameDev/godot-mcp-toolkit#43](https://github.com/NPGameDev/godot-mcp-toolkit/issues/43),
   [#20](https://github.com/NPGameDev/godot-mcp-server/pull/20)).
 - With the matching toolkit, `input_map_event` matches events the way Godot does when it
   checks an action. A mouse button's `pressed` no longer splits a binding or misses on
@@ -78,8 +84,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   true on every version, and they update when the editor reconnects on another Godot
   version. The server also stops reading `min_godot_version` and `max_godot_version` from
   extension commands, which the toolkit never sent.
-- With zod 4.6.7, `lsp_completion` lists `limit` as optional in `tools/list`, as its default of 10
-  implies; before, the schema marked it required. Calls that omit it behave as before.
+- With zod 4.6.7, `lsp_completion` lists `limit` as optional in `tools/list`, as its
+  default of 10 implies; before, the schema marked it required. Calls that omit it behave
+  as before.
 - The tool reference and the token figures now come from the entries `tools/list` sends.
   The reference lists `visibility` (`node_get_property_list` and `runtime_get_script_vars`)
   and `game_start`'s `wait_for_runtime` as optional, as the server already advertised them.
