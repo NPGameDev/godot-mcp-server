@@ -19,13 +19,13 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
 
 import { ALL_TOOL_DEFS } from "../src/registration/catalogue.js";
 import { GROUPS } from "../src/groups/groupCatalogue.js";
 import { EAGER_TOOLS } from "../src/security/profiles.js";
 import { countBuiltinOperations, operationCountOf, operationsOf } from "../src/registration/operations.js";
 import type { ToolDef } from "../src/shared/types.js";
+import { toWireInputSchema } from "./wire-input-schema.js";
 
 // ── Output location ──────────────────────────────────────────────────
 
@@ -284,10 +284,10 @@ function emitExampleIsland(lines: string[], tool: ToolDef, islands: ReadonlyMap<
 
 // ── Schema helpers ───────────────────────────────────────────────────
 
-/** Convert a Zod shape to JSON Schema; an unconvertible shape degrades to an empty object. */
+/** Convert a Zod shape to its `tools/list` JSON Schema; an unconvertible shape degrades to an empty object. */
 function toJsonSchema(inputSchema: ToolDef["inputSchema"]): Record<string, unknown> {
   try {
-    return z.toJSONSchema(z.object(inputSchema)) as Record<string, unknown>;
+    return toWireInputSchema(inputSchema);
   } catch {
     return { type: "object", properties: {} };
   }

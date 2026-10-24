@@ -15,10 +15,16 @@
  * applies no separate schema minification). Rerun after adding or modifying tools.
  */
 
+import type { Bridge } from "../src/shared/types.js";
+
 // Dynamic imports.
 const { z } = await import("zod");
+const { toWireInputSchema } = await import("./wire-input-schema.js");
+const { coercedBoolean } = await import("../src/shared/schemaCoercion.js");
 const { EAGER_TOOLS, isAllowedInReadOnly } = await import("../src/security/profiles.js");
 const { GROUPS } = await import("../src/groups/groups.js");
+const { buildDiscoverToolsDesc } = await import("../src/groups/groupActivation.js");
+const { loadedGroups } = await import("../src/groups/groupState.js");
 const { ALL_TOOL_DEFS } = await import("../src/registration/catalogue.js");
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -65,7 +71,7 @@ const byName = new Map(ALL_DEFS.map((t) => [t.name, t]));
 function toJsonSchema(zodShape: Record<string, unknown>): Record<string, unknown> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return z.toJSONSchema(z.object(zodShape as any)) as Record<string, unknown>;
+    return toWireInputSchema(zodShape as any);
   } catch {
     return { type: "object", properties: {} };
   }
@@ -110,36 +116,63 @@ function surfaceCost(defs: ToolDef[], extras: McpToolEntry[] = []): SurfaceCost 
 // The two always-on meta tools (discover_tools, extensions_refresh) are
 // registered outside the ToolDef arrays, so they are defined here to measure
 // the startup surface accurately (eager + both meta tools, matching the
-// --tools-count "Startup surface" definition).
+// --tools-count "Startup surface" definition). Each input shape repeats its
+// registration (registerGroupSystem in src/groups/groups.ts, registerRefreshTool
+// in src/extensions/extensionRegistrar.ts) and must change with it.
 
-const DISCOVER_TOOLS_ENTRY: McpToolEntry = {
+// discover_tools' description lists every group with its loaded state, so it is
+// built by the server's own builder for each surface. The builder reads the
+// bridge only for the editor version; with none reported, a group survives
+// unless every one of its tools is version-gated.
+// Cast: the builder reads only getGodotVersion, so the rest of Bridge stays unimplemented.
+const NO_EDITOR_BRIDGE = { getGodotVersion: (): undefined => undefined } as unknown as Bridge;
+
+/** discover_tools' description on a surface where `loaded` names the activated groups. */
+function discoverToolsDescription(readOnly: boolean, loaded: readonly string[]): string {
+  loadedGroups.clear();
+  for (const name of loaded) loadedGroups.add(name);
+  try {
+    return buildDiscoverToolsDesc(NO_EDITOR_BRIDGE, readOnly);
+  } finally {
+    loadedGroups.clear();
+  }
+}
+
+const DISCOVER_TOOLS_BASE = {
   name: "discover_tools",
-  description:
-    "Search and activate tool groups by keyword or name. " +
-    "Pass request to search by domain ('animation', 'save game data') or groups to activate by name. " +
-    "No params → full catalog. reset: true → deactivate all groups.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      request: {
-        anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
-        description: "Search by keyword — a domain, task, or Godot concept.",
-      },
-      groups: {
-        type: "array",
-        items: { type: "string" },
-        description: "Group names to activate: " + GROUPS.map((g) => g.name).join(", "),
-      },
-      activate: { type: "boolean", description: "Auto-activate matching groups. Default true." },
-      reset: {
-        anyOf: [{ const: true }, { type: "array", items: { type: "string" } }],
-        description: "Deactivate groups. true = reset all.",
-      },
-    },
-  },
+  inputSchema: toWireInputSchema({
+    request: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .describe(
+        "Names or keywords to find tool groups. Built-in: " +
+          GROUPS.map((g) => g.name).join(", ") +
+          " (plus extension groups).",
+      ),
+    activate: z
+      .boolean()
+      .optional()
+      .describe("Auto-activate matching groups. Default true. Set false to browse without loading."),
+    include_schemas: coercedBoolean()
+      .optional()
+      .describe(
+        "Include full parameter schemas and annotations in the response. " +
+          "Default false. Only needed when you activated a group but the " +
+          "new tools are missing from your tool list.",
+      ),
+    reset: z
+      .union([z.boolean(), z.array(z.string())])
+      .optional()
+      .describe(
+        "Deactivate groups. true = reset ALL on-demand groups. " +
+          'Array of group names = selectively deactivate only those groups (e.g. reset: ["tilemap", "audio"]). ' +
+          "false or omitted = keep current groups active.",
+      ),
+  }),
   annotations: { readOnlyHint: true, openWorldHint: false },
 };
 
+// Registered without an input shape, so the SDK sends its fixed empty-object schema.
 const EXTENSIONS_REFRESH_ENTRY: McpToolEntry = {
   name: "extensions_refresh",
   description:
@@ -150,7 +183,17 @@ const EXTENSIONS_REFRESH_ENTRY: McpToolEntry = {
   annotations: { readOnlyHint: true, idempotentHint: true },
 };
 
-const META_ENTRIES: McpToolEntry[] = [DISCOVER_TOOLS_ENTRY, EXTENSIONS_REFRESH_ENTRY];
+/**
+ * Both meta-tool entries as `tools/list` sends them on one surface, exported with
+ * {@link toMcpEntry} so a check can compare them against a captured payload.
+ */
+export function metaEntries(readOnly: boolean, loaded: readonly string[]): McpToolEntry[] {
+  const { name, inputSchema, annotations } = DISCOVER_TOOLS_BASE;
+  const discover = { name, description: discoverToolsDescription(readOnly, loaded), inputSchema, annotations };
+  return [discover, EXTENSIONS_REFRESH_ENTRY];
+}
+
+export { toMcpEntry };
 
 // ── Build surface catalogues ─────────────────────────────────────────
 
@@ -164,13 +207,16 @@ const startupDefs = EAGER_TOOLS.map((n) => byName.get(n)).filter(Boolean) as Too
 const groupToolNames = new Set(GROUPS.flatMap((g) => g.tools));
 const groupDefs = ALL_DEFS.filter((t) => groupToolNames.has(t.name));
 
+// The full and read-only surfaces have every group activated.
+const ALL_GROUP_NAMES = GROUPS.map((g) => g.name);
+
 // ── Measure everything ───────────────────────────────────────────────
 
 const allMeasurements = ALL_DEFS.map(measure);
 
-const startup = surfaceCost(startupDefs, META_ENTRIES);
-const fullSurface = surfaceCost([...startupDefs, ...groupDefs], META_ENTRIES);
-const readOnly = surfaceCost(readOnlyDefs);
+const startup = surfaceCost(startupDefs, metaEntries(false, []));
+const fullSurface = surfaceCost([...startupDefs, ...groupDefs], metaEntries(false, ALL_GROUP_NAMES));
+const readOnly = surfaceCost(readOnlyDefs, metaEntries(true, ALL_GROUP_NAMES));
 
 const versionAnnotatedTools = ALL_DEFS.filter((t) => t.godotMinVersion != null || t.godotMaxVersion != null);
 
@@ -283,7 +329,7 @@ emit("");
 emit("## Methodology");
 emit("");
 emit(
-  "- **Schema conversion:** Zod schemas → JSON Schema via `z.toJSONSchema()` (Zod 4 built-in), matching the MCP wire format",
+  "- **Schema conversion:** each Zod input shape → the JSON Schema `tools/list` sends: the server's string coercion, then the MCP SDK's own converter (input side, draft-07)",
 );
 emit("- **Byte measurement:** UTF-8 encoded `JSON.stringify()` of the tools array");
 emit("- **Token estimate:** bytes / 4 (standard heuristic; actual tokenization varies by model)");
