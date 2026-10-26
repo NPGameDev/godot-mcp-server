@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The `resource_write` `properties` description now names the tagged form for an existing
+  resource file, `{type:'Resource', path:'res://...'}`, and says that a bare path (a
+  `res://`, `uid://` or `user://` String) on a Resource property is not set and the response
+  warns. The warning needs toolkit 1.1.1; an older toolkit drops or saves the bare path
+  without one
+  ([NPGameDev/godot-mcp-toolkit#48](https://github.com/NPGameDev/godot-mcp-toolkit/issues/48)).
+
 ## [1.1.0] - 2026-10-25
 
 ### Added
