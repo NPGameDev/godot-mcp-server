@@ -5,7 +5,7 @@ import type { Bridge, ToolDef, ToolTextResult } from "../shared/types.js";
 import { registerTools } from "../registration/toolRegistry.js";
 import { callAndWrap } from "../registration/toolDispatch.js";
 import { coercedBoolean } from "../shared/schemaCoercion.js";
-import { toolErrorFromPayload, runtimeErrorWithCrashContext } from "../shared/errorContract.js";
+import { toolErrorFromPayload, toolErrorFromException, runtimeErrorWithCrashContext } from "../shared/errorContract.js";
 import { BridgeError } from "../shared/errors.js";
 import { stableStringify } from "../shared/stableJson.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
@@ -282,13 +282,62 @@ function inputSimulateHandler(bridge: Bridge, method: string, input: unknown) {
   return callAndWrap(bridge, method, parsed, { runtime: true });
 }
 
+/** Whether the editor's debugger holds the game at a break (an error break or a
+ *  breakpoint pause). A game at a break cannot answer a runtime call, so asking
+ *  it only waits out a runtime timeout (the call's 5 s, or the channel's 10 s
+ *  connect). The 5 s bound starts once the editor channel is open: after an
+ *  editor drop the probe first waits out the channel's reconnect ceiling and the
+ *  bridge's editor rediscovery. */
+async function isGameAtBreak(bridge: Bridge): Promise<boolean> {
+  try {
+    const state = await bridge.call("debug.state", {}, 5_000);
+    return typeof state === "object" && state !== null && (state as { breaked?: unknown }).breaked === true;
+  } catch {
+    // The debugger state only picks the route. When it cannot be read, the
+    // read takes the runtime-first path, which reports its own failures.
+    return false;
+  }
+}
+
+/** Serves the editor side's debugger.get_log: its own tool error when it answers
+ *  with one, else its page with a `_summary` line. The page is served even when
+ *  no lines came back, since its debug_state and note still describe the game. */
+async function serveEditorSideLog(bridge: Bridge, input: unknown): Promise<ToolTextResult> {
+  const cached = await bridge.call("debugger.get_log", input, 5_000);
+  const cErr = toolErrorFromPayload(cached);
+  if (cErr) return cErr;
+  const obj = cached as PaginatedResult;
+  const returned = typeof obj[PAGE_FIELD.returned] === "number" ? (obj[PAGE_FIELD.returned] as number) : 0;
+  const errorBuffer = Array.isArray(obj.error_buffer) ? obj.error_buffer : [];
+  const parts: string[] = [];
+  if (errorBuffer.length > 0) {
+    parts.push(`${errorBuffer.length} error${errorBuffer.length !== 1 ? "s" : ""} from debugger bridge`);
+  }
+  if (returned > 0) {
+    parts.push(`${returned} cached line${returned !== 1 ? "s" : ""} from log file`);
+  }
+  const summary = parts.length > 0 ? parts.join(", ") : "no output from last game session";
+  const text = stableStringify({ _summary: summary, ...obj });
+  return { content: [{ type: "text" as const, text }] };
+}
+
 /** debugger_get_log prefixes a line-count summary before the payload.
- *  Falls back to the editor-side cache when the game is not running.
- *  The editor-side handler merges the debugger bridge's error_buffer +
- *  debug_state + log-file cache into a single response — no game.stop /
- *  sleep / editor_get_console hop needed. */
+ *  At a break it reads the editor side at once, since the game cannot answer.
+ *  Otherwise it asks the game first and falls back to the editor side when the
+ *  game is not running. The editor-side handler merges the debugger bridge's
+ *  error_buffer + debug_state + log-file cache into a single response — no
+ *  game.stop / sleep / editor_get_console hop needed. */
 function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
   return (async () => {
+    if (await isGameAtBreak(bridge)) {
+      try {
+        return await serveEditorSideLog(bridge, input);
+      } catch (err) {
+        // The game cannot answer at a break, so the editor's failure is the
+        // answer: trying the runtime would only add a runtime timeout.
+        return toolErrorFromException(err);
+      }
+    }
     try {
       // Short timeout: debugger_get_log is a read-only buffer operation —
       // if the game is alive it responds in <100ms. A 5s ceiling detects
@@ -318,24 +367,7 @@ function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
         code === "INTERNAL"
       ) {
         try {
-          const cached = await bridge.call("debugger.get_log", input, 5_000);
-          const cErr = toolErrorFromPayload(cached);
-          if (cErr) return runtimeErrorWithCrashContext(bridge, e);
-          // Always serve the editor-side response — even when returned=0, the
-          // debug_state and note fields are valuable context for the agent.
-          const obj = cached as PaginatedResult;
-          const returned = typeof obj[PAGE_FIELD.returned] === "number" ? (obj[PAGE_FIELD.returned] as number) : 0;
-          const errorBuffer = Array.isArray(obj.error_buffer) ? obj.error_buffer : [];
-          const parts: string[] = [];
-          if (errorBuffer.length > 0) {
-            parts.push(`${errorBuffer.length} error${errorBuffer.length !== 1 ? "s" : ""} from debugger bridge`);
-          }
-          if (returned > 0) {
-            parts.push(`${returned} cached line${returned !== 1 ? "s" : ""} from log file`);
-          }
-          const summary = parts.length > 0 ? parts.join(", ") : "no output from last game session";
-          const text = stableStringify({ _summary: summary, ...obj });
-          return { content: [{ type: "text" as const, text }] };
+          return await serveEditorSideLog(bridge, input);
         } catch {
           // Editor bridge also failed — fall through to crash context
         }

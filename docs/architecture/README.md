@@ -282,7 +282,7 @@ per-OS token-file resolver), `heartbeat.ts` (the generic liveness primitive), an
 
 A tool call reaches the editor like this:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="c0ab997" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/authHandshake.ts src/registration/toolDispatch.ts" data-verified="d441548" -->
 ```mermaid
 sequenceDiagram
     participant SDK as MCP SDK (tool call)
@@ -311,7 +311,7 @@ sequenceDiagram
     Ch-->>D: result
     D-->>SDK: stableStringify(result) — verbatim
 ```
-*Figure 4 — connect → auth handshake → dispatch · verified c0ab997*
+*Figure 4 — connect → auth handshake → dispatch · verified d441548*
 
 The handshake (`authHandshake.ts`) sends `{ auth: token, version, server_version,
 min_toolkit }` (the legacy `version` beside the server version and its declared toolkit
@@ -345,7 +345,7 @@ reporter pushes the registry LSP verdict to the editor dock ([§9](#9-the-gdscri
 The bridge composes a **persistent editor channel** and a **discovered runtime channel**,
 each with their own resilience policy:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="4790707" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="d441548" -->
 ```mermaid
 flowchart TD
     bridge["bridge.ts — editor-side facade + composition"]
@@ -366,7 +366,7 @@ flowchart TD
     note3["fs.watch on projects.json (diffAndNotify on runtime_port / runtime_pid changes)<br/>→ connect / teardown; token re-read each connect → auth self-heals"]
     rc -.-> note3
 ```
-*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified 4790707*
+*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified d441548*
 
 - **Editor channel** — persistent and reconnecting with exponential backoff
   (`1·2·4·8·16·32·60·60…` s; **reset on a successful round-trip, not on open**, so a
@@ -673,8 +673,11 @@ hosts the debugger, a justified asymmetry vs the LSP).
 5 s timeout (fast frozen-game detection); on death/timeout it falls back to Tier 2, the
 editor channel (auto-stopped dead session + merged error buffer + `debug_state`); Tier 3
 is the shared `runtimeErrorWithCrashContext` / `fetchCrashContext`
-(`shared/errorContract.ts`). The net effect: it works during gameplay **and** after a
-crash.
+(`shared/errorContract.ts`). Before Tier 1 it asks the editor's `debug.state`: when the
+debugger holds the game at a break (an error break or a breakpoint pause), the game cannot
+answer, so the handler skips the runtime call and serves Tier 2 at once instead of waiting
+out a runtime timeout. A `debug.state` that fails or throws leaves the tiered path as it is.
+The net effect: it works during gameplay, at a break **and** after a crash.
 
 ---
 
