@@ -7,6 +7,26 @@ import { callAndWrap } from "../registration/toolDispatch.js";
 import { coercedBoolean } from "../shared/schemaCoercion.js";
 import { isGroupLoaded } from "../groups/groupState.js";
 
+const RUNTIME_WAIT_MS = 10_000;
+// How often the runtime wait asks the editor whether its debugger stopped the
+// game. A stopped game cannot connect its runtime while it is stopped, so without
+// the check the wait would run out its full deadline and blame a slow start.
+const BREAK_POLL_MS = 500;
+// The same bound the debugger tools give an editor-side read.
+const EDITOR_READ_TIMEOUT_MS = 5_000;
+
+const TIMEOUT_HINT =
+  "Game launched but runtime did not connect within 10s. " +
+  "Follow up with game_start(if_running:'return', runtime_poll:true) " +
+  "to retry, or check editor_get_console for startup errors.";
+const BREAKPOINT_HINT = "The game is paused at a breakpoint; call debug_continue to resume.";
+
+/** How a runtime wait ended: the runtime connected, or the hint that says why it did not. */
+type RuntimeWaitOutcome = { kind: "connected"; port: number } | { kind: "not_connected"; hint: string };
+
+/** The editor debugger's hold on the game: an error break cannot continue, a breakpoint pause can. */
+type DebuggerStop = "error_break" | "breakpoint_pause" | "none";
+
 export const playtestTools: ToolDef[] = [
   {
     name: "game_start",
@@ -81,28 +101,22 @@ export function register(server: McpServer, bridge: Bridge, allowedTools?: Set<s
       try {
         const payload = JSON.parse(result.content[0].text);
         if (payload.runtime_discovery === "bridge" && bridge.waitForRuntimeConnection) {
-          const runtime = await bridge.waitForRuntimeConnection(10_000);
-          if (runtime) {
+          const outcome = await waitForRuntimeOrStop(bridge, bridge.waitForRuntimeConnection(RUNTIME_WAIT_MS));
+          if (outcome.kind === "connected") {
             // Success — merge runtime info, drop the bridge-discovery marker.
             payload.runtime_ready = true;
-            payload.runtime_port = runtime.port;
+            payload.runtime_port = outcome.port;
             delete payload.runtime_discovery;
             delete payload.hint;
           } else {
-            // Timeout — add a fallback hint. The toolkit leaves out its own
-            // runtime-wait guidance when wait_for_runtime=true, so the agent
-            // needs guidance here.
-            payload.hint = withServerHint(
-              payload.hint,
-              "Game launched but runtime did not connect within 10s. " +
-                "Follow up with game_start(if_running:'return', runtime_poll:true) " +
-                "to retry, or check editor_get_console for startup errors.",
-            );
+            // The toolkit leaves out its own runtime-wait guidance when
+            // wait_for_runtime=true, so the agent needs guidance here.
+            payload.hint = withServerHint(payload.hint, outcome.hint);
           }
           result.content[0].text = JSON.stringify(payload);
         }
       } catch {
-        /* parse failure — pass through unchanged */
+        /* parse failure or a failed runtime wait — pass through unchanged */
       }
     }
     return result;
@@ -121,4 +135,110 @@ function hasHint(hint: unknown): hint is string {
 // one `hint` string.
 function withServerHint(toolkitHint: unknown, serverHint: string): string {
   return hasHint(toolkitHint) ? `${toolkitHint} ${serverHint}` : serverHint;
+}
+
+/**
+ * Races the runtime wait against the editor's debugger state, polled every
+ * {@link BREAK_POLL_MS}. A game the debugger stopped cannot connect while it is
+ * stopped, so a stop ends the wait at once with a hint naming it. The poll ends
+ * when the race does, and a rejected wait rejects the race.
+ */
+function waitForRuntimeOrStop(
+  bridge: Bridge,
+  runtimeWait: Promise<{ port: number } | undefined>,
+): Promise<RuntimeWaitOutcome> {
+  return new Promise<RuntimeWaitOutcome>((resolve, reject) => {
+    let decided = false;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    // The first side to call this decides the race; it stops the poll and
+    // returns false to every later caller.
+    const decide = (): boolean => {
+      if (decided) return false;
+      decided = true;
+      clearTimeout(pollTimer);
+      return true;
+    };
+    const schedulePoll = (): void => {
+      pollTimer = setTimeout(() => void poll(), BREAK_POLL_MS);
+      pollTimer.unref?.();
+    };
+    // Never rejects: both editor reads turn their failures into "no answer".
+    const poll = async (): Promise<void> => {
+      const stop = await readDebuggerStop(bridge);
+      if (decided) return;
+      if (stop === "none") {
+        schedulePoll();
+        return;
+      }
+      // Decide on the stop before reading its reason, so a runtime-wait
+      // deadline that passes during the read cannot answer with the timeout hint.
+      decide();
+      const hint = stop === "error_break" ? errorBreakHint(await readBreakReason(bridge)) : BREAKPOINT_HINT;
+      resolve({ kind: "not_connected", hint });
+    };
+    runtimeWait.then(
+      (runtime) => {
+        if (decide()) {
+          resolve(runtime ? { kind: "connected", port: runtime.port } : { kind: "not_connected", hint: TIMEOUT_HINT });
+        }
+      },
+      (err: unknown) => {
+        if (decide()) reject(err);
+      },
+    );
+    schedulePoll();
+  });
+}
+
+/** Reads the editor's `debug.state`. A failed read counts as no stop, so the wait goes on. */
+async function readDebuggerStop(bridge: Bridge): Promise<DebuggerStop> {
+  try {
+    const state = (await bridge.call("debug.state", {}, EDITOR_READ_TIMEOUT_MS)) as {
+      breaked?: unknown;
+      can_debug?: unknown;
+    } | null;
+    if (state?.breaked !== true) return "none";
+    if (state.can_debug === false) return "error_break";
+    return state.can_debug === true ? "breakpoint_pause" : "none";
+  } catch {
+    // One missed poll only delays the check; the next one asks again.
+    return "none";
+  }
+}
+
+/**
+ * Reads the error behind an error break from the latest `break` entry of the
+ * editor-side `debugger.get_log`: the clause the toolkit puts between
+ * "continue from: " and the last ". Find the file", since the error text can
+ * hold those words too. Undefined when the buffer holds no `break` entry (the
+ * toolkit replaces it with `log_scan` entries when the log shows the error),
+ * when the entry has no such clause, or when the read fails, so the hint goes
+ * out without a reason.
+ */
+async function readBreakReason(bridge: Bridge): Promise<string | undefined> {
+  try {
+    const page = (await bridge.call("debugger.get_log", {}, EDITOR_READ_TIMEOUT_MS)) as {
+      error_buffer?: unknown;
+    } | null;
+    const entries = Array.isArray(page?.error_buffer) ? (page.error_buffer as unknown[]) : [];
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i] as { type?: unknown; message?: unknown } | null;
+      if (entry?.type === "break" && typeof entry.message === "string") {
+        return entry.message.match(/continue from: (.+)\. Find the file/s)?.[1];
+      }
+    }
+    return undefined;
+  } catch {
+    // The reason only enriches the hint; the stop itself is already known.
+    return undefined;
+  }
+}
+
+/** The hint for an error break, with the error text when the editor had it. */
+function errorBreakHint(reason: string | undefined): string {
+  const because = reason === undefined ? "" : `: ${reason}`;
+  return (
+    `The game is paused at a script error and cannot continue, so waiting won't help${because}. ` +
+    "Fix it, then game_stop and game_start."
+  );
 }
