@@ -17,7 +17,8 @@ description: >
 
   Cross-platform: the same flow runs on ubuntu / macOS /
   windows runners; the `os` input selects the per-OS branches (GNU-timeout binary,
-  editor kill, dispatch token path, macOS quarantine strip). Linux is the default,
+  the editor stop's process lookup and kill fallback, dispatch token path, macOS
+  quarantine strip). Linux is the default,
   so the pre-existing Linux callers are unaffected.
 
 inputs:
@@ -27,7 +28,7 @@ inputs:
   os:
     description: >
       Host-OS branch key for the platform-specific mechanics — the GNU-timeout
-      binary, the editor kill, the dispatch token path, and the macOS quarantine
+      binary, the editor stop's kill fallback, the dispatch token path, and the macOS quarantine
       strip: "linux" (default — the original Linux-coded flow) | "macos" |
       "windows". Callers pass the matrix os_key; the pre-existing Linux caller
       jobs omit it and inherit the default, so their behaviour is byte-identical.
@@ -404,32 +405,126 @@ runs:
         echo "dispatch: using token file $token_file"
         GODOT_MCP_TOKEN="$(cat "$token_file")" "$TIMEOUT_BIN" -k 30 300 npm run test:integration:dispatch
 
-    # Teardown (best-effort — the ephemeral runner is discarded regardless; this just
-    # frees the process/port promptly). On Windows, Git Bash `kill` cannot reliably map
-    # a bash-backgrounded native process's $! to a Windows PID, so fall back to taskkill
-    # by image name (//F //T double-slash = MSYS arg-passthrough). Linux/macOS use `kill`.
-    - name: Stop editor (always)
+    # Teardown: stop the editor so editor.log is complete before the check below reads
+    # it. Godot 4.2 on Windows block-buffers stderr redirected to a file, and a killed
+    # editor loses the unflushed tail, so a cut-off script error could pass unread. The
+    # stop therefore, on every row:
+    #   1. has the editor printerr a unique sentinel twice through execute.code
+    #      (scripts/ci/editor-clean-stop.mjs) and waits 5 s;
+    #   2. asks it to quit through execute.code (`get_tree().quit()`), a normal exit
+    #      that flushes stderr; a response, a dropped connection or a call timeout
+    #      counts as accepted;
+    #   3. waits up to 30 s of wall time for the editor process to exit;
+    #   4. only if it is still alive, kills it: `kill` on Linux/macOS; on Windows the
+    #      WS port's LISTENING owner PID, since $! is an MSYS shim pid and the runner's
+    #      exe is Godot_v<ver>_win64.exe, never godot.exe (GitHub Actions only);
+    #   5. annotates the quit outcome, the seconds to exit and whether the kill fired.
+    # The sentinel outcome goes to $GITHUB_ENV for the check below: the sentinel itself
+    # (the check fails a log that lacks it), why it went unsent (editor gone or
+    # unreachable: the check warns), or why it failed (the editor refused it, or the stop
+    # script broke: the check fails). The step itself never fails the job.
+    - name: Stop editor with a clean quit (always)
       if: always()
       shell: bash
+      env:
+        GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
       run: |
-        kill "$EDITOR_PID" 2>/dev/null || true
+        set +e
+        stop_script="${{ inputs.server-dir }}/scripts/ci/editor-clean-stop.mjs"
+        # Outside the workspace root, which is the editor's project in some callers.
+        out_dir="${RUNNER_TEMP:-/tmp}"
+        # Milliseconds from node: macOS `date` has no %N.
+        now_ms() { node -e 'process.stdout.write(String(Date.now()))'; }
         if [ "${{ inputs.os }}" = "windows" ]; then
-          taskkill //F //T //IM godot.exe 2>/dev/null || true
+          port="${GODOT_MCP_EDITOR_PORT:-6550}"
+          editor_pid="$(netstat -ano 2>/dev/null | grep -E ":$port[^0-9]" | grep LISTENING | awk '{print $NF}' | sort -u | head -n1)"
+          [ "$editor_pid" = "0" ] && editor_pid=""
+          gone_reason="nothing was LISTENING on the editor port $port at teardown"
+          alive() { [ -n "$editor_pid" ] && tasklist //FI "PID eq $editor_pid" 2>/dev/null | grep -q " $editor_pid "; }
+        else
+          editor_pid="${EDITOR_PID:-}"
+          gone_reason="the editor process (PID ${editor_pid:-not recorded}) had already exited at teardown"
+          alive() { [ -n "$editor_pid" ] && kill -0 "$editor_pid" 2>/dev/null; }
         fi
+        echo "editor PID to stop: ${editor_pid:-none found}"
+
+        if ! alive; then
+          echo "MCP_STOP_SENTINEL_UNSENT=$gone_reason" >> "$GITHUB_ENV"
+          kill "$EDITOR_PID" 2>/dev/null || true
+          echo "::notice title=Editor stop::$gone_reason; no sentinel sent, no quit requested"
+          exit 0
+        fi
+
+        sentinel="MCP_STOP_SENTINEL_${GITHUB_RUN_ID:-0}_${GITHUB_RUN_ATTEMPT:-0}_${{ inputs.language }}"
+        node "$stop_script" --sentinel "$sentinel" > "$out_dir/sentinel.out" 2>&1
+        cat "$out_dir/sentinel.out"
+        verdict="$(grep -E '^sentinel=(sent|unsent|failed)' "$out_dir/sentinel.out" | head -n1)"
+        case "$verdict" in
+          sentinel=sent*)
+            echo "MCP_STOP_SENTINEL=$sentinel" >> "$GITHUB_ENV"
+            sleep 5
+            ;;
+          sentinel=unsent*)
+            echo "MCP_STOP_SENTINEL_UNSENT=the editor was unreachable ${verdict#sentinel=unsent }" >> "$GITHUB_ENV"
+            ;;
+          *)
+            echo "MCP_STOP_SENTINEL_FAILED=${verdict:-editor-clean-stop.mjs printed no verdict line}" >> "$GITHUB_ENV"
+            ;;
+        esac
+
+        quit_start="$(now_ms)"
+        node "$stop_script" --quit > "$out_dir/quit.out" 2>&1
+        cat "$out_dir/quit.out"
+        quit_note="$(grep -o '^quit_request=.*' "$out_dir/quit.out" | head -n1)"
+        exit_note="still running 30 s after the quit request returned"
+        if [ "${quit_note#quit_request=accepted}" != "$quit_note" ]; then
+          # A wall-clock deadline: each alive check costs time of its own (tasklist on Windows).
+          deadline=$(( $(now_ms) + 30000 ))
+          while alive && [ "$(now_ms)" -lt "$deadline" ]; do sleep 0.5; done
+          if ! alive; then
+            exit_note="exited $(awk -v a="$(now_ms)" -v b="$quit_start" 'BEGIN{printf "%.1f", (a-b)/1000}') s after the quit request"
+          fi
+        else
+          exit_note="not waited for (quit not accepted)"
+        fi
+
+        fallback="no"
+        if alive; then
+          fallback="yes"
+          kill "$EDITOR_PID" 2>/dev/null || true
+          if [ "${{ inputs.os }}" = "windows" ] && [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+            taskkill //F //T //PID "$editor_pid" 2>&1 || true
+          fi
+        fi
+        level="notice"
+        [ "$fallback" = "yes" ] && level="warning"
+        echo "::$level title=Editor stop::${quit_note:-quit_request=no verdict line}; editor $exit_note; forced kill fired: $fallback"
+        exit 0
 
     # Nothing else checks the editor log for errors, so without this step a GDScript error
     # raised in the toolkit addon (a renamed engine API on a new Godot version) leaves the
     # job green. It fails the job on a SCRIPT ERROR whose erroring frame is a toolkit file,
     # and on a missing or empty editor.log; the rule and its known gaps are in the
-    # script's header. editor.log sits in the workspace root, where the launch step writes
-    # it. warmup.log (4.2 only) is not checked: its tee holds the tail of a failed boot
-    # attempt, which carries the transient `Identifier "…" not declared` parse errors
+    # script's header. It also fails when the stop sentinel is missing, since that log
+    # lost its tail, and when the editor refused the sentinel or the stop script broke;
+    # when the editor was gone or unreachable, it warns instead and the other outcomes
+    # stand. editor.log sits in the workspace root, where the launch step
+    # writes it. warmup.log (4.2 only) is not checked: its tee holds the tail of a failed
+    # boot attempt, which carries the transient `Identifier "…" not declared` parse errors
     # expected on 4.2, so a recovered retry would fail the job. A warm-up that never
     # succeeds already fails its own step.
     - name: Fail on toolkit script errors in the editor log (always)
       if: always()
       shell: bash
-      run: node "${{ inputs.server-dir }}/scripts/ci/editor-log-script-errors.mjs" editor.log
+      run: |
+        if [ -n "${MCP_STOP_SENTINEL:-}" ]; then
+          set -- --require-sentinel "$MCP_STOP_SENTINEL"
+        elif [ -n "${MCP_STOP_SENTINEL_FAILED:-}" ]; then
+          set -- --sentinel-failed "$MCP_STOP_SENTINEL_FAILED"
+        else
+          set -- --sentinel-not-sent "${MCP_STOP_SENTINEL_UNSENT:-the stop step did not run}"
+        fi
+        node "${{ inputs.server-dir }}/scripts/ci/editor-log-script-errors.mjs" editor.log "$@"
 
     - name: Editor + warm-up logs (always)
       if: always()
