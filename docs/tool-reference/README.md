@@ -924,7 +924,7 @@ _1 operation._
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
 | `file_path` | string | yes |  |
-| `properties` | object | no | Property values. Sub-resources in dicts: use {type:'NewResource', class:'ClassName', properties:{...}}. |
+| `properties` | object | no | Property values. Sub-resources in dicts: use {type:'NewResource', class:'ClassName', properties:{...}}. An existing resource file: use {type:'Resource', path:'res://...'}; a bare path string (res://, uid:// or user://) on a Resource property is not set, and the response warns. |
 | `type` | string | no | Resource class name. Required when creating a new resource. |
 
 <!-- examples:start -->
