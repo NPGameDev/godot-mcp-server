@@ -154,14 +154,15 @@ export async function testScriptEdit(ctx: TestCtx): Promise<void> {
     }
 
     // ── edits: several edits in order, one write ────────────────────────────
-    // The second edit matches only the text the first one leaves.
+    // The second edit matches only the text the first one leaves. The new name
+    // stays clear of Node's members, so the check prints no parse error.
     const multi = (await bridge.call(
       "script.edit",
       {
         file_path: editPath,
         edits: [
           { old_string: `var a := 1`, new_string: `var a := 2` },
-          { old_string: `var a := 2`, new_string: `var renamed := 2` },
+          { old_string: `var a := 2`, new_string: `var b := 2` },
         ],
       },
       CALL_TIMEOUT,
@@ -171,7 +172,7 @@ export async function testScriptEdit(ctx: TestCtx): Promise<void> {
     );
     if (!multi?.success || multi.replacements !== 2) {
       fail(`script.edit edits: expected success + replacements=2, got ${JSON.stringify(multi)}`);
-    } else if (afterMulti !== `extends Node\n# TAG\nvar renamed := 2\n# TAG\n`) {
+    } else if (afterMulti !== `extends Node\n# TAG\nvar b := 2\n# TAG\n`) {
       fail(`script.edit edits: content wrong after edits: ${JSON.stringify(afterMulti)}`);
     } else {
       pass("script.edit edits -> both applied in order (replacements=2)");
@@ -183,7 +184,7 @@ export async function testScriptEdit(ctx: TestCtx): Promise<void> {
       {
         file_path: editPath,
         edits: [
-          { old_string: `var renamed := 2`, new_string: `var c := 3` },
+          { old_string: `var b := 2`, new_string: `var c := 3` },
           { old_string: `never_here`, new_string: `x` },
         ],
       },
