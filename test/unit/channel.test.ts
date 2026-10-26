@@ -25,7 +25,7 @@ import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { WebSocketServer, WebSocket as WS } from "ws";
-import type { AddressInfo } from "node:net";
+import { createServer, type AddressInfo, type Socket } from "node:net";
 import FakeTimers from "@sinonjs/fake-timers";
 import { captureStderr } from "./helpers.js";
 import { BridgeError } from "../../src/shared/errors.js";
@@ -859,6 +859,62 @@ async function testBelowFloorLines() {
   console.log("  PASS: a below-floor peer gets one floor line in place of the version line");
 }
 
+// ── 14. a connect timeout mid-handshake rejects CONNECT_FAILED and throws nothing ──
+
+async function testConnectTimeoutAbortIsNotThrown() {
+  // A peer that accepts TCP and never answers the WebSocket upgrade, as a game held at a
+  // break does, so only the connect timer can end the attempt.
+  const accepted = new Set<Socket>();
+  let markAccepted: () => void = () => {};
+  const firstAccept = new Promise<void>((r) => (markAccepted = r));
+  const peer = createServer((sock) => {
+    accepted.add(sock);
+    // The client tears the socket down; the reset on this side is expected, not a failure.
+    sock.on("error", () => {});
+    markAccepted();
+  });
+  await new Promise<void>((r) => peer.listen(0, "127.0.0.1", () => r()));
+  const port = (peer.address() as AddressInfo).port;
+
+  const uncaught: Error[] = [];
+  const onUncaught = (err: Error): void => {
+    uncaught.push(err);
+  };
+  process.on("uncaughtException", onUncaught);
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  const ch = createChannel(`ws://127.0.0.1:${port}`, undefined, undefined, undefined, {
+    noReconnect: true,
+    connectTimeoutMs: 1_000,
+    skipVersionCheck: true,
+  });
+  try {
+    let rejected: unknown = null;
+    const p = ch.call("probe", {}, 5000).catch((e: unknown) => {
+      rejected = e;
+    });
+    await withinWallClock(firstAccept, "the peer accepted the TCP connection");
+    clock.tick(1_000);
+    await p;
+    await ioFlush();
+    assert.ok(
+      rejected instanceof BridgeError && rejected.code === "CONNECT_FAILED",
+      `connect timeout mid-handshake: the call rejects CONNECT_FAILED, got ${String(rejected)}`,
+    );
+    assert.equal(
+      uncaught.length,
+      0,
+      `connect timeout mid-handshake: the aborted handshake throws nothing, got ${uncaught.map((e) => e.message).join("; ")}`,
+    );
+    console.log("  PASS: a connect timeout mid-handshake rejects CONNECT_FAILED and throws nothing");
+  } finally {
+    clock.uninstall();
+    process.off("uncaughtException", onUncaught);
+    await ch.close();
+    for (const sock of accepted) sock.destroy();
+    await new Promise<void>((r) => peer.close(() => r()));
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -876,7 +932,8 @@ async function main() {
   await testExecutingTimeoutKeepsGenericShape();
   await testPatchSkewIsSilent();
   await testBelowFloorLines();
-  console.log("All 13 channel tests passed.");
+  await testConnectTimeoutAbortIsNotThrown();
+  console.log("All 14 channel tests passed.");
 }
 
 main()

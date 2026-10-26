@@ -247,6 +247,10 @@ export function createChannel(
         connectPromise = undefined;
         ws = undefined;
         socket.removeAllListeners();
+        // close() on a still-CONNECTING socket aborts the handshake, and ws emits that abort as an
+        // `error` on the next tick. This attempt's failure is reported once, as the CONNECT_FAILED
+        // rejection below; the listener only keeps the abandoned socket's abort from being thrown.
+        socket.once("error", () => {});
         socket.close();
         const error = new BridgeError(
           "CONNECT_FAILED",
