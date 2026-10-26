@@ -1,0 +1,18 @@
+SCRIPT ERROR: Parse Error: Could not find base class "BogusHitClass".
+          at: GDScript::reload (res://smoke_txtflt_hit.gd.__mcp_probe_-9223368804841489444.gd:1)
+SCRIPT ERROR: Parse Error: Could not find base class "BogusMissClass".
+          at: GDScript::reload (res://smoke_txtflt_miss.gd.__mcp_probe_-9223368789272233044.gd:1)
+SCRIPT ERROR: Parse Error: Expected parameter name.
+          at: GDScript::reload (res://smoke_check_broken.gd.__mcp_probe_-9223368091390379011.gd:4)
+SCRIPT ERROR: Parse Error: Expected parameter name.
+          at: GDScript::reload (res://smoke_check_broken.gd.__mcp_probe_-9223368076710315053.gd:4)
+SCRIPT ERROR: Parse Error: Expected expression for variable initial value after "=".
+          at: GDScript::reload (res://smoke_check_hint.gd.__mcp_probe_-9223368031562826797.gd:4)
+SCRIPT ERROR: Parse Error: Expected expression for variable initial value after "=".
+          at: GDScript::reload (res://smoke_check_hint.gd.__mcp_probe_-9223368016899539930.gd:4)
+SCRIPT ERROR: Parse Error: Expected expression as dictionary key.
+          at: GDScript::reload (res://smoke_lsp_projdiag_broken.gd.__mcp_probe_-9223362492179090383.gd:6)
+SCRIPT ERROR: Parse Error: Member "renamed" redefined (original in native class 'Node')
+          at: GDScript::reload (res://smoke_edit_probe.gd.__mcp_probe_-9223358528528252866.gd:3)
+SCRIPT ERROR: Parse Error: Expected variable name after "var".
+          at: GDScript::reload (res://flow_probes/flow_compile_probe.gd.__mcp_probe_-9223357823197318264.gd:7)
