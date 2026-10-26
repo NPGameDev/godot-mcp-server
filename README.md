@@ -313,7 +313,7 @@ Yes. MIT, both the server and the addon.
 <details>
 <summary><strong>Should I commit the addon to my game repo?</strong></summary>
 
-Yes. The bundled export plugin strips it (and its auth tokens) from exported builds; the runtime piece self-disables outside debug builds.
+Yes. The bundled export plugin strips it from exported builds in every Script Export Mode; the runtime piece self-disables outside debug builds.
 
 </details>
 
