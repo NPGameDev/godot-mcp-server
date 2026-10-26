@@ -41,6 +41,14 @@ const UNFOCUSED_SLEEP_FILE = "res://addons/godot_mcp_toolkit/core/unfocused_slee
 
 {
   assert.deepEqual(
+    findOffendingBlocks(excerpt("linux-4.2.0-compile-probe-path.txt")),
+    [],
+    "compile-probe blocks framed beside the checked file (<file>.__mcp_probe_<id>.gd) pass",
+  );
+}
+
+{
+  assert.deepEqual(
     findOffendingBlocks(excerpt("linux-4.7.0-fixtures.txt")),
     [],
     "4.7 fixture blocks pass although their backtraces run through toolkit frames",
