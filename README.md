@@ -42,7 +42,7 @@ Requires Node.js 22 or newer (`node --version` to check). Clients can also run i
 
 ### 2. Install and enable the Godot plugin
 
-Install the [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) from the Godot AssetLib (or GitHub Releases), then enable it: Project Settings → Plugins → **Godot MCP Toolkit** → Active.
+Install the [Godot MCP Toolkit](https://github.com/NPGameDev/godot-mcp-toolkit) from the [Godot Asset Store](https://store.godotengine.org/asset/npgamedev/godot-mcp-toolkit/) (or GitHub Releases), then enable it: Project Settings → Plugins → **Godot MCP Toolkit** → Active.
 
 You should see: the MCP dock appears, and the Output log prints
 
@@ -368,8 +368,10 @@ latest of each and they negotiate compatibility at connect (see
 [RELEASING.md](RELEASING.md) → Compatibility).
 
 - **npm:** `npm install -g @npgamedev/godot-mcp-server@latest`
-- **Godot Asset Store / AssetLib:** search "Godot MCP Toolkit" in the editor's
-  AssetLib tab
+- **Godot Asset Store:** [Godot MCP Toolkit](https://store.godotengine.org/asset/npgamedev/godot-mcp-toolkit/).
+  Godot 4.7: in the editor's Asset Store tab, search "Godot MCP Toolkit", Download, Install.
+  Godot 4.2–4.6: download the zip from the store page, then install it with the AssetLib
+  tab's Import… button.
 - **GitHub Releases:** download from either repo's Releases page for manual installation
 
 See [RELEASING.md](RELEASING.md) for maintainer release process and version policy.
