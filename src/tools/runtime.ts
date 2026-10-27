@@ -10,6 +10,7 @@ import { BridgeError } from "../shared/errors.js";
 import { stableStringify } from "../shared/stableJson.js";
 import { buildScreenshotResult } from "../registration/screenshotResponse.js";
 import { PAGE_FIELD, type PaginatedResult } from "../shared/pagination.js";
+import { EDITOR_READ_TIMEOUT_MS, readDebuggerStop } from "./debuggerStop.js";
 
 // Mode B — tools that talk to the game-side runtime autoload on
 // 127.0.0.1:6570. Only works while the game is running in a debug build
@@ -282,28 +283,11 @@ function inputSimulateHandler(bridge: Bridge, method: string, input: unknown) {
   return callAndWrap(bridge, method, parsed, { runtime: true });
 }
 
-/** Whether the editor's debugger holds the game at a break (an error break or a
- *  breakpoint pause). A game at a break cannot answer a runtime call, so asking
- *  it only waits out a runtime timeout (the call's 5 s, or the channel's 10 s
- *  connect). The 5 s bound starts once the editor channel is open: after an
- *  editor drop the probe first waits out the channel's reconnect ceiling and the
- *  bridge's editor rediscovery. */
-async function isGameAtBreak(bridge: Bridge): Promise<boolean> {
-  try {
-    const state = await bridge.call("debug.state", {}, 5_000);
-    return typeof state === "object" && state !== null && (state as { breaked?: unknown }).breaked === true;
-  } catch {
-    // The debugger state only picks the route. When it cannot be read, the
-    // read takes the runtime-first path, which reports its own failures.
-    return false;
-  }
-}
-
 /** Serves the editor side's debugger.get_log: its own tool error when it answers
  *  with one, else its page with a `_summary` line. The page is served even when
  *  no lines came back, since its debug_state and note still describe the game. */
 async function serveEditorSideLog(bridge: Bridge, input: unknown): Promise<ToolTextResult> {
-  const cached = await bridge.call("debugger.get_log", input, 5_000);
+  const cached = await bridge.call("debugger.get_log", input, EDITOR_READ_TIMEOUT_MS);
   const cErr = toolErrorFromPayload(cached);
   if (cErr) return cErr;
   const obj = cached as PaginatedResult;
@@ -329,7 +313,11 @@ async function serveEditorSideLog(bridge: Bridge, input: unknown): Promise<ToolT
  *  game.stop / sleep / editor_get_console hop needed. */
 function debuggerLogHandler(bridge: Bridge, method: string, input: unknown) {
   return (async () => {
-    if (await isGameAtBreak(bridge)) {
+    // Either stop counts, since asking a game at a break only waits out a
+    // runtime timeout (the call's 5 s, or the channel's 10 s connect). The
+    // debugger state only picks the route: when it cannot be read, the read
+    // takes the runtime-first path, which reports its own failures.
+    if ((await readDebuggerStop(bridge)) !== "none") {
       try {
         return await serveEditorSideLog(bridge, input);
       } catch (err) {

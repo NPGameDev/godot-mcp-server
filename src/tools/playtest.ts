@@ -6,14 +6,13 @@ import { registerTools } from "../registration/toolRegistry.js";
 import { callAndWrap } from "../registration/toolDispatch.js";
 import { coercedBoolean } from "../shared/schemaCoercion.js";
 import { isGroupLoaded } from "../groups/groupState.js";
+import { EDITOR_READ_TIMEOUT_MS, readDebuggerStop } from "./debuggerStop.js";
 
 const RUNTIME_WAIT_MS = 10_000;
 // How often the runtime wait asks the editor whether its debugger stopped the
 // game. A stopped game cannot connect its runtime while it is stopped, so without
 // the check the wait would run out its full deadline and blame a slow start.
 const BREAK_POLL_MS = 500;
-// The same bound the debugger tools give an editor-side read.
-const EDITOR_READ_TIMEOUT_MS = 5_000;
 
 const TIMEOUT_HINT =
   "Game launched but runtime did not connect within 10s. " +
@@ -26,9 +25,6 @@ const PRELOAD_FAILURE = /Could not preload resource script "(.+)"/s;
 
 /** How a runtime wait ended: the runtime connected, or the hint that says why it did not. */
 type RuntimeWaitOutcome = { kind: "connected"; port: number } | { kind: "not_connected"; hint: string };
-
-/** The editor debugger's hold on the game: an error break cannot continue, a breakpoint pause can. */
-type DebuggerStop = "error_break" | "breakpoint_pause" | "none";
 
 export const playtestTools: ToolDef[] = [
   {
@@ -170,6 +166,8 @@ function waitForRuntimeOrStop(
     };
     // Never rejects: both editor reads turn their failures into "no answer".
     const poll = async (): Promise<void> => {
+      // A failed read counts as no stop, so the wait goes on: one missed poll
+      // only delays the check, and the next one asks again.
       const stop = await readDebuggerStop(bridge);
       if (decided) return;
       if (stop === "none") {
@@ -197,22 +195,6 @@ function waitForRuntimeOrStop(
     );
     schedulePoll();
   });
-}
-
-/** Reads the editor's `debug.state`. A failed read counts as no stop, so the wait goes on. */
-async function readDebuggerStop(bridge: Bridge): Promise<DebuggerStop> {
-  try {
-    const state = (await bridge.call("debug.state", {}, EDITOR_READ_TIMEOUT_MS)) as {
-      breaked?: unknown;
-      can_debug?: unknown;
-    } | null;
-    if (state?.breaked !== true) return "none";
-    if (state.can_debug === false) return "error_break";
-    return state.can_debug === true ? "breakpoint_pause" : "none";
-  } catch {
-    // One missed poll only delays the check; the next one asks again.
-    return "none";
-  }
 }
 
 /** What the editor knew about an error break; each part is undefined when it did not have it. */
