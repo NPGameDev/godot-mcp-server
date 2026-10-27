@@ -2,7 +2,7 @@ import type { TestCtx } from "../helpers.js";
 import { CALL_TIMEOUT, assertError } from "../helpers.js";
 import { isVersionAtLeast } from "../../src/shared/version.js";
 
-export const TOOLS_TESTED: string[] = ["script_check", "script_write", "script_delete"];
+export const TOOLS_TESTED: string[] = ["script_check", "script_write", "script_delete", "folder_delete"];
 export async function testScriptCheck(ctx: TestCtx): Promise<void> {
   const { bridge, pass, fail } = ctx;
 
@@ -89,6 +89,68 @@ export async function testScriptCheck(ctx: TestCtx): Promise<void> {
 
     // Clean up broken script
     await bridge.call("script.delete", { file_path: brokenPath }, CALL_TIMEOUT);
+  }
+
+  // ─── Type error in the script-templates folder → valid: false ─────────
+  // The editor loads a script under res://script_templates/ (the default
+  // templates folder) without parsing it, so a check that compiled its copy
+  // there would pass any source. The folder is removed only when this case
+  // created it, so a project's own templates stay.
+  const templatePath = "res://script_templates/smoke_check_template_broken.gd";
+  const templateContent = 'extends Node\n\n\nfunc broken() -> int:\n\treturn "text"\n';
+  try {
+    await bridge.call("script.delete", { file_path: templatePath }, CALL_TIMEOUT);
+  } catch {
+    /* best-effort pre-clean of a file an interrupted run left */
+  }
+  let createdTemplatesFolder = false;
+  try {
+    const writeTemplate = (await bridge.call(
+      "script.write",
+      { file_path: templatePath, content: templateContent },
+      CALL_TIMEOUT,
+    )) as { success?: boolean; valid?: boolean; dirs_created?: boolean };
+    createdTemplatesFolder = writeTemplate?.dirs_created === true;
+    if (!writeTemplate?.success) {
+      fail(`script.check template: could not write probe: ${JSON.stringify(writeTemplate)}`);
+    } else {
+      if (writeTemplate.valid !== false) {
+        fail(`script.write template type error: expected inline valid=false, got ${writeTemplate.valid}`);
+      } else {
+        pass("script.write type error under res://script_templates/ -> inline valid=false");
+      }
+
+      const checkTemplate = (await bridge.call("script.check", { file_path: templatePath }, CALL_TIMEOUT)) as {
+        success?: boolean;
+        valid?: boolean;
+        diagnostics?: { severity?: string; message?: string }[];
+      };
+      if (!checkTemplate?.success) {
+        fail(`script.check template: expected success, got ${JSON.stringify(checkTemplate)}`);
+      } else {
+        if (checkTemplate.valid !== false) {
+          fail(`script.check template type error: expected valid=false, got ${checkTemplate.valid}`);
+        } else {
+          pass("script.check type error under res://script_templates/ -> valid=false");
+        }
+        const errorDiag = checkTemplate.diagnostics?.find((d) => d?.severity === "error");
+        if (!errorDiag) {
+          fail(`script.check template: no severity="error" entry: ${JSON.stringify(checkTemplate.diagnostics)}`);
+        } else {
+          pass("script.check type error under res://script_templates/ -> error diagnostic");
+        }
+      }
+    }
+  } finally {
+    try {
+      if (createdTemplatesFolder) {
+        await bridge.call("folder.delete", { path: "res://script_templates", recursive: true }, CALL_TIMEOUT);
+      } else {
+        await bridge.call("script.delete", { file_path: templatePath }, CALL_TIMEOUT);
+      }
+    } catch {
+      /* best-effort cleanup */
+    }
   }
 
   // ─── REGRESSION: class_name false positive ─────────────────────────────
