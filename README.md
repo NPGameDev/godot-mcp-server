@@ -369,7 +369,7 @@ latest of each and they negotiate compatibility at connect (see
 
 - **npm:** `npm install -g @npgamedev/godot-mcp-server@latest`
 - **Godot Asset Store:** [Godot MCP Toolkit](https://store.godotengine.org/asset/npgamedev/godot-mcp-toolkit/).
-  Godot 4.7: in the editor's AssetLib tab, search "Godot MCP Toolkit", Download, Install.
+  Godot 4.7: in the editor's Asset Store tab, search "Godot MCP Toolkit", Download, Install.
   Godot 4.2–4.6: download the zip from the store page, then install it with the AssetLib
   tab's Import… button.
 - **GitHub Releases:** download from either repo's Releases page for manual installation
