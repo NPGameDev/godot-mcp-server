@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GAME_NOT_RUNNING` with its hint about a stopped game, even while the game sat at a break.
 - A runtime tool call that can't connect to the game, as at an error break, no longer logs an
   `uncaughtException` to the server's stderr. The call still returns the same error.
+- With the runtime port pinned for the server (`GODOT_MCP_RUNTIME_PORT` or `--runtime-port`),
+  `game_start` with `wait_for_runtime` always waited 10 seconds and then said the runtime did
+  not connect within 10s, even though the game was running. It now returns as soon as the
+  game answers on the pinned port, and still gives up after 10 seconds if nothing does.
+  Found by @pragmabits while testing
+  [#102](https://github.com/NPGameDev/godot-mcp-toolkit/pull/102).
 
 ## [1.1.0] - 2026-10-25
 
