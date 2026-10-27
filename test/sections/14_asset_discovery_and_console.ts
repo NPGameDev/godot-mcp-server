@@ -234,13 +234,16 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   //   - a readable log EXISTS  -> {success:true, entries[], log_file}  (the real file-read path)
   //   - NO log present         -> {success:false, code:"LOG_UNAVAILABLE"} (+ a headless_hint when
   //     headless), the documented no-log response.
-  // LOG_BUSY (open==null) is NOT an engine effect: the logger holds the write handle deny-nothing
-  // (_SH_DENYNO, every version 4.2-4.6 — source-verified), so the reader's deny-nothing open(READ)
-  // ALWAYS succeeds. POSIX and 4.5+ therefore never produce an engine-LOG_BUSY; it arises only from
-  // an EXTERNAL, read-denying holder (antivirus scan, file-sync, backup tool). On Windows 4.4.0
-  // ONLY, get_modified_time(godot.log) self-collides with the live writer and returns 0, so
-  // candidate SELECTION would drop the live log — but the reader's shipped fall-through picks it
-  // anyway -> entries (relaxed in 4.4.1). A self-held live log is thus entries, never LOG_BUSY.
+  // LOG_BUSY (open==null) is Windows-only: POSIX has no mandatory share locks. The logger's write
+  // handle is deny-nothing (_SH_DENYNO, every version 4.2-4.7), but with the editor's default
+  // safe-save the editor's open(READ) denies writers (_SH_SECURE on 4.2-4.4, _SH_DENYWR on 4.5+),
+  // so it fails while any writer holds the log: the editor's own --log-file logger (4.3+, so every
+  // Windows --log-file CI leg reads LOG_BUSY), a game run from the editor, or an external holder
+  // (antivirus, file-sync, backup). On Windows 4.4.0 ONLY (relaxed in 4.4.1),
+  // get_modified_time(godot.log) self-collides with the live writer and returns 0, so candidate
+  // SELECTION would drop the live log and read LOG_UNAVAILABLE; the reader's shipped fall-through
+  // picks it anyway, and the deny-write open then reads LOG_BUSY, which the --log-file branch
+  // tolerates.
   // `--headless --editor` writes NO editor log unless `--log-file` is passed (4.3+; the file
   // logger is off in editor mode otherwise — engine facts). The cross-version CI composite passes
   // `--log-file user://logs/godot.log` on 4.3+ (globalizes to the SAME user://logs/ dir the reader
@@ -308,28 +311,32 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
   };
 
   if (fileLogBusy && isPosix) {
-    // Truth-table guardrail: the logger holds godot.log deny-nothing, so the reader's deny-nothing
-    // open(READ) always succeeds on POSIX, and POSIX has no mandatory deny-read an external holder
-    // could impose — LOG_BUSY is impossible on POSIX. If it appears, the reader model regressed.
+    // Truth-table guardrail: the logger holds godot.log deny-nothing, and POSIX has no mandatory
+    // share locks, so no open there can deny the read — LOG_BUSY is impossible on POSIX. If it
+    // appears, the reader model regressed.
     fail(
-      `editor.get_console source=file: LOG_BUSY on POSIX is impossible under the deny-nothing reader model — ${JSON.stringify({ code: consoleFileResult.code, log_file: consoleFileResult.log_file })}`,
+      `editor.get_console source=file: LOG_BUSY on POSIX is impossible (no mandatory share locks), so the reader model regressed — ${JSON.stringify({ code: consoleFileResult.code, log_file: consoleFileResult.log_file })}`,
     );
   } else if (expectFileLog) {
     // The composite provided a log via --log-file, so the file MUST be present at the aligned
-    // user://logs/ path -> the deny-nothing reader reads it on EVERY platform (incl. the Windows
-    // 4.4.0 get_modified_time=0 case the selection fall-through recovers). NOT LOG_UNAVAILABLE
+    // user://logs/ path: entries are required on Linux and macOS, and on Windows LOG_BUSY is
+    // tolerated because the editor's own --log-file logger holds the log. NOT LOG_UNAVAILABLE
     // (that = a silently-misaligned --log-file).
     if (fileHasEntries)
       pass(
         `editor.get_console source=file (--log-file) -> entries returned=${consoleFileResult.returned} log_file=${consoleFileResult.log_file}`,
       );
     else if (fileLogBusy)
-      // Windows only (POSIX handled above): an external read-denying holder (antivirus / file-sync /
-      // backup) — environmental, not the engine. Tolerate, but assert the version-gated hint.
-      assertLogRecoveryHint(`editor.get_console source=file (--log-file) -> LOG_BUSY (external holder)`, "LOG_BUSY");
+      // Windows only (POSIX handled above): the editor's own --log-file logger, a game still running
+      // from the editor, or an external holder (antivirus / file-sync / backup). Tolerate, but assert
+      // the version-gated hint.
+      assertLogRecoveryHint(
+        `editor.get_console source=file (--log-file) -> LOG_BUSY (writer holds the log)`,
+        "LOG_BUSY",
+      );
     else
       fail(
-        `editor.get_console source=file with --log-file: expected entries (deny-nothing read of the present log), got ${JSON.stringify({ success: consoleFileResult?.success, code: consoleFileResult?.code, log_file: consoleFileResult?.log_file })} — LOG_UNAVAILABLE here means --log-file is misaligned with the reader's user://logs/ path`,
+        `editor.get_console source=file with --log-file: expected entries (read of the present log), got ${JSON.stringify({ success: consoleFileResult?.success, code: consoleFileResult?.code, log_file: consoleFileResult?.log_file })} — LOG_UNAVAILABLE here means --log-file is misaligned with the reader's user://logs/ path`,
       );
   } else if (fileHasEntries) {
     // No harness signal, but a log physically exists (a long-lived userdata dir) -> entries.
@@ -337,8 +344,8 @@ export async function testAssetDiscoveryAndConsole(ctx: TestCtx): Promise<void> 
       `editor.get_console source=file -> returned=${consoleFileResult.returned} log_file=${consoleFileResult.log_file}`,
     );
   } else if (fileLogBusy) {
-    // Windows only: an external read-denying holder is present. Tolerate + assert the gated hint.
-    assertLogRecoveryHint(`editor.get_console source=file -> LOG_BUSY (external holder present)`, "LOG_BUSY");
+    // Windows only: a running game or an external holder. Tolerate + assert the gated hint.
+    assertLogRecoveryHint(`editor.get_console source=file -> LOG_BUSY (writer holds the log)`, "LOG_BUSY");
   } else if (fileLogUnavailable) {
     // No log present — the deterministic no-log response. Assert the version-gated recovery `hint`
     // (buffer-steer IFF 4.5+), plus (headless) the separate headless_hint steering to source="buffer".

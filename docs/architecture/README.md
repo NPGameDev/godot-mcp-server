@@ -388,7 +388,10 @@ flowchart TD
   `runtime_pid`, and announces a port only when it is usable. A **pinned**
   runtime port (`GODOT_MCP_RUNTIME_PORT` / `--runtime-port`) skips discovery — and since
   no watcher exists to rebuild its channel after a game stop clears it, the next call
-  lazily re-creates the channel against the pin. Auth self-heals
+  lazily re-creates the channel against the pin. With no discovery to end it, a runtime
+  wait on a pin (`game_start`'s `wait_for_runtime`) pings the pinned port, again 250 ms
+  after each failed probe, and ends on the first answer, or at the deadline with a stderr
+  line naming the last probe's error. Auth self-heals
   because the token is re-read each connect.
 
 ---

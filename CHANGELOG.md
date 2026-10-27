@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The `resource_write` `properties` description now names the tagged form for an existing
   resource file, `{type:'Resource', path:'res://...'}`, and says that a bare path (a
-  `res://`, `uid://` or `user://` String) on a Resource property is not set and the response
-  warns. The warning needs toolkit 1.1.1; an older toolkit drops or saves the bare path
+  `res://`, `uid://` or `user://` String) on a top-level Resource property is not set and the
+  response warns. The warning needs toolkit 1.1.1; an older toolkit drops or saves the bare path
   without one
   ([NPGameDev/godot-mcp-toolkit#48](https://github.com/NPGameDev/godot-mcp-toolkit/issues/48)).
 - `debugger_get_log` now answers at once while the game sits at an error break or a
@@ -29,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GAME_NOT_RUNNING` with its hint about a stopped game, even while the game sat at a break.
 - A runtime tool call that can't connect to the game, as at an error break, no longer logs an
   `uncaughtException` to the server's stderr. The call still returns the same error.
+- `game_start` with `wait_for_runtime` now returns within about half a second of the editor's
+  debugger stopping the game before the runtime connects, as a parse error in a game script
+  does. Before, it waited the full 10 seconds and then said the runtime did not connect. At an
+  error break the hint says waiting won't help and reports the error, file and line the
+  editor's debugger gives for the break and, with them, names the preloaded script when a
+  script preload failed; at a breakpoint pause it says to call `debug_continue`. The error,
+  file, line and preloaded script need toolkit 1.1.1. Reported by @pragmabits
+  ([NPGameDev/godot-mcp-toolkit#95](https://github.com/NPGameDev/godot-mcp-toolkit/issues/95)).
 - With the runtime port pinned for the server (`GODOT_MCP_RUNTIME_PORT` or `--runtime-port`),
   `game_start` with `wait_for_runtime` always waited 10 seconds and then said the runtime did
   not connect within 10s, even though the game was running. It now returns as soon as the

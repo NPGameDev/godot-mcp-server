@@ -28,7 +28,7 @@ export const resourceTools: ToolDef[] = [
         .optional()
         .describe(
           "Property values. Sub-resources in dicts: use {type:'NewResource', class:'ClassName', properties:{...}}. " +
-            "An existing resource file: use {type:'Resource', path:'res://...'}; a bare path string (res://, uid:// or user://) on a Resource property is not set, and the response warns.",
+            "An existing resource file: use {type:'Resource', path:'res://...'}; a bare path string (res://, uid:// or user://) on a top-level Resource property is not set, and the response warns; a compound key (one with '/') is not checked.",
         ),
       type: z.string().optional().describe("Resource class name. Required when creating a new resource."),
     },
