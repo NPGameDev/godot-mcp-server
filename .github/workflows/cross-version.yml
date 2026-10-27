@@ -32,7 +32,7 @@
 #   • workflow_dispatch (ad-hoc / sibling-ref override)
 # A bare push to main carrying no token still skips every test job (only the cheap
 # changes and platform-setup jobs run), and so does a pull request that changes only
-# *.md files or docs/** (the changes job).
+# *.md files (the changes job).
 #
 # Cross-platform legs — additive, each behind its OWN token so a
 # release is validated on 3 OS × 6 versions × 2 languages = 36 combos, plus a
@@ -146,9 +146,10 @@ env:
   SIBLING_PIN_TOOLKIT: "c22ddb4be5f45c1e01b86866356935bbd8643dd9"
 
 jobs:
-  # A pull request that only changes *.md files or docs/** skips every leg below,
-  # the editor-free install-smoke and unit legs included: none of them reads a docs
-  # file, and ci.yml's floor (which checks the README counts) still runs on it.
+  # A pull request that only changes *.md files skips every leg below, the
+  # editor-free install-smoke and unit legs included. The one Markdown file a leg
+  # reads is README.md (smoke section 01's headline counts), and ci.yml's smoke:ci
+  # floor runs that same check on every pull request.
   changes:
     runs-on: ubuntu-latest
     outputs:
