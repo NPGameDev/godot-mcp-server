@@ -654,4 +654,51 @@ const LOCATED_HINT =
   }
 }
 
-console.log("All 28 tests passed.");
+{
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    // The first get_log answer lands at 9.8 s, before the 10 s deadline; the 500 ms wait for the re-read ends at 10.3 s.
+    const launch = launchAndWait({
+      debugStates: [ERROR_BREAK],
+      log: logWithBreaks(BREAK_WITH_REASON),
+      reread: logWithLocatedBreak(LOCATED_BREAK, "res://player.gd", 12),
+      logDelayMs: 9_300,
+    });
+    await clock.tickAsync(11_000);
+    assert.equal(
+      launch.payload()?.hint,
+      ERROR_BREAK_HINT,
+      "a re-read whose 500 ms wait ends past the runtime-wait deadline: the first read's hint stands",
+    );
+    assert.equal(
+      callsTo(launch, "debugger.get_log"),
+      1,
+      "a re-read whose 500 ms wait ends past the deadline: the re-read is not issued",
+    );
+  } finally {
+    clock.uninstall();
+  }
+}
+
+{
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    // The first get_log answer lands at 10.5 s, past the 10 s deadline; a 500 ms wait for a re-read would end at 11 s.
+    const launch = launchAndWait({
+      debugStates: [ERROR_BREAK],
+      log: logWithBreaks(BREAK_WITH_REASON),
+      reread: logWithLocatedBreak(LOCATED_BREAK, "res://player.gd", 12),
+      logDelayMs: 10_000,
+    });
+    await clock.tickAsync(10_600);
+    assert.equal(
+      launch.payload()?.hint,
+      ERROR_BREAK_HINT,
+      "an unlocated first read that ends past the deadline: game_start answers at once, without the 500 ms wait",
+    );
+  } finally {
+    clock.uninstall();
+  }
+}
+
+console.log("All 30 tests passed.");
