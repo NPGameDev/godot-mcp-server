@@ -483,7 +483,8 @@ hides the read from callers and the routing layer; extract it into its own read 
 
 6.6 **No import cycles; export discipline.** Keep a **leaf-type module** that names **no runtime
 symbol** — runtime depends on it, never the reverse. **Module-private by default**: `export` is a
-deliberate surface decision, not the default reflex.
+deliberate surface decision, not the default reflex. A cycle of any length counts, and only value
+imports form its edges ([example](code-standards-examples/6.6-no-import-cycles.md)).
 
 6.7 **Uniformity, with documented exceptions.** Apply this section consistently so every subsystem
 reads the same way. A deliberate deviation is allowed but must be **documented** — an inline comment
@@ -495,6 +496,27 @@ each, the **orchestrator sits at the folder root** and the **collaborators it co
 folders, divided by subdomain** ([§1.1](#1-file-folder-and-symbol-naming)). This is the on-disk shape
 of the 6.2 split — a reader opens one folder and finds the orchestrator beside what it wires. A
 decomposition's children are **born in the right folder**, not created flat and relocated later.
+
+6.9 **Pure modules import only pure modules and types.** A pure module (no I/O, no module state, no
+timers) imports only other pure modules, side-effect-free built-ins (`node:path`), `import type` and
+schema libraries; code with I/O or state may import it, never the reverse. *Rationale: one impure import makes every importer impure.*
+([example](code-standards-examples/6.9-pure-module-direction.md))
+
+6.10 **Stateful collaborators are built at the composition root and passed in.** Anything holding I/O
+or state is built by the root, its boot collaborators, or the one orchestrator that alone uses it, and
+reaches users as a parameter, never built on first use. The existing cases are listed in [B7](#b7-module-taxonomy--the-composition-root)
+and do not grow. ([example](code-standards-examples/6.10-stateful-collaborators-injected.md))
+
+6.11 **No new module-level shared state.** Do not add an exported mutable binding, or a module-level
+registry or setter-filled slot that other modules reach through an import; keep the state in an object
+the root builds (6.10). The existing stores are listed in [B7](#b7-module-taxonomy--the-composition-root)
+and do not grow. ([example](code-standards-examples/6.11-no-module-shared-state.md))
+
+6.12 **Type a collaborator by its contract.** A parameter that receives a collaborator is typed by its
+interface or a `Pick<…>` of it, never `unknown`, `object` or `Function` narrowed with `as`; boundary
+data stays `unknown` ([§4.1](#4-static-typing)). The existing case is listed in
+[B7](#b7-module-taxonomy--the-composition-root) and does not grow.
+([example](code-standards-examples/6.12-collaborator-contract-types.md))
 
 ---
 
@@ -720,7 +742,20 @@ phase to a `startup/` collaborator. The namespace-imported tool family it compos
 ([§6.4](#6-design-solid-cohesion-and-decomposition)). A handler wrapper, a hint injection or a version
 grammar is one exported function in its owner (`registration/toolDispatch.ts` for dispatch,
 `shared/version.ts` for versions), and both callers import it. A `groups/` or `extensions/` module
-never re-implements what `registration/` already does.
+never re-implements what `registration/` already does. A fact the owner already computes is exported by
+the owner, and callers do not rebuild it from its lower-level output.
+
+**Existing dependency-rule cases ([§6.10–6.12](#6-design-solid-cohesion-and-decomposition)).** These
+predate the rules; the lists do not grow, and they shrink as each case is removed.
+
+- *Built on first use (6.10):* the `LspClient` that `getLspClient` creates in `lsp/lspSession.ts`.
+- *Module stores and setter-filled slots (6.11):* `registry.ts` (the watcher, its cached registry,
+  callbacks, timers and last-seen mtime); `registration/toolRefs.ts` (`toolRefs`); `registration/toolRegistry.ts`
+  (`versionMap`, `pathParamMap`, `globalHookPipeline`); `groups/groupState.ts` (`loadedGroups`);
+  `groups/extensionGroups.ts`; `lsp/lspClient.ts` (`godotVersionGetter`, `lspCliOverride`);
+  `lsp/lspSession.ts` (`lspClient`, `statusReporter`); `mcp/roots.ts` (`projectRoot`).
+- *Collaborator typed `unknown` (6.12):* the `ref` parameter of `setToolRef` in
+  `registration/toolRefs.ts`.
 
 ## B8. Test-code conventions
 
@@ -837,6 +872,12 @@ a `Pick<…>` of the SDK type, and one factory per faked type in a file performs
 §4's inline justification. *Rationale: one documented cast keeps the fake honest about the surface it
 skips.*
 
+B8.19 **Substitute an owned module by injection.** A unit that needs a stand-in for one of this repo's
+modules at a real boundary (B8.15) takes it through an optional `deps` parameter that defaults to the
+real imports, narrowed with `Pick` (`createRuntimeConnection`). A test never swaps a collaborator by
+setting module state, and a change adds no production export that only a test uses.
+([example](code-standards-examples/B8.19-substitute-by-injection.md))
+
 ## B9. Decision trail & companions
 
 - Per [§5.10](#510-relocating-stripped-rationale), stripped narrative rationale relocates to the
@@ -897,8 +938,16 @@ name is the durable anchor**).
   down, and a sentence that needs "and" marks a decomposition candidate
   ([§6.3](#6-design-solid-cohesion-and-decomposition)); orchestrators stay thin; no import cycles;
   collaborators born in the right folder.
+- [ ] A pure module imports only pure modules and types ([§6.9](#6-design-solid-cohesion-and-decomposition)).
+- [ ] Stateful collaborators built at the root or by their sole orchestrator, passed in, never built on
+  first use ([§6.10](#6-design-solid-cohesion-and-decomposition)).
+- [ ] No new exported mutable binding, module-level registry or setter-filled slot
+  ([§6.11](#6-design-solid-cohesion-and-decomposition)); the B7 list of existing cases has not grown.
+- [ ] Collaborator params typed by interface or `Pick`, not `unknown` + `as`
+  ([§6.12](#6-design-solid-cohesion-and-decomposition)).
 - [ ] A fix covers every site with the same defect; a shape two modules build is one function in the
-  module that owns the seam, imported by both ([§6.4](#6-design-solid-cohesion-and-decomposition),
+  module that owns the seam, imported by both; a fact the owner computes is exported by the owner, not
+  rebuilt by callers ([§6.4](#6-design-solid-cohesion-and-decomposition),
   [B7](#b7-module-taxonomy--the-composition-root)).
 - [ ] Contract recipes (token-path / project-key / framing / ports / error codes) unchanged — or
   treated as a contract change against the toolkit-owned `docs/dev/contract.md`.
@@ -922,6 +971,8 @@ name is the durable anchor**).
 - [ ] Tests: header at most six lines of intent, with no history, "mirrors" pointer, or overclaim; fakes
   typed narrowly with one commented cast per faked type ([B8.17](#b8-test-code-conventions),
   [B8.18](#b8-test-code-conventions)).
+- [ ] Tests: a stand-in for an owned module enters through a `deps` parameter, not set module state or
+  a test-only export ([B8.19](#b8-test-code-conventions)).
 
 ## Appendix B — documented exceptions & gaps
 
