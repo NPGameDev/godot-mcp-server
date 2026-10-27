@@ -54,6 +54,9 @@ export interface RuntimeConnectionDeps {
   >;
 }
 
+/** Pause after a failed probe of a pinned runtime port. */
+const PINNED_PROBE_INTERVAL_MS = 250;
+
 export function createRuntimeConnection(
   opts: { projectPath?: string; explicitRuntimePort?: string | undefined },
   deps?: RuntimeConnectionDeps,
@@ -93,8 +96,9 @@ export function createRuntimeConnection(
   let cachedRuntimePort: number | undefined = opts?.explicitRuntimePort ? Number(opts.explicitRuntimePort) : undefined;
 
   // ── Runtime-port waiters (for waitForRuntimeConnection) ────────
-  // Resolved when onDiscovered fires for this project; timed out by
-  // the caller's deadline.  Cleaned up in close().
+  // Resolved when onDiscovered fires for this project, or for a pinned
+  // port when the pinned runtime answers; timed out by the caller's
+  // deadline.  Cleaned up in close().
   type RuntimePortResolver = (port: number | undefined) => void;
   let runtimePortResolvers: RuntimePortResolver[] = [];
 
@@ -158,30 +162,90 @@ export function createRuntimeConnection(
     });
   }
 
+  const callPinnedRuntime = async (
+    pinnedPort: string,
+    method: string,
+    params?: unknown,
+    timeoutMs?: number,
+    signal?: AbortSignal,
+  ): Promise<unknown> => {
+    // The pinned channel is built once at construct, but clearRuntime()
+    // (game_stopped notification on game stop/crash) nulls it. Unlike the
+    // discovery path there is no watcher to rebuild it, so lazily re-create
+    // it against the pinned port here — otherwise the next call dereferences
+    // an undefined channel and every runtime tool is dead until restart.
+    if (!runtimeChannel) {
+      runtimeChannel = createRuntimeChannel(pinnedPort);
+      cachedRuntimePort = Number(pinnedPort);
+    }
+    try {
+      return await runtimeChannel.call(method, params, timeoutMs, signal);
+    } catch (err) {
+      if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
+        throw new BridgeError(
+          "GAME_NOT_RUNNING",
+          `no runtime server on 127.0.0.1:${pinnedPort} — start the game in the editor (F5) with a debug build`,
+        );
+      }
+      throw err;
+    }
+  };
+
+  // A pinned port has no registry watcher, so no discovery ever ends the wait:
+  // ask the pinned runtime itself, again every PINNED_PROBE_INTERVAL_MS after a
+  // failed probe, until it answers or the deadline passes. Every failure is
+  // retried: a starting game refuses the connection, can hold the auth reply
+  // past its timeout behind one slow frame, or has its channel cleared by a
+  // late game_stopped, and each of those can clear up within the wait.
+  const waitForPinnedRuntime = (pinnedPort: string, timeoutMs: number): Promise<{ port: number } | undefined> =>
+    new Promise<{ port: number } | undefined>((resolve) => {
+      const deadline = Date.now() + timeoutMs;
+      let retryTimer: ReturnType<typeof setTimeout> | undefined;
+      let lastProbeError: unknown;
+      let settled = false;
+
+      // Registered as a port waiter so close() ends this wait like any other.
+      const finish: RuntimePortResolver = (port) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadlineTimer);
+        clearTimeout(retryTimer);
+        runtimePortResolvers = runtimePortResolvers.filter((r) => r !== finish);
+        resolve(port != null ? { port } : undefined);
+      };
+
+      const deadlineTimer = setTimeout(() => {
+        // The caller only learns that the wait ran out, so the last probe's
+        // error is the one record of why the pinned runtime never answered.
+        if (lastProbeError !== undefined) {
+          const reason = lastProbeError instanceof Error ? lastProbeError.message : String(lastProbeError);
+          process.stderr.write(`[bridge] runtime on pinned port ${pinnedPort} did not answer: ${reason}\n`);
+        }
+        finish(undefined);
+      }, timeoutMs);
+      deadlineTimer.unref?.();
+      runtimePortResolvers.push(finish);
+
+      const probe = (): void => {
+        // Each handler either settles the wait or schedules the next probe, and
+        // neither throws, so nothing is left to await.
+        void callPinnedRuntime(pinnedPort, "ping", null, Math.max(1, deadline - Date.now())).then(
+          () => finish(Number(pinnedPort)),
+          (err: unknown) => {
+            if (settled) return;
+            lastProbeError = err;
+            retryTimer = setTimeout(probe, PINNED_PROBE_INTERVAL_MS);
+            retryTimer.unref?.();
+          },
+        );
+      };
+      probe();
+    });
+
   return {
     async callRuntime(method, params, timeoutMs, signal) {
-      // Static port override — same as explicit-port behaviour.
       if (opts?.explicitRuntimePort) {
-        // The pinned channel is built once at construct, but clearRuntime()
-        // (game_stopped notification on game stop/crash) nulls it. Unlike the
-        // discovery path there is no watcher to rebuild it, so lazily re-create
-        // it against the pinned port here — otherwise the next call dereferences
-        // an undefined channel and every runtime tool is dead until restart.
-        if (!runtimeChannel) {
-          runtimeChannel = createRuntimeChannel(opts.explicitRuntimePort);
-          cachedRuntimePort = Number(opts.explicitRuntimePort);
-        }
-        try {
-          return await runtimeChannel.call(method, params, timeoutMs, signal);
-        } catch (err) {
-          if (err instanceof BridgeError && (err.code === "CONNECT_FAILED" || err.code === "DISCONNECTED")) {
-            throw new BridgeError(
-              "GAME_NOT_RUNNING",
-              `no runtime server on 127.0.0.1:${opts.explicitRuntimePort} — start the game in the editor (F5) with a debug build`,
-            );
-          }
-          throw err;
-        }
+        return callPinnedRuntime(opts.explicitRuntimePort, method, params, timeoutMs, signal);
       }
 
       // Registry-based discovery.
@@ -254,6 +318,7 @@ export function createRuntimeConnection(
       }
     },
     waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | undefined> {
+      if (opts?.explicitRuntimePort) return waitForPinnedRuntime(opts.explicitRuntimePort, timeoutMs);
       if (!projectPath) return Promise.resolve(undefined);
       return new Promise<{ port: number } | undefined>((resolve) => {
         const timer = setTimeout(() => {

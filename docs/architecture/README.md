@@ -162,7 +162,7 @@ the same way: `startup/projectPath.ts` (by `groups/`, for the LSP tools) and
 `startup/portConfig.ts` (by `lsp/`, for its port validation). Neither imports `groups/`
 or `lsp/`, so the LSP tools share the composition root's rules without a cycle.
 
-<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="1d3ca38" -->
+<!-- data-depicts="src/index.ts src/registry.ts src/registryLiveness.ts src/transport/bridge.ts src/registration/toolRegistry.ts src/groups/groups.ts src/lsp/lspClient.ts src/extensions/extensions.ts src/security/profiles.ts src/startup/registrars.ts src/shared/types.ts src/mcp/prompts.ts" data-verified="85a49a9" -->
 ```mermaid
 flowchart TD
     index["index.ts — composition root"]
@@ -195,7 +195,7 @@ flowchart TD
     transport -.->|"thin orchestrator over"| tchildren["channel · authHandshake · tokenPath · heartbeat · runtimeConnection"]
     groups -.->|"thin orchestrator over"| gchildren["groupCatalogue · groupMatch · groupActivation · groupToolHandlers · groupState · …"]
 ```
-*Figure 2 — module topology + the orchestrator-over-children pattern · verified 1d3ca38*
+*Figure 2 — module topology + the orchestrator-over-children pattern · verified 85a49a9*
 
 The same shape recurs in `groups/groups.ts` over its nine siblings, `extensions.ts` over
 its three services + shared registrar, and `index.ts` over every subsystem it composes.
@@ -345,7 +345,7 @@ reporter pushes the registry LSP verdict to the editor dock ([§9](#9-the-gdscri
 The bridge composes a **persistent editor channel** and a **discovered runtime channel**,
 each with their own resilience policy:
 
-<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="d441548" -->
+<!-- data-depicts="src/transport/bridge.ts src/transport/channel.ts src/transport/runtimeConnection.ts src/transport/heartbeat.ts" data-verified="85a49a9" -->
 ```mermaid
 flowchart TD
     bridge["bridge.ts — editor-side facade + composition"]
@@ -366,7 +366,7 @@ flowchart TD
     note3["fs.watch on projects.json (diffAndNotify on runtime_port / runtime_pid changes)<br/>→ connect / teardown; token re-read each connect → auth self-heals"]
     rc -.-> note3
 ```
-*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified d441548*
+*Figure 5 — the dual-channel bridge: reconnect + heartbeat · verified 85a49a9*
 
 - **Editor channel** — persistent and reconnecting with exponential backoff
   (`1·2·4·8·16·32·60·60…` s; **reset on a successful round-trip, not on open**, so a
@@ -446,7 +446,7 @@ registration call: the def's `describe(version)` when it has one, else its stati
 fields all pass through transparently. Coercion happens on the **request path only**
 (`addStringCoercion`, `shared/schemaCoercion.ts`).
 
-<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="c0ab997" -->
+<!-- data-depicts="src/shared/errorContract.ts src/registration/toolDispatch.ts src/shared/types.ts src/shared/stableJson.ts" data-verified="85a49a9" -->
 ```mermaid
 flowchart TD
     call["callAndWrap(bridge, method, input)"] --> br{"bridge call"}
@@ -459,7 +459,7 @@ flowchart TD
     exc -.-> note
     pe -.-> note
 ```
-*Figure 7 — the response & error contract (REFLECT) · verified c0ab997*
+*Figure 7 — the response & error contract (REFLECT) · verified 85a49a9*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
 result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`

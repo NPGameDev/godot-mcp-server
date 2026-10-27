@@ -33,10 +33,13 @@ export interface Bridge {
    *  responses (game.start HEADLESS_UNSUPPORTED, editor.get_console headless_hint, the
    *  4.4+ headless stale-instance hint). */
   isHeadless(): boolean | undefined;
-  /** Wait for a runtime port to appear in the registry (game_start async gap).
-   *  Resolves with {port} on discovery, undefined on timeout. Optional — only
-   *  available when the bridge was created with a projectPath and registry
-   *  watcher. */
+  /** Wait for the playtest runtime to become reachable (game_start async gap).
+   *  With a pinned runtime port it probes that port until the runtime answers,
+   *  which needs neither a project path nor the registry watcher; otherwise it
+   *  waits for the registry watcher to discover the runtime's port, and with no
+   *  project path to watch it resolves undefined at once. Resolves with {port}
+   *  when the runtime is reachable, undefined on timeout or bridge close.
+   *  Optional, so a caller checks for it before waiting. */
   waitForRuntimeConnection?(timeoutMs: number): Promise<{ port: number } | undefined>;
   /** Proactively tear down the runtime channel (e.g. on game_stopped notification).
    *  Next callRuntime() will fail immediately with GAME_NOT_RUNNING. */

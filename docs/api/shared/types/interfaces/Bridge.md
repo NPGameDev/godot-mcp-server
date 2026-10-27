@@ -78,7 +78,7 @@ Defined in: [src/shared/types.ts:23](https://github.com/NPGameDev/godot-mcp-serv
 
 > `optional` **clearRuntime**(): `void`
 
-Defined in: [src/shared/types.ts:43](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L43)
+Defined in: [src/shared/types.ts:46](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L46)
 
 Proactively tear down the runtime channel (e.g. on game_stopped notification).
  Next callRuntime() will fail immediately with GAME_NOT_RUNNING.
@@ -152,12 +152,15 @@ Whether the connected editor runs headless (no display server), from the Mode-A
 
 > `optional` **waitForRuntimeConnection**(`timeoutMs`): `Promise`\<\{ `port`: `number`; \} \| `undefined`\>
 
-Defined in: [src/shared/types.ts:40](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L40)
+Defined in: [src/shared/types.ts:43](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L43)
 
-Wait for a runtime port to appear in the registry (game_start async gap).
- Resolves with {port} on discovery, undefined on timeout. Optional — only
- available when the bridge was created with a projectPath and registry
- watcher.
+Wait for the playtest runtime to become reachable (game_start async gap).
+ With a pinned runtime port it probes that port until the runtime answers,
+ which needs neither a project path nor the registry watcher; otherwise it
+ waits for the registry watcher to discover the runtime's port, and with no
+ project path to watch it resolves undefined at once. Resolves with {port}
+ when the runtime is reachable, undefined on timeout or bridge close.
+ Optional, so a caller checks for it before waiting.
 
 #### Parameters
 
