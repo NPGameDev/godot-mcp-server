@@ -19,6 +19,8 @@ interface WaitScript {
   debugStates: unknown[];
   /** The editor's `debugger.get_log` answer. An `Error` is thrown. */
   log?: unknown;
+  /** The answer to the second and later `debugger.get_log` calls; absent, they answer as `log` does. */
+  reread?: unknown;
   /** How long the `debugger.get_log` answer takes, in ms; absent, it answers at once. */
   logDelayMs?: number;
   /** When the runtime connects, in ms; absent, the wait runs out at its deadline. */
@@ -38,6 +40,7 @@ function makeBridge(result: Record<string, unknown>, script?: WaitScript): Bridg
     return structuredClone(a);
   };
   let stateCalls = 0;
+  let logCalls = 0;
   // The fake leaves out the headless and teardown members, which game_start never uses.
   return {
     async call(method: string) {
@@ -48,7 +51,7 @@ function makeBridge(result: Record<string, unknown>, script?: WaitScript): Bridg
       if (script && method === "debugger.get_log") {
         const delayMs = script.logDelayMs;
         if (delayMs !== undefined) await new Promise((resolve) => setTimeout(resolve, delayMs));
-        return answer(script.log);
+        return answer(logCalls++ > 0 && "reread" in script ? script.reread : script.log);
       }
       return structuredClone(result);
     },
@@ -221,7 +224,11 @@ function callsTo(launch: WaitingLaunch, method: string): number {
       ERROR_BREAK_HINT,
       "an error break during the wait: game_start returns within 2 s with the error-break hint and the parser message",
     );
-    assert.equal(callsTo(launch, "debugger.get_log"), 1, "an error break: one editor-side get_log reads the message");
+    assert.equal(
+      callsTo(launch, "debugger.get_log"),
+      2,
+      "an error break with an unlocated entry: one editor-side get_log reads the message, then one re-read",
+    );
   } finally {
     clock.uninstall();
   }
@@ -414,4 +421,284 @@ function callsTo(launch: WaitingLaunch, method: string): number {
   }
 }
 
-console.log("All 16 tests passed.");
+// ── An error break's location, from the break entry's source and line fields ──
+
+/** An editor-side debugger.get_log page whose error_buffer holds one `break` entry at `source`:`line`. */
+function logWithLocatedBreak(message: string, source: string, line: number): Record<string, unknown> {
+  return {
+    success: true,
+    lines: [],
+    returned: 0,
+    error_buffer: [{ timestamp_ms: 1000, message, source, function: "", line, type: "break" }],
+  };
+}
+
+/** The hint game_start returns when the debugger reports an error break and the editor-side get_log answers `log`. */
+async function errorBreakHintWith(log: unknown): Promise<unknown> {
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const launch = launchAndWait({ debugStates: [ERROR_BREAK], log });
+    await clock.tickAsync(2_000);
+    return launch.payload()?.hint;
+  } finally {
+    clock.uninstall();
+  }
+}
+
+const PRELOAD_REASON = 'Parser Error: Could not preload resource script "res://cases/preload_inner.gd"';
+
+{
+  const hint = await errorBreakHintWith(
+    logWithLocatedBreak(
+      'Game paused at a script error it cannot continue from: Parser Error: Identifier "speed" not declared in the current scope, ' +
+        "at res://player.gd:12. Fix it, then game_stop and game_start.",
+      "res://player.gd",
+      12,
+    ),
+  );
+  assert.equal(
+    hint,
+    "The game is paused at a script error and cannot continue, so waiting won't help: " +
+      'Parser Error: Identifier "speed" not declared in the current scope, at res://player.gd:12. ' +
+      "Fix it, then game_stop and game_start.",
+    "a located break entry: the hint carries the reason, then the entry's file and line",
+  );
+}
+
+{
+  const hint = await errorBreakHintWith(
+    logWithLocatedBreak(
+      "Game paused at a script error it cannot continue from, at res://player.gd:12. Fix it, then game_stop and game_start.",
+      "res://player.gd",
+      12,
+    ),
+  );
+  assert.equal(
+    hint,
+    "The game is paused at a script error and cannot continue, so waiting won't help, at res://player.gd:12. " +
+      "Fix it, then game_stop and game_start.",
+    "a located break entry without a reason: the hint carries the file and line without an error clause",
+  );
+}
+
+{
+  const hint = await errorBreakHintWith(
+    logWithLocatedBreak(
+      "Game paused at a script error it cannot continue from: Parser Error: x. Fix it, then game_stop and game_start.",
+      "",
+      0,
+    ),
+  );
+  assert.equal(
+    hint,
+    "The game is paused at a script error and cannot continue, so waiting won't help: Parser Error: x. " +
+      "Fix it, then game_stop and game_start.",
+    "a break entry ending '. Fix it' with no '. Find the file': the hint still carries the reason",
+  );
+}
+
+{
+  const hint = await errorBreakHintWith(logWithLocatedBreak(BREAK_WITH_REASON, "res://player.gd", 0));
+  assert.equal(hint, ERROR_BREAK_HINT, "a break entry with a source but line 0: the hint has no location clause");
+}
+
+{
+  const hint = await errorBreakHintWith(logWithLocatedBreak(BREAK_WITH_REASON, "", 12));
+  assert.equal(hint, ERROR_BREAK_HINT, "a break entry with a line but no source: the hint has no location clause");
+}
+
+{
+  const hint = await errorBreakHintWith(
+    logWithLocatedBreak(
+      `Game paused at a script error it cannot continue from: ${PRELOAD_REASON}, at res://cases/preload_outer.gd:4. ` +
+        "The preloaded script res://cases/preload_inner.gd holds the error: run script_check on it. " +
+        "Fix it, then game_stop and game_start.",
+      "res://cases/preload_outer.gd",
+      4,
+    ),
+  );
+  assert.equal(
+    hint,
+    `The game is paused at a script error and cannot continue, so waiting won't help: ${PRELOAD_REASON}, ` +
+      "at res://cases/preload_outer.gd:4. " +
+      "The preloaded script res://cases/preload_inner.gd holds the error: run script_check on it. " +
+      "Fix it, then game_stop and game_start.",
+    "a located break on a failed preload: the hint names the preloaded script after the file and line",
+  );
+}
+
+{
+  const hint = await errorBreakHintWith(
+    logWithLocatedBreak(
+      `Game paused at a script error it cannot continue from: ${PRELOAD_REASON}. ` +
+        "Find the file and line with script_check or lsp_project_diagnostics, fix it, then game_stop and game_start.",
+      "",
+      0,
+    ),
+  );
+  assert.equal(
+    hint,
+    `The game is paused at a script error and cannot continue, so waiting won't help: ${PRELOAD_REASON}. ` +
+      "Fix it, then game_stop and game_start.",
+    "an unlocated break on a failed preload: the hint without a location names no preloaded script",
+  );
+}
+
+{
+  const hint = await errorBreakHintWith(
+    logWithLocatedBreak(
+      "Game paused at a script error it cannot continue from: Parser Error: x, at res://other.gd:3, " +
+        "at res://player.gd:12. Fix it, then game_stop and game_start.",
+      "res://player.gd",
+      12,
+    ),
+  );
+  assert.equal(
+    hint,
+    "The game is paused at a script error and cannot continue, so waiting won't help: " +
+      "Parser Error: x, at res://other.gd:3, at res://player.gd:12. Fix it, then game_stop and game_start.",
+    "a located break whose reason names another file and line: the hint keeps the whole reason, then the entry's fields",
+  );
+}
+
+// ── One re-read of an unlocated break entry, 500 ms after the first read ──
+
+const LOCATED_BREAK =
+  'Game paused at a script error it cannot continue from: Parser Error: Identifier "speed" not declared in the current scope, ' +
+  "at res://player.gd:12. Fix it, then game_stop and game_start.";
+const LOCATED_HINT =
+  "The game is paused at a script error and cannot continue, so waiting won't help: " +
+  'Parser Error: Identifier "speed" not declared in the current scope, at res://player.gd:12. ' +
+  "Fix it, then game_stop and game_start.";
+
+{
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const launch = launchAndWait({
+      debugStates: [ERROR_BREAK],
+      log: logWithBreaks(BREAK_WITH_REASON),
+      reread: logWithLocatedBreak(LOCATED_BREAK, "res://player.gd", 12),
+    });
+    await clock.tickAsync(2_000);
+    assert.equal(
+      launch.payload()?.hint,
+      LOCATED_HINT,
+      "an unlocated first read and a located re-read: the hint carries the re-read's file and line",
+    );
+    await clock.tickAsync(5_000);
+    assert.equal(callsTo(launch, "debugger.get_log"), 2, "a location that lands late: get_log is read twice, no more");
+  } finally {
+    clock.uninstall();
+  }
+}
+
+{
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const launch = launchAndWait({
+      debugStates: [ERROR_BREAK],
+      log: logWithBreaks(BREAK_WITH_REASON),
+      reread: logWithBreaks(BREAK_WITHOUT_REASON),
+    });
+    await clock.tickAsync(2_000);
+    assert.equal(
+      launch.payload()?.hint,
+      ERROR_BREAK_HINT,
+      "an entry still unlocated after the re-read: the first read's hint, with no location clause",
+    );
+    assert.equal(
+      callsTo(launch, "debugger.get_log"),
+      2,
+      "an entry still unlocated after the re-read: two get_log reads",
+    );
+  } finally {
+    clock.uninstall();
+  }
+}
+
+{
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const launch = launchAndWait({
+      debugStates: [ERROR_BREAK],
+      log: logWithLocatedBreak(LOCATED_BREAK, "res://player.gd", 12),
+      reread: logWithBreaks(BREAK_WITHOUT_REASON),
+    });
+    await clock.tickAsync(2_000);
+    assert.equal(launch.payload()?.hint, LOCATED_HINT, "a located first read: the hint carries its file and line");
+    assert.equal(callsTo(launch, "debugger.get_log"), 1, "a located first read: no re-read");
+  } finally {
+    clock.uninstall();
+  }
+}
+
+{
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    // The first get_log answer lands at 10.5 s, past the 10 s runtime-wait deadline.
+    const launch = launchAndWait({
+      debugStates: [ERROR_BREAK],
+      log: logWithBreaks(BREAK_WITH_REASON),
+      reread: logWithLocatedBreak(LOCATED_BREAK, "res://player.gd", 12),
+      logDelayMs: 10_000,
+    });
+    await clock.tickAsync(11_000);
+    assert.equal(
+      launch.payload()?.hint,
+      ERROR_BREAK_HINT,
+      "an unlocated first read that ends past the runtime-wait deadline: the first read's hint stands",
+    );
+    assert.equal(callsTo(launch, "debugger.get_log"), 1, "an unlocated first read past the deadline: no re-read");
+  } finally {
+    clock.uninstall();
+  }
+}
+
+{
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    // The first get_log answer lands at 9.8 s, before the 10 s deadline; the 500 ms wait for the re-read ends at 10.3 s.
+    const launch = launchAndWait({
+      debugStates: [ERROR_BREAK],
+      log: logWithBreaks(BREAK_WITH_REASON),
+      reread: logWithLocatedBreak(LOCATED_BREAK, "res://player.gd", 12),
+      logDelayMs: 9_300,
+    });
+    await clock.tickAsync(11_000);
+    assert.equal(
+      launch.payload()?.hint,
+      ERROR_BREAK_HINT,
+      "a re-read whose 500 ms wait ends past the runtime-wait deadline: the first read's hint stands",
+    );
+    assert.equal(
+      callsTo(launch, "debugger.get_log"),
+      1,
+      "a re-read whose 500 ms wait ends past the deadline: the re-read is not issued",
+    );
+  } finally {
+    clock.uninstall();
+  }
+}
+
+{
+  const clock = FakeTimers.install({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    // The first get_log answer lands at 10.5 s, past the 10 s deadline; a 500 ms wait for a re-read would end at 11 s.
+    const launch = launchAndWait({
+      debugStates: [ERROR_BREAK],
+      log: logWithBreaks(BREAK_WITH_REASON),
+      reread: logWithLocatedBreak(LOCATED_BREAK, "res://player.gd", 12),
+      logDelayMs: 10_000,
+    });
+    await clock.tickAsync(10_600);
+    assert.equal(
+      launch.payload()?.hint,
+      ERROR_BREAK_HINT,
+      "an unlocated first read that ends past the deadline: game_start answers at once, without the 500 ms wait",
+    );
+  } finally {
+    clock.uninstall();
+  }
+}
+
+console.log("All 30 tests passed.");
