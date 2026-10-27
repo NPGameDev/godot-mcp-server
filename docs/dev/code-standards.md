@@ -498,14 +498,13 @@ of the 6.2 split — a reader opens one folder and finds the orchestrator beside
 decomposition's children are **born in the right folder**, not created flat and relocated later.
 
 6.9 **Pure modules import only pure modules and types.** A pure module (no I/O, no module state, no
-timers) imports only other pure modules, `import type` and schema libraries; code with I/O or state
-may import it, never the reverse. *Rationale: one impure import makes every importer impure.*
+timers) imports only other pure modules, side-effect-free built-ins (`node:path`), `import type` and
+schema libraries; code with I/O or state may import it, never the reverse. *Rationale: one impure import makes every importer impure.*
 ([example](code-standards-examples/6.9-pure-module-direction.md))
 
-6.10 **Stateful collaborators are built at the composition root and passed in.** Anything that holds
-I/O or state (a channel, a client, a watcher, a pipeline) is built by the composition root, its boot
-collaborators, or the one orchestrator that alone uses it, and reaches its users as a parameter, never
-built on first use. The existing cases are listed in [B7](#b7-module-taxonomy--the-composition-root)
+6.10 **Stateful collaborators are built at the composition root and passed in.** Anything holding I/O
+or state is built by the root, its boot collaborators, or the one orchestrator that alone uses it, and
+reaches users as a parameter, never built on first use. The existing cases are listed in [B7](#b7-module-taxonomy--the-composition-root)
 and do not grow. ([example](code-standards-examples/6.10-stateful-collaborators-injected.md))
 
 6.11 **No new module-level shared state.** Do not add an exported mutable binding, or a module-level
@@ -751,7 +750,7 @@ predate the rules; the lists do not grow, and they shrink as each case is remove
 
 - *Built on first use (6.10):* the `LspClient` that `getLspClient` creates in `lsp/lspSession.ts`.
 - *Module stores and setter-filled slots (6.11):* `registry.ts` (the watcher, its cached registry,
-  callbacks and timers); `registration/toolRefs.ts` (`toolRefs`); `registration/toolRegistry.ts`
+  callbacks, timers and last-seen mtime); `registration/toolRefs.ts` (`toolRefs`); `registration/toolRegistry.ts`
   (`versionMap`, `pathParamMap`, `globalHookPipeline`); `groups/groupState.ts` (`loadedGroups`);
   `groups/extensionGroups.ts`; `lsp/lspClient.ts` (`godotVersionGetter`, `lspCliOverride`);
   `lsp/lspSession.ts` (`lspClient`, `statusReporter`); `mcp/roots.ts` (`projectRoot`).
