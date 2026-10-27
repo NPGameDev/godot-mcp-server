@@ -26,8 +26,8 @@ export type DebuggerStop = "error_break" | "breakpoint_pause" | "none";
  * one, even when the answer does not say which kind it is.
  *
  * @returns `"none"` when `breaked` is not `true`, when the answer is not an
- * object, and when the read fails. It never rejects, so each caller decides why
- * a failed read is harmless where it reads.
+ * object, and when the read fails. It never rejects; each caller documents why
+ * a failed read is harmless there.
  *
  * @internal Folder-internal to `tools/`; not part of the public surface.
  */
@@ -36,12 +36,11 @@ export async function readDebuggerStop(bridge: Bridge): Promise<DebuggerStop> {
   try {
     state = await bridge.call("debug.state", {}, EDITOR_READ_TIMEOUT_MS);
   } catch {
-    // A failed read is no stop: the debugger state only steers its caller, and
-    // each caller says where it reads why missing it is harmless there.
+    // A failed read is no stop; see @returns.
     return "none";
   }
   if (typeof state !== "object" || state === null) return "none";
-  const { breaked, can_debug } = state as { breaked?: unknown; can_debug?: unknown };
+  const { breaked, can_debug: canDebug } = state as { breaked?: unknown; can_debug?: unknown };
   if (breaked !== true) return "none";
-  return can_debug === true ? "breakpoint_pause" : "error_break";
+  return canDebug === true ? "breakpoint_pause" : "error_break";
 }

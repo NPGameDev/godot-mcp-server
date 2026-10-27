@@ -28,9 +28,13 @@ function makeBridge(answer: unknown, calls: EditorCall[] = []): Bridge {
 }
 
 {
-  const calls: EditorCall[] = [];
-  const stop = await readDebuggerStop(makeBridge({ success: true, breaked: true, can_debug: true }, calls));
+  const stop = await readDebuggerStop(makeBridge({ success: true, breaked: true, can_debug: true }));
   assert.equal(stop, "breakpoint_pause", "breaked true with can_debug true: a breakpoint pause");
+}
+
+{
+  const calls: EditorCall[] = [];
+  await readDebuggerStop(makeBridge({ success: true, breaked: false, can_debug: false }, calls));
   assert.deepEqual(
     calls,
     [{ method: "debug.state", timeoutMs: 5_000 }],
@@ -68,4 +72,4 @@ function makeBridge(answer: unknown, calls: EditorCall[] = []): Bridge {
   assert.equal(stop, "none", "a debug.state read that throws: no stop, and the reader does not reject");
 }
 
-console.log("All 7 tests passed.");
+console.log("All 8 tests passed.");
