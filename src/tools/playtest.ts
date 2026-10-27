@@ -20,6 +20,9 @@ const TIMEOUT_HINT =
   "Follow up with game_start(if_running:'return', runtime_poll:true) " +
   "to retry, or check editor_get_console for startup errors.";
 const BREAKPOINT_HINT = "The game is paused at a breakpoint; call debug_continue to resume.";
+// The engine's GDScript analyzer words a failed script preload this way on 4.2 to 4.7.
+// The game breaks on the line of the preload, so the error to fix is in the script it names.
+const PRELOAD_FAILURE = /Could not preload resource script "(.+)"/s;
 
 /** How a runtime wait ended: the runtime connected, or the hint that says why it did not. */
 type RuntimeWaitOutcome = { kind: "connected"; port: number } | { kind: "not_connected"; hint: string };
@@ -149,6 +152,9 @@ function waitForRuntimeOrStop(
 ): Promise<RuntimeWaitOutcome> {
   return new Promise<RuntimeWaitOutcome>((resolve, reject) => {
     let decided = false;
+    // The runtime wait settles at its deadline at the latest, so once it has, an
+    // error break's re-read would hold game_start past that deadline.
+    let waitOver = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
     // The first side to call this decides the race; it stops the poll and
     // returns false to every later caller.
@@ -173,16 +179,19 @@ function waitForRuntimeOrStop(
       // Decide on the stop before reading its reason, so a runtime-wait
       // deadline that passes during the read cannot answer with the timeout hint.
       decide();
-      const hint = stop === "error_break" ? errorBreakHint(await readBreakReason(bridge)) : BREAKPOINT_HINT;
+      const hint =
+        stop === "error_break" ? errorBreakHint(await readLocatedErrorBreak(bridge, () => waitOver)) : BREAKPOINT_HINT;
       resolve({ kind: "not_connected", hint });
     };
     runtimeWait.then(
       (runtime) => {
+        waitOver = true;
         if (decide()) {
           resolve(runtime ? { kind: "connected", port: runtime.port } : { kind: "not_connected", hint: TIMEOUT_HINT });
         }
       },
       (err: unknown) => {
+        waitOver = true;
         if (decide()) reject(err);
       },
     );
@@ -206,39 +215,107 @@ async function readDebuggerStop(bridge: Bridge): Promise<DebuggerStop> {
   }
 }
 
+/** What the editor knew about an error break; each part is undefined when it did not have it. */
+interface ErrorBreak {
+  /** The editor debugger's text for the error. */
+  reason?: string;
+  /** Where the game stopped, as `<file>:<line>`. */
+  location?: string;
+}
+
 /**
  * Reads the error behind an error break from the latest `break` entry of the
- * editor-side `debugger.get_log`: the clause the toolkit puts between
- * "continue from: " and the last ". Find the file", since the error text can
- * hold those words too. Undefined when the buffer holds no `break` entry (the
- * toolkit replaces it with `log_scan` entries when the log shows the error),
- * when the entry has no such clause, or when the read fails, so the hint goes
- * out without a reason.
+ * editor-side `debugger.get_log`. The location comes from the entry's `source`
+ * and `line` fields, which an empty source or a line of 0 leaves unknown. The
+ * reason is the clause the toolkit puts between "continue from: " and the rest
+ * of its sentence (see {@link breakReasonPattern}), undefined when the entry has
+ * no such clause. Returns undefined when the buffer holds no `break` entry (the
+ * toolkit replaces it with `log_scan` entries when the log shows the error) or
+ * when the read fails; the hint then goes out without a reason or a location.
  */
-async function readBreakReason(bridge: Bridge): Promise<string | undefined> {
+async function readErrorBreak(bridge: Bridge): Promise<ErrorBreak | undefined> {
   try {
     const page = (await bridge.call("debugger.get_log", {}, EDITOR_READ_TIMEOUT_MS)) as {
       error_buffer?: unknown;
     } | null;
     const entries = Array.isArray(page?.error_buffer) ? (page.error_buffer as unknown[]) : [];
     for (let i = entries.length - 1; i >= 0; i--) {
-      const entry = entries[i] as { type?: unknown; message?: unknown } | null;
+      const entry = entries[i] as { type?: unknown; message?: unknown; source?: unknown; line?: unknown } | null;
       if (entry?.type === "break" && typeof entry.message === "string") {
-        return entry.message.match(/continue from: (.+)\. Find the file/s)?.[1];
+        const { source, line } = entry;
+        const location =
+          typeof source === "string" && source !== "" && typeof line === "number" && line > 0
+            ? `${source}:${line}`
+            : undefined;
+        return { reason: entry.message.match(breakReasonPattern(location))?.[1], location };
       }
     }
     return undefined;
   } catch {
-    // The reason only enriches the hint; the stop itself is already known.
+    // The reason and location only enrich the hint; the stop itself is already known.
     return undefined;
   }
 }
 
-/** The hint for an error break, with the error text when the editor had it. */
-function errorBreakHint(reason: string | undefined): string {
+/**
+ * Reads the error break with {@link readErrorBreak}, and reads it once more,
+ * one {@link BREAK_POLL_MS} later, when the first read finds a `break` entry with
+ * no location: the toolkit fills the location from the stack dump the editor's
+ * debugger sends after the break, which can land just after the first read. The
+ * re-read is skipped once `waitOver()` says the runtime wait has ended, so it is
+ * never issued past the wait's deadline. The first read stands unless the re-read
+ * finds the location.
+ */
+async function readLocatedErrorBreak(bridge: Bridge, waitOver: () => boolean): Promise<ErrorBreak> {
+  const first = await readErrorBreak(bridge);
+  if (first === undefined || first.location !== undefined || waitOver()) return first ?? {};
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, BREAK_POLL_MS).unref?.();
+  });
+  if (waitOver()) return first;
+  const reread = await readErrorBreak(bridge);
+  return reread?.location !== undefined ? reread : first;
+}
+
+/**
+ * Matches the toolkit's text for an error break and captures its reason. The
+ * reason runs from "continue from: " to the sentence's ending, matched to the end
+ * of the message since the error text can hold the same words: with a location,
+ * ", at <location>.", an optional sentence naming a preloaded script, and
+ * " Fix it, …"; without one, "." and then " Fix it, …" or the " Find the file
+ * and line …" advice the toolkit gives when it has no location.
+ */
+function breakReasonPattern(location: string | undefined): RegExp {
+  const at = location === undefined ? "" : `, at ${escapeRegExp(location)}`;
+  return new RegExp(
+    `continue from: (.+?)${at}\\.(?: The preloaded script .+ holds the error: run script_check on it\\.)?` +
+      " (?:Find the file and line with script_check or lsp_project_diagnostics, fix it|Fix it)" +
+      ", then game_stop and game_start\\.$",
+    "s",
+  );
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The hint for an error break, with the error text and the file and line when
+ * the editor had them, and the preloaded script to fix when the error is a
+ * failed preload. The text matches the toolkit's own `game_start` hint.
+ */
+function errorBreakHint({ reason, location }: ErrorBreak): string {
   const because = reason === undefined ? "" : `: ${reason}`;
+  let where = ".";
+  if (location !== undefined) {
+    where = `, at ${location}.`;
+    const preloaded = reason?.match(PRELOAD_FAILURE)?.[1];
+    if (preloaded !== undefined) {
+      where += ` The preloaded script ${preloaded} holds the error: run script_check on it.`;
+    }
+  }
   return (
-    `The game is paused at a script error and cannot continue, so waiting won't help${because}. ` +
+    `The game is paused at a script error and cannot continue, so waiting won't help${because}${where} ` +
     "Fix it, then game_stop and game_start."
   );
 }
