@@ -6,7 +6,7 @@
 
 # Interface: EditorAuthHook
 
-Defined in: [src/shared/types.ts:47](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L47)
+Defined in: [src/shared/types.ts:50](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L50)
 
 The bridge's editor-auth hook, for a consumer that only needs to react to auth.
 
@@ -16,7 +16,7 @@ The bridge's editor-auth hook, for a consumer that only needs to react to auth.
 
 > **onEditorAuthenticated**(`handler`): `void`
 
-Defined in: [src/shared/types.ts:54](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L54)
+Defined in: [src/shared/types.ts:57](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/shared/types.ts#L57)
 
 Register a hook fired after every successful editor auth that reports a Godot
  version (every current plugin does): the first connect,

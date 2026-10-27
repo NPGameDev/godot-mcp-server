@@ -19,6 +19,7 @@
  *   4. clearRuntime — heartbeat.stop + close + undefined both
  *   4b. explicit-port re-creation — after clearRuntime nulls the pinned channel, the next callRuntime rebuilds it instead of dereferencing undefined
  *   5. waitForRuntimeConnection timeout — no-projectPath → undefined; deadline+no-discovery → undefined after the timer
+ *   5b. explicit-port wait — the pinned runtime is probed through any failure until it answers (its port), the deadline passes or close() runs (undefined)
  */
 
 import assert from "node:assert/strict";
@@ -26,6 +27,7 @@ import FakeTimers from "@sinonjs/fake-timers";
 import { createRuntimeConnection, type RuntimeConnectionDeps } from "../../src/transport/runtimeConnection.js";
 import { BridgeError } from "../../src/shared/errors.js";
 import type { Channel } from "../../src/transport/channel.js";
+import { captureStderr } from "./helpers.js";
 
 // ── Fake collaborators (the deps seam) ───────────────────────────────
 
@@ -416,6 +418,183 @@ async function testWaitForRuntimeConnection() {
   console.log("  PASS: waitForRuntimeConnection (no-projectPath → undefined; deadline+no-discovery → undefined)");
 }
 
+// ── 5b. waitForRuntimeConnection with an explicit runtime port ────────
+//
+// A pinned port runs no registry watcher, so no discovery ever arrives: the
+// wait has to learn from the pinned runtime itself that it is up.
+
+async function testExplicitPortWait() {
+  const PROBE_CLOCK: FakeTimers.FakeTimerInstallOpts = {
+    toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+  };
+
+  // The pinned runtime answers at once: the wait resolves with its port long before the deadline.
+  {
+    // Well inside game_start's 10 s wait, so a wait that only ends at the deadline fails.
+    const ANSWERED_WITHIN_MS = 1000;
+    const clock = FakeTimers.install(PROBE_CLOCK);
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ projectPath: "/proj", explicitRuntimePort: "6636" }, t.deps);
+      t.setCallImpl(() => Promise.resolve({ pong: true }));
+
+      let settled: unknown = "still pending";
+      void rc.waitForRuntimeConnection(10_000).then((v) => {
+        settled = v;
+      });
+      await clock.tickAsync(ANSWERED_WITHIN_MS);
+      assert.deepEqual(
+        settled,
+        { port: 6636 },
+        "an explicit-port wait resolves with the pinned port once the runtime answers, not at the deadline",
+      );
+    } finally {
+      clock.uninstall();
+    }
+  }
+
+  // Four probe intervals: a probe still scheduled after the wait ends would run within it.
+  const AFTER_WAIT_WINDOW_MS = 1000;
+
+  // Nothing ever listens on the pinned port: the wait ends undefined at the deadline and logs why.
+  {
+    const clock = FakeTimers.install(PROBE_CLOCK);
+    const cap = captureStderr();
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ explicitRuntimePort: "6636" }, t.deps);
+      t.setCallImpl(() => Promise.reject(new BridgeError("CONNECT_FAILED", "connection refused")));
+
+      let settled: unknown = "still pending";
+      void rc.waitForRuntimeConnection(5000).then((v) => {
+        settled = v;
+      });
+      await clock.tickAsync(4999);
+      assert.equal(settled, "still pending", "a pinned port nobody answers keeps the wait open until the deadline");
+      await clock.tickAsync(1);
+      assert.equal(settled, undefined, "a pinned port nobody answers resolves the wait undefined at the deadline");
+      assert.ok(
+        cap
+          .output()
+          .includes("[bridge] runtime on pinned port 6636 did not answer: no runtime server on 127.0.0.1:6636"),
+        "the deadline logs the last probe's error to stderr",
+      );
+    } finally {
+      cap.restore();
+      clock.uninstall();
+    }
+  }
+
+  // Nothing ever listens on the pinned port: probes run every 250 ms and stop with the wait.
+  {
+    const clock = FakeTimers.install(PROBE_CLOCK);
+    const cap = captureStderr();
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ explicitRuntimePort: "6636" }, t.deps);
+      t.setCallImpl(() => Promise.reject(new BridgeError("CONNECT_FAILED", "connection refused")));
+
+      void rc.waitForRuntimeConnection(5000);
+      await clock.tickAsync(5000);
+      assert.equal(t.channels[0].callLog.length, 20, "the pinned port was probed every 250 ms before the deadline");
+      assert.equal(clock.countTimers(), 0, "no probe or deadline timer is left once the wait ends");
+      await clock.tickAsync(AFTER_WAIT_WINDOW_MS);
+      assert.equal(t.channels[0].callLog.length, 20, "no probe runs after the deadline");
+    } finally {
+      cap.restore();
+      clock.uninstall();
+    }
+  }
+
+  // A starting game can fail a probe with an auth timeout or a closed channel: the wait retries both.
+  {
+    const clock = FakeTimers.install(PROBE_CLOCK);
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ projectPath: "/proj", explicitRuntimePort: "6636" }, t.deps);
+      const failures = [
+        new BridgeError("AUTH_FAILED", "auth handshake timed out"),
+        new BridgeError("CLOSED", "channel closed by caller"),
+      ];
+      t.setCallImpl(() => {
+        const failure = failures.shift();
+        return failure ? Promise.reject(failure) : Promise.resolve({ pong: true });
+      });
+
+      let settled: unknown = "still pending";
+      void rc.waitForRuntimeConnection(10_000).then((v) => {
+        settled = v;
+      });
+      await clock.tickAsync(499);
+      assert.equal(settled, "still pending", "an auth timeout or a closed channel keeps the pinned wait open");
+      await clock.tickAsync(1);
+      assert.deepEqual(settled, { port: 6636 }, "the third probe, the first answered, resolves the pinned port");
+      assert.equal(t.channels[0].callLog.length, 3, "probing stops at the first answer");
+    } finally {
+      clock.uninstall();
+    }
+  }
+
+  // close() ends a pinned wait: it resolves undefined and the probing stops.
+  {
+    const clock = FakeTimers.install(PROBE_CLOCK);
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ explicitRuntimePort: "6636" }, t.deps);
+      t.setCallImpl(() => Promise.reject(new BridgeError("CONNECT_FAILED", "connection refused")));
+
+      let settled: unknown = "still pending";
+      void rc.waitForRuntimeConnection(10_000).then((v) => {
+        settled = v;
+      });
+      await clock.tickAsync(600);
+      await rc.close();
+      await clock.tickAsync(0);
+      assert.equal(settled, undefined, "close() resolves a pending pinned wait undefined");
+      assert.equal(clock.countTimers(), 0, "no probe or deadline timer is left once close() ends the wait");
+      await clock.tickAsync(AFTER_WAIT_WINDOW_MS);
+      assert.equal(t.channels[0].callLog.length, 3, "no probe runs after close()");
+    } finally {
+      clock.uninstall();
+    }
+  }
+
+  // The game starts listening after a few refused probes: the wait resolves on the first answer.
+  {
+    const clock = FakeTimers.install(PROBE_CLOCK);
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ projectPath: "/proj", explicitRuntimePort: "6636" }, t.deps);
+      const failures = [
+        new BridgeError("CONNECT_FAILED", "connection refused"),
+        new BridgeError("CONNECT_FAILED", "connection refused"),
+        new BridgeError("DISCONNECTED", "socket dropped"),
+      ];
+      t.setCallImpl(() => {
+        const failure = failures.shift();
+        return failure ? Promise.reject(failure) : Promise.resolve({ pong: true });
+      });
+
+      let settled: unknown = "still pending";
+      void rc.waitForRuntimeConnection(10_000).then((v) => {
+        settled = v;
+      });
+      await clock.tickAsync(749);
+      assert.equal(settled, "still pending", "the wait stays open while the pinned port refuses the probes");
+      await clock.tickAsync(1);
+      assert.deepEqual(settled, { port: 6636 }, "the fourth probe, the first answered, resolves the pinned port");
+      assert.equal(t.channels[0].callLog.length, 4, "probing stops at the first answer");
+      assert.equal(clock.countTimers(), 0, "no probe or deadline timer is left once the runtime answers");
+    } finally {
+      clock.uninstall();
+    }
+  }
+  console.log(
+    "  PASS: waitForRuntimeConnection with an explicit port resolves once the pinned runtime answers, " +
+      "retrying any failed probe until the deadline or close()",
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -427,6 +606,7 @@ async function main() {
   await testClearRuntime();
   await testExplicitPortRecreateAfterClear();
   await testWaitForRuntimeConnection();
+  await testExplicitPortWait();
   console.log("All runtime_connection tests passed.");
 }
 
