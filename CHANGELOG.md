@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   breakpoint pause. The server asks the editor's debugger first, and at a break it reads the
   editor side and skips the game, which can't answer there. Before, each of these calls
   first waited for the game to time out, up to about 10 seconds. On Windows the answer
-  carries the debugger state with toolkit 1.1.1. An older toolkit returns `LOG_BUSY` there
+  carries the debugger state with toolkit 1.1.1, and at an error break the file and line
+  the editor's debugger reports for the break. An older toolkit returns `LOG_BUSY` there
   on Godot 4.4 and later, and on 4.2 and 4.3 a note that the log file was not found.
   Reported by @pragmabits
   ([NPGameDev/godot-mcp-toolkit#97](https://github.com/NPGameDev/godot-mcp-toolkit/issues/97)).
