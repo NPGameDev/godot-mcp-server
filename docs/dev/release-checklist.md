@@ -53,9 +53,9 @@ real users.
 
 Verify the security model holds under deliberate probing.
 
-> **Automated coverage:** `npm run smoke:single -- --only 18,21` exercises the path-traversal,
-> envelope-injection, and response-cap boundaries (D1/D6/D7). Run it first, then hand-probe the
-> rest.
+> **Automated coverage:** `npm run smoke:single -- --only 3,18,21` exercises the path-traversal,
+> envelope-injection, and response-cap boundaries (D1/D6/D7). Section 3 writes the script that
+> section 18's envelope check reads. Run it first, then hand-probe the rest.
 
 - [ ] **D1 — Path traversal.** `res://../../../etc/passwd` → FileGuard rejects, clear error.
 - [ ] **D2 — Absolute path.** `C:\Windows\System32\cmd.exe` → FileGuard rejects.
