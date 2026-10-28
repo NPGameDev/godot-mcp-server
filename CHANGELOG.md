@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resource file, `{type:'Resource', path:'res://...'}`, and says that a bare path (a
   `res://`, `uid://` or `user://` String) on a top-level Resource property is not set and the
   response warns. The warning needs toolkit 1.1.1; an older toolkit drops or saves the bare path
-  without one
+  without one. Reported by @benfeather
   ([NPGameDev/godot-mcp-toolkit#48](https://github.com/NPGameDev/godot-mcp-toolkit/issues/48)).
 - `debugger_get_log` now answers at once while the game sits at an error break or a
   breakpoint pause. The server asks the editor's debugger first, and at a break it reads the
@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GAME_NOT_RUNNING` with its hint about a stopped game, even while the game sat at a break.
 - A runtime tool call that can't connect to the game, as at an error break, no longer logs an
   `uncaughtException` to the server's stderr. The call still returns the same error.
-- `game_start` with `wait_for_runtime` now returns within about half a second of the editor's
+- `game_start` with `wait_for_runtime` now returns within about a second of the editor's
   debugger stopping the game before the runtime connects, as a parse error in a game script
   does. Before, it waited the full 10 seconds and then said the runtime did not connect. At an
   error break the hint says waiting won't help and reports the error, file and line the
