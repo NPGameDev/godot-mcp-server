@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of the game registering its port, on Linux and macOS. Before, the server's watch on the editor's
   project registry went quiet once the editor had rewritten the file, so the server found the
   port only at its next registry poll, up to 30 seconds later. Until then `game_start` returned
-  without `runtime_ready` and runtime tools answered `GAME_NOT_RUNNING`. The same delay happened
-  on every platform when the server started before the registry file existed. A runtime call no
+  without `runtime_ready` and runtime tools answered `GAME_NOT_RUNNING`. On every platform,
+  `game_start` also returned without `runtime_ready` when the server started before the registry
+  file existed. A runtime call no
   longer fails with `CLOSED` when the server finds the game while that call is in flight.
   Reported by @pragmabits
   ([NPGameDev/godot-mcp-toolkit#128](https://github.com/NPGameDev/godot-mcp-toolkit/issues/128)).
