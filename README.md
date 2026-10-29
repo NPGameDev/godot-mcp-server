@@ -313,7 +313,7 @@ Yes. MIT, both the server and the addon.
 <details>
 <summary><strong>Should I commit the addon to my game repo?</strong></summary>
 
-Yes. The bundled export plugin strips it from exported builds in every Script Export Mode; the runtime piece self-disables outside debug builds.
+Yes. The bundled export plugin strips it from exported builds in every Script Export Mode; the runtime piece self-disables outside debug builds. The build still names the addon in a few files but holds none of its code (see the toolkit's [compatibility guide](https://github.com/NPGameDev/godot-mcp-toolkit/blob/main/addons/godot_mcp_toolkit/docs/compatibility.md#what-an-export-still-carries)).
 
 </details>
 
