@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-29
+
 ### Fixed
 
 - `game_start` with `wait_for_runtime` now finds the playtest's runtime within about a second
