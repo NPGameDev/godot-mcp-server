@@ -16,6 +16,7 @@ const testFiles = readdirSync(__dirname)
 console.log(`Discovered ${testFiles.length} test file(s):\n`);
 
 let passed = 0;
+const failed: string[] = [];
 for (const file of testFiles) {
   const filePath = join(__dirname, file);
   console.log(`── ${file} ──`);
@@ -32,8 +33,13 @@ for (const file of testFiles) {
     console.log();
   } catch {
     console.error(`\nFAILED: ${file}`);
-    process.exit(1);
+    failed.push(file);
   }
+}
+
+if (failed.length > 0) {
+  console.error(`\n${failed.length} test file(s) failed: ${failed.join(", ")}`);
+  process.exit(1);
 }
 
 console.log(`\nAll ${passed}/${testFiles.length} test files passed.`);
