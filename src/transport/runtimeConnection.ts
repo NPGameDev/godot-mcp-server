@@ -10,14 +10,14 @@
  * channel). It touches neither version state nor notification routing — that is
  * why it carves cleanly out of the composition root.
  *
- * The channel primitive, the heartbeat primitive, and the six registry reader
+ * The channel primitive, the heartbeat primitive, and the registry reader
  * fns are injected through an optional `deps` seam (production default = the
  * real imports) so the aggregate is unit-testable in isolation with fakes. The
  * seam destructures `deps ?? REAL` at the top into the same bare names the
  * bodies reference.
  *
  * Deps: channel (createChannel, Channel), heartbeat (createHeartbeat), registry
- * (six reader fns), errors (BridgeError). The composition root (bridge.ts)
+ * (reader fns), errors (BridgeError). The composition root (bridge.ts)
  * constructs one createRuntimeConnection and delegates its callRuntime /
  * waitForRuntimeConnection / clearRuntime facade methods to it.
  */
@@ -38,7 +38,7 @@ export interface RuntimeConnection {
  * Injectable collaborators. Production passes nothing (the real imports are the
  * default); the unit test injects fakes to isolate the aggregate from the real
  * channel/heartbeat/registry. The `registry` slice is ISP-narrowed (via Pick) to
- * the exact six reader fns the aggregate uses.
+ * the exact registry fns the aggregate uses.
  */
 export interface RuntimeConnectionDeps {
   createChannel: typeof realCreateChannel;
@@ -51,11 +51,15 @@ export interface RuntimeConnectionDeps {
     | "unwatchRegistry"
     | "isWatcherActive"
     | "getCachedRuntimePort"
+    | "recheckRegistry"
   >;
 }
 
 /** Pause after a failed probe of a pinned runtime port. */
 const PINNED_PROBE_INTERVAL_MS = 250;
+
+/** Pause between registry re-checks while a discovery wait is pending. */
+const REGISTRY_RECHECK_INTERVAL_MS = 250;
 
 export function createRuntimeConnection(
   opts: { projectPath?: string; explicitRuntimePort?: string | undefined },
@@ -70,8 +74,15 @@ export function createRuntimeConnection(
     createHeartbeat: realCreateHeartbeat,
     registry: realRegistry,
   };
-  const { discoverRuntime, normalizePath, watchRegistry, unwatchRegistry, isWatcherActive, getCachedRuntimePort } =
-    registry;
+  const {
+    discoverRuntime,
+    normalizePath,
+    watchRegistry,
+    unwatchRegistry,
+    isWatcherActive,
+    getCachedRuntimePort,
+    recheckRegistry,
+  } = registry;
 
   const projectPath = opts.projectPath;
 
@@ -130,19 +141,25 @@ export function createRuntimeConnection(
   });
 
   // ── Registry watcher for instant runtime discovery ─────────────
-  // fs.watch on projects.json auto-connects to new runtime ports and
-  // tears down stale channels. Replaces per-RPC file reads in
-  // callRuntime with in-memory lookups (Path A). Falls back to
-  // per-RPC reads when fs.watch is unavailable (Path B).
+  // The registry watch auto-connects to new runtime ports and tears
+  // down stale channels. Replaces per-RPC file reads in callRuntime
+  // with in-memory lookups (Path A). Falls back to per-RPC reads when
+  // the watch is not attached (Path B).
   if (projectPath && !opts?.explicitRuntimePort) {
     const normalizedProject = normalizePath(projectPath);
     watchRegistry({
       onDiscovered: (discoveredPath, port) => {
         if (discoveredPath !== normalizedProject) return;
         process.stderr.write(`[bridge] runtime discovered on port ${port}\n`);
-        if (runtimeChannel) void runtimeChannel.close();
-        runtimeChannel = createRuntimeChannel(port);
-        cachedRuntimePort = port;
+        // callRuntime may already have opened this port from a disk read, with a
+        // call in flight; replacing that channel would fail the call as CLOSED.
+        // A relaunch on the same port under a new pid is reported as removed
+        // first, which closes the old game's channel before this runs.
+        if (!runtimeChannel || cachedRuntimePort !== port) {
+          if (runtimeChannel) void runtimeChannel.close();
+          runtimeChannel = createRuntimeChannel(port);
+          cachedRuntimePort = port;
+        }
         heartbeat.start();
         // Notify any pending waitForRuntimeConnection callers.
         const resolvers = runtimePortResolvers;
@@ -320,19 +337,37 @@ export function createRuntimeConnection(
     waitForRuntimeConnection(timeoutMs: number): Promise<{ port: number } | undefined> {
       if (opts?.explicitRuntimePort) return waitForPinnedRuntime(opts.explicitRuntimePort, timeoutMs);
       if (!projectPath) return Promise.resolve(undefined);
+      // The registry watch can miss a write (a watch event lost or late), and the
+      // heartbeat's poll is far longer than a wait, so the wait re-checks the
+      // registry itself every REGISTRY_RECHECK_INTERVAL_MS until it ends. A
+      // re-check that finds the port reports it through onDiscovered, which
+      // resolves this wait.
       return new Promise<{ port: number } | undefined>((resolve) => {
-        const timer = setTimeout(() => {
-          runtimePortResolvers = runtimePortResolvers.filter((r) => r !== handler);
-          resolve(undefined);
-        }, timeoutMs);
-        timer.unref?.();
+        let recheckTimer: ReturnType<typeof setTimeout> | undefined;
+        let settled = false;
 
+        // Registered as a port waiter so onDiscovered and close() end this wait.
         const handler: RuntimePortResolver = (port) => {
+          if (settled) return;
+          settled = true;
           clearTimeout(timer);
+          clearTimeout(recheckTimer);
           runtimePortResolvers = runtimePortResolvers.filter((r) => r !== handler);
           resolve(port != null ? { port } : undefined);
         };
+
+        const timer = setTimeout(() => handler(undefined), timeoutMs);
+        timer.unref?.();
         runtimePortResolvers.push(handler);
+
+        const recheck = (): void => {
+          recheckRegistry();
+          if (settled) return;
+          recheckTimer = setTimeout(recheck, REGISTRY_RECHECK_INTERVAL_MS);
+          recheckTimer.unref?.();
+        };
+        recheckTimer = setTimeout(recheck, REGISTRY_RECHECK_INTERVAL_MS);
+        recheckTimer.unref?.();
       });
     },
     clearRuntime() {

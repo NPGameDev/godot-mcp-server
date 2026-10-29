@@ -6,7 +6,7 @@
  * extensionRegistrar.test.ts's fake-injection idiom): a fake createChannel
  * returning a controllable channel (call resolves/rejects on command, close is
  * a spy), a fake createHeartbeat returning start/stop spies, and a fake registry
- * whose six reader fns return scripted values (with watchRegistry capturing the
+ * whose reader fns return scripted values (with watchRegistry capturing the
  * onDiscovered/onRemoved callbacks so a test can drive discovery). No real
  * WebSocket, no real registry file — every assertion is a genuinely derived
  * outcome (channel URLs, call/close counts, heartbeat start/stop counts,
@@ -15,11 +15,13 @@
  * Groups:
  *   1. discovery branches — explicit-port static channel; no-port/no-projectPath → GAME_NOT_RUNNING
  *   2. the watcher — onDiscovered swap/port/heartbeat.start/waiter-resolve; onRemoved heartbeat.stop/close/undefined
+ *   2c. a rediscovery — the same port keeps the open channel; a new port replaces it
  *   3. callRuntime paths — fast / normal / explicit + the CONNECT_FAILED/DISCONNECTED → GAME_NOT_RUNNING mapping
  *   4. clearRuntime — heartbeat.stop + close + undefined both
  *   4b. explicit-port re-creation — after clearRuntime nulls the pinned channel, the next callRuntime rebuilds it instead of dereferencing undefined
  *   5. waitForRuntimeConnection timeout — no-projectPath → undefined; deadline+no-discovery → undefined after the timer
  *   5b. explicit-port wait — the pinned runtime is probed through any failure until it answers (its port), the deadline passes or close() runs (undefined)
+ *   5c. discovery wait — the registry is re-checked while the wait is pending, and only then
  */
 
 import assert from "node:assert/strict";
@@ -82,6 +84,9 @@ function makeDeps() {
     cached: (() => null) as (projectPath: string) => number | null,
     watcherActive: false,
     unwatchCalls: 0,
+    // One registry re-check; it reports through the watcher callbacks, as the real one does.
+    recheck: (() => {}) as () => void,
+    recheckCalls: 0,
   };
   const registry: RuntimeConnectionDeps["registry"] = {
     discoverRuntime: (projectPath: string) => reg.discover(projectPath),
@@ -94,6 +99,10 @@ function makeDeps() {
     },
     isWatcherActive: () => reg.watcherActive,
     getCachedRuntimePort: (projectPath: string) => reg.cached(projectPath),
+    recheckRegistry: () => {
+      reg.recheckCalls++;
+      reg.recheck();
+    },
   };
 
   const deps: RuntimeConnectionDeps = { createChannel, createHeartbeat, registry };
@@ -193,6 +202,49 @@ function testRemovedWithoutChannel() {
   t.fireRemoved("/proj");
   assert.equal(t.channels[0].closeCalls, 1, "a repeated onRemoved does not close the channel again");
   console.log("  PASS: onRemoved with no channel open is harmless, and a repeat closes nothing twice");
+}
+
+// ── 2c. a rediscovery while a channel is open ─────────────────────────
+//
+// callRuntime can open the channel before the watcher reports the game, so the
+// report that follows names the port already open, with a call in flight on it.
+
+async function testSamePortRediscovery() {
+  const t = makeDeps();
+  const rc = createRuntimeConnection({ projectPath: "/proj" }, t.deps);
+  t.reg.watcherActive = false;
+  t.reg.discover = () => 7100;
+  let answer: (value: unknown) => void = () => {};
+  t.setCallImpl(
+    () =>
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+  );
+
+  const waiterP = rc.waitForRuntimeConnection(60_000);
+  const callP = rc.callRuntime("a");
+  t.fireDiscovered("/proj", 7100);
+
+  assert.equal(t.channels.length, 1, "a rediscovery of the open channel's port opens no second channel");
+  assert.equal(t.channels[0].closeCalls, 0, "a rediscovery of the open channel's port does not close it");
+  assert.equal(t.hb.startCalls, 1, "a rediscovery of the open channel's port starts the heartbeat");
+  assert.deepEqual(await waiterP, { port: 7100 }, "a rediscovery of the open channel's port resolves the waiter");
+  answer({ pong: 1 });
+  assert.deepEqual(await callP, { pong: 1 }, "the call in flight resolves on the kept channel");
+  console.log("  PASS: a rediscovery of the open channel's port keeps the channel and its call in flight");
+}
+
+function testNewPortRediscovery() {
+  const t = makeDeps();
+  createRuntimeConnection({ projectPath: "/proj" }, t.deps);
+  t.fireDiscovered("/proj", 7100);
+  t.fireDiscovered("/proj", 7200);
+
+  assert.equal(t.channels[0].closeCalls, 1, "a rediscovery on a new port closes the old channel");
+  assert.equal(t.channels.length, 2, "a rediscovery on a new port opens a new channel");
+  assert.equal(t.channels[1].url, "ws://127.0.0.1:7200", "the new channel targets the new port");
+  console.log("  PASS: a rediscovery on a new port replaces the channel");
 }
 
 // ── 3. callRuntime paths ──────────────────────────────────────────────
@@ -595,6 +647,119 @@ async function testExplicitPortWait() {
   );
 }
 
+// ── 5c. the registry re-check during a discovery wait ─────────────────
+//
+// The registry watcher can miss a replacement of the file, so a discovery wait
+// re-checks the registry itself until the wait ends.
+
+async function testDiscoveryWaitRecheck() {
+  const RECHECK_CLOCK: Parameters<typeof FakeTimers.install>[0] = {
+    toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+  };
+  // Two re-check intervals of 250 ms.
+  const RECHECKED_WITHIN_MS = 500;
+  // Four re-check intervals: a re-check still scheduled after the wait ends would run within it.
+  const AFTER_WAIT_WINDOW_MS = 1000;
+
+  // The watch reports nothing; the second re-check finds the port: the wait resolves with it.
+  {
+    const clock = FakeTimers.install(RECHECK_CLOCK);
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ projectPath: "/proj" }, t.deps);
+      t.reg.recheck = () => {
+        if (t.reg.recheckCalls === 2) t.fireDiscovered("/proj", 7100);
+      };
+
+      let settled: unknown = "still pending";
+      void rc.waitForRuntimeConnection(10_000).then((v) => {
+        settled = v;
+      });
+      await clock.tickAsync(RECHECKED_WITHIN_MS);
+      assert.deepEqual(
+        settled,
+        { port: 7100 },
+        "a discovery wait resolves with the port the registry re-check finds when the watch reports nothing",
+      );
+      const calls = t.reg.recheckCalls;
+      await clock.tickAsync(AFTER_WAIT_WINDOW_MS);
+      assert.equal(t.reg.recheckCalls, calls, "no registry re-check runs after the wait resolves");
+    } finally {
+      clock.uninstall();
+    }
+  }
+
+  // The registry never has the port: the wait re-checks until its deadline, then stops.
+  {
+    const clock = FakeTimers.install(RECHECK_CLOCK);
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ projectPath: "/proj" }, t.deps);
+
+      let settled: unknown = "still pending";
+      void rc.waitForRuntimeConnection(1000).then((v) => {
+        settled = v;
+      });
+      await clock.tickAsync(1000);
+      assert.equal(
+        settled,
+        undefined,
+        "a discovery wait the registry never answers resolves undefined at the deadline",
+      );
+      assert.ok(t.reg.recheckCalls > 0, "the registry is re-checked while a discovery wait is pending");
+      const calls = t.reg.recheckCalls;
+      await clock.tickAsync(AFTER_WAIT_WINDOW_MS);
+      assert.equal(t.reg.recheckCalls, calls, "no registry re-check runs after the wait times out");
+    } finally {
+      clock.uninstall();
+    }
+  }
+
+  // close() ends a discovery wait: it resolves undefined and the re-checks stop.
+  {
+    const clock = FakeTimers.install(RECHECK_CLOCK);
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ projectPath: "/proj" }, t.deps);
+
+      let settled: unknown = "still pending";
+      void rc.waitForRuntimeConnection(10_000).then((v) => {
+        settled = v;
+      });
+      await clock.tickAsync(600);
+      await rc.close();
+      await clock.tickAsync(0);
+      assert.equal(settled, undefined, "close() resolves a pending discovery wait undefined");
+      const calls = t.reg.recheckCalls;
+      await clock.tickAsync(AFTER_WAIT_WINDOW_MS);
+      assert.equal(t.reg.recheckCalls, calls, "no registry re-check runs after close()");
+    } finally {
+      clock.uninstall();
+    }
+  }
+
+  // A pinned wait asks the pinned runtime, never the registry.
+  {
+    const clock = FakeTimers.install(RECHECK_CLOCK);
+    const cap = captureStderr();
+    try {
+      const t = makeDeps();
+      const rc = createRuntimeConnection({ projectPath: "/proj", explicitRuntimePort: "6636" }, t.deps);
+      t.setCallImpl(() => Promise.reject(new BridgeError("CONNECT_FAILED", "connection refused")));
+
+      void rc.waitForRuntimeConnection(5000);
+      await clock.tickAsync(5000);
+      assert.equal(t.reg.recheckCalls, 0, "a pinned wait never re-checks the registry");
+    } finally {
+      cap.restore();
+      clock.uninstall();
+    }
+  }
+  console.log(
+    "  PASS: a discovery wait re-checks the registry until it resolves, times out or close() runs; a pinned wait never does",
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -602,11 +767,14 @@ async function main() {
   await testDiscoveryBranches();
   await testWatcher();
   testRemovedWithoutChannel();
+  await testSamePortRediscovery();
+  testNewPortRediscovery();
   await testCallRuntimePaths();
   await testClearRuntime();
   await testExplicitPortRecreateAfterClear();
   await testWaitForRuntimeConnection();
   await testExplicitPortWait();
+  await testDiscoveryWaitRecheck();
   console.log("All runtime_connection tests passed.");
 }
 

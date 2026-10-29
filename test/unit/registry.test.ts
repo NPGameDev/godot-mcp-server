@@ -5,15 +5,18 @@
  *    getCachedRuntimePort) exercised against
  *    a hermetic temp projects.json via the APPDATA / XDG_DATA_HOME env redirect
  *    registryPath() honors. These cases also cover the private readRegistry
- *    (single parse attempt → graceful empty) through that public surface. darwin has no path
- *    override, so the file-writing blocks run only on win32/linux.
+ *    (single parse attempt → graceful empty) through that public surface. These blocks
+ *    redirect no darwin path, so they run only on win32/linux.
+ *  - watchRegistry's discovery when the toolkit replaces projects.json by rename, on every
+ *    platform: darwin's registry path is built from homedir(), which reads $HOME first.
+ *  - recheckRegistry, the one-shot read a runtime wait runs alongside the watch.
  *
  * LSP-discovery (liveLspClaimants / discoverLspEndpoint) and the claimant-liveness
  * policy it rests on (registryLiveness.ts) live in discoverLsp.test.ts — that file
  * owns the LSP feature.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, renameSync, writeFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -26,6 +29,8 @@ import {
   watchRegistry,
   unwatchRegistry,
   getCachedRuntimePort,
+  isWatcherActive,
+  recheckRegistry,
   runtimeTransitions,
   type RegistryEntry,
 } from "../../src/registry.js";
@@ -149,8 +154,9 @@ if (isCaseInsensitive) {
 // ── Hermetic read-surface tests ──────────────────────────────────────
 //
 // registryPath() resolves under a temp dir once APPDATA (win32) /
-// XDG_DATA_HOME (linux) points there. darwin hardcodes ~/Library and has no
-// override, so guard every file-writing block — darwin runs normalizePath only.
+// XDG_DATA_HOME (linux) points there. The withRegistry / withRawRegistry blocks
+// redirect no darwin path, so they are no-ops on darwin; the watcher blocks further
+// down redirect $HOME there instead.
 
 const REDIRECT: string | null =
   process.platform === "win32" ? "APPDATA" : process.platform === "linux" ? "XDG_DATA_HOME" : null;
@@ -456,5 +462,155 @@ function withWatchedRegistry(byPath: Record<string, RegistryEntry>, fn: () => vo
     assert.ok(Date.now() - start < 200, "no busy-wait — returns well under the old ~300ms");
   });
 }
+
+// ── watchRegistry: the toolkit replaces projects.json by rename ──────
+//
+// The toolkit never rewrites the registry in place: it writes projects.json.tmp,
+// renames the target to .bak, renames .tmp onto the target and deletes .bak, and it
+// takes projects.json.lock around each rebuild. The editor rebuilds the registry
+// before any game starts, so the replacement that carries the runtime port is never
+// the first one the watcher sees.
+
+/** The env var registryPath() builds its base dir from on this platform. */
+const WATCH_REDIRECT =
+  process.platform === "win32" ? "APPDATA" : process.platform === "darwin" ? "HOME" : "XDG_DATA_HOME";
+
+// How long a watched registry is given to report a replacement.
+const DISCOVERY_CAP_MS = 2000;
+// Well past the watcher's 100 ms debounce. Between two replacements, the settle lets
+// the read owed for the first one land before the second is written, so a late first
+// read cannot see the second file; after the last one, a second report for the same
+// write would have arrived.
+const SETTLE_MS = 1000;
+
+/** Run fn against a fresh, empty registry folder, then stop the watcher and restore. */
+async function withRegistryFolder(fn: (path: string) => Promise<void>): Promise<void> {
+  const restoreEnv = snapshotEnv();
+  const tmpRoot = mkdtempSync(join(tmpdir(), "godot-mcp-reg-"));
+  try {
+    process.env[WATCH_REDIRECT] = tmpRoot;
+    const path = registryPath();
+    mkdirSync(dirname(path), { recursive: true });
+    await fn(path);
+  } finally {
+    unwatchRegistry();
+    rmSync(tmpRoot, { recursive: true, force: true });
+    restoreEnv();
+  }
+}
+
+/** Replace the registry file the way the toolkit's write_atomic does. */
+function replaceLikeToolkit(path: string, byPath: Record<string, RegistryEntry>): void {
+  writeFileSync(`${path}.tmp`, JSON.stringify({ by_path: byPath }, null, "\t"));
+  if (existsSync(path)) renameSync(path, `${path}.bak`);
+  renameSync(`${path}.tmp`, path);
+  if (existsSync(`${path}.bak`)) rmSync(`${path}.bak`);
+}
+
+/** Poll a condition under real timers; fail naming what never happened. */
+async function waitFor(cond: () => boolean, label: string, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  while (!cond()) {
+    if (Date.now() - start > timeoutMs) assert.fail(`within ${timeoutMs} ms: ${label}`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+const settle = (): Promise<void> => new Promise((r) => setTimeout(r, SETTLE_MS));
+
+type Discovery = { key: string; port: number };
+
+// The game's port lands in a replacement after the editor's own: one discovery, and the cache has it.
+await withRegistryFolder(async (path) => {
+  const key = normalizePath("/proj/run");
+  writeFileSync(path, JSON.stringify({ by_path: { [key]: makeEntry({}) } }));
+  const discovered: Discovery[] = [];
+  watchRegistry({ onDiscovered: (k, port) => discovered.push({ key: k, port }), onRemoved: () => {} });
+
+  replaceLikeToolkit(path, { [key]: makeEntry({}) });
+  await settle();
+  replaceLikeToolkit(path, { [key]: makeEntry({ runtime_port: 6570, runtime_pid: ALIVE }) });
+
+  await waitFor(
+    () => discovered.length > 0,
+    "watchRegistry reports the runtime port of a registry replaced after the editor's own rewrite",
+    DISCOVERY_CAP_MS,
+  );
+  await settle();
+  assert.deepEqual(discovered, [{ key, port: 6570 }], "watchRegistry: one replacement → exactly one discovered");
+  assert.equal(getCachedRuntimePort("/proj/run"), 6570, "watchRegistry: the cache holds the replaced file's port");
+});
+
+// No registry file at start, only its folder: the first file, created by rename, is discovered.
+await withRegistryFolder(async (path) => {
+  const key = normalizePath("/proj/run");
+  const discovered: Discovery[] = [];
+  watchRegistry({ onDiscovered: (k, port) => discovered.push({ key: k, port }), onRemoved: () => {} });
+
+  replaceLikeToolkit(path, { [key]: makeEntry({ runtime_port: 6570, runtime_pid: ALIVE }) });
+
+  await waitFor(
+    () => discovered.length > 0,
+    "watchRegistry reports the runtime port of a registry file created after it started",
+    DISCOVERY_CAP_MS,
+  );
+  await settle();
+  assert.deepEqual(
+    discovered,
+    [{ key, port: 6570 }],
+    "watchRegistry: the first registry file → exactly one discovered",
+  );
+});
+
+// The lock file alone changes: the watcher reports nothing.
+await withRegistryFolder(async (path) => {
+  const key = normalizePath("/proj/run");
+  writeFileSync(path, JSON.stringify({ by_path: { [key]: makeEntry({ runtime_port: 6570, runtime_pid: ALIVE }) } }));
+  const events: string[] = [];
+  watchRegistry({ onDiscovered: () => events.push("discovered"), onRemoved: () => events.push("removed") });
+
+  writeFileSync(`${path}.lock`, "");
+  writeFileSync(`${path}.lock`, "locked");
+  await settle();
+  assert.deepEqual(events, [], "watchRegistry: rewriting projects.json.lock alone → no runtime event");
+});
+
+// ── recheckRegistry: one read, reported as the watch would ──────────
+//
+// Each assertion runs in the same tick as the re-check, before the watch can
+// deliver its own event for the write, so it sees the re-check's report alone.
+
+// A new port is discovered once; a repeat finds nothing new; the .bak gap removes nothing.
+await withRegistryFolder(async (path) => {
+  const key = normalizePath("/proj/run");
+  writeFileSync(path, JSON.stringify({ by_path: { [key]: makeEntry({}) } }));
+  const events: string[] = [];
+  watchRegistry({
+    onDiscovered: (_k, port) => events.push(`discovered ${port}`),
+    onRemoved: () => events.push("removed"),
+  });
+
+  replaceLikeToolkit(path, { [key]: makeEntry({ runtime_port: 6571, runtime_pid: ALIVE }) });
+  recheckRegistry();
+  assert.deepEqual(events, ["discovered 6571"], "recheckRegistry: a new runtime port → one discovered");
+  recheckRegistry();
+  assert.deepEqual(events, ["discovered 6571"], "recheckRegistry: the same file again → no further event");
+
+  renameSync(path, `${path}.bak`);
+  recheckRegistry();
+  assert.deepEqual(events, ["discovered 6571"], "recheckRegistry: the registry file renamed away → no removed");
+  assert.equal(getCachedRuntimePort("/proj/run"), 6571, "recheckRegistry: a missing file leaves the cache as it was");
+});
+
+// No registry folder when the watch starts: a re-check attaches the watch once the folder exists.
+await withRegistryFolder(async (path) => {
+  rmSync(dirname(path), { recursive: true, force: true });
+  watchRegistry({ onDiscovered: () => {}, onRemoved: () => {} });
+  assert.equal(isWatcherActive(), false, "watchRegistry: no registry folder → no watch attached");
+
+  mkdirSync(dirname(path), { recursive: true });
+  recheckRegistry();
+  assert.equal(isWatcherActive(), true, "recheckRegistry: the registry folder now exists → the watch is attached");
+});
 
 console.log("All registry tests passed.");

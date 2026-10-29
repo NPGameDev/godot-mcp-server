@@ -11,7 +11,7 @@ System-wide project registry reader.
 Mirrors the GDScript `registry_client.gd` — same file, same schema, same path
 normalisation. The plugin writes; this module reads. Resolves a project's
 editor / runtime / LSP endpoints by absolute path, and optionally watches the
-registry file so runtime-port changes push to the bridge without per-RPC I/O.
+registry's folder so runtime-port changes push to the bridge without per-RPC I/O.
 
 Reading includes deciding whether an entry's owner is still there: the plugin
 has no reliable liveness signal of its own and prunes nothing, so entries
