@@ -4,7 +4,7 @@
  * Mirrors the GDScript `registry_client.gd` — same file, same schema, same path
  * normalisation. The plugin writes; this module reads. Resolves a project's
  * editor / runtime / LSP endpoints by absolute path, and optionally watches the
- * registry file so runtime-port changes push to the bridge without per-RPC I/O.
+ * registry's folder so runtime-port changes push to the bridge without per-RPC I/O.
  *
  * Reading includes deciding whether an entry's owner is still there: the plugin
  * has no reliable liveness signal of its own and prunes nothing, so entries
@@ -16,7 +16,7 @@
 
 import { readFileSync, watch, statSync } from "node:fs";
 import type { FSWatcher } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { homedir } from "node:os";
 
 import { isPidAlive, wsPortNotRefused } from "./registryLiveness.js";
@@ -81,21 +81,35 @@ export function registryPath(): string {
 
 // -- Registry I/O ------------------------------------------------------------
 
-function readRegistry(): Registry {
-  // Single parse attempt — no retry, no busy-wait. The toolkit writes the
-  // registry atomically (.tmp → rename, atomic on POSIX *and* Windows), so a
-  // reader always sees a complete prior-or-new file, never a partial one. A
-  // parse failure is therefore genuine corruption that re-reading the same
-  // bytes cannot fix, and a missing file (ENOENT, first run) is the expected
-  // "no registry yet" state. Either way we degrade gracefully to empty.
+/**
+ * The registry as the file holds it now, or undefined when the file cannot be read.
+ *
+ * Single parse attempt — no retry, no busy-wait. The toolkit replaces the file by
+ * rename (.tmp onto the target), so a file that can be read is complete, never
+ * partial, and a parse failure is genuine corruption that re-reading the same
+ * bytes cannot fix: it reads as empty. The file can still be missing, either
+ * because no editor has written it yet or for the moment between the toolkit's
+ * two renames, when the old file is already .bak and the new one not yet in place.
+ */
+function readRegistryFile(): Registry | undefined {
+  let raw: string;
   try {
-    const raw = readFileSync(registryPath(), "utf-8");
+    raw = readFileSync(registryPath(), "utf-8");
+  } catch {
+    return undefined;
+  }
+  try {
     const data = JSON.parse(raw) as Registry;
     if (data && typeof data.by_path === "object") return data;
   } catch {
-    /* ENOENT (no registry yet) or corrupt file — fall through to empty. */
+    /* corrupt file — fall through to empty. */
   }
   return { by_path: {} };
+}
+
+/** The registry, with a missing or unreadable file read as empty. */
+function readRegistry(): Registry {
+  return readRegistryFile() ?? { by_path: {} };
 }
 
 /**
@@ -203,12 +217,17 @@ export async function discoverLspEndpoint(
 
 // -- Registry watcher ----------------------------------------------------------
 //
-// Watches projects.json via fs.watch and fires callbacks when a project's
-// (runtime_port, runtime_pid) pair changes (see runtimeTransitions).
+// Watches the folder that holds projects.json and fires callbacks when a
+// project's (runtime_port, runtime_pid) pair changes (see runtimeTransitions).
 // Replaces per-RPC file reads with in-memory lookups when active.
 //
-// Safety net: a 30s stat-poll heartbeat catches silent watcher death (rare),
-// inode replacement on Linux/macOS, and the file-not-yet-created case (P2).
+// The folder, not the file: the toolkit replaces projects.json by rename on every
+// write, and on Linux and macOS a watch on the file follows the replaced inode and
+// goes quiet after the first replacement. The folder outlives every replacement,
+// and it also reports the file's first creation.
+//
+// Safety net: a 30s stat-poll heartbeat catches silent watcher death (rare) and
+// retries the watch while the folder does not exist yet.
 
 let watcher: FSWatcher | undefined = undefined;
 let cachedRegistry: Registry = { by_path: {} };
@@ -273,7 +292,7 @@ function diffAndNotify(cached: Registry, fresh: Registry): void {
   }
 }
 
-/** Debounced handler shared by fs.watch and heartbeat-triggered re-watches. */
+/** Debounced handler for the folder watch's projects.json events. */
 function handleRegistryChange(): void {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
@@ -294,11 +313,21 @@ function onWatchError(): void {
   watcher = undefined;
 }
 
-/** Try to establish (or re-establish) fs.watch on projects.json. */
+/**
+ * Try to establish (or re-establish) fs.watch on the registry folder. Fails while
+ * the folder does not exist; the toolkit creates it, never this reader.
+ */
 function tryStartWatcher(): boolean {
   if (watcher) return true;
+  const path = registryPath();
+  const fileName = basename(path);
   try {
-    watcher = watch(registryPath(), { persistent: false }, handleRegistryChange);
+    // The folder also holds the toolkit's .tmp, .bak and .lock siblings, which change
+    // on every write; only projects.json counts. Node may report no filename, so a
+    // missing name counts as a change.
+    watcher = watch(dirname(path), { persistent: false }, (_event, name) => {
+      if (name == null || name === fileName) handleRegistryChange();
+    });
     watcher.on("error", onWatchError);
     return true;
   } catch {
@@ -309,8 +338,7 @@ function tryStartWatcher(): boolean {
 /**
  * 30s stat-poll heartbeat. Covers:
  *  - Silent watcher death (all platforms, rare)
- *  - Inode replacement on Linux/macOS (file replaced via atomic rename)
- *  - File not yet created at startup (P2) — retries watcher start
+ *  - A registry folder that does not exist yet — retries the watcher start
  */
 function startHeartbeat(): void {
   try {
@@ -320,7 +348,7 @@ function startHeartbeat(): void {
   }
 
   heartbeatTimer = setInterval(() => {
-    // Re-establish watcher if it died or never started (P2: ENOENT at init).
+    // Re-establish the watcher if it died or never started (no registry folder at start).
     if (!watcher) tryStartWatcher();
 
     try {
@@ -347,9 +375,10 @@ function startHeartbeat(): void {
 /**
  * Start watching projects.json for runtime port changes.
  *
- * Falls back silently when fs.watch is unavailable or the file doesn't
- * exist yet — isWatcherActive() returns false and callRuntime uses
- * per-RPC file reads. The heartbeat retries watcher creation every 30s.
+ * Watches the folder that holds the file, so a registry the toolkit replaces or
+ * creates later is still seen. Falls back silently when fs.watch is unavailable or
+ * the folder doesn't exist yet — isWatcherActive() returns false and callRuntime
+ * uses per-RPC file reads. The heartbeat retries watcher creation every 30s.
  */
 export function watchRegistry(callbacks: {
   onDiscovered: (projectPath: string, port: number) => void;
@@ -372,6 +401,38 @@ export function unwatchRegistry(): void {
   }
   watcher?.close();
   watcher = undefined;
+}
+
+/**
+ * Read projects.json once and report its runtime changes through the callbacks
+ * {@link watchRegistry} was given, as a watch event would. For a caller that is
+ * waiting on a runtime and cannot afford a missed watch event; it runs no timer of
+ * its own.
+ *
+ * @remarks
+ * A no-op unless {@link watchRegistry} is running. Re-arms the watch when none is
+ * attached. A file that cannot be read (missing, as between the toolkit's two
+ * renames, or otherwise unreadable) reports nothing, so a removal is left to the
+ * watch and the heartbeat; a corrupt one reads as empty, as the watch reads it.
+ *
+ * @internal
+ */
+export function recheckRegistry(): void {
+  if (heartbeatTimer === undefined) return;
+  tryStartWatcher();
+  let mtimeMs: number;
+  try {
+    // Stat before the read: a replacement that lands in between costs the heartbeat
+    // one redundant re-read, where stat-after-read would let it skip that change.
+    mtimeMs = statSync(registryPath()).mtimeMs;
+  } catch {
+    return;
+  }
+  const fresh = readRegistryFile();
+  if (fresh === undefined) return;
+  diffAndNotify(cachedRegistry, fresh);
+  cachedRegistry = fresh;
+  lastKnownMtimeMs = mtimeMs;
 }
 
 /** True when fs.watch is active and cachedRegistry is kept fresh. */

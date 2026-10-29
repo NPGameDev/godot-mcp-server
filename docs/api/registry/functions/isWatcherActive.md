@@ -8,7 +8,7 @@
 
 > **isWatcherActive**(): `boolean`
 
-Defined in: [src/registry.ts:378](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L378)
+Defined in: [src/registry.ts:439](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/registry.ts#L439)
 
 True when fs.watch is active and cachedRegistry is kept fresh.
 
