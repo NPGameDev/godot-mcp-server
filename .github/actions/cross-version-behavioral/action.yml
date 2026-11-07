@@ -336,6 +336,39 @@ runs:
         echo "forensics key: H1 (zombie warm-up editor) = 2+ godot PIDs, or 6005/6550 owned by a PID that is not the main editor, or the registry shows the main editor on 6551 -> fix: warm-up teardown (toolkit scripts/test_framework/run_units_cold.sh). H2 (engine-internal LSP wedge) = exactly 1 godot PID, 6005 owned by the main editor, initialize still mute -> upstream Godot 4.2 defect (no LSP bind retry 4.2-4.4; unbudgeted main-thread poll, fixed-shape 4.3); the mitigation options are a maintainer decision."
         exit 0
 
+    # The port being up does not mean the editor has a scene open. The toolkit starts
+    # listening inside the editor's first filesystem scan, and the project's main scene
+    # opens only when that scan ends, so for some seconds `scene.get_tree` answers
+    # NO_SCENE, which fails the smoke's first section. This step calls `scene.get_tree`
+    # through the bridge, with the smoke's own auth, until a scene comes back, bounded at
+    # 60 s; it logs the wait in ms so a slower start stays visible. It sits outside the
+    # boot retry: once the port is up the editor has booted, and a scene that never opens
+    # (a project without a main scene, a stalled scan) would not open on a reboot either.
+    # Like a failed boot, a timeout fails the leg before the smoke; the always() steps
+    # below still stop the editor and read its log.
+    - name: Wait for an edited scene (bounded)
+      shell: bash
+      env:
+        GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
+      run: |
+        set +e
+        bound_s=60
+        out="$(node "${{ inputs.server-dir }}/scripts/ci/editor-wait-scene.mjs" --timeout-ms "$((bound_s * 1000))" 2>&1)"
+        status=$?
+        printf '%s\n' "$out"
+        if [ "$status" != "0" ]; then
+          verdict="$(printf '%s\n' "$out" | grep -E '^scene_wait=' | tail -n1)"
+          case "$verdict" in
+            scene_wait=timeout*)
+              echo "::error::no edited scene within ${bound_s} s of the WS port ${GODOT_MCP_EDITOR_PORT:-6550} coming up: ${verdict}" ;;
+            *)
+              echo "::error::the scene wait could not run: ${verdict:-editor-wait-scene.mjs exited $status with no verdict line}" ;;
+          esac
+          echo "editor.log tail:"
+          tail -40 editor.log 2>/dev/null || true
+          exit 1
+        fi
+
     # Composite-action run steps cannot take `timeout-minutes` (GitHub limitation),
     # so the long steps carry a shell `timeout` fuse instead — a hang fails the
     # STEP (letting the always() log steps run), not the job (a job-level kill
