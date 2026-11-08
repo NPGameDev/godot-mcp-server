@@ -93,6 +93,38 @@ runs:
         echo "TIMEOUT_BIN=$TIMEOUT_BIN" >> "$GITHUB_ENV"
         echo "resolved TIMEOUT_BIN=$TIMEOUT_BIN (os=${{ inputs.os }})"
 
+    # Crash reports need the OS's reporter set up before the first editor starts, the 4.2
+    # warm-up's included. docs/dev/crash-reports.md explains how to read what they give.
+    # Neither step can fail a leg: a missing report must never be why a job goes red.
+    #
+    # Windows: the machine-wide key rather than a per-application one, since the process
+    # image depends on how setup-godot links the editor. DumpType 1 is the minimal dump: a
+    # full one is the process's memory, which holds the WS auth token, and artifacts on a
+    # public repo can be downloaded.
+    - name: Enable crash dumps (windows)
+      if: ${{ inputs.os == 'windows' }}
+      continue-on-error: true
+      shell: pwsh
+      run: |
+        $key = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps'
+        $dumps = Join-Path $env:RUNNER_TEMP 'crash-dumps'
+        New-Item -ItemType Directory -Force -Path $dumps | Out-Null
+        New-Item -Path $key -Force | Out-Null
+        New-ItemProperty -Path $key -Name DumpFolder -PropertyType ExpandString -Value $dumps -Force | Out-Null
+        New-ItemProperty -Path $key -Name DumpCount -PropertyType DWord -Value 10 -Force | Out-Null
+        New-ItemProperty -Path $key -Name DumpType -PropertyType DWord -Value 1 -Force | Out-Null
+
+    # Linux: the image's default core_pattern pipes to apport, which keeps nothing we can
+    # read. The core stays on the runner; the collect step below reads it with gdb. `ulimit -c`
+    # is per shell, so each step that starts an editor sets its own.
+    - name: Enable core files (linux)
+      if: ${{ inputs.os == 'linux' }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        mkdir -p /tmp/cores
+        sudo sysctl -w kernel.core_pattern=/tmp/cores/core.%e.%p.%s
+
     - name: Setup Godot (Godot ${{ inputs.godot-version }})
       # pinned to v2.4.1 — update tag manually after reviewing changelogs
       uses: chickensoft-games/setup-godot@v2.4.1
@@ -199,6 +231,9 @@ runs:
         # teardown's zombie hard-stop (exit 2) — must survive the `| tee` below;
         # without it tee's 0 would mask the failure and this step would go green.
         set -o pipefail
+        if [ "${{ inputs.os }}" = "linux" ]; then
+          ulimit -c unlimited || echo "::warning::core files stay off: ulimit -c unlimited was refused"
+        fi
         cd "$PROJECT_PATH"
         if [ "$LANGUAGE" = "dotnet" ]; then
           toolkit_root="${TOOLKIT_ADDON_SRC%/addons/godot_mcp_toolkit}"
@@ -255,6 +290,13 @@ runs:
         if [ "$POLL_PORT" != "6550" ]; then
           echo "NOTE: main editor intentionally relocated to port $POLL_PORT (port-agility fallback) — not an H1 incumbent"
         fi
+        if [ "${{ inputs.os }}" = "linux" ]; then
+          ulimit -c unlimited || echo "::warning::core files stay off: ulimit -c unlimited was refused"
+        fi
+        # Each attempt truncates editor.log, so a failed attempt's log is kept for the
+        # crash-report upload: a boot that recovers would otherwise lose the crash's log.
+        crash_report_dir="${RUNNER_TEMP:-/tmp}/crash-report"
+        mkdir -p "$crash_report_dir"
         BOOT_OK=0
         EDITOR_PID=""
         for attempt in 1 2 3; do
@@ -304,6 +346,7 @@ runs:
               done
             fi
           fi
+          cp editor.log "$crash_report_dir/editor-attempt-$attempt.log" 2>/dev/null || true
           EDITOR_PID=""
           EDITOR_WINPID=""
         done
@@ -533,6 +576,47 @@ runs:
         [ "$fallback" = "yes" ] && level="warning"
         echo "::$level title=Editor stop::${quit_note:-quit_request=no verdict line}; editor $exit_note; forced kill fired: $fallback"
         exit 0
+
+    # After the stop, so a crash at exit is on disk and editor.log is complete. Composite
+    # steps cannot take `timeout-minutes`, so the collect step carries a shell fuse; its own
+    # waits are bounded well inside it. github.action_status, not job.status: it is the one
+    # that sees a failure inside this composite. A fuse kill leaves the upload output unset,
+    # and the upload then still takes the logs the script copied first.
+    - name: Collect crash reports (always)
+      id: crash-reports
+      if: always()
+      continue-on-error: true
+      shell: bash
+      env:
+        LEG_STATUS: ${{ github.action_status }}
+      run: |
+        case "${{ inputs.os }}" in
+          windows) reports="$RUNNER_TEMP/crash-dumps" ;;
+          macos)   reports="$HOME/Library/Logs/DiagnosticReports" ;;
+          *)       reports=/tmp/cores ;;
+        esac
+        "${TIMEOUT_BIN:-timeout}" -k 10 420 node "${{ inputs.server-dir }}/scripts/ci/collect-crash-reports.mjs" \
+          --os "${{ inputs.os }}" \
+          --out "$RUNNER_TEMP/crash-report" \
+          --reports "$reports" \
+          --editor-bin "$(command -v godot || true)" \
+          --leg-status "$LEG_STATUS" \
+          --editor-gone "${MCP_STOP_SENTINEL_UNSENT:-}" \
+          --log editor.log \
+          --log warmup.log
+
+    # A leg with no report uploads nothing, or only its logs: the absence of a report never
+    # fails a job. The name carries the leg and the attempt, since artifact names are unique
+    # within a run and a re-run's report is the evidence a new runner gives.
+    - name: Upload crash reports (always)
+      if: ${{ always() && steps.crash-reports.outputs.upload != 'false' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@v7
+      with:
+        name: crash-report-${{ inputs.os }}-${{ inputs.godot-version }}-${{ inputs.language }}-attempt-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/crash-report
+        retention-days: 14
+        if-no-files-found: warn
 
     # Nothing else checks the editor log for errors, so without this step a GDScript error
     # raised in the toolkit addon (a renamed engine API on a new Godot version) leaves the
