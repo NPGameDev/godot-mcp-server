@@ -157,10 +157,10 @@ export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
     fail(`lsp_project_scan: invariant violated — scanned ${scanned} != accounted ${accounted}`);
   }
 
-  // The per-file wait already covers a slow parse, so a file that outlives it
-  // means the editor stalled; the invariant above counts it without flagging it.
+  // The per-file wait is sized for a slow parse, so this section treats a file
+  // that outlives it as a stall; the invariant above counts it without flagging it.
   if (timedOut > 0) {
-    fail(`lsp_project_scan: first scan timed out on ${timedOut} files: ${JSON.stringify(payload.timed_out)}`);
+    fail(`lsp_project_scan: first scan timed out on ${timedOut} file(s): ${JSON.stringify(payload.timed_out)}`);
   } else {
     pass("lsp_project_scan: first scan timed out on no file");
   }
