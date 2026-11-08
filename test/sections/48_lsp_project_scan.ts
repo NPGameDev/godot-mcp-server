@@ -125,9 +125,9 @@ export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
   const payload = JSON.parse(result.content[0].text) as ScanPayload;
 
   if (payload.code === "LSP_UNAVAILABLE") {
-    // Editor accepted the connection but went mute across a whole chunk — treat
-    // as a skip (the LSP is up but wedged), consistent with the connect-phase skip.
-    pass(`lsp_project_scan: SKIPPED — LSP connected but returned no diagnostics (editor busy)`);
+    // Editor accepted the connection but went mute across a whole chunk. Unlike
+    // the connect-phase skip, the LSP is up here, so its silence is a defect.
+    fail(`lsp_project_scan: LSP connected but returned no diagnostics (editor busy)`);
     return;
   }
 
@@ -155,6 +155,14 @@ export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
     pass(`lsp_project_scan: invariant holds (scanned ${scanned} = clean+dirty+timed_out+read_failed)`);
   } else {
     fail(`lsp_project_scan: invariant violated — scanned ${scanned} != accounted ${accounted}`);
+  }
+
+  // The per-file wait is sized for a slow parse, so this section treats a file
+  // that outlives it as a stall; the invariant above counts it without flagging it.
+  if (timedOut > 0) {
+    fail(`lsp_project_scan: first scan timed out on ${timedOut} file(s): ${JSON.stringify(payload.timed_out)}`);
+  } else {
+    pass("lsp_project_scan: first scan timed out on no file");
   }
 
   // Any reported diagnostics must carry 1-based line/character + a severity label.
@@ -225,7 +233,7 @@ export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
       // (1) Broken file must appear dirty with an Error carrying a 1-based line.
       const brokenScan = await scan({});
       if (!brokenScan) {
-        pass("lsp_project_scan: SKIPPED dirty leg — LSP went mute mid-scan (editor busy)");
+        fail("lsp_project_scan: dirty leg — LSP went mute mid-scan (editor busy)");
       } else {
         const entry = dirtyEntry(brokenScan, brokenPath);
         const err = entry?.diagnostics?.find((d) => d.severity === "Error");
@@ -254,7 +262,7 @@ export async function testLspProjectScan(ctx: TestCtx): Promise<void> {
       const scanOff = await scan({ include_warnings: false });
       const scanOn = await scan({ include_warnings: true });
       if (!scanOff || !scanOn) {
-        pass("lsp_project_scan: SKIPPED include_warnings leg — LSP went mute mid-scan (editor busy)");
+        fail("lsp_project_scan: include_warnings leg — LSP went mute mid-scan (editor busy)");
       } else {
         const offEntry = dirtyEntry(scanOff, warnPath);
         // The broken fixture is still present (it is an Error), so "absent" is
