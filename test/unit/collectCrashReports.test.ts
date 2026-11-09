@@ -299,6 +299,26 @@ await withDirs(async (reportsDir, outDir) => {
 await withDirs(async (reportsDir, outDir) => {
   let elapsed = 0;
   const result = await collectCrashReports({
+    os: "macos",
+    outDir,
+    reportsDir,
+    logs: [],
+    expectDeath: false,
+    holdForExitCrash: true,
+    backtrace: noBacktrace,
+    sleep: async (ms: number) => {
+      elapsed += ms;
+      if (elapsed === 18_000) writeFileSync(join(reportsDir, "Godot-exit.ips"), "{}");
+    },
+  });
+  assert.equal(result.reports, 1, "a report landing 18 s into the hold is gathered on a leg that expects no death");
+  assert.equal(result.upload, true, "a report found in the hold uploads");
+  assert.equal(elapsed, 34_000, "a report found in the hold keeps the wait 15 s past its arrival, on the 2 s poll");
+});
+
+await withDirs(async (reportsDir, outDir) => {
+  let elapsed = 0;
+  const result = await collectCrashReports({
     os: "windows",
     outDir,
     reportsDir,
@@ -364,7 +384,7 @@ await withDirs(async (reportsDir, outDir, root) => {
   );
   assert.equal(run.status, 0, `the CLI exits 0 with a report: ${run.stderr}`);
   assert.equal(readFileSync(output, "utf8"), "upload=true\n", "the CLI writes the upload decision to GITHUB_OUTPUT");
-  assert.match(run.stdout, /::warning title=Crash report::1 editor crash report/, "a report raises an annotation");
+  assert.match(run.stdout, /::warning title=Crash report::1 crash report/, "a report raises an annotation");
 });
 
 await withDirs(async (reportsDir, outDir, root) => {
@@ -388,6 +408,7 @@ await withDirs(async (reportsDir, outDir, root) => {
   );
 });
 
+// The CLI takes no test clock, so this block spends the hold's real 24 s.
 await withDirs(async (reportsDir, outDir, root) => {
   const output = join(root, "github-output");
   const run = spawnSync(
@@ -397,6 +418,21 @@ await withDirs(async (reportsDir, outDir, root) => {
   );
   assert.equal(run.status, 0, `the CLI exits 0 without a report, so no report never fails a leg: ${run.stderr}`);
   assert.equal(readFileSync(output, "utf8"), "upload=false\n", "a green leg with nothing to say uploads nothing");
+  assert.match(run.stdout, /after waiting 24000 ms/, "a green macOS leg holds 24 s, so a crash at exit has a report");
+});
+
+await withDirs(async (reportsDir, outDir, root) => {
+  const run = spawnSync(
+    process.execPath,
+    [scriptPath, "--os", "windows", "--out", outDir, "--reports", reportsDir, "--leg-status", "success"],
+    { encoding: "utf8", env: { ...process.env, GITHUB_OUTPUT: join(root, "github-output"), ...noCdb(root) } },
+  );
+  assert.equal(run.status, 0, `a green Windows leg exits 0: ${run.stderr}`);
+  assert.match(
+    readFileSync(join(outDir, "collected.txt"), "utf8"),
+    /0 report\(s\) after waiting 0 ms/,
+    "a green Windows leg spends no wait",
+  );
 });
 
 {
@@ -406,4 +442,4 @@ await withDirs(async (reportsDir, outDir, root) => {
   assert.equal(run.status, 2, "an unknown OS is a usage error");
 }
 
-console.log("All 18 tests passed.");
+console.log("All 20 tests passed.");

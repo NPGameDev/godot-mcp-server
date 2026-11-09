@@ -8,7 +8,8 @@
 //
 // The OS reporter writes on its own schedule, so when an editor is expected to have died
 // (a failed leg, or an editor gone at teardown) the macOS and Windows reports get a bounded
-// wait. A green leg waits for nothing.
+// wait. macOS's reporter writes after the process is gone, so a green macOS leg holds too, for a
+// crash at exit. A green Linux or Windows leg waits for nothing.
 //
 // It writes `upload=true|false` to $GITHUB_OUTPUT. The leg uploads when there is a report,
 // a log of a failed boot attempt, a failed or cancelled leg, or an editor gone at teardown;
@@ -89,11 +90,22 @@ export function expectsEditorDeath(legStatus, editorGone) {
  * @param options.reportsDir - where this OS's reporter writes.
  * @param options.logs - logs to copy; one the job never wrote is noted and skipped.
  * @param options.expectDeath - wait for a macOS or Windows report to arrive.
+ * @param options.holdForExitCrash - with no death expected, still wait the reporter's latency; a
+ *   report found by then is waited for as one from an expected death is.
  * @param options.backtrace - returns a Linux core's or a Windows dump's stacks as text.
  * @param options.sleep - waits the given ms, or a test's stand-in.
  * @returns how many reports were gathered, whether to upload, and the notes.
  */
-export async function collectCrashReports({ os, outDir, reportsDir, logs, expectDeath, backtrace, sleep = pause }) {
+export async function collectCrashReports({
+  os,
+  outDir,
+  reportsDir,
+  logs,
+  expectDeath,
+  holdForExitCrash = false,
+  backtrace,
+  sleep = pause,
+}) {
   mkdirSync(outDir, { recursive: true });
   const notes = [];
   for (const log of logs) {
@@ -107,7 +119,7 @@ export async function collectCrashReports({ os, outDir, reportsDir, logs, expect
   if (os === "linux") {
     reports = writeBacktraces(reportsDir, outDir, backtrace, notes);
   } else {
-    const names = await awaitReports(REPORT_NAME[os], reportsDir, expectDeath, sleep, notes);
+    const names = await awaitReports(REPORT_NAME[os], reportsDir, expectDeath, holdForExitCrash, sleep, notes);
     reports =
       os === "windows"
         ? writeDumpStacks(names, reportsDir, outDir, backtrace, notes)
@@ -156,13 +168,14 @@ function copyReports(names, reportsDir, outDir) {
   return names.length;
 }
 
-async function awaitReports(pattern, reportsDir, expectDeath, sleep, notes) {
+async function awaitReports(pattern, reportsDir, expectDeath, holdForExitCrash, sleep, notes) {
   const list = () => listDir(reportsDir).filter((name) => pattern.test(name));
   let names = list();
   let waitedMs = 0;
   let quietMs = 0;
-  const settled = () => names.length > 0 && quietMs >= SETTLE_MS && waitedMs >= REPORTER_LATENCY_MS;
-  while (expectDeath && waitedMs < MAX_WAIT_MS && !settled()) {
+  // With no report yet, only an expected death is worth waiting on past the reporter's latency.
+  const settled = () => waitedMs >= REPORTER_LATENCY_MS && (names.length > 0 ? quietMs >= SETTLE_MS : !expectDeath);
+  while ((expectDeath || holdForExitCrash) && waitedMs < MAX_WAIT_MS && !settled()) {
     await sleep(POLL_MS);
     waitedMs += POLL_MS;
     const current = list();
@@ -267,12 +280,13 @@ async function main(argv) {
     reportsDir: args.reportsDir,
     logs: args.logs,
     expectDeath: expectsEditorDeath(args.legStatus, args.editorGone),
+    holdForExitCrash: args.os === "macos",
     backtrace: args.os === "windows" ? cdbStacks : backtrace,
   });
   for (const note of notes) console.log(note);
   if (reports > 0) {
     console.log(
-      `::warning title=Crash report::${reports} editor crash report(s) gathered; see docs/dev/crash-reports.md`,
+      `::warning title=Crash report::${reports} crash report(s) gathered; see docs/dev/crash-reports.md`,
     );
   }
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `upload=${upload}\n`);

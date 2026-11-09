@@ -282,9 +282,9 @@ runs:
         mkdir -p "$launcher_dir"
         launcher="$launcher_dir/editor-launcher.exe"
         # gcc finds its own tools through PATH.
-        PATH="$(dirname "$gcc_bin"):$PATH" "$gcc_bin" -o "$launcher" "${{ inputs.server-dir }}/scripts/ci/editor-launcher.c" \
+        PATH="$(dirname "$gcc_bin"):$PATH" "$TIMEOUT_BIN" 120 "$gcc_bin" -o "$launcher" "${{ inputs.server-dir }}/scripts/ci/editor-launcher.c" \
           || no_launcher "the launcher did not compile with $gcc_bin"
-        self_check="$("$launcher" "$(cygpath -w /usr/bin/true.exe)")"
+        self_check="$("$TIMEOUT_BIN" 120 "$launcher" "$(cygpath -w /usr/bin/true.exe)")"
         case "$self_check" in
           *child_exit=0x00000000*) ;;
           *) no_launcher "the launcher did not run a child (it printed: ${self_check:-nothing})" ;;
@@ -347,12 +347,14 @@ runs:
           # It names the launcher, or the MSYS stub above it if bash reads it before the
           # launcher has started; a tree kill from either reaches the editor. The launcher
           # itself exits when the editor does, so the poll's `kill -0` follows the editor.
+          # Read on each tick until it is known: a live launcher with none recorded would
+          # leave an editor that owns no port beyond the reap's reach.
           EDITOR_WINPID=""
-          if [ "${{ inputs.os }}" = "windows" ]; then
-            EDITOR_WINPID="$(cat "/proc/$EDITOR_PID/winpid" 2>/dev/null || true)"
-          fi
           REASON=""
           for i in $(seq 1 60); do
+            if [ "${{ inputs.os }}" = "windows" ] && [ -z "$EDITOR_WINPID" ]; then
+              EDITOR_WINPID="$(cat "/proc/$EDITOR_PID/winpid" 2>/dev/null || true)"
+            fi
             if ! kill -0 "$EDITOR_PID" 2>/dev/null; then
               REASON="editor process died during boot"
               break
@@ -377,8 +379,9 @@ runs:
           # editor cannot survive into the next attempt. The tree kill goes first:
           # a POSIX kill that ended the launcher would leave taskkill no tree to walk
           # and the editor running, and an editor still booting owns no port yet.
-          if [ "${{ inputs.os }}" = "windows" ]; then
-            [ -n "$EDITOR_WINPID" ] && taskkill //F //T //PID "$EDITOR_WINPID" 2>/dev/null || true
+          # The `kill -0` keeps a PID Windows may have reused since the launcher exited out of taskkill.
+          if [ "${{ inputs.os }}" = "windows" ] && [ -n "$EDITOR_WINPID" ] && kill -0 "$EDITOR_PID" 2>/dev/null; then
+            taskkill //F //T //PID "$EDITOR_WINPID" 2>/dev/null || true
           fi
           kill "$EDITOR_PID" 2>/dev/null || true
           for _ in 1 2 3; do kill -0 "$EDITOR_PID" 2>/dev/null || break; sleep 1; done
@@ -631,8 +634,10 @@ runs:
         echo "::$level title=Editor stop::${quit_note:-quit_request=no verdict line}; editor $exit_note; forced kill fired: $fallback"
         exit 0
 
-    # After the stop, so a crash at exit is on disk and editor.log is complete. On Windows it
-    # also runs cdb over each dump on the runner, and the text alone goes into the upload.
+    # After the stop, so editor.log is complete and a crash at exit is in scope. A Linux core
+    # or a Windows dump is on disk once the process is gone; macOS's reporter writes later, so
+    # the script holds every macOS leg, a green one too. On Windows it also runs cdb over each
+    # dump on the runner, and the text alone goes into the upload.
     # Composite steps cannot take `timeout-minutes`, so the collect step carries a shell fuse
     # over its own bounded waits, which several slow dumps or cores could add up past.
     # github.action_status, not job.status: it is the one that sees a failure inside this
