@@ -27,15 +27,16 @@ const LIFECYCLE = pathToFileURL(resolve(HERE, "../../src/startup/lifecycle.ts"))
 const workDir = mkdtempSync(join(tmpdir(), "lifecycle-test-"));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Resolve the exit code, or `null` if the child outlives the deadline — "still
- *  running" is an expected outcome for the keep-alive cases, not only a timeout. */
-function exitWithin(child: ChildProcess, ms: number): Promise<number | null> {
+/** Resolve the exit code, the signal's name if a signal killed the child, or `null` if the
+ *  child outlives the deadline — "still running" is an expected outcome for the keep-alive
+ *  cases, not only a timeout. */
+function exitWithin(child: ChildProcess, ms: number): Promise<number | NodeJS.Signals | null> {
   return new Promise((resolveExit) => {
-    if (child.exitCode !== null) return resolveExit(child.exitCode);
+    if (child.exitCode !== null || child.signalCode !== null) return resolveExit(child.exitCode ?? child.signalCode);
     const timer = setTimeout(() => resolveExit(null), ms);
-    child.once("exit", (code) => {
+    child.once("exit", (code, signal) => {
       clearTimeout(timer);
-      resolveExit(code);
+      resolveExit(code ?? signal);
     });
   });
 }
@@ -46,8 +47,10 @@ writeFileSync(
   FIXTURE,
   String.raw`import { appendFileSync } from "node:fs";
 import { installProcessHandlers } from ${JSON.stringify(LIFECYCLE)};
-const [mode, log] = process.argv.slice(2); // mode: normal | hang-close | throw-epipe
+const [mode, log, startDelayMs] = process.argv.slice(2); // mode: normal | hang-close | throw-epipe
 const note = (s) => appendFileSync(log, s + "\n");
+// Stands in for a slow module load: until the handlers below install, a signal kills the process.
+if (Number(startDelayMs) > 0) await new Promise((r) => setTimeout(r, Number(startDelayMs)));
 let closes = 0;
 installProcessHandlers({
   close: () => {
@@ -67,10 +70,13 @@ note("ready");
   "utf8",
 );
 
-function start(name: string, mode = "normal") {
+const READY_WAIT_MS = 30_000; // far past any healthy start, so only a stuck child reaches it
+const READY_POLL_MS = 20;
+
+function start(name: string, mode = "normal", startDelayMs = 0) {
   const log = join(workDir, `${name}.log`);
   writeFileSync(log, "");
-  const child = spawn(process.execPath, ["--import", "tsx", FIXTURE, mode, log], {
+  const child = spawn(process.execPath, ["--import", "tsx", FIXTURE, mode, log, String(startDelayMs)], {
     stdio: ["pipe", "pipe", "pipe"],
   });
   let out = "";
@@ -78,24 +84,55 @@ function start(name: string, mode = "normal") {
   child.stderr!.on("data", () => {}); // keep the reader alive until a case destroys it
   const notes = () => readFileSync(log, "utf8").split("\n").filter(Boolean);
   const closes = () => notes().filter((l) => l.startsWith("close#")).length;
-  return { child, notes, closes, out: () => out };
+  /** Resolve once the fixture has written `ready`, its handlers installed. A child that ends
+   *  first, or stays silent past READY_WAIT_MS, fails the suite here rather than hanging it. */
+  const ready = async () => {
+    const deadline = Date.now() + READY_WAIT_MS;
+    for (;;) {
+      if (notes().includes("ready")) return; // a child that wrote `ready` and then ended was still ready
+      const ended = child.exitCode ?? child.signalCode;
+      if (ended !== null) throw new Error(`${name}: child ended (${ended}) before writing ready`);
+      if (Date.now() >= deadline) {
+        child.kill();
+        throw new Error(`${name}: child did not write ready within ${READY_WAIT_MS} ms`);
+      }
+      await sleep(READY_POLL_MS);
+    }
+  };
+  return { child, notes, closes, ready, out: () => out };
 }
 
 const EXIT_WINDOW = SHUTDOWN_DEADLINE_MS + 3_000; // generous for slow CI runners
+const SLOW_START_MS = 500; // on top of the load: past the child's usual time to ready
 
 // ── 1. stdin EOF → departure shutdown, bridge closed once, exit 0 ─────────
 {
   const t = start("stdin-eof");
-  await sleep(400);
+  await t.ready();
   t.child.stdin!.end();
   assert.equal(await exitWithin(t.child, EXIT_WINDOW), 0, "stdin EOF exits 0");
   assert.equal(t.closes(), 1, "bridge.close() called exactly once");
 }
 
+// ── 1b. stdin EOF before the handlers install → still seen, bridge closed once, exit 0 ──
+// end() runs in the spawn's own tick, so the EOF is on the pipe long before the fixture's
+// start delay ends. Nothing reads stdin until then, which leaves the EOF for the handlers.
+{
+  const t = start("eof-before-handlers", "normal", SLOW_START_MS);
+  t.child.stdin!.end();
+  try {
+    await t.ready();
+    assert.equal(await exitWithin(t.child, EXIT_WINDOW), 0, "stdin EOF before the handlers install exits 0");
+    assert.equal(t.closes(), 1, "stdin EOF before the handlers install closes the bridge once");
+  } finally {
+    t.child.kill();
+  }
+}
+
 // ── 2. dead stdout → the next response fails → exit 0 (transport-dead) ────
 {
   const t = start("stdout-dead");
-  await sleep(400);
+  await t.ready();
   t.child.stdout!.destroy(); // the client's reader goes away
   t.child.stdin!.write("ping\n"); // provoke a response write
   assert.equal(await exitWithin(t.child, EXIT_WINDOW), 0, "a dead stdout exits 0");
@@ -105,7 +142,7 @@ const EXIT_WINDOW = SHUTDOWN_DEADLINE_MS + 3_000; // generous for slow CI runner
 // ── 3. dead stderr → muted; the server keeps answering ───────────────────
 {
   const t = start("stderr-dead");
-  await sleep(400);
+  await t.ready();
   t.child.stderr!.destroy(); // several ticks now fail with EPIPE
   await sleep(800);
   t.child.stdin!.write("ping\n");
@@ -127,7 +164,7 @@ const EXIT_WINDOW = SHUTDOWN_DEADLINE_MS + 3_000; // generous for slow CI runner
 // ── 5. a bridge.close() that never resolves still exits inside the bound ──
 {
   const t = start("hang-close", "hang-close");
-  await sleep(400);
+  await t.ready();
   const started = Date.now();
   t.child.stdin!.end();
   assert.equal(await exitWithin(t.child, EXIT_WINDOW), 0, "hung close still exits 0");
@@ -138,7 +175,7 @@ const EXIT_WINDOW = SHUTDOWN_DEADLINE_MS + 3_000; // generous for slow CI runner
 // ── 6. EOF and a stream error together → one shutdown ─────────────────────
 {
   const t = start("same-tick");
-  await sleep(400);
+  await t.ready();
   t.child.stdin!.write("ping\n");
   t.child.stdout!.destroy();
   t.child.stdin!.end();
@@ -149,10 +186,23 @@ const EXIT_WINDOW = SHUTDOWN_DEADLINE_MS + 3_000; // generous for slow CI runner
 // ── 7. SIGTERM → departure shutdown (POSIX only: Windows has no signals) ──
 if (process.platform !== "win32") {
   const t = start("sigterm");
-  await sleep(400);
+  await t.ready();
   t.child.kill("SIGTERM");
   assert.equal(await exitWithin(t.child, EXIT_WINDOW), 0, "SIGTERM exits 0");
   assert.equal(t.closes(), 1);
+}
+
+// ── 7b. SIGTERM to a child that was slow to start still finds the handlers (POSIX only) ──
+if (process.platform !== "win32") {
+  const t = start("slow-start", "normal", SLOW_START_MS);
+  try {
+    await t.ready();
+    t.child.kill("SIGTERM");
+    assert.equal(await exitWithin(t.child, EXIT_WINDOW), 0, "SIGTERM after a slow start exits 0");
+    assert.equal(t.closes(), 1, "a slow start still closes the bridge once on SIGTERM");
+  } finally {
+    t.child.kill();
+  }
 }
 
 // ── 8. One inbound message past the SDK's default 10 MiB read cap ─────────
@@ -177,4 +227,4 @@ if (process.platform !== "win32") {
 }
 
 rmSync(workDir, { recursive: true, force: true });
-console.log(`All ${process.platform === "win32" ? 7 : 8} lifecycle tests passed.`);
+console.log(`All ${process.platform === "win32" ? 8 : 10} lifecycle tests passed.`);
