@@ -285,9 +285,7 @@ async function main(argv) {
   });
   for (const note of notes) console.log(note);
   if (reports > 0) {
-    console.log(
-      `::warning title=Crash report::${reports} crash report(s) gathered; see docs/dev/crash-reports.md`,
-    );
+    console.log(`::warning title=Crash report::${reports} crash report(s) gathered; see docs/dev/crash-reports.md`);
   }
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `upload=${upload}\n`);
   return 0;
