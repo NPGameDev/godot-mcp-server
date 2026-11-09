@@ -8,7 +8,7 @@ left behind. This page says where to find it and how to read it.
 The leg's artifact is named `crash-report-<os>-<godot version>-<language>-attempt-<n>` and lasts 14 days.
 
 ```bash
-gh run download <run-id> -n crash-report-macos-4.5.2-dotnet-attempt-1 -D <empty folder>
+gh run download <run-id> -n crash-report-macos-4.5.0-dotnet-attempt-1 -D <empty folder>
 ```
 
 A leg uploads when it has a report, a log of a failed boot attempt, a failed or cancelled result, or an editor already
@@ -61,6 +61,27 @@ A report took up to 18.5 s to appear on a hosted runner, so a leg that expects a
 report, and at least 24 s even when one is already there. A green macOS leg holds the same 24 s, because macOS writes a
 crash at exit's report after the process is gone; if one turns up, it waits as a leg that expects a death does. A report
 later than that can still be missed. Green Linux and Windows legs spend no wait.
+
+## An excused macOS 4.5.0 job
+
+On macOS, Godot 4.5.0's iOS and visionOS export plugins start a device poll thread, and the editor can abort while
+destroying them (`libc++abi: Pure virtual function called!`). Godot 4.5.1 fixed it.
+
+A macOS 4.5.0 job whose three boot attempts all died on that crash, each proven by its own `.ips`, passes with a
+`Known engine crash` warning, and its scene wait, smoke, flows and dispatch do not run. The macOS 4.5.2 legs beside it
+keep that minor tested. To check one, read each `.ips` in the artifact:
+
+- its `pid` is one of the dead boots';
+- its faulting thread holds `__cxa_pure_virtual`, with `EditorExportPlatformAppleEmbedded::_check_for_changes_poll_thread`
+  as the next frame;
+- its main thread joins that thread in `Thread::wait_to_finish` under `~EditorExportPlatformAppleEmbedded`, called from
+  `DocTools::generate`.
+
+A boot that timed out, a death without such a report, and any other version or OS keep the job red. Besides the
+`Known engine crash` warning, an excused job carries three `boot attempt <n>/3 failed` warnings, an `Editor stop`
+notice, a `Crash report` warning and an `Editor log completeness unproven` warning.
+
+A crash at exit after a passing smoke already leaves a job green, with only the `Crash report` warning.
 
 ## Windows: `.cdb.txt`
 
