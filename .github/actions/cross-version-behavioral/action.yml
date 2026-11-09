@@ -93,6 +93,39 @@ runs:
         echo "TIMEOUT_BIN=$TIMEOUT_BIN" >> "$GITHUB_ENV"
         echo "resolved TIMEOUT_BIN=$TIMEOUT_BIN (os=${{ inputs.os }})"
 
+    # Crash reports need the OS's reporter set up before the first editor starts, the 4.2
+    # warm-up's included. docs/dev/crash-reports.md explains how to read what they give.
+    # Neither step can fail a leg: a missing report must never be why a job goes red.
+    #
+    # Windows: the machine-wide key rather than a per-application one, since the process
+    # image depends on how setup-godot links the editor. DumpType 1 is the minimal dump, which
+    # holds the stacks cdb reads. The dump stays on the runner: it holds some of the process's
+    # memory, the WS auth token lives there, and artifacts on a public repo can be downloaded.
+    - name: Enable crash dumps (windows)
+      if: ${{ inputs.os == 'windows' }}
+      continue-on-error: true
+      shell: pwsh
+      run: |
+        $key = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps'
+        $dumps = Join-Path $env:RUNNER_TEMP 'crash-dumps'
+        New-Item -ItemType Directory -Force -Path $dumps | Out-Null
+        New-Item -Path $key -Force | Out-Null
+        New-ItemProperty -Path $key -Name DumpFolder -PropertyType ExpandString -Value $dumps -Force | Out-Null
+        New-ItemProperty -Path $key -Name DumpCount -PropertyType DWord -Value 10 -Force | Out-Null
+        New-ItemProperty -Path $key -Name DumpType -PropertyType DWord -Value 1 -Force | Out-Null
+
+    # Linux: the image's default core_pattern pipes to systemd-coredump, whose store is not where
+    # the collect step reads. A file pattern replaces the pipe, whichever handler the image ships.
+    # The core stays on the runner; the collect step below reads it with gdb. `ulimit -c` is per
+    # shell, so each step that starts an editor sets its own.
+    - name: Enable core files (linux)
+      if: ${{ inputs.os == 'linux' }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        mkdir -p /tmp/cores
+        sudo sysctl -w kernel.core_pattern=/tmp/cores/core.%e.%p.%s
+
     - name: Setup Godot (Godot ${{ inputs.godot-version }})
       # pinned to v2.4.1 — update tag manually after reviewing changelogs
       uses: chickensoft-games/setup-godot@v2.4.1
@@ -199,6 +232,9 @@ runs:
         # teardown's zombie hard-stop (exit 2) — must survive the `| tee` below;
         # without it tee's 0 would mask the failure and this step would go green.
         set -o pipefail
+        if [ "${{ inputs.os }}" = "linux" ]; then
+          ulimit -c unlimited || echo "::warning::core files stay off: ulimit -c unlimited was refused"
+        fi
         cd "$PROJECT_PATH"
         if [ "$LANGUAGE" = "dotnet" ]; then
           toolkit_root="${TOOLKIT_ADDON_SRC%/addons/godot_mcp_toolkit}"
@@ -221,6 +257,40 @@ runs:
           xattr -dr com.apple.quarantine "$(dirname "$godot_bin")" 2>/dev/null || true
           echo "quarantine strip attempted on $(dirname "$godot_bin")"
         fi
+
+    # A Windows editor started from Git Bash writes no dump, so the launch below goes through
+    # scripts/ci/editor-launcher.c, whose header says why. EDITOR_LAUNCHER is set only once the
+    # launcher has compiled and run a child. Otherwise the editor starts as plain `godot`: a leg
+    # then loses its dump and its raw exit code, never its result. The 4.2 warm-up starts its
+    # editor on its own and does not go through the launcher.
+    - name: Compile the editor launcher (windows)
+      if: ${{ inputs.os == 'windows' }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        set +e
+        no_launcher() {
+          echo "::warning title=Editor launcher::$1; the editor starts as plain godot and a crash leaves no dump"
+          exit 0
+        }
+        gcc_bin="$(command -v gcc)"
+        for candidate in /c/mingw64/bin/gcc.exe /c/ProgramData/mingw64/mingw64/bin/gcc.exe; do
+          if [ -z "$gcc_bin" ] && [ -x "$candidate" ]; then gcc_bin=$candidate; fi
+        done
+        [ -n "$gcc_bin" ] || no_launcher "no gcc on this runner"
+        launcher_dir="$(cygpath -u "$RUNNER_TEMP")/editor-launcher"
+        mkdir -p "$launcher_dir"
+        launcher="$launcher_dir/editor-launcher.exe"
+        # gcc finds its own tools through PATH.
+        PATH="$(dirname "$gcc_bin"):$PATH" "$TIMEOUT_BIN" 120 "$gcc_bin" -o "$launcher" "${{ inputs.server-dir }}/scripts/ci/editor-launcher.c" \
+          || no_launcher "the launcher did not compile with $gcc_bin"
+        self_check="$("$TIMEOUT_BIN" 120 "$launcher" "$(cygpath -w /usr/bin/true.exe)")"
+        case "$self_check" in
+          *child_exit=0x00000000*) ;;
+          *) no_launcher "the launcher did not run a child (it printed: ${self_check:-nothing})" ;;
+        esac
+        echo "EDITOR_LAUNCHER=$launcher" >> "$GITHUB_ENV"
+        echo "editor launcher ready: $launcher (compiled with $gcc_bin)"
 
     # Bounded boot retry (up to 3 attempts): a CI editor can die at boot (a one-off
     # engine crash — e.g. an Abort trap on macOS) or hang without ever serving the
@@ -255,20 +325,36 @@ runs:
         if [ "$POLL_PORT" != "6550" ]; then
           echo "NOTE: main editor intentionally relocated to port $POLL_PORT (port-agility fallback) — not an H1 incumbent"
         fi
+        if [ "${{ inputs.os }}" = "linux" ]; then
+          ulimit -c unlimited || echo "::warning::core files stay off: ulimit -c unlimited was refused"
+        fi
+        # Each attempt truncates editor.log, so a failed attempt's log is kept for the
+        # crash-report upload: a boot that recovers would otherwise lose the crash's log.
+        crash_report_dir="${RUNNER_TEMP:-/tmp}/crash-report"
+        mkdir -p "$crash_report_dir"
+        editor_cmd=(godot)
+        if [ "${{ inputs.os }}" = "windows" ] && [ -n "${EDITOR_LAUNCHER:-}" ]; then
+          editor_cmd=("$EDITOR_LAUNCHER" "$(cygpath -w "$(command -v godot)")")
+          echo "starting the editor through $EDITOR_LAUNCHER"
+        fi
         BOOT_OK=0
         EDITOR_PID=""
         for attempt in 1 2 3; do
-          godot --headless --editor $LOGFILE_ARG --path "${{ inputs.project-path }}" > editor.log 2>&1 &
+          "${editor_cmd[@]}" --headless --editor $LOGFILE_ARG --path "${{ inputs.project-path }}" > editor.log 2>&1 &
           EDITOR_PID=$!
-          # Windows: record the editor's REAL Windows PID while it is alive — $! is
-          # an MSYS-space pid (possibly a launcher shim), so the between-attempt
-          # reap needs the native PID captured up front for its taskkill.
+          # Windows: record a native PID at the top of the editor's process tree while it
+          # is alive: $! is an MSYS-space pid, so the reap below needs this for its taskkill.
+          # It names the launcher, or the MSYS stub above it if bash reads it before the
+          # launcher has started; a tree kill from either reaches the editor. The launcher
+          # itself exits when the editor does, so the poll's `kill -0` follows the editor.
+          # Read on each tick until it is known: a live launcher with none recorded would
+          # leave an editor that owns no port beyond the reap's reach.
           EDITOR_WINPID=""
-          if [ "${{ inputs.os }}" = "windows" ]; then
-            EDITOR_WINPID="$(cat "/proc/$EDITOR_PID/winpid" 2>/dev/null || true)"
-          fi
           REASON=""
           for i in $(seq 1 60); do
+            if [ "${{ inputs.os }}" = "windows" ] && [ -z "$EDITOR_WINPID" ]; then
+              EDITOR_WINPID="$(cat "/proc/$EDITOR_PID/winpid" 2>/dev/null || true)"
+            fi
             if ! kill -0 "$EDITOR_PID" 2>/dev/null; then
               REASON="editor process died during boot"
               break
@@ -290,24 +376,29 @@ runs:
           # provisioned binary is Godot_v<ver>_win64.exe, never godot.exe) — so
           # kill the captured native PID tree, then (GitHub Actions only) every
           # LISTENING owner of the poll port, image-agnostic, so a shim-orphaned
-          # editor cannot survive into the next attempt.
+          # editor cannot survive into the next attempt. The tree kill goes first:
+          # a POSIX kill that ended the launcher would leave taskkill no tree to walk
+          # and the editor running, and an editor still booting owns no port yet.
+          # The `kill -0` keeps a PID Windows may have reused since the launcher exited out of taskkill.
+          if [ "${{ inputs.os }}" = "windows" ] && [ -n "$EDITOR_WINPID" ] && kill -0 "$EDITOR_PID" 2>/dev/null; then
+            taskkill //F //T //PID "$EDITOR_WINPID" 2>/dev/null || true
+          fi
           kill "$EDITOR_PID" 2>/dev/null || true
           for _ in 1 2 3; do kill -0 "$EDITOR_PID" 2>/dev/null || break; sleep 1; done
           kill -9 "$EDITOR_PID" 2>/dev/null || true
-          if [ "${{ inputs.os }}" = "windows" ]; then
-            [ -n "$EDITOR_WINPID" ] && taskkill //F //T //PID "$EDITOR_WINPID" 2>/dev/null || true
-            if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-              for pid in $(netstat -ano 2>/dev/null | grep -E ":$POLL_PORT[^0-9]" | grep "LISTENING" | awk '{print $NF}' | sort -u || true); do
-                { [ -n "$pid" ] && [ "$pid" != "0" ]; } || continue
-                echo "boot retry: force-killing LISTENING owner of port $POLL_PORT — PID $pid"
-                taskkill //F //T //PID "$pid" 2>/dev/null || true
-              done
-            fi
+          if [ "${{ inputs.os }}" = "windows" ] && [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+            for pid in $(netstat -ano 2>/dev/null | grep -E ":$POLL_PORT[^0-9]" | grep "LISTENING" | awk '{print $NF}' | sort -u || true); do
+              { [ -n "$pid" ] && [ "$pid" != "0" ]; } || continue
+              echo "boot retry: force-killing LISTENING owner of port $POLL_PORT — PID $pid"
+              taskkill //F //T //PID "$pid" 2>/dev/null || true
+            done
           fi
+          cp editor.log "$crash_report_dir/editor-attempt-$attempt.log" 2>/dev/null || true
           EDITOR_PID=""
           EDITOR_WINPID=""
         done
         echo "EDITOR_PID=$EDITOR_PID" >> "$GITHUB_ENV"
+        echo "EDITOR_WINPID=$EDITOR_WINPID" >> "$GITHUB_ENV"
         if [ "$BOOT_OK" != "1" ]; then
           echo "::error::editor failed to boot + serve WS port $POLL_PORT after 3 attempts"
           exit 1
@@ -450,8 +541,13 @@ runs:
     #   3. waits up to 30 s of wall time for the editor process to exit;
     #   4. only if it is still alive, kills it: `kill` on Linux/macOS; on Windows the
     #      WS port's LISTENING owner PID, since $! is an MSYS shim pid and the runner's
-    #      exe is Godot_v<ver>_win64.exe, never godot.exe (GitHub Actions only);
+    #      exe is Godot_v<ver>_win64.exe, never godot.exe (GitHub Actions only). The port's
+    #      owner is the editor itself, never the launcher above it, so this reaches the
+    #      editor whichever of the two dies first, and the launcher exits with the editor;
     #   5. annotates the quit outcome, the seconds to exit and whether the kill fired.
+    # An editor that closed its port without exiting has no port owner to find. On Windows
+    # the launch step's native PID still leads to it, through a tree kill that has to come
+    # before the POSIX kill, which would end only the launcher.
     # The sentinel outcome goes to $GITHUB_ENV for the check below: the sentinel itself
     # (the check fails a log that lacks it), why it went unsent (editor gone or
     # unreachable: the check warns), or why it failed (the editor refused it, or the stop
@@ -483,6 +579,10 @@ runs:
 
         if ! alive; then
           echo "MCP_STOP_SENTINEL_UNSENT=$gone_reason" >> "$GITHUB_ENV"
+          # The `kill -0` keeps a PID Windows may have reused since the launcher exited out of taskkill.
+          if [ "${{ inputs.os }}" = "windows" ] && [ -n "${EDITOR_WINPID:-}" ] && kill -0 "$EDITOR_PID" 2>/dev/null; then
+            taskkill //F //T //PID "$EDITOR_WINPID" 2>&1 || true
+          fi
           kill "$EDITOR_PID" 2>/dev/null || true
           echo "::notice title=Editor stop::$gone_reason; no sentinel sent, no quit requested"
           exit 0
@@ -533,6 +633,51 @@ runs:
         [ "$fallback" = "yes" ] && level="warning"
         echo "::$level title=Editor stop::${quit_note:-quit_request=no verdict line}; editor $exit_note; forced kill fired: $fallback"
         exit 0
+
+    # After the stop, so editor.log is complete and a crash at exit is in scope. A Linux core
+    # or a Windows dump is on disk once the process is gone; macOS's reporter writes later, so
+    # the script holds every macOS leg, a green one too. On Windows it also runs cdb over each
+    # dump on the runner, and the text alone goes into the upload.
+    # Composite steps cannot take `timeout-minutes`, so the collect step carries a shell fuse
+    # over its own bounded waits, which several slow dumps or cores could add up past.
+    # github.action_status, not job.status: it is the one that sees a failure inside this
+    # composite. A fuse kill leaves the upload output unset, and the upload then still takes
+    # the logs and the stack texts the script wrote first.
+    - name: Collect crash reports (always)
+      id: crash-reports
+      if: always()
+      continue-on-error: true
+      shell: bash
+      env:
+        LEG_STATUS: ${{ github.action_status }}
+      run: |
+        case "${{ inputs.os }}" in
+          windows) reports="$RUNNER_TEMP/crash-dumps" ;;
+          macos)   reports="$HOME/Library/Logs/DiagnosticReports" ;;
+          *)       reports=/tmp/cores ;;
+        esac
+        "${TIMEOUT_BIN:-timeout}" -k 10 420 node "${{ inputs.server-dir }}/scripts/ci/collect-crash-reports.mjs" \
+          --os "${{ inputs.os }}" \
+          --out "$RUNNER_TEMP/crash-report" \
+          --reports "$reports" \
+          --editor-bin "$(command -v godot || true)" \
+          --leg-status "$LEG_STATUS" \
+          --editor-gone "${MCP_STOP_SENTINEL_UNSENT:-}" \
+          --log editor.log \
+          --log warmup.log
+
+    # A leg with no report uploads nothing, or only its logs: the absence of a report never
+    # fails a job. The name carries the leg and the attempt, since artifact names are unique
+    # within a run and a re-run's report is the evidence a new runner gives.
+    - name: Upload crash reports (always)
+      if: ${{ always() && steps.crash-reports.outputs.upload != 'false' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@v7
+      with:
+        name: crash-report-${{ inputs.os }}-${{ inputs.godot-version }}-${{ inputs.language }}-attempt-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/crash-report
+        retention-days: 14
+        if-no-files-found: warn
 
     # Nothing else checks the editor log for errors, so without this step a GDScript error
     # raised in the toolkit addon (a renamed engine API on a new Godot version) leaves the
