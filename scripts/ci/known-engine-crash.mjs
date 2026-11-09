@@ -10,8 +10,9 @@
 //
 // Usage: node scripts/ci/known-engine-crash.mjs --reports <dir> --runner-os <os>
 //          --godot-version <version> --pid <n>... [--max-wait-ms <n>] [--since <epoch-ms>]
-// It prints one line per pid, then `known_crash=yes|no`. With `--since`, a report written over a
-// second before the boot began is not read, so an older crash cannot stand in for one of these deaths.
+// It prints one line per pid, then `known_crash=yes|no`. With `--since`, a report whose file was
+// last modified more than 1 s before that time is not read, so an older crash cannot stand in for
+// one of these deaths.
 // Exit codes: 0 every pid died of the known crash · 1 not · 2 bad arguments, a repeated pid among them.
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -22,8 +23,8 @@ import { REPORT_NAME } from "./collect-crash-reports.mjs";
 const POLL_MS = 2_000;
 // About three times the slowest report latency seen on a hosted macOS runner.
 const MAX_WAIT_MS = 60_000;
-// The boot step gives its start in whole seconds; the margin keeps a rounding of either time from
-// dropping a report of this boot.
+// A defensive margin for file timestamp granularity. The boot step passes the whole second it began
+// in, as `date +%s` truncates, so the cutoff falls 1 s before that second.
 const SINCE_SLACK_MS = 1_000;
 
 const EXCUSED_OS = "macOS";
@@ -95,7 +96,7 @@ export function knownCrashMismatch(report, { pid, godotVersion, runnerOs }) {
  * Waits for each dead boot attempt's crash report and says whether every one is the known crash.
  *
  * @param options.reportsDir - where macOS's reporter writes.
- * @param options.pids - the dead attempts' process ids.
+ * @param options.pids - the dead attempts' process ids; a list naming one twice is never excused.
  * @param options.godotVersion - the Godot version the job installed.
  * @param options.runnerOs - the runner's OS as GitHub Actions names it.
  * @param options.maxWaitMs - how long to wait for a report still to be written.
@@ -115,6 +116,10 @@ export async function awaitKnownCrash({
 }) {
   const outOfScope = scopeMismatch(godotVersion, runnerOs);
   if (outOfScope) return { excused: false, lines: pids.map((pid) => `pid ${pid}: ${outOfScope}`) };
+  // One report would otherwise excuse a pid named three times.
+  if (new Set(pids).size !== pids.length) {
+    return { excused: false, lines: pids.map((pid) => `pid ${pid}: the pid list names a pid more than once`) };
+  }
   const attempt = { godotVersion, runnerOs };
   let verdicts = judge(readReports(reportsDir, since), pids, attempt);
   let waitedMs = 0;

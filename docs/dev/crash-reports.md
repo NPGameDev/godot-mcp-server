@@ -74,8 +74,8 @@ keep that minor tested. To check one, read each `.ips` in the artifact:
 - its `pid` is one of the dead boots';
 - its bundle version, `bundleInfo.CFBundleShortVersionString`, is `4.5` (4.5.2's reads `4.5.2`), and its
   `exception.signal` is `SIGABRT`;
-- it was written during the boot step: the matcher skips a report whose file was last modified more than 1 s before
-  the step started;
+- it was written during the boot step: the step passes the whole second it started in, and the matcher skips a report
+  whose file was last modified more than 1 s before that second, a margin for timestamp granularity;
 - its faulting thread holds `__cxa_pure_virtual`, with `EditorExportPlatformAppleEmbedded::_check_for_changes_poll_thread`
   as the next frame;
 - its main thread joins that thread in `Thread::wait_to_finish` under `~EditorExportPlatformAppleEmbedded`, called from

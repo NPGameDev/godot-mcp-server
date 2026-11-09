@@ -417,8 +417,8 @@ runs:
         echo "EDITOR_WINPID=$EDITOR_WINPID" >> "$GITHUB_ENV"
         if [ "$BOOT_OK" != "1" ]; then
           # Any exit but 0 from the matcher, its own crash included, falls through to the failure.
-          # Three deaths leave no attempt to time out, so the TIMED_OUT test is a guard should both
-          # ever be set.
+          # Three deaths leave no attempt to time out, so the TIMED_OUT test is a guard in case both
+          # are ever set.
           if [ "${{ runner.os }}" = "macOS" ] && [ "${{ inputs.godot-version }}" = "4.5.0" ] \
             && [ "${#DEAD_PIDS[@]}" = "3" ] && [ "$TIMED_OUT" = "0" ]; then
             pid_args=()

@@ -293,6 +293,21 @@ await withReportsDir(async (reportsDir) => {
   assert.deepEqual(result.lines, [], "it has no pid to report on");
 });
 
+await withReportsDir(async (reportsDir) => {
+  copyWithPid(MONO_BOOT, reportsDir, "Godot-1.ips", 11);
+  const result = await awaitKnownCrash({ reportsDir, pids: [11, 11, 11], ...boot, sleep: noSleep });
+  assert.equal(result.excused, false, "a pid listed three times is not excused by its one report");
+  assert.deepEqual(
+    result.lines,
+    [
+      "pid 11: the pid list names a pid more than once",
+      "pid 11: the pid list names a pid more than once",
+      "pid 11: the pid list names a pid more than once",
+    ],
+    "each line says the list repeats a pid",
+  );
+});
+
 // The boot step passes its start in whole seconds; a report is dropped only below that less 1 s.
 const BOOT_START_MS = 1_700_000_010_000;
 
@@ -458,4 +473,4 @@ await withReportsDir(async (reportsDir) => {
   assert.equal(run.status, 2, `a pid given more than once is a usage error, not excused by one report: ${run.stdout}`);
 });
 
-console.log("All 30 tests passed.");
+console.log("All 31 tests passed.");
