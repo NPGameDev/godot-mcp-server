@@ -1,0 +1,228 @@
+{"app_name":"Godot","app_version":"4.5","build_version":"4.5","bug_type":"309","name":"Godot"}
+{
+  "pid": 2579,
+  "procName": "Godot",
+  "bundleInfo": {
+    "CFBundleShortVersionString": "4.5",
+    "CFBundleVersion": "4.5"
+  },
+  "exception": {
+    "codes": "0x0000000000000000, 0x0000000000000000",
+    "rawCodes": [
+      0,
+      0
+    ],
+    "type": "EXC_CRASH",
+    "signal": "SIGABRT"
+  },
+  "termination": {
+    "flags": 0,
+    "code": 6,
+    "namespace": "SIGNAL",
+    "indicator": "Abort trap: 6",
+    "byProc": "Godot",
+    "byPid": 2579
+  },
+  "faultingThread": 0,
+  "threads": [
+    {
+      "queue": "com.apple.main-thread",
+      "triggered": true,
+      "frames": [
+        {
+          "imageIndex": 6,
+          "symbol": "__pthread_kill",
+          "symbolLocation": 8
+        },
+        {
+          "imageIndex": 7,
+          "symbol": "pthread_kill",
+          "symbolLocation": 296
+        },
+        {
+          "imageIndex": 8,
+          "symbol": "__abort",
+          "symbolLocation": 152
+        },
+        {
+          "imageIndex": 8,
+          "symbol": "abort",
+          "symbolLocation": 160
+        },
+        {
+          "imageIndex": 9
+        },
+        {
+          "imageIndex": 9
+        },
+        {
+          "imageIndex": 9
+        },
+        {
+          "imageIndex": 9
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Object::callp(StringName const&, Variant const**, int, Callable::CallError&)",
+          "symbolLocation": 184
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Variant::callp(StringName const&, Variant const**, int, Variant&, Callable::CallError&)",
+          "symbolLocation": 272
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "GDScriptFunction::call(GDScriptInstance*, Variant const**, int, Callable::CallError&, GDScriptFunction::CallState*)",
+          "symbolLocation": 44396
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "GDScriptInstance::callp(StringName const&, Variant const**, int, Callable::CallError&)",
+          "symbolLocation": 224
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Object::callp(StringName const&, Variant const**, int, Callable::CallError&)",
+          "symbolLocation": 184
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Variant::callp(StringName const&, Variant const**, int, Variant&, Callable::CallError&)",
+          "symbolLocation": 272
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "GDScriptFunction::call(GDScriptInstance*, Variant const**, int, Callable::CallError&, GDScriptFunction::CallState*)",
+          "symbolLocation": 44436
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "GDScriptInstance::callp(StringName const&, Variant const**, int, Callable::CallError&)",
+          "symbolLocation": 224
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Object::callp(StringName const&, Variant const**, int, Callable::CallError&)",
+          "symbolLocation": 184
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Variant::callp(StringName const&, Variant const**, int, Variant&, Callable::CallError&)",
+          "symbolLocation": 272
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "GDScriptFunction::call(GDScriptInstance*, Variant const**, int, Callable::CallError&, GDScriptFunction::CallState*)",
+          "symbolLocation": 44396
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "GDScript::callp(StringName const&, Variant const**, int, Callable::CallError&)",
+          "symbolLocation": 164
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Variant::callp(StringName const&, Variant const**, int, Variant&, Callable::CallError&)",
+          "symbolLocation": 272
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "GDScriptFunction::call(GDScriptInstance*, Variant const**, int, Callable::CallError&, GDScriptFunction::CallState*)",
+          "symbolLocation": 44436
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "GDScriptInstance::callp(StringName const&, Variant const**, int, Callable::CallError&)",
+          "symbolLocation": 224
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Node::_propagate_enter_tree()",
+          "symbolLocation": 260
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Node::_add_child_nocheck(Node*, StringName const&, Node::InternalMode)",
+          "symbolLocation": 280
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Node::add_child(Node*, bool, Node::InternalMode)",
+          "symbolLocation": 240
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "EditorNode::set_addon_plugin_enabled(String const&, bool, bool)",
+          "symbolLocation": 5276
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "EditorNode::init_plugins()",
+          "symbolLocation": 456
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "EditorFileSystem::_first_scan_filesystem()",
+          "symbolLocation": 1988
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "EditorFileSystem::scan()",
+          "symbolLocation": 84
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "EditorNode::_notification(int)",
+          "symbolLocation": 916
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Object::_notification_forward(int)",
+          "symbolLocation": 32
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "SceneTree::_process_group(SceneTree::ProcessGroup*, bool)",
+          "symbolLocation": 332
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "SceneTree::_process(bool)",
+          "symbolLocation": 896
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "SceneTree::process(double)",
+          "symbolLocation": 280
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Main::iteration()",
+          "symbolLocation": 1024
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "OS_MacOS_Headless::run()",
+          "symbolLocation": 292
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "main",
+          "symbolLocation": 816
+        },
+        {
+          "imageIndex": 10,
+          "symbol": "start",
+          "symbolLocation": 6992
+        }
+      ]
+    }
+  ],
+  "usedImages": [
+    {
+      "name": "Godot",
+      "CFBundleShortVersionString": "4.5"
+    }
+  ]
+}

@@ -35,7 +35,7 @@ import { basename, join } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-const REPORT_NAME = {
+export const REPORT_NAME = {
   macos: /^godot.*\.ips$/i,
   // LocalDumps is machine-wide and names a dump after its executable; a dump of any other
   // process is not the editor's crash, so it is not read.

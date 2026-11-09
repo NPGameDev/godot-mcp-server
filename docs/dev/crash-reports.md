@@ -62,6 +62,31 @@ report, and at least 24 s even when one is already there. A green macOS leg hold
 crash at exit's report after the process is gone; if one turns up, it waits as a leg that expects a death does. A report
 later than that can still be missed. Green Linux and Windows legs spend no wait.
 
+## An excused macOS 4.5.0 job
+
+On macOS, Godot 4.5.0's iOS and visionOS export plugins start a device poll thread, and the editor can abort while
+destroying them (`libc++abi: Pure virtual function called!`). Godot 4.5.1 fixed it.
+
+A macOS 4.5.0 job whose three boot attempts all died on that crash, each proven by its own `.ips`, passes with a
+`Known engine crash` warning, and its scene wait, smoke, flows and dispatch do not run. The macOS 4.5.2 legs beside it
+keep that minor tested. To check one, read each `.ips` in the artifact:
+
+- its `pid` is one of the dead boots';
+- its bundle version, `bundleInfo.CFBundleShortVersionString`, is `4.5` (4.5.2's reads `4.5.2`), and its
+  `exception.signal` is `SIGABRT`;
+- it was written during the boot step: the step passes the whole second it started in, and the matcher skips a report
+  whose file was last modified more than 1 s before that second, a margin for timestamp granularity;
+- its faulting thread holds `__cxa_pure_virtual`, with `EditorExportPlatformAppleEmbedded::_check_for_changes_poll_thread`
+  as the next frame;
+- its main thread joins that thread in `Thread::wait_to_finish` under `~EditorExportPlatformAppleEmbedded`, called from
+  `DocTools::generate`.
+
+A boot that timed out, a death without such a report, and any other version or OS keep the job red. Besides the
+`Known engine crash` warning, an excused job carries three `boot attempt <n>/3 failed` warnings, an `Editor stop`
+notice, a `Crash report` warning and an `Editor log completeness unproven` warning.
+
+A crash at exit after a passing smoke already leaves a job green, with only the `Crash report` warning.
+
 ## Windows: `.cdb.txt`
 
 The text is what the step ran on the runner, one file per dump, named after it:
