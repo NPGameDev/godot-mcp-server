@@ -8,7 +8,7 @@ left behind. This page says where to find it and how to read it.
 The leg's artifact is named `crash-report-<os>-<godot version>-<language>-attempt-<n>` and lasts 14 days.
 
 ```bash
-gh run download <run-id> -n crash-report-macos-4.5.0-dotnet-attempt-1 -D <empty folder>
+gh run download <run-id> -n crash-report-macos-4.5.2-dotnet-attempt-1 -D <empty folder>
 ```
 
 A leg uploads when it has a report, a log of a failed boot attempt, a failed or cancelled result, or an editor already
