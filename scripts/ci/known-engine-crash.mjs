@@ -9,10 +9,11 @@
 // reports is bounded here.
 //
 // Usage: node scripts/ci/known-engine-crash.mjs --reports <dir> --runner-os <os>
-//          --godot-version <version> --pid <n>... [--max-wait-ms <n>]
-// It prints one line per pid, then `known_crash=yes|no`.
-// Exit codes: 0 every pid died of the known crash · 1 not · 2 bad arguments.
-import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+//          --godot-version <version> --pid <n>... [--max-wait-ms <n>] [--since <epoch-ms>]
+// It prints one line per pid, then `known_crash=yes|no`. With `--since`, a report written over a
+// second before the boot began is not read, so an older crash cannot stand in for one of these deaths.
+// Exit codes: 0 every pid died of the known crash · 1 not · 2 bad arguments, a repeated pid among them.
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -21,6 +22,9 @@ import { REPORT_NAME } from "./collect-crash-reports.mjs";
 const POLL_MS = 2_000;
 // About three times the slowest report latency seen on a hosted macOS runner.
 const MAX_WAIT_MS = 60_000;
+// The boot step gives its start in whole seconds; the margin keeps a rounding of either time from
+// dropping a report of this boot.
+const SINCE_SLACK_MS = 1_000;
 
 const EXCUSED_OS = "macOS";
 const EXCUSED_GODOT = "4.5.0";
@@ -95,6 +99,8 @@ export function knownCrashMismatch(report, { pid, godotVersion, runnerOs }) {
  * @param options.godotVersion - the Godot version the job installed.
  * @param options.runnerOs - the runner's OS as GitHub Actions names it.
  * @param options.maxWaitMs - how long to wait for a report still to be written.
+ * @param options.since - when given, the epoch ms the boot began: a report whose file was last
+ *   modified more than a second before it is not read.
  * @param options.sleep - waits the given ms, or a test's stand-in.
  * @returns whether every pid is excused, and one line per pid saying why.
  */
@@ -104,17 +110,18 @@ export async function awaitKnownCrash({
   godotVersion,
   runnerOs,
   maxWaitMs = MAX_WAIT_MS,
+  since,
   sleep = pause,
 }) {
   const outOfScope = scopeMismatch(godotVersion, runnerOs);
   if (outOfScope) return { excused: false, lines: pids.map((pid) => `pid ${pid}: ${outOfScope}`) };
   const attempt = { godotVersion, runnerOs };
-  let verdicts = judge(readReports(reportsDir), pids, attempt);
+  let verdicts = judge(readReports(reportsDir, since), pids, attempt);
   let waitedMs = 0;
   while (verdicts.some((verdict) => !verdict.matched) && waitedMs < maxWaitMs) {
     await sleep(POLL_MS);
     waitedMs += POLL_MS;
-    verdicts = judge(readReports(reportsDir), pids, attempt);
+    verdicts = judge(readReports(reportsDir, since), pids, attempt);
   }
   return {
     // No death means nothing to excuse.
@@ -146,11 +153,13 @@ function inOrder(symbols, steps) {
   return next === steps.length;
 }
 
-// A report that does not parse yet is skipped, and read again on the next poll.
-function readReports(reportsDir) {
+// A report that does not parse yet is skipped, and read again on the next poll. The age test reads
+// the file's mtime rather than a time inside the report, so it holds before the report parses.
+function readReports(reportsDir, since) {
   const names = existsSync(reportsDir) ? readdirSync(reportsDir) : [];
   return names
     .filter((name) => REPORT_NAME.macos.test(name))
+    .filter((name) => since === undefined || statSync(join(reportsDir, name)).mtimeMs >= since - SINCE_SLACK_MS)
     .flatMap((name) => {
       const report = parseIpsReport(readFileSync(join(reportsDir, name), "utf8"));
       return report ? [{ name, report }] : [];
@@ -179,10 +188,18 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 2) {
     const [flag, value] = [argv[i], argv[i + 1]];
     if (value === undefined) return undefined;
-    if (flag === "--pid" || flag === "--max-wait-ms") {
+    if (flag === "--pid" || flag === "--max-wait-ms" || flag === "--since") {
       if (!/^\d+$/.test(value)) return undefined;
-      if (flag === "--pid") args.pids.push(Number(value));
-      else args.maxWaitMs = Number(value);
+      const number = Number(value);
+      if (flag === "--pid") {
+        // One report would otherwise excuse a pid named three times.
+        if (args.pids.includes(number)) return undefined;
+        args.pids.push(number);
+      } else if (flag === "--max-wait-ms") {
+        args.maxWaitMs = number;
+      } else {
+        args.since = number;
+      }
     } else if (Object.hasOwn(flags, flag)) {
       args[flags[flag]] = value;
     } else {
@@ -197,7 +214,7 @@ async function main(argv) {
   if (!args) {
     console.error(
       "usage: node scripts/ci/known-engine-crash.mjs --reports <dir> --runner-os <os> " +
-        "--godot-version <version> --pid <n>... [--max-wait-ms <n>]",
+        "--godot-version <version> --pid <n>... [--max-wait-ms <n>] [--since <epoch-ms>]",
     );
     return 2;
   }

@@ -1,12 +1,12 @@
 /**
  * Unit tests for scripts/ci/known-engine-crash.mjs, the cross-version composite's excuse for Godot
  * 4.5.0's macOS export poller crash at boot. Drives knownCrashMismatch on trimmed real `.ips`
- * reports, awaitKnownCrash's per-pid verdicts and bounded wait on a fake sleep, and the CLI's
- * output and exit codes.
+ * reports and edits of them, awaitKnownCrash's per-pid verdicts, bounded wait on a fake sleep and
+ * report age, and the CLI's output and exit codes.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,31 @@ function fixture(name: string): { header: object; body: object } {
   const report = parseIpsReport(fixtureText(name));
   assert.ok(report, `the ${name} fixture parses`);
   return report;
+}
+
+/** The part of a report body the edited variants change. */
+interface IpsBody {
+  exception: { signal: string };
+  faultingThread: number;
+  threads: { queue?: string; frames: { symbol?: string }[] }[];
+}
+
+/** The named fixture, parsed, with its body changed by `edit`. */
+function fixtureWith(name: string, edit: (body: IpsBody) => void): { header: object; body: IpsBody } {
+  const text = fixtureText(name);
+  const newline = text.indexOf("\n");
+  const body: IpsBody = JSON.parse(text.slice(newline + 1));
+  edit(body);
+  return { header: JSON.parse(text.slice(0, newline)), body };
+}
+
+/** Drops the main thread's frames whose symbol is `symbol`. */
+function withoutMainFrame(symbol: string): (body: IpsBody) => void {
+  return (body) => {
+    const main = body.threads.find((thread) => thread.queue === "com.apple.main-thread");
+    assert.ok(main, "the fixture has a main thread");
+    main.frames = main.frames.filter((frame) => frame.symbol !== symbol);
+  };
 }
 
 /** Writes the named fixture into `dir` as `fileName`, with only its body's `pid` changed. */
@@ -96,7 +121,8 @@ const noSleep = async (): Promise<void> => {
 
 {
   assert.equal(
-    knownCrashMismatch(fixture("macos-4.5.2-mono-boot-poller.ips"), { pid: 7626, ...boot }),
+    // The 4.5.0 report with only its version changed, since 4.5.2 does not crash.
+    knownCrashMismatch(fixture("macos-4.5.0-mono-boot-poller-as-4.5.2.ips"), { pid: 7626, ...boot }),
     "report version 4.5.2",
     "a report from a 4.5.2 editor is not excused, whatever version the caller names",
   );
@@ -123,6 +149,51 @@ const noSleep = async (): Promise<void> => {
     knownCrashMismatch(fixture(MONO_BOOT), { pid: 999, ...boot }),
     "pid 7626 is not 999",
     "a report of another process does not excuse the attempt",
+  );
+}
+
+{
+  const segfault = fixtureWith(MONO_BOOT, (body) => {
+    body.exception.signal = "SIGSEGV";
+  });
+  assert.equal(
+    knownCrashMismatch(segfault, { pid: 7626, ...boot }),
+    "signal SIGSEGV",
+    "the poller crash's stack on a death by any signal but SIGABRT is not excused",
+  );
+}
+
+{
+  assert.equal(
+    knownCrashMismatch(fixtureWith(MONO_BOOT, withoutMainFrame("Thread::wait_to_finish()")), { pid: 7626, ...boot }),
+    "main thread is not joining the poller under DocTools::generate",
+    "a main thread that is not in Thread::wait_to_finish is not excused",
+  );
+}
+
+{
+  const report = fixtureWith(
+    MONO_BOOT,
+    withoutMainFrame("EditorExportPlatformAppleEmbedded::~EditorExportPlatformAppleEmbedded()"),
+  );
+  assert.equal(
+    knownCrashMismatch(report, { pid: 7626, ...boot }),
+    "main thread is not joining the poller under DocTools::generate",
+    "a main thread that is not destroying the export plugin is not excused",
+  );
+}
+
+{
+  const report = fixtureWith(MONO_BOOT, (body) => {
+    const frames = body.threads[body.faultingThread].frames;
+    const pureVirtual = frames.findIndex((frame) => frame.symbol === "__cxa_pure_virtual");
+    assert.ok(pureVirtual >= 0, "the fixture's crashing thread holds __cxa_pure_virtual");
+    frames.splice(pureVirtual + 1, 0, { symbol: "Object::notification(int, bool)" });
+  });
+  assert.equal(
+    knownCrashMismatch(report, { pid: 7626, ...boot }),
+    "crashing frame is not the export poller",
+    "__cxa_pure_virtual called from a frame other than the poll thread is not excused",
   );
 }
 
@@ -217,6 +288,55 @@ await withReportsDir(async (reportsDir) => {
 
 await withReportsDir(async (reportsDir) => {
   copyWithPid(MONO_BOOT, reportsDir, "Godot-1.ips", 101);
+  const result = await awaitKnownCrash({ reportsDir, pids: [], ...boot, sleep: noSleep });
+  assert.equal(result.excused, false, "a boot with no dead attempt is never excused");
+  assert.deepEqual(result.lines, [], "it has no pid to report on");
+});
+
+// The boot step passes its start in whole seconds; a report is dropped only below that less 1 s.
+const BOOT_START_MS = 1_700_000_010_000;
+
+await withReportsDir(async (reportsDir) => {
+  copyWithPid(MONO_BOOT, reportsDir, "Godot-1.ips", 101);
+  const stale = new Date(1_700_000_008_999);
+  utimesSync(join(reportsDir, "Godot-1.ips"), stale, stale);
+  const result = await awaitKnownCrash({
+    reportsDir,
+    pids: [101],
+    ...boot,
+    maxWaitMs: 0,
+    since: BOOT_START_MS,
+    sleep: noSleep,
+  });
+  assert.equal(result.excused, false, "a known-crash report written over 1 s before the boot began is not read");
+  assert.deepEqual(result.lines, ["pid 101: no Godot crash report after 0 ms"], "it reads as no report");
+});
+
+await withReportsDir(async (reportsDir) => {
+  copyWithPid(MONO_BOOT, reportsDir, "Godot-1.ips", 101);
+  const edge = new Date(1_700_000_009_000);
+  utimesSync(join(reportsDir, "Godot-1.ips"), edge, edge);
+  const result = await awaitKnownCrash({
+    reportsDir,
+    pids: [101],
+    ...boot,
+    maxWaitMs: 0,
+    since: BOOT_START_MS,
+    sleep: noSleep,
+  });
+  assert.equal(result.excused, true, "a known-crash report written exactly 1 s before the boot began is read");
+});
+
+await withReportsDir(async (reportsDir) => {
+  copyWithPid(MONO_BOOT, reportsDir, "Godot-1.ips", 101);
+  const old = new Date(1_000_000_000_000);
+  utimesSync(join(reportsDir, "Godot-1.ips"), old, old);
+  const result = await awaitKnownCrash({ reportsDir, pids: [101], ...boot, maxWaitMs: 0, sleep: noSleep });
+  assert.equal(result.excused, true, "with no boot start given, a report of any age is read");
+});
+
+await withReportsDir(async (reportsDir) => {
+  copyWithPid(MONO_BOOT, reportsDir, "Godot-1.ips", 101);
   copyWithPid(GDSCRIPT_BOOT, reportsDir, "Godot-2.ips", 102);
   copyWithPid(MONO_BOOT, reportsDir, "Godot-3.ips", 103);
   const run = spawnSync(
@@ -278,6 +398,37 @@ await withReportsDir(async (reportsDir) => {
   );
 });
 
+await withReportsDir(async (reportsDir) => {
+  copyWithPid(MONO_BOOT, reportsDir, "Godot-1.ips", 101);
+  const stale = new Date(1_000_000_000_000);
+  utimesSync(join(reportsDir, "Godot-1.ips"), stale, stale);
+  const run = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      "--reports",
+      reportsDir,
+      "--runner-os",
+      "macOS",
+      "--godot-version",
+      "4.5.0",
+      "--pid",
+      "101",
+      "--max-wait-ms",
+      "0",
+      "--since",
+      "1700000010000",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(run.status, 1, `the CLI exits 1 when the only report predates --since: ${run.stderr}`);
+  assert.equal(
+    run.stdout,
+    "pid 101: no Godot crash report after 0 ms\nknown_crash=no\n",
+    "the CLI reads the stale report as no report",
+  );
+});
+
 {
   const missingPid = spawnSync(
     process.execPath,
@@ -285,6 +436,9 @@ await withReportsDir(async (reportsDir) => {
     { encoding: "utf8" },
   );
   assert.equal(missingPid.status, 2, "no --pid is a usage error");
+}
+
+{
   const badPid = spawnSync(
     process.execPath,
     [scriptPath, "--reports", "r", "--runner-os", "macOS", "--godot-version", "4.5.0", "--pid", "abc"],
@@ -293,4 +447,15 @@ await withReportsDir(async (reportsDir) => {
   assert.equal(badPid.status, 2, "a pid that is not a number is a usage error");
 }
 
-console.log("All 19 tests passed.");
+await withReportsDir(async (reportsDir) => {
+  copyWithPid(MONO_BOOT, reportsDir, "Godot-1.ips", 11);
+  const repeated = ["--pid", "11", "--pid", "11", "--pid", "11"];
+  const run = spawnSync(
+    process.execPath,
+    [scriptPath, "--reports", reportsDir, "--runner-os", "macOS", "--godot-version", "4.5.0", ...repeated],
+    { encoding: "utf8" },
+  );
+  assert.equal(run.status, 2, `a pid given more than once is a usage error, not excused by one report: ${run.stdout}`);
+});
+
+console.log("All 30 tests passed.");

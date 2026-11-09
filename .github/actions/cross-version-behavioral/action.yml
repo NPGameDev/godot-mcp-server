@@ -303,7 +303,7 @@ runs:
     # On macOS with Godot 4.5.0 only, a job whose three attempts all died, each on the
     # engine crash fixed in 4.5.1 as its own crash report shows, passes with a warning and
     # sets `known_crash`, so the scene wait, smoke, flows and dispatch skip; a timeout or
-    # any other death still fails. macOS writes a report about 20 s after the death, often
+    # any other death still fails. macOS writes a report up to about 20 s after the death, often
     # after the last attempt ends, so the step waits up to 60 s more for them itself.
     - name: Launch headless editor + poll WS port (bounded retry)
       id: boot
@@ -347,6 +347,8 @@ runs:
         EDITOR_PID=""
         DEAD_PIDS=()
         TIMED_OUT=0
+        # Whole seconds, as macOS's `date` has no %N. The matcher skips a report written over 1 s before it.
+        BOOT_START_S="$(date +%s)"
         for attempt in 1 2 3; do
           "${editor_cmd[@]}" --headless --editor $LOGFILE_ARG --path "${{ inputs.project-path }}" > editor.log 2>&1 &
           EDITOR_PID=$!
@@ -415,6 +417,8 @@ runs:
         echo "EDITOR_WINPID=$EDITOR_WINPID" >> "$GITHUB_ENV"
         if [ "$BOOT_OK" != "1" ]; then
           # Any exit but 0 from the matcher, its own crash included, falls through to the failure.
+          # Three deaths leave no attempt to time out, so the TIMED_OUT test is a guard should both
+          # ever be set.
           if [ "${{ runner.os }}" = "macOS" ] && [ "${{ inputs.godot-version }}" = "4.5.0" ] \
             && [ "${#DEAD_PIDS[@]}" = "3" ] && [ "$TIMED_OUT" = "0" ]; then
             pid_args=()
@@ -423,6 +427,7 @@ runs:
               --reports "$HOME/Library/Logs/DiagnosticReports" \
               --runner-os "${{ runner.os }}" \
               --godot-version "${{ inputs.godot-version }}" \
+              --since "$((BOOT_START_S * 1000))" \
               "${pid_args[@]}"; then
               echo "::warning title=Known engine crash::all 3 boot attempts died on the Godot 4.5.0 macOS export poller crash (Pure virtual function called!, fixed in 4.5.1), each proven by its crash report; the scene wait, smoke, flows and dispatch are skipped"
               echo "known_crash=true" >> "$GITHUB_OUTPUT"
