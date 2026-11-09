@@ -1,0 +1,168 @@
+{"app_name":"Godot","app_version":"4.5","build_version":"4.5","bug_type":"309","name":"Godot"}
+{
+  "pid": 2199,
+  "procName": "Godot",
+  "bundleInfo": {
+    "CFBundleShortVersionString": "4.5",
+    "CFBundleVersion": "4.5"
+  },
+  "exception": {
+    "codes": "0x0000000000000000, 0x0000000000000000",
+    "rawCodes": [
+      0,
+      0
+    ],
+    "type": "EXC_CRASH",
+    "signal": "SIGABRT"
+  },
+  "termination": {
+    "flags": 0,
+    "code": 6,
+    "namespace": "SIGNAL",
+    "indicator": "Abort trap: 6",
+    "byProc": "Godot",
+    "byPid": 2199
+  },
+  "faultingThread": 1,
+  "threads": [
+    {
+      "queue": "com.apple.main-thread",
+      "frames": [
+        {
+          "imageIndex": 6,
+          "symbol": "__ulock_wait",
+          "symbolLocation": 8
+        },
+        {
+          "imageIndex": 7,
+          "symbol": "_pthread_join",
+          "symbolLocation": 616
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Thread::wait_to_finish()",
+          "symbolLocation": 92
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "EditorExportPlatformAppleEmbedded::~EditorExportPlatformAppleEmbedded()",
+          "symbolLocation": 60
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "godotsharp_internal_refcounted_disposed",
+          "symbolLocation": 240
+        },
+        {
+          "imageIndex": 8
+        },
+        {
+          "imageIndex": 8
+        },
+        {
+          "imageIndex": 8
+        },
+        {
+          "imageIndex": 8
+        },
+        {
+          "imageIndex": 8
+        },
+        {
+          "imageIndex": 8
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "CSharpLanguage::finalize()",
+          "symbolLocation": 100
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "ScriptServer::finish_languages()",
+          "symbolLocation": 212
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Main::cleanup(bool)",
+          "symbolLocation": 684
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "OS_MacOS_Headless::run()",
+          "symbolLocation": 516
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "main",
+          "symbolLocation": 816
+        },
+        {
+          "imageIndex": 9,
+          "symbol": "start",
+          "symbolLocation": 6992
+        }
+      ]
+    },
+    {
+      "triggered": true,
+      "frames": [
+        {
+          "imageIndex": 6,
+          "symbol": "__pthread_kill",
+          "symbolLocation": 8
+        },
+        {
+          "imageIndex": 7,
+          "symbol": "pthread_kill",
+          "symbolLocation": 296
+        },
+        {
+          "imageIndex": 11,
+          "symbol": "__abort",
+          "symbolLocation": 152
+        },
+        {
+          "imageIndex": 11,
+          "symbol": "abort",
+          "symbolLocation": 160
+        },
+        {
+          "imageIndex": 12,
+          "symbol": "__abort_message",
+          "symbolLocation": 132
+        },
+        {
+          "imageIndex": 12,
+          "symbol": "__cxa_pure_virtual",
+          "symbolLocation": 24
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "EditorExportPlatformAppleEmbedded::_check_for_changes_poll_thread(void*)",
+          "symbolLocation": 812
+        },
+        {
+          "imageIndex": 0,
+          "symbol": "Thread::thread_callback(void*)",
+          "symbolLocation": 80
+        },
+        {
+          "imageIndex": 7,
+          "symbol": "_pthread_start",
+          "symbolLocation": 136
+        },
+        {
+          "imageIndex": 7,
+          "symbol": "thread_start",
+          "symbolLocation": 8
+        }
+      ]
+    }
+  ],
+  "usedImages": [
+    {
+      "name": "Godot",
+      "CFBundleShortVersionString": "4.5"
+    }
+  ]
+}
