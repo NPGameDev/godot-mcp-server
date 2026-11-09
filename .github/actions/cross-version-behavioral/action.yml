@@ -300,7 +300,13 @@ runs:
     # fresh log. The RETRY WRAPS THE BOOT ONLY — smoke/flows are separate steps and
     # stay first-strike fatal. Self-terminates in <=180s (3 x 60s bounded), so it
     # still needs no shell timeout; the editor is reaped by the always() teardown.
+    # On macOS with Godot 4.5.0 only, a job whose three attempts all died, each on the
+    # engine crash fixed in 4.5.1 as its own crash report shows, passes with a warning and
+    # sets `known_crash`, so the scene wait, smoke, flows and dispatch skip; a timeout or
+    # any other death still fails. macOS writes a report about 20 s after the death, often
+    # after the last attempt ends, so the step waits up to 60 s more for them itself.
     - name: Launch headless editor + poll WS port (bounded retry)
+      id: boot
       shell: bash
       run: |
         # --log-file (Godot 4.3+ only — the flag does not exist on 4.2) enables editor-mode file
@@ -339,6 +345,8 @@ runs:
         fi
         BOOT_OK=0
         EDITOR_PID=""
+        DEAD_PIDS=()
+        TIMED_OUT=0
         for attempt in 1 2 3; do
           "${editor_cmd[@]}" --headless --editor $LOGFILE_ARG --path "${{ inputs.project-path }}" > editor.log 2>&1 &
           EDITOR_PID=$!
@@ -394,12 +402,33 @@ runs:
             done
           fi
           cp editor.log "$crash_report_dir/editor-attempt-$attempt.log" 2>/dev/null || true
+          # Only a death can be the known engine crash below; an attempt that timed out alive never is.
+          if [ "$REASON" = "editor process died during boot" ]; then
+            DEAD_PIDS+=("$EDITOR_PID")
+          else
+            TIMED_OUT=1
+          fi
           EDITOR_PID=""
           EDITOR_WINPID=""
         done
         echo "EDITOR_PID=$EDITOR_PID" >> "$GITHUB_ENV"
         echo "EDITOR_WINPID=$EDITOR_WINPID" >> "$GITHUB_ENV"
         if [ "$BOOT_OK" != "1" ]; then
+          # Any exit but 0 from the matcher, its own crash included, falls through to the failure.
+          if [ "${{ runner.os }}" = "macOS" ] && [ "${{ inputs.godot-version }}" = "4.5.0" ] \
+            && [ "${#DEAD_PIDS[@]}" = "3" ] && [ "$TIMED_OUT" = "0" ]; then
+            pid_args=()
+            for dead_pid in "${DEAD_PIDS[@]}"; do pid_args+=(--pid "$dead_pid"); done
+            if node "${{ inputs.server-dir }}/scripts/ci/known-engine-crash.mjs" \
+              --reports "$HOME/Library/Logs/DiagnosticReports" \
+              --runner-os "${{ runner.os }}" \
+              --godot-version "${{ inputs.godot-version }}" \
+              "${pid_args[@]}"; then
+              echo "::warning title=Known engine crash::all 3 boot attempts died on the Godot 4.5.0 macOS export poller crash (Pure virtual function called!, fixed in 4.5.1), each proven by its crash report; the scene wait, smoke, flows and dispatch are skipped"
+              echo "known_crash=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           echo "::error::editor failed to boot + serve WS port $POLL_PORT after 3 attempts"
           exit 1
         fi
@@ -438,6 +467,7 @@ runs:
     # Like a failed boot, a timeout fails the leg before the smoke; the always() steps
     # below still stop the editor and read its log.
     - name: Wait for an edited scene (bounded)
+      if: ${{ steps.boot.outputs.known_crash != 'true' }}
       shell: bash
       env:
         GODOT_MCP_PROJECT_PATH: ${{ inputs.project-path }}
@@ -475,6 +505,7 @@ runs:
     # §04/§13/§18 screenshots assert the HEADLESS_UNSUPPORTED guard. So the FULL smoke +
     # flows suites run headless with NO --skip.
     - name: Smoke (full suite, headless-deterministic)
+      if: ${{ steps.boot.outputs.known_crash != 'true' }}
       working-directory: ${{ inputs.server-dir }}
       shell: bash
       env:
@@ -487,6 +518,7 @@ runs:
       run: $TIMEOUT_BIN -k 30 900 npm run smoke
 
     - name: Flows (full suite, headless-deterministic)
+      if: ${{ steps.boot.outputs.known_crash != 'true' }}
       working-directory: ${{ inputs.server-dir }}
       shell: bash
       env:
@@ -511,7 +543,7 @@ runs:
     # $TIMEOUT_BIN fuse (proportionate to smoke 900 / flows 600) fails the STEP on a
     # hang, preserving the always() log steps below.
     - name: Dispatch integration (flagged rows only)
-      if: ${{ inputs.run-dispatch == 'true' }}
+      if: ${{ inputs.run-dispatch == 'true' && steps.boot.outputs.known_crash != 'true' }}
       working-directory: ${{ inputs.server-dir }}
       shell: bash
       run: |
