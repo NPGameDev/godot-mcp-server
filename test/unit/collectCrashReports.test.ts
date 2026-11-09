@@ -32,6 +32,8 @@ const noBacktrace = (core: string): string => {
 const noSleep = async (): Promise<void> => {
   throw new Error("no wait expected");
 };
+/** Env that points the CLI's cdb lookup at a folder without one, whatever this host has installed. */
+const noCdb = (root: string): NodeJS.ProcessEnv => ({ "ProgramFiles(x86)": root });
 
 await withDirs(async (reportsDir, outDir) => {
   writeFileSync(join(reportsDir, "Godot-2026-11-09-101500.ips"), "{}");
@@ -58,17 +60,33 @@ await withDirs(async (reportsDir, outDir) => {
   writeFileSync(join(reportsDir, "godot.4242.dmp"), "MDMP");
   writeFileSync(join(reportsDir, "Godot_v4.5-stable_mono_win64.exe.4243.dmp"), "MDMP");
   writeFileSync(join(reportsDir, "node.exe.4244.dmp"), "MDMP");
+  const read: string[] = [];
   const result = await collectCrashReports({
     os: "windows",
     outDir,
     reportsDir,
     logs: [],
     expectDeath: false,
-    backtrace: noBacktrace,
+    backtrace: (dump: string) => {
+      read.push(dump);
+      return "STACK_TEXT:\n";
+    },
     sleep: noSleep,
   });
   assert.equal(result.reports, 2, "Windows: both names of the editor's executable count");
   assert.equal(existsSync(join(outDir, "node.exe.4244.dmp")), false, "Windows: another process's dump stays out");
+  assert.deepEqual(
+    read.sort(),
+    [join(reportsDir, "Godot_v4.5-stable_mono_win64.exe.4243.dmp"), join(reportsDir, "godot.4242.dmp")],
+    "Windows: only the editor's dumps are read, where they lie",
+  );
+  assert.deepEqual(
+    readdirSync(outDir).sort(),
+    ["Godot_v4.5-stable_mono_win64.exe.4243.cdb.txt", "collected.txt", "godot.4242.cdb.txt"],
+    "Windows: the stack text enters the upload and no dump does",
+  );
+  assert.equal(readFileSync(join(outDir, "godot.4242.cdb.txt"), "utf8"), "STACK_TEXT:\n", "stack text kept");
+  assert.equal(existsSync(join(reportsDir, "godot.4242.dmp")), true, "Windows: the dump stays on the runner");
 });
 
 await withDirs(async (reportsDir, outDir) => {
@@ -145,6 +163,42 @@ await withDirs(async (reportsDir, outDir) => {
 });
 
 await withDirs(async (reportsDir, outDir) => {
+  writeFileSync(join(reportsDir, "Godot-early.ips"), "{}");
+  let elapsed = 0;
+  const result = await collectCrashReports({
+    os: "macos",
+    outDir,
+    reportsDir,
+    logs: [],
+    expectDeath: true,
+    backtrace: noBacktrace,
+    sleep: async (ms: number) => {
+      elapsed += ms;
+      if (elapsed === 18_000) writeFileSync(join(reportsDir, "Godot-slow.ips"), "{}");
+    },
+  });
+  assert.equal(result.reports, 2, "a report 18 s into the wait is gathered though an earlier one went quiet at once");
+  assert.equal(elapsed, 34_000, "the wait then ends 15 s after that arrival, on the 2 s poll");
+});
+
+await withDirs(async (reportsDir, outDir) => {
+  writeFileSync(join(reportsDir, "Godot-early.ips"), "{}");
+  let elapsed = 0;
+  await collectCrashReports({
+    os: "macos",
+    outDir,
+    reportsDir,
+    logs: [],
+    expectDeath: true,
+    backtrace: noBacktrace,
+    sleep: async (ms: number) => {
+      elapsed += ms;
+    },
+  });
+  assert.equal(elapsed, 24_000, "a report already there still holds the wait 24 s for a slower one");
+});
+
+await withDirs(async (reportsDir, outDir) => {
   let elapsed = 0;
   const result = await collectCrashReports({
     os: "windows",
@@ -208,11 +262,32 @@ await withDirs(async (reportsDir, outDir, root) => {
       "--editor-gone",
       "",
     ],
-    { encoding: "utf8", env: { ...process.env, GITHUB_OUTPUT: output } },
+    { encoding: "utf8", env: { ...process.env, GITHUB_OUTPUT: output, ...noCdb(root) } },
   );
   assert.equal(run.status, 0, `the CLI exits 0 with a report: ${run.stderr}`);
   assert.equal(readFileSync(output, "utf8"), "upload=true\n", "the CLI writes the upload decision to GITHUB_OUTPUT");
   assert.match(run.stdout, /::warning title=Crash report::1 editor crash report/, "a report raises an annotation");
+});
+
+await withDirs(async (reportsDir, outDir, root) => {
+  writeFileSync(join(reportsDir, "godot.9.dmp"), "MDMP");
+  const run = spawnSync(
+    process.execPath,
+    [scriptPath, "--os", "windows", "--out", outDir, "--reports", reportsDir, "--leg-status", "success"],
+    { encoding: "utf8", env: { ...process.env, GITHUB_OUTPUT: join(root, "github-output"), ...noCdb(root) } },
+  );
+  assert.equal(run.status, 0, `no cdb on the runner never fails a leg: ${run.stderr}`);
+  assert.match(run.stdout, /cdb is not at .*cdb\.exe/, "no cdb: the job log says so");
+  assert.deepEqual(
+    readdirSync(outDir).sort(),
+    ["collected.txt", "godot.9.cdb.txt"],
+    "no cdb: the text explains itself and the dump still stays out of the upload",
+  );
+  assert.match(
+    readFileSync(join(outDir, "godot.9.cdb.txt"), "utf8"),
+    /cdb is not at .*cdb\.exe/,
+    "no cdb: the artifact says so",
+  );
 });
 
 await withDirs(async (reportsDir, outDir, root) => {
@@ -233,4 +308,4 @@ await withDirs(async (reportsDir, outDir, root) => {
   assert.equal(run.status, 2, "an unknown OS is a usage error");
 }
 
-console.log("All 11 tests passed.");
+console.log("All 14 tests passed.");

@@ -1,9 +1,9 @@
 // scripts/ci/collect-crash-reports.mjs
 // Gather one cross-version job's crash evidence into the folder the composite uploads. An
 // artifact on a public repo can be downloaded by any GitHub account and the editor process
-// holds the WS auth token, so only text and minimal reports go in: the editor logs, the
-// Godot `.ips` reports on macOS, the Godot minidumps on Windows, and on Linux the text of
-// `gdb -batch -ex bt` run here on the runner. A core file is the process's memory and is
+// holds the WS auth token, so only text goes in: the editor logs, the Godot `.ips` reports on
+// macOS, and the stack text a debugger prints here on the runner, `cdb` over a Windows minidump
+// and `gdb -batch -ex bt` over a Linux core. A dump or a core holds the process's memory and is
 // never copied. docs/dev/crash-reports.md explains how to read what this gathers.
 //
 // The OS reporter writes on its own schedule, so when an editor is expected to have died
@@ -37,23 +37,32 @@ import { fileURLToPath } from "node:url";
 const REPORT_NAME = {
   macos: /^godot.*\.ips$/i,
   // LocalDumps is machine-wide and names a dump after its executable; a dump of any other
-  // process (node holds the token in the dispatch leg) stays on the runner.
+  // process is not the editor's crash, so it is not read.
   windows: /^godot.*\.dmp$/i,
 };
 const CORE_NAME = /^core\./;
 const FAILED_BOOT_LOG = /^editor-attempt-/;
 
 // A minimal dump is stacks and modules. One far past this is not minimal, whatever the
-// registry was asked for, so it stays on the runner.
+// registry was asked for, so it is neither copied nor read, and the step's fuse is not spent on it.
 const MAX_REPORT_BYTES = 64 * 1024 * 1024;
 
 const POLL_MS = 2_000;
 // The reports of a boot's three attempts arrive one by one: stop once none has come for this long.
 const SETTLE_MS = 15_000;
+// Every death comes before this step, so a report still on its way lands within the reporter's
+// latency of the wait's start, however early another one came. The slowest seen on a hosted macOS
+// runner took 18.5 s, past SETTLE_MS, so an earlier report going quiet cannot end the wait before this.
+const REPORTER_LATENCY_MS = 24_000;
 const MAX_WAIT_MS = 60_000;
 
-const GDB_TIMEOUT_MS = 120_000;
+// One debugger run. A run past it keeps the text it printed; the dumps read before it keep theirs.
+const DEBUGGER_TIMEOUT_MS = 120_000;
+const DEBUGGER_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const APT_TIMEOUT_MS = 240_000;
+
+// The crash analysis and every thread's stack. Neither asks for the environment block the dump holds.
+const CDB_COMMANDS = "!analyze -v; ~* k; q";
 
 /**
  * Whether the leg's state says an editor may have died, which is worth waiting for a report.
@@ -74,7 +83,7 @@ export function expectsEditorDeath(legStatus, editorGone) {
  * @param options.reportsDir - where this OS's reporter writes.
  * @param options.logs - logs to copy; one the job never wrote is noted and skipped.
  * @param options.expectDeath - wait for a macOS or Windows report to arrive.
- * @param options.backtrace - returns a Linux core's backtrace as text.
+ * @param options.backtrace - returns a Linux core's or a Windows dump's stacks as text.
  * @param options.sleep - waits the given ms, or a test's stand-in.
  * @returns how many reports were gathered, whether to upload, and the notes.
  */
@@ -88,10 +97,16 @@ export async function collectCrashReports({ os, outDir, reportsDir, logs, expect
     }
     copyFileSync(log, join(outDir, basename(log)));
   }
-  const reports =
-    os === "linux"
-      ? writeBacktraces(reportsDir, outDir, backtrace, notes)
-      : await copyReports(REPORT_NAME[os], reportsDir, outDir, expectDeath, sleep, notes);
+  let reports;
+  if (os === "linux") {
+    reports = writeBacktraces(reportsDir, outDir, backtrace, notes);
+  } else {
+    const names = await awaitReports(REPORT_NAME[os], reportsDir, expectDeath, sleep, notes);
+    reports =
+      os === "windows"
+        ? writeDumpStacks(names, reportsDir, outDir, backtrace, notes)
+        : copyReports(names, reportsDir, outDir);
+  }
   const failedBoots = readdirSync(outDir).filter((name) => FAILED_BOOT_LOG.test(name)).length;
   notes.push(`reports gathered: ${reports}; failed boot attempts logged: ${failedBoots}`);
   writeFileSync(join(outDir, "collected.txt"), `${notes.join("\n")}\n`);
@@ -111,33 +126,42 @@ function writeBacktraces(coreDir, outDir, backtrace, notes) {
   return cores.length;
 }
 
-async function copyReports(pattern, reportsDir, outDir, expectDeath, sleep, notes) {
+// Each text is written as its dump is read, so a fuse kill keeps the ones already done.
+function writeDumpStacks(names, reportsDir, outDir, backtrace, notes) {
+  for (const name of names) {
+    writeFileSync(join(outDir, `${name.replace(/\.dmp$/i, "")}.cdb.txt`), backtrace(join(reportsDir, name)));
+  }
+  notes.push(`${reportsDir}: ${names.length} dump(s) passed to cdb on the runner and not uploaded`);
+  return names.length;
+}
+
+function copyReports(names, reportsDir, outDir) {
+  for (const name of names) copyFileSync(join(reportsDir, name), join(outDir, name));
+  return names.length;
+}
+
+async function awaitReports(pattern, reportsDir, expectDeath, sleep, notes) {
   const list = () => listDir(reportsDir).filter((name) => pattern.test(name));
   let names = list();
   let waitedMs = 0;
   let quietMs = 0;
-  while (expectDeath && waitedMs < MAX_WAIT_MS && !(names.length > 0 && quietMs >= SETTLE_MS)) {
+  const settled = () => names.length > 0 && quietMs >= SETTLE_MS && waitedMs >= REPORTER_LATENCY_MS;
+  while (expectDeath && waitedMs < MAX_WAIT_MS && !settled()) {
     await sleep(POLL_MS);
     waitedMs += POLL_MS;
     const current = list();
     quietMs = current.length === names.length ? quietMs + POLL_MS : 0;
     names = current;
   }
-  let copied = 0;
-  for (const name of names) {
-    const path = join(reportsDir, name);
-    const bytes = statSync(path).size;
-    if (bytes > MAX_REPORT_BYTES) {
-      notes.push(`${name}: left on the runner, ${bytes} bytes is not a minimal report`);
-      continue;
-    }
-    copyFileSync(path, join(outDir, name));
-    copied++;
-  }
   notes.push(
     `${reportsDir}: ${names.length} report(s) after waiting ${waitedMs} ms; all files there: ${listDir(reportsDir).length}`,
   );
-  return copied;
+  return names.filter((name) => {
+    const bytes = statSync(join(reportsDir, name)).size;
+    if (bytes <= MAX_REPORT_BYTES) return true;
+    notes.push(`${name}: left on the runner, ${bytes} bytes is not a minimal report`);
+    return false;
+  });
 }
 
 // The apt fetch is spent only on a leg that has a core to read.
@@ -153,8 +177,36 @@ function ensureGdb() {
 
 function gdbBacktrace(editorBin, core) {
   const args = ["-batch", "-ex", "bt", ...(editorBin ? [editorBin] : []), "-c", core];
-  const run = spawnSync("gdb", args, { encoding: "utf8", timeout: GDB_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 });
+  const run = spawnSync("gdb", args, {
+    encoding: "utf8",
+    timeout: DEBUGGER_TIMEOUT_MS,
+    maxBuffer: DEBUGGER_MAX_OUTPUT_BYTES,
+  });
   if (run.error) return `gdb did not finish: ${run.error}\n${run.stdout ?? ""}`;
+  return `${run.stdout}${run.stderr}`;
+}
+
+// Where the hosted Windows runner has the SDK's Debugging Tools.
+function cdbPath() {
+  const programFiles = process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)";
+  return join(programFiles, "Windows Kits", "10", "Debuggers", "x64", "cdb.exe");
+}
+
+function cdbStacks(dump) {
+  const cdb = cdbPath();
+  if (!existsSync(cdb)) {
+    const note = `cdb is not at ${cdb}: ${basename(dump)} was not read and stays on the runner`;
+    console.log(note);
+    return `${note}\n`;
+  }
+  const run = spawnSync(cdb, ["-z", dump, "-lines", "-c", CDB_COMMANDS], {
+    encoding: "utf8",
+    // All its commands come from -c; an open stdin could only hold it until the timeout.
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: DEBUGGER_TIMEOUT_MS,
+    maxBuffer: DEBUGGER_MAX_OUTPUT_BYTES,
+  });
+  if (run.error) return `cdb did not finish: ${run.error}\n${run.stdout ?? ""}`;
   return `${run.stdout}${run.stderr}`;
 }
 
@@ -199,7 +251,7 @@ async function main(argv) {
     reportsDir: args.reportsDir,
     logs: args.logs,
     expectDeath: expectsEditorDeath(args.legStatus, args.editorGone),
-    backtrace,
+    backtrace: args.os === "windows" ? cdbStacks : backtrace,
   });
   for (const note of notes) console.log(note);
   if (reports > 0) {
