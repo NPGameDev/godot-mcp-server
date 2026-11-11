@@ -266,8 +266,9 @@ runs:
     #
     # The build and the self-check each run under scripts/ci/run-bounded.sh with their output in a
     # file: the launcher hands its stdout to its child, so a pipe read here could be held open by a
-    # process the child left behind, long after a bound ended the launcher. A command that passes
-    # its bound ends with a process snapshot in the log, and the leg goes on without the launcher.
+    # process the child left behind, long after the launcher itself has ended. A command that runs
+    # past its bound ends with a process snapshot in the log, or a line saying it did not finish,
+    # and the leg goes on without the launcher.
     - name: Compile the editor launcher (windows)
       if: ${{ inputs.os == 'windows' }}
       continue-on-error: true

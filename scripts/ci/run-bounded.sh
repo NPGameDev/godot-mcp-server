@@ -2,12 +2,14 @@
 # Sourced by a Git Bash step on Windows. `run_bounded` runs one command under a time bound that
 # still holds when the command leaves a process behind. The output goes to a file, never to a pipe
 # the step reads: a process that outlives the command and still holds such a pipe keeps the step
-# waiting long after the bound has ended the command. On expiry the whole native process tree
-# goes, not only the process bash started, and a process snapshot printed first names what hung.
+# waiting after the command has ended, on its own or at its bound. On expiry the whole native
+# process tree goes, not only the process bash started, and a process snapshot printed first names
+# what hung.
 #
 # Usage: run_bounded <seconds> <output file> <command> [args...]
-# Prints a timestamped line naming the command before it starts and one with its exit code after,
-# then the output file. Returns the command's exit code, or 124 when it passed its bound.
+# Prints a timestamped line naming the command before it starts and one with its exit code after
+# (on expiry, a line saying it ran past its bound), then the output file if it is not empty.
+# Returns the command's exit code, or 124 when it ran past its bound.
 # docs/dev/crash-reports.md says how to read the snapshot.
 
 RUN_BOUNDED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,15 +29,20 @@ run_bounded() {
     if [ $((SECONDS - started)) -ge "$bound" ]; then
       # Read again: an exec inside the command can move its MSYS pid to a new native process.
       read -r winpid 2>/dev/null <"/proc/$pid/winpid"
-      printf '[%(%H:%M:%S)T] run-bounded: %s passed its %s s bound; process snapshot (native pid %s):\n' \
+      printf '[%(%H:%M:%S)T] run-bounded: %s ran past its %s s bound; process snapshot (native pid %s):\n' \
         -1 "$1" "$bound" "${winpid:-unknown}"
-      # Bounded too: the snapshot must not become the next hang.
-      "${TIMEOUT_BIN:-timeout}" 15 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
-        -File "$(cygpath -w "$RUN_BOUNDED_DIR/process-snapshot.ps1")" -Root "${winpid:-0}" -Since "$started_s" \
+      # With no native pid the snapshot still lists the orphans; it only has no tree to walk.
+      local root_arg=()
+      [ -z "$winpid" ] || root_arg=(-Root "$winpid")
+      # Bounded too: the snapshot must not become the next hang. A bare `timeout` can resolve to
+      # System32's timeout.exe, a different command.
+      "${TIMEOUT_BIN:-/usr/bin/timeout}" 15 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$(cygpath -w "$RUN_BOUNDED_DIR/process-snapshot.ps1")" "${root_arg[@]}" -Since "$started_s" \
         </dev/null || echo "run-bounded: the snapshot did not finish"
       # The tree kill goes first: a POSIX kill that ended the top process would leave taskkill no
-      # tree to walk.
-      if [ -n "$winpid" ]; then
+      # tree to walk. The `kill -0` keeps a pid Windows may have reused since the command exited
+      # out of taskkill.
+      if [ -n "$winpid" ] && kill -0 "$pid" 2>/dev/null; then
         taskkill //F //T //PID "$winpid" 2>&1 || true
       fi
       kill "$pid" 2>/dev/null || true
