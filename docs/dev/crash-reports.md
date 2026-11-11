@@ -113,7 +113,9 @@ illegal instruction, `0xC0000409` fail-fast, `0xC0000374` heap corruption.
 
 A leg with no launcher, because it did not compile or run, says so in an `Editor launcher` warning on the run. Its editor
 starts directly, so a crash there leaves no dump and no `child_exit=` line. The same goes for the 4.2 class-cache
-warm-up's editor, which never goes through the launcher.
+warm-up's editor, which never goes through the launcher. When the build or the self-check passed its 120 s bound, the
+step log holds a `run-bounded:` process snapshot above the warning: the command's process tree and any process started
+since it began whose parent had already exited, each row with its pid, parent, creation time and command line.
 
 ## Linux: backtrace text
 
