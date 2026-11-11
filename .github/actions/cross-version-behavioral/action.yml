@@ -263,6 +263,12 @@ runs:
     # launcher has compiled and run a child. Otherwise the editor starts as plain `godot`: a leg
     # then loses its dump and its raw exit code, never its result. The 4.2 warm-up starts its
     # editor on its own and does not go through the launcher.
+    #
+    # The build and the self-check each run under scripts/ci/run-bounded.sh with their output in a
+    # file: the launcher hands its stdout to its child, so a pipe read here could be held open by a
+    # process the child left behind, long after the launcher itself has ended. A command that runs
+    # past its bound ends with a process snapshot in the log, or a line saying it did not finish,
+    # and the leg goes on without the launcher.
     - name: Compile the editor launcher (windows)
       if: ${{ inputs.os == 'windows' }}
       continue-on-error: true
@@ -281,13 +287,17 @@ runs:
         launcher_dir="$(cygpath -u "$RUNNER_TEMP")/editor-launcher"
         mkdir -p "$launcher_dir"
         launcher="$launcher_dir/editor-launcher.exe"
+        . "${{ inputs.server-dir }}/scripts/ci/run-bounded.sh"
         # gcc finds its own tools through PATH.
-        PATH="$(dirname "$gcc_bin"):$PATH" "$TIMEOUT_BIN" 120 "$gcc_bin" -o "$launcher" "${{ inputs.server-dir }}/scripts/ci/editor-launcher.c" \
+        PATH="$(dirname "$gcc_bin"):$PATH" run_bounded 120 "$launcher_dir/compile.log" \
+          "$gcc_bin" -o "$launcher" "${{ inputs.server-dir }}/scripts/ci/editor-launcher.c" \
           || no_launcher "the launcher did not compile with $gcc_bin"
-        self_check="$("$TIMEOUT_BIN" 120 "$launcher" "$(cygpath -w /usr/bin/true.exe)")"
-        case "$self_check" in
-          *child_exit=0x00000000*) ;;
-          *) no_launcher "the launcher did not run a child (it printed: ${self_check:-nothing})" ;;
+        run_bounded 120 "$launcher_dir/self-check.log" "$launcher" "$(cygpath -w /usr/bin/true.exe)"
+        self_check_rc=$?
+        self_check="$(<"$launcher_dir/self-check.log")"
+        case "$self_check_rc $self_check" in
+          "0 "*child_exit=0x00000000*) ;;
+          *) no_launcher "the launcher did not run a child (exit $self_check_rc; it printed: ${self_check:-nothing})" ;;
         esac
         echo "EDITOR_LAUNCHER=$launcher" >> "$GITHUB_ENV"
         echo "editor launcher ready: $launcher (compiled with $gcc_bin)"
