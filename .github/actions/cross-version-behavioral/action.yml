@@ -126,22 +126,20 @@ runs:
         mkdir -p /tmp/cores
         sudo sysctl -w kernel.core_pattern=/tmp/cores/core.%e.%p.%s
 
-    - name: Setup Godot (Godot ${{ inputs.godot-version }})
-      # pinned to v2.4.1 — update tag manually after reviewing changelogs
-      uses: chickensoft-games/setup-godot@v2.4.1
+    - name: Setup Godot (Godot ${{ inputs.godot-version }})      uses: chickensoft-games/setup-godot@f166999204a4f2722c6fe042fbaa3b3ea0d9c789 # v2.4.1
       with:
         version: "${{ inputs.godot-version }}"
         use-dotnet: ${{ inputs.language == 'dotnet' }}
 
     - name: Setup .NET SDKs (8 + 6 ref packs for both TFMs)
       if: ${{ inputs.language == 'dotnet' }}
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
       with:
         dotnet-version: |
           8.0.x
           6.0.x
 
-    - uses: actions/setup-node@v6
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
       with:
         node-version: 22.x
         cache: npm
@@ -719,7 +717,7 @@ runs:
     - name: Upload crash reports (always)
       if: ${{ always() && steps.crash-reports.outputs.upload != 'false' }}
       continue-on-error: true
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: crash-report-${{ inputs.os }}-${{ inputs.godot-version }}-${{ inputs.language }}-attempt-${{ github.run_attempt }}
         path: ${{ runner.temp }}/crash-report

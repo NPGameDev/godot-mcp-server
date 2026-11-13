@@ -59,10 +59,10 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           # Node 24: its npm (>= 11.5.1) is the minimum OIDC trusted publishing needs.
           node-version: 24.x
@@ -111,7 +111,7 @@ jobs:
       # the sibling-checkout idiom cross-version.yml uses. Only on a real tag push.
       - name: Check out the pinned toolkit sibling
         if: github.ref_type == 'tag'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: NPGameDev/godot-mcp-toolkit
           path: toolkit-pin
@@ -196,7 +196,7 @@ jobs:
 
       - name: Create GitHub Release
         if: ${{ github.ref_type == 'tag' && inputs['dry-run'] != true }}
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           generate_release_notes: true
 

@@ -17,8 +17,8 @@ jobs:
   audit-latest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24.x
           cache: npm
@@ -34,7 +34,7 @@ jobs:
           cat audit.txt
       - name: Open or update the drift tracking issue
         if: steps.audit.outputs.audit_code != '0'
-        uses: dblock/create-a-github-issue@v3
+        uses: dblock/create-a-github-issue@0cb38e1276e2fdd33ca2fee5dda87b1e3d1401c9 # v3.5.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

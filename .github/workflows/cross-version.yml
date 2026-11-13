@@ -155,7 +155,7 @@ jobs:
     outputs:
       code: ${{ steps.classify.outputs.code }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
       - id: classify
@@ -208,9 +208,9 @@ jobs:
     # ".NET/mono" where they describe the editor build.
     name: "Full smoke+flows (mono editor · Godot ${{ matrix.godot-version }} / ${{ matrix.tfm }})"
     steps:
-      - uses: actions/checkout@v7 # server (self) = harness + C# fixture + composite
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 - server (self) = harness + C# fixture + composite
 
-      - uses: actions/checkout@v7 # toolkit = addon source (injected into fixture)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 - toolkit = addon source (injected into fixture)
         with:
           repository: NPGameDev/godot-mcp-toolkit
           path: toolkit
@@ -262,9 +262,9 @@ jobs:
         godot-version: ["4.2.0", "4.2.2", "4.3.0", "4.4.0", "4.5.0", "4.6.0", "4.7.0"]
     name: "Full smoke+flows (GDScript editor · Godot ${{ matrix.godot-version }})"
     steps:
-      - uses: actions/checkout@v7 # server (self) = smoke + flows harness + composite
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 - server (self) = smoke + flows harness + composite
 
-      - uses: actions/checkout@v7 # toolkit = the editor/dogfood project under test
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 - toolkit = the editor/dogfood project under test
         with:
           repository: NPGameDev/godot-mcp-toolkit
           path: toolkit
@@ -409,9 +409,9 @@ jobs:
         include: ${{ fromJSON(needs.platform-setup.outputs.matrix) }}
     name: "Full smoke+flows (${{ matrix.os_label }} ${{ matrix.version }} · ${{ matrix.editor_label }})"
     steps:
-      - uses: actions/checkout@v7 # server (self) = harness + C# fixture + composite
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 - server (self) = harness + C# fixture + composite
 
-      - uses: actions/checkout@v7 # toolkit = addon source / dogfood project
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 - toolkit = addon source / dogfood project
         with:
           repository: NPGameDev/godot-mcp-toolkit
           path: toolkit
@@ -441,8 +441,8 @@ jobs:
     runs-on: macos-latest
     name: "Install-smoke (macOS · global install + --tools-count)"
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22.x
           cache: npm
@@ -461,8 +461,8 @@ jobs:
     runs-on: windows-latest
     name: "Install-smoke (Windows · global install + --tools-count)"
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22.x
           cache: npm
@@ -493,8 +493,8 @@ jobs:
     # 15 minutes has hung, most likely in a test file.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22.x
           cache: npm
@@ -511,8 +511,8 @@ jobs:
     name: "Unit tests (macOS)"
     timeout-minutes: 15 # fuse, as windows-unit
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22.x
           cache: npm
