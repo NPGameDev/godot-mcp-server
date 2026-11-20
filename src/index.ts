@@ -18,7 +18,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { capKb, createBridge } from "./transport/bridge.js";
 import { isReadOnly } from "./security/profiles.js";
-import { toolRefCount } from "./registration/toolRefs.js";
+import { hasToolRef, toolRefCount } from "./registration/toolRefs.js";
 import { createHookPipeline } from "./startup/hooks.js";
 import { getServerVersion } from "./shared/version.js";
 import { registerPrompts } from "./mcp/prompts.js";
@@ -37,6 +37,7 @@ import { createExtensionManager } from "./extensions/extensions.js";
 import { createReconciler } from "./startup/reconcile.js";
 import { createLspStatusReporter } from "./lsp/lspStatusReporter.js";
 import { createStdioTransport, installProcessHandlers } from "./startup/lifecycle.js";
+import { holdCallsDuringDiscovery } from "./startup/discoveryGate.js";
 
 // ── Preflight (may exit) ─────────────────────────────────────────────
 startupEnv.enforceNodeVersion();
@@ -183,3 +184,11 @@ installProcessHandlers(bridge);
 
 const transport = createStdioTransport();
 await server.connect(transport);
+
+// A deadline-missed discovery is still in flight here, so a client's first call
+// can name an extension tool that registers a moment later. Hold such a call
+// until the pass settles rather than answer it "not found".
+holdCallsDuringDiscovery(transport, {
+  isRegistered: hasToolRef,
+  discoveryInFlight: extensions.discoveryInFlight,
+});

@@ -855,7 +855,10 @@ annotations, applies the read-only skip, and routes each command to
 registration sites, so a clash can't abort the batch — the MCP SDK's `registerTool` **throws**
 on a duplicate (defence-in-depth under the [ADR 0009](#16-key-decisions) full-trust model).
 Discovery is **single-flight** (a concurrent caller joins the in-flight pass) and the eager
-boot pass is deadline-wrapped. **Live reconcile**: the
+boot pass is deadline-wrapped. A transport that connects while a deadline-missed pass is still
+running holds a `tools/call` for a name not yet registered until that pass settles
+(`startup/discoveryGate.ts`), so a client's first call to an extension tool isn't answered
+"not found". **Live reconcile**: the
 toolkit's `extensions.changed` broadcast → `extensionChanges.handleExtensionsChanged`
 applies the whole delta (removes, adds, in-place updates, read-only transitions) inside
 **one batch** → one `tools/list_changed`. `extensions_refresh` is the always-on meta-tool
