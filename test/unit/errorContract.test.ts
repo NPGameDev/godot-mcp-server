@@ -41,6 +41,23 @@ import type { Bridge } from "../../src/shared/types.js";
   assert.equal(payload.code, "CUSTOM_CODE");
 }
 
+// Extra keys are forwarded, but can never overwrite the canonical fields.
+{
+  const result = toolError("NOT_FOUND", "Node not found", undefined, {
+    success: true,
+    error: "spoofed",
+    code: "OK",
+    hint: "spoofed",
+    node_path: "/root/Main",
+  });
+  assert.deepEqual(JSON.parse(result.content[0].text), {
+    success: false,
+    error: "Node not found",
+    code: "NOT_FOUND",
+    node_path: "/root/Main",
+  });
+}
+
 // ── toolErrorFromPayload ─────────────────────────────────────────────
 
 // success: false → error response
@@ -79,6 +96,42 @@ import type { Bridge } from "../../src/shared/types.js";
   const payload = JSON.parse(result!.content[0].text);
   assert.equal(payload.code, "LOG_BUSY");
   assert.equal(payload.hint, undefined);
+}
+
+// Extra keys on a failure payload reach the client intact (#79) — e.g. script.read's
+// FILE_TOO_LARGE `total_bytes`, or an input-event failure's `events_processed` / `results`.
+{
+  const result = toolErrorFromPayload({
+    success: false,
+    error: "file exceeds 256 KB response cap",
+    code: "FILE_TOO_LARGE",
+    hint: "re-call script_read with start_line / end_line",
+    total_bytes: 332014,
+    events_processed: 2,
+    results: [{ ok: true }, { ok: false }],
+  });
+  assert.ok(result != null);
+  assert.deepEqual(JSON.parse(result!.content[0].text), {
+    success: false,
+    error: "file exceeds 256 KB response cap",
+    code: "FILE_TOO_LARGE",
+    hint: "re-call script_read with start_line / end_line",
+    total_bytes: 332014,
+    events_processed: 2,
+    results: [{ ok: true }, { ok: false }],
+  });
+}
+
+// Non-string canonical fields are still normalized, never forwarded as extras.
+{
+  const result = toolErrorFromPayload({ success: false, code: 7, error: { nested: true }, hint: 3, detail: "x" });
+  assert.ok(result != null);
+  assert.deepEqual(JSON.parse(result!.content[0].text), {
+    success: false,
+    error: "unknown error",
+    code: "INTERNAL",
+    detail: "x",
+  });
 }
 
 // success: true → undefined (pass-through)

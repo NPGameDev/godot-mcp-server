@@ -475,7 +475,8 @@ flowchart TD
 *Figure 7 — the response & error contract (REFLECT) · verified 85a49a9*
 
 **The error path.** A toolkit `{ success: false }` payload becomes a `toolErrorFromPayload`
-result that preserves `code` + `message` + the toolkit's `hint`; a thrown `BridgeError`
+result that preserves `code` + `message` + the toolkit's `hint`, and forwards every other key
+the toolkit set on the failure (such as `total_bytes`) beside them; a thrown `BridgeError`
 becomes `toolErrorFromException` + a static `EXCEPTION_HINTS` entry (the
 transport-code → recovery-hint map, in `shared/errorContract.ts`). A non-empty toolkit hint
 is **never overwritten** — the server's `successHint` injects only when the toolkit set
