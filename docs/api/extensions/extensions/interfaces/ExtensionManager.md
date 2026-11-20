@@ -16,7 +16,7 @@ The extension subsystem facade — see module header for the owned lifecycle.
 
 > **discoverEagerly**(`deadlineMs?`): `Promise`\<\{ `timedOut`: `boolean`; \}\>
 
-Defined in: [src/extensions/extensions.ts:30](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/extensions/extensions.ts#L30)
+Defined in: [src/extensions/extensions.ts:32](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/extensions/extensions.ts#L32)
 
 Eager boot discovery wrapped in the discovery deadline; resolves {timedOut}.
 
@@ -46,11 +46,25 @@ Discover + register extensions (single-flight: a concurrent caller joins the in-
 
 ***
 
+### discoveryInFlight()
+
+> **discoveryInFlight**(): `Promise`\<`void`\> \| `undefined`
+
+Defined in: [src/extensions/extensions.ts:30](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/extensions/extensions.ts#L30)
+
+The running discovery pass, or undefined when none is in flight.
+
+#### Returns
+
+`Promise`\<`void`\> \| `undefined`
+
+***
+
 ### handleExtensionsChanged()
 
 > **handleExtensionsChanged**(`params?`): `void`
 
-Defined in: [src/extensions/extensions.ts:32](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/extensions/extensions.ts#L32)
+Defined in: [src/extensions/extensions.ts:34](https://github.com/NPGameDev/godot-mcp-server/blob/main/src/extensions/extensions.ts#L34)
 
 Reconcile the tool list from an extensions.changed push (add/remove/readonly-transition).
 

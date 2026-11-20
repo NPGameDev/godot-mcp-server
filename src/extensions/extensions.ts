@@ -26,6 +26,8 @@ export interface ExtensionManager {
   registerRefreshTool(): void;
   /** Discover + register extensions (single-flight: a concurrent caller joins the in-flight pass). */
   discoverExtensions(): Promise<void>;
+  /** The running discovery pass, or undefined when none is in flight. */
+  discoveryInFlight(): Promise<void> | undefined;
   /** Eager boot discovery wrapped in the discovery deadline; resolves {timedOut}. */
   discoverEagerly(deadlineMs?: number): Promise<{ timedOut: boolean }>;
   /** Reconcile the tool list from an extensions.changed push (add/remove/readonly-transition). */
@@ -67,6 +69,7 @@ export function createExtensionManager(deps: {
     registerRefreshTool: registrar.registerRefreshTool,
     discoverExtensions: discovery.discoverExtensions,
     discoverEagerly: discovery.discoverEagerly,
+    discoveryInFlight: discovery.inFlight,
     handleExtensionsChanged: changes.handleExtensionsChanged,
   };
 }

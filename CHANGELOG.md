@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A tool call that names an extension tool while extension discovery is still running now waits
+  for discovery to finish, then runs. Before, when discovery missed its 8 second startup
+  deadline, the client connected with only the built-in tools, and a call made straight away
+  (a scripted client's first call, say) failed `Tool … not found` though the tool registered a
+  few seconds later. A held call waits at most 10 seconds
+  ([#81](https://github.com/NPGameDev/godot-mcp-server/issues/81)).
+
 ## [1.1.2] - 2026-10-29
 
 ### Fixed

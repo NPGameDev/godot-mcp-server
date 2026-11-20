@@ -31,6 +31,8 @@ const EXTENSION_DISCOVERY_DEADLINE_MS = 8000;
 export interface ExtensionDiscovery {
   /** Discover + register extensions (single-flight: a concurrent caller joins the in-flight pass). */
   discoverExtensions(): Promise<void>;
+  /** The running discovery pass, or undefined when none is in flight. */
+  inFlight(): Promise<void> | undefined;
   /** Eager boot discovery wrapped in the discovery deadline; resolves {timedOut}. */
   discoverEagerly(deadlineMs?: number): Promise<{ timedOut: boolean }>;
 }
@@ -184,5 +186,5 @@ export function createExtensionDiscovery(deps: {
     );
   }
 
-  return { discoverExtensions, discoverEagerly };
+  return { discoverExtensions, discoverEagerly, inFlight: () => discoveryInFlight };
 }
