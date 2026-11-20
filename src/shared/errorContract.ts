@@ -16,11 +16,19 @@ import type { Bridge, ErrorCode, ToolTextResult } from "./types.js";
  * transport-level failures surface as BridgeError and are translated
  * here. String `code` is accepted (in addition to the ErrorCode union)
  * because bridge errors (RPC_ERROR etc.) aren't statically typed at
- * every call site.
+ * every call site. `extra` carries any further fields the toolkit set
+ * on the failure; the canonical `success` / `error` / `code` / `hint`
+ * always win over a same-named extra.
  */
-export function toolError(code: ErrorCode | string, message: string, hint?: string): ToolTextResult {
-  const payload: Record<string, unknown> = { success: false, error: message, code };
+export function toolError(
+  code: ErrorCode | string,
+  message: string,
+  hint?: string,
+  extra: Record<string, unknown> = {},
+): ToolTextResult {
+  const payload: Record<string, unknown> = { ...extra, success: false, error: message, code };
   if (hint) payload.hint = hint;
+  else delete payload.hint;
   return {
     content: [{ type: "text", text: JSON.stringify(payload) }],
     isError: true,
@@ -29,18 +37,22 @@ export function toolError(code: ErrorCode | string, message: string, hint?: stri
 
 /**
  * If the plugin returned {success: false, ...} inside the JSON-RPC
- * result, translate it to an MCP isError response. Non-error successes
- * (including idempotent create returns) have success absent or
- * truthy and pass through unchanged.
+ * result, translate it to an MCP isError response. Every other key the
+ * toolkit set on the failure (e.g. `total_bytes`, `events_processed`) is
+ * forwarded alongside the canonical fields, as the success path forwards
+ * its result. Non-error successes (including idempotent create returns)
+ * have success absent or truthy and pass through unchanged.
  */
 export function toolErrorFromPayload(result: unknown): ToolTextResult | undefined {
   if (!result || typeof result !== "object") return undefined;
-  const obj = result as { success?: unknown; code?: unknown; error?: unknown; hint?: unknown };
-  if (obj.success !== false) return undefined;
-  const code = typeof obj.code === "string" ? obj.code : "INTERNAL";
-  const error = typeof obj.error === "string" ? obj.error : "unknown error";
-  const hint = typeof obj.hint === "string" ? obj.hint : undefined;
-  return toolError(code, error, hint);
+  const { success, code, error, hint, ...extra } = result as Record<string, unknown>;
+  if (success !== false) return undefined;
+  return toolError(
+    typeof code === "string" ? code : "INTERNAL",
+    typeof error === "string" ? error : "unknown error",
+    typeof hint === "string" ? hint : undefined,
+    extra,
+  );
 }
 
 /**

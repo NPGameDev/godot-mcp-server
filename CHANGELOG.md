@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A failed tool call now reaches the client with every field the toolkit set on the failure,
+  not only `error`, `code` and `hint`. For example, `script_read`'s `FILE_TOO_LARGE` keeps
+  `total_bytes`, and a failed `input_simulate` keeps `events_processed` and `results`
+  ([#79](https://github.com/NPGameDev/godot-mcp-server/issues/79)).
+
 ## [1.1.2] - 2026-10-29
 
 ### Fixed
